@@ -1,0 +1,35 @@
+<DupinServer>
+
+  <!-- General configuration -->
+  <General>
+    <Background>false</Background>
+
+    <!-- Log file, User and group -->
+    <LogFile>/tmp/controller.txt</LogFile>
+    <LogVerbose>info</LogVerbose>
+    <PidFile>/tmp/pid.txt</PidFile>
+
+    <User>baku</User>
+    <Group>baku</Group>
+  </General>
+
+  <Network active="true">
+    <!--Interface>localhost</Interface-->
+    <Port>8088</Port>
+    <Listen>5</Listen>
+    <Timeout>5</Timeout>
+    <Ipv6>false</Ipv6>
+  </Network>
+
+  <Limits>
+    <MaxHeaders>20</MaxHeaders>
+    <MaxClients>100</MaxClients>
+    <ClientsForThread>10</ClientsForThread>
+    <ThreadNumb>5</ThreadNumb>
+    <Timeout>5</Timeout>
+    <TimeoutForThread>5</TimeoutForThread>
+    <CacheSize>20</CacheSize>
+    <CacheMaxFile>1024</CacheMaxFile>
+  </Limits>
+
+</DupinServer>

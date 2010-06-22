@@ -1,0 +1,45 @@
+<?xml version="1.0"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <title>Dupin Server</title>
+
+  <link rel="icon" href="logo.png" type="image/ico" />
+  <link rel="SHORTCUT ICON" href="logo.png" />
+  <link rel="stylesheet" type="text/css" href="base.css" />
+
+  <meta name="author" content="Andrea Marchesini" />
+
+  <meta name="description" content="Dupin Server is a web server for metadata streams" />
+  <meta content="text/html; charset=utf-8" http-equiv="content-type" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+
+  <script type="text/javascript" src="./dupin.js"></script>
+</head>
+
+<body onload="dupin_init();">
+  <div class="global">
+    <div class="top">
+      <h1>Dupin Server</h1>
+      <h2>A web server for metadata streams</h2>
+      <img src="logo.png" alt="logo" />
+    </div>
+
+    <div id="menu">
+      <div id="databases"></div>
+      <a href="#" onclick="dupin_database_create();"><img src="add.png" title="Create a new database" /></a>
+    </div>
+
+    <div id="content">
+      <h3 id="contentTitle"></h3>
+      <div id="contentBody"></div>
+    </div>
+
+    <div id="footer">
+    </div>
+
+  </div>
+</body>
+</html>
+

@@ -1,6 +1,5 @@
 #!/bin/bash
 
-# http://playerstage.sourceforge.net/wiki/Basic_FAQ#I_have_a_syntax_error_involving_PKG_CHECK_MODULES._What.27s_the_fix.3F
 if [ `uname` == "Darwin" ]; then
   if [ ! -e /usr/share/aclocal/pkg.m4 ]; then
     echo ""
@@ -13,9 +12,14 @@ if [ `uname` == "Darwin" ]; then
     echo ""
     echo "  sudo ln -s /sw/share/aclocal/pkg.m4 /usr/share/aclocal/pkg.m4"
     echo ""
-    echo "Otherwise, if you using Darwin Ports try the following command:"
+    echo "If you using Darwin Ports try the following command:"
     echo ""
     echo "  sudo ln -s /opt/local/share/aclocal/pkg.m4 /usr/share/aclocal/pkg.m4"
+    echo ""
+    echo "If you using Homebrew try the following command:"
+    echo ""
+    echo " sudo -n -s /usr/local/share/aclocal/pkg.m4 /usr/share/aclocal/pkg.m4"
+    echo " (you might need to run the above command also for other libraries such as gtk-doc)"
     echo ""
     exit 1;
   fi

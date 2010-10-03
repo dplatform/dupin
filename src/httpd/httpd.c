@@ -1370,7 +1370,7 @@ httpd_client_send (DSHttpdClient * client, DSHttpStatusCode code)
 	break;
       }
 
-  g_string_append_printf (str, "Date: %s", buf);
+  g_string_append_printf (str, "Date: %s\r\n", buf);
 
   /* Body length: */
   g_string_append_printf (str, "Content-Length: %" G_GSIZE_FORMAT "\r\n",

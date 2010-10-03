@@ -1,0 +1,3 @@
+
+- check listening port if already taken (E.g. controller running on same port nothing happen)
+- fix map/reduce or remove it completely ?

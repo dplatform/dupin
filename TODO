@@ -1,3 +1,6 @@
 
 - check listening port if already taken (E.g. controller running on same port nothing happen)
 - fix map/reduce or remove it completely ?
+- problem with Unicode JSON - see this example returning 400
+	cat test-data/unicode-problem.json | curl -D - -d @- -H POST http://localhost:8088/freebase/testID1234567890
+

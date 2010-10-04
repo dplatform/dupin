@@ -166,7 +166,8 @@ else
   LDFLAGS="$LDFLAGS -framework GLib"
 fi
 
-CFLAGS="$CFLAGS -Wall"
+#CFLAGS="$CFLAGS -Wall"
+CFLAGS="-g $CFLAGS -Wall"
 
 AC_OUTPUT([
 Makefile

@@ -104,6 +104,8 @@ map_find (DSGlobal * data, gchar * filename, time_t mtime)
       map->mtime = st.st_mtime;
       map->map = mf;
 
+      gboolean uncertain;
+
 #ifndef MIMEGUESS_STRICT
       if (g_str_has_suffix (filename, ".html") == TRUE
 	  || g_str_has_suffix (filename, ".htm") == TRUE)
@@ -112,13 +114,23 @@ map_find (DSGlobal * data, gchar * filename, time_t mtime)
       else if (g_str_has_suffix (filename, ".css") == TRUE)
 	map->mime = g_strdup ("text/css");
 
-      else if (!(map->mime = g_content_type_guess (filename, NULL, 0, NULL)))
-	map->mime = g_strdup (HTTP_MIME_TEXTHTML);
+      else if (g_str_has_suffix (filename, ".png") == TRUE)
+	map->mime = g_strdup ("image/png");
 
+      else if (g_str_has_suffix (filename, ".js") == TRUE)
+	map->mime = g_strdup ("application/javascript");
+
+      else if (!(map->mime = g_content_type_guess (filename, NULL, 0, &uncertain)))
+	map->mime = g_strdup (HTTP_MIME_TEXTHTML);
 #else
-      if (!(map->mime = g_content_type_guess (filename, NULL, 0, NULL)))
+      if (!(map->mime = g_content_type_guess (filename, NULL, 0, &uncertain)))
 	map->mime = g_strdup (HTTP_MIME_TEXTHTML);
 #endif
+
+      if( uncertain == TRUE )
+	{
+	  map->mime = g_strdup (HTTP_MIME_TEXTHTML);
+	}
 
       g_hash_table_insert (data->map_table, g_strdup (filename), map);
     }

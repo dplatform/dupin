@@ -11,6 +11,7 @@ typedef enum {
   LOG_VERBOSE_ERROR,
   LOG_VERBOSE_WARNING,
   LOG_VERBOSE_INFO,
+  LOG_VERBOSE_DEBUG
 } LogVerbose;
 
 typedef struct ds_global_t DSGlobal;

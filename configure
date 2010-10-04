@@ -812,6 +812,9 @@ target_cpu
 target_vendor
 target_os
 SET_MAKE
+PKG_CONFIG
+HOMEBREW
+HAVEPORTS
 INSTALL_PROGRAM
 INSTALL_SCRIPT
 INSTALL_DATA
@@ -871,7 +874,8 @@ LIPO
 OTOOL
 OTOOL64
 CPP
-PKG_CONFIG
+PKG_CONFIG_PATH
+PKG_CONFIG_LIBDIR
 webkit_CFLAGS
 webkit_LIBS
 sqlite_CFLAGS
@@ -893,6 +897,8 @@ LIBS
 CPPFLAGS
 CPP
 PKG_CONFIG
+PKG_CONFIG_PATH
+PKG_CONFIG_LIBDIR
 webkit_CFLAGS
 webkit_LIBS
 sqlite_CFLAGS
@@ -1512,6 +1518,10 @@ Some influential environment variables:
               you have headers in a nonstandard directory <include dir>
   CPP         C preprocessor
   PKG_CONFIG  path to pkg-config utility
+  PKG_CONFIG_PATH
+              directories to add to pkg-config's search path
+  PKG_CONFIG_LIBDIR
+              path overriding pkg-config's built-in search path
   webkit_CFLAGS
               C compiler flags for webkit, overriding pkg-config
   webkit_LIBS linker flags for webkit, overriding pkg-config
@@ -2135,6 +2145,163 @@ echo "${ECHO_T}no" >&6; }
   SET_MAKE="MAKE=${MAKE-make}"
 fi
 
+
+# Extract the first word of "pkg-config", so it can be a program name with args.
+set dummy pkg-config; ac_word=$2
+{ echo "$as_me:$LINENO: checking for $ac_word" >&5
+echo $ECHO_N "checking for $ac_word... $ECHO_C" >&6; }
+if test "${ac_cv_path_PKG_CONFIG+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  case $PKG_CONFIG in
+  [\\/]* | ?:[\\/]*)
+  ac_cv_path_PKG_CONFIG="$PKG_CONFIG" # Let the user override the test with a path.
+  ;;
+  *)
+  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+for as_dir in $PATH
+do
+  IFS=$as_save_IFS
+  test -z "$as_dir" && as_dir=.
+  for ac_exec_ext in '' $ac_executable_extensions; do
+  if { test -f "$as_dir/$ac_word$ac_exec_ext" && $as_test_x "$as_dir/$ac_word$ac_exec_ext"; }; then
+    ac_cv_path_PKG_CONFIG="$as_dir/$ac_word$ac_exec_ext"
+    echo "$as_me:$LINENO: found $as_dir/$ac_word$ac_exec_ext" >&5
+    break 2
+  fi
+done
+done
+IFS=$as_save_IFS
+
+  ;;
+esac
+fi
+PKG_CONFIG=$ac_cv_path_PKG_CONFIG
+if test -n "$PKG_CONFIG"; then
+  { echo "$as_me:$LINENO: result: $PKG_CONFIG" >&5
+echo "${ECHO_T}$PKG_CONFIG" >&6; }
+else
+  { echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6; }
+fi
+
+
+# Extract the first word of "brew", so it can be a program name with args.
+set dummy brew; ac_word=$2
+{ echo "$as_me:$LINENO: checking for $ac_word" >&5
+echo $ECHO_N "checking for $ac_word... $ECHO_C" >&6; }
+if test "${ac_cv_path_HOMEBREW+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  case $HOMEBREW in
+  [\\/]* | ?:[\\/]*)
+  ac_cv_path_HOMEBREW="$HOMEBREW" # Let the user override the test with a path.
+  ;;
+  *)
+  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+for as_dir in $PATH
+do
+  IFS=$as_save_IFS
+  test -z "$as_dir" && as_dir=.
+  for ac_exec_ext in '' $ac_executable_extensions; do
+  if { test -f "$as_dir/$ac_word$ac_exec_ext" && $as_test_x "$as_dir/$ac_word$ac_exec_ext"; }; then
+    ac_cv_path_HOMEBREW="$as_dir/$ac_word$ac_exec_ext"
+    echo "$as_me:$LINENO: found $as_dir/$ac_word$ac_exec_ext" >&5
+    break 2
+  fi
+done
+done
+IFS=$as_save_IFS
+
+  ;;
+esac
+fi
+HOMEBREW=$ac_cv_path_HOMEBREW
+if test -n "$HOMEBREW"; then
+  { echo "$as_me:$LINENO: result: $HOMEBREW" >&5
+echo "${ECHO_T}$HOMEBREW" >&6; }
+else
+  { echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6; }
+fi
+
+
+# Extract the first word of "port", so it can be a program name with args.
+set dummy port; ac_word=$2
+{ echo "$as_me:$LINENO: checking for $ac_word" >&5
+echo $ECHO_N "checking for $ac_word... $ECHO_C" >&6; }
+if test "${ac_cv_path_HAVEPORTS+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  case $HAVEPORTS in
+  [\\/]* | ?:[\\/]*)
+  ac_cv_path_HAVEPORTS="$HAVEPORTS" # Let the user override the test with a path.
+  ;;
+  *)
+  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+for as_dir in $PATH
+do
+  IFS=$as_save_IFS
+  test -z "$as_dir" && as_dir=.
+  for ac_exec_ext in '' $ac_executable_extensions; do
+  if { test -f "$as_dir/$ac_word$ac_exec_ext" && $as_test_x "$as_dir/$ac_word$ac_exec_ext"; }; then
+    ac_cv_path_HAVEPORTS="$as_dir/$ac_word$ac_exec_ext"
+    echo "$as_me:$LINENO: found $as_dir/$ac_word$ac_exec_ext" >&5
+    break 2
+  fi
+done
+done
+IFS=$as_save_IFS
+
+  ;;
+esac
+fi
+HAVEPORTS=$ac_cv_path_HAVEPORTS
+if test -n "$HAVEPORTS"; then
+  { echo "$as_me:$LINENO: result: $HAVEPORTS" >&5
+echo "${ECHO_T}$HAVEPORTS" >&6; }
+else
+  { echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6; }
+fi
+
+
+
+# host checking - inspired by the Webkit/GTK+ configure.in
+# TODO: move these to dupin.m4?
+{ echo "$as_me:$LINENO: checking for native Win32" >&5
+echo $ECHO_N "checking for native Win32... $ECHO_C" >&6; }
+case "$host" in
+     *-*-mingw*)
+       os_win32=yes
+       ;;
+     *)
+       os_win32=no
+       ;;
+esac
+{ echo "$as_me:$LINENO: result: $os_win32" >&5
+echo "${ECHO_T}$os_win32" >&6; }
+
+case "$host" in
+     *-*-linux*)
+       os_linux=yes
+       ;;
+     *-*-freebsd*)
+       os_freebsd=yes
+       ;;
+     *-*-darwin*)
+       os_darwin=yes
+       ;;
+esac
+
+case "$host_os" in
+     gnu* | linux* | k*bsd*-gnu)
+       os_gnu=yes
+       ;;
+     *)
+       os_gnu=no
+       ;;
+esac
 
 { echo "$as_me:$LINENO: checking whether build environment is sane" >&5
 echo $ECHO_N "checking whether build environment is sane... $ECHO_C" >&6; }
@@ -4445,13 +4612,13 @@ if test "${lt_cv_nm_interface+set}" = set; then
 else
   lt_cv_nm_interface="BSD nm"
   echo "int some_variable = 0;" > conftest.$ac_ext
-  (eval echo "\"\$as_me:4448: $ac_compile\"" >&5)
+  (eval echo "\"\$as_me:4615: $ac_compile\"" >&5)
   (eval "$ac_compile" 2>conftest.err)
   cat conftest.err >&5
-  (eval echo "\"\$as_me:4451: $NM \\\"conftest.$ac_objext\\\"\"" >&5)
+  (eval echo "\"\$as_me:4618: $NM \\\"conftest.$ac_objext\\\"\"" >&5)
   (eval "$NM \"conftest.$ac_objext\"" 2>conftest.err > conftest.out)
   cat conftest.err >&5
-  (eval echo "\"\$as_me:4454: output\"" >&5)
+  (eval echo "\"\$as_me:4621: output\"" >&5)
   cat conftest.out >&5
   if $GREP 'External.*some_variable' conftest.out > /dev/null; then
     lt_cv_nm_interface="MS dumpbin"
@@ -5550,7 +5717,7 @@ ia64-*-hpux*)
   ;;
 *-*-irix6*)
   # Find out which ABI we are using.
-  echo '#line 5553 "configure"' > conftest.$ac_ext
+  echo '#line 5720 "configure"' > conftest.$ac_ext
   if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
   (eval $ac_compile) 2>&5
   ac_status=$?
@@ -7397,11 +7564,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:7400: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:7567: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:7404: \$? = $ac_status" >&5
+   echo "$as_me:7571: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -7721,11 +7888,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:7724: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:7891: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:7728: \$? = $ac_status" >&5
+   echo "$as_me:7895: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -7826,11 +7993,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:7829: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:7996: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:7833: \$? = $ac_status" >&5
+   echo "$as_me:8000: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -7881,11 +8048,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:7884: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8051: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:7888: \$? = $ac_status" >&5
+   echo "$as_me:8055: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -10629,7 +10796,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 10632 "configure"
+#line 10799 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -10729,7 +10896,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 10732 "configure"
+#line 10899 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -12605,10 +12772,21 @@ fi
 
 
 
-if  test "`echo $target_os | grep darwin`" != "" && which port &> /dev/null  ||
-    test "`echo $target_os | grep darwin`" = ""  ; then
+if	test -n "$HOMEBREW" || \
+	test -n "$HAVEPORTS" ] || \
+	test "$os_darwin" != "yes" ; then
 
-  # WebKit
+  if test -n "$PKG_CONFIG"; then
+
+	# 1. yes we have pkg-config, yes we needed it for Webkit and Glib (we do not check all deps here yet...) but we could
+	#    not still have everything in it, so we have checkings to do :(
+	# 2. we expanded the macro below because PKG_CHECK_MODULES seems not working as written on the thin for darwin...
+
+	# WebKit
+
+
+
+
 
 
 if test "x$ac_cv_env_PKG_CONFIG_set" != "xset"; then
@@ -12727,7 +12905,6 @@ echo "${ECHO_T}yes" >&6; }
 echo "${ECHO_T}no" >&6; }
 		PKG_CONFIG=""
 	fi
-
 fi
 
 pkg_failed=no
@@ -12738,18 +12915,12 @@ if test -n "$webkit_CFLAGS"; then
     pkg_cv_webkit_CFLAGS="$webkit_CFLAGS"
  elif test -n "$PKG_CONFIG"; then
     if test -n "$PKG_CONFIG" && \
-    { (echo "$as_me:$LINENO: \$PKG_CONFIG --exists --print-errors \"
-    webkit-1.0 >= 1.0.0
-  \"") >&5
-  ($PKG_CONFIG --exists --print-errors "
-    webkit-1.0 >= 1.0.0
-  ") 2>&5
+    { (echo "$as_me:$LINENO: \$PKG_CONFIG --exists --print-errors \" webkit-1.0 >= 1.0.0 \"") >&5
+  ($PKG_CONFIG --exists --print-errors " webkit-1.0 >= 1.0.0 ") 2>&5
   ac_status=$?
   echo "$as_me:$LINENO: \$? = $ac_status" >&5
   (exit $ac_status); }; then
-  pkg_cv_webkit_CFLAGS=`$PKG_CONFIG --cflags "
-    webkit-1.0 >= 1.0.0
-  " 2>/dev/null`
+  pkg_cv_webkit_CFLAGS=`$PKG_CONFIG --cflags " webkit-1.0 >= 1.0.0 " 2>/dev/null`
 else
   pkg_failed=yes
 fi
@@ -12760,18 +12931,12 @@ if test -n "$webkit_LIBS"; then
     pkg_cv_webkit_LIBS="$webkit_LIBS"
  elif test -n "$PKG_CONFIG"; then
     if test -n "$PKG_CONFIG" && \
-    { (echo "$as_me:$LINENO: \$PKG_CONFIG --exists --print-errors \"
-    webkit-1.0 >= 1.0.0
-  \"") >&5
-  ($PKG_CONFIG --exists --print-errors "
-    webkit-1.0 >= 1.0.0
-  ") 2>&5
+    { (echo "$as_me:$LINENO: \$PKG_CONFIG --exists --print-errors \" webkit-1.0 >= 1.0.0 \"") >&5
+  ($PKG_CONFIG --exists --print-errors " webkit-1.0 >= 1.0.0 ") 2>&5
   ac_status=$?
   echo "$as_me:$LINENO: \$? = $ac_status" >&5
   (exit $ac_status); }; then
-  pkg_cv_webkit_LIBS=`$PKG_CONFIG --libs "
-    webkit-1.0 >= 1.0.0
-  " 2>/dev/null`
+  pkg_cv_webkit_LIBS=`$PKG_CONFIG --libs " webkit-1.0 >= 1.0.0 " 2>/dev/null`
 else
   pkg_failed=yes
 fi
@@ -12782,6 +12947,8 @@ fi
 
 
 if test $pkg_failed = yes; then
+   	{ echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6; }
 
 if $PKG_CONFIG --atleast-pkgconfig-version 0.20; then
         _pkg_short_errors_supported=yes
@@ -12789,78 +12956,39 @@ else
         _pkg_short_errors_supported=no
 fi
         if test $_pkg_short_errors_supported = yes; then
-	        webkit_PKG_ERRORS=`$PKG_CONFIG --short-errors --print-errors "
-    webkit-1.0 >= 1.0.0
-  " 2>&1`
+	        webkit_PKG_ERRORS=`$PKG_CONFIG --short-errors --print-errors " webkit-1.0 >= 1.0.0 " 2>&1`
         else
-	        webkit_PKG_ERRORS=`$PKG_CONFIG --print-errors "
-    webkit-1.0 >= 1.0.0
-  " 2>&1`
+	        webkit_PKG_ERRORS=`$PKG_CONFIG --print-errors " webkit-1.0 >= 1.0.0 " 2>&1`
         fi
 	# Put the nasty error message in config.log where it belongs
 	echo "$webkit_PKG_ERRORS" >&5
 
-	{ { echo "$as_me:$LINENO: error: Package requirements (
-    webkit-1.0 >= 1.0.0
-  ) were not met:
 
-$webkit_PKG_ERRORS
-
-Consider adjusting the PKG_CONFIG_PATH environment variable if you
-installed software in a non-standard prefix.
-
-Alternatively, you may set the environment variables webkit_CFLAGS
-and webkit_LIBS to avoid the need to call pkg-config.
-See the pkg-config man page for more details.
-" >&5
-echo "$as_me: error: Package requirements (
-    webkit-1.0 >= 1.0.0
-  ) were not met:
-
-$webkit_PKG_ERRORS
-
-Consider adjusting the PKG_CONFIG_PATH environment variable if you
-installed software in a non-standard prefix.
-
-Alternatively, you may set the environment variables webkit_CFLAGS
-and webkit_LIBS to avoid the need to call pkg-config.
-See the pkg-config man page for more details.
-" >&2;}
+			{ { echo "$as_me:$LINENO: error: WebkitGtk 1.x library is required to build Dupin" >&5
+echo "$as_me: error: WebkitGtk 1.x library is required to build Dupin" >&2;}
    { (exit 1); exit 1; }; }
+
+
 elif test $pkg_failed = untried; then
-	{ { echo "$as_me:$LINENO: error: The pkg-config script could not be found or is too old.  Make sure it
-is in your PATH or set the PKG_CONFIG environment variable to the full
-path to pkg-config.
+     	{ echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6; }
 
-Alternatively, you may set the environment variables webkit_CFLAGS
-and webkit_LIBS to avoid the need to call pkg-config.
-See the pkg-config man page for more details.
-
-To get pkg-config, see <http://pkg-config.freedesktop.org/>.
-See \`config.log' for more details." >&5
-echo "$as_me: error: The pkg-config script could not be found or is too old.  Make sure it
-is in your PATH or set the PKG_CONFIG environment variable to the full
-path to pkg-config.
-
-Alternatively, you may set the environment variables webkit_CFLAGS
-and webkit_LIBS to avoid the need to call pkg-config.
-See the pkg-config man page for more details.
-
-To get pkg-config, see <http://pkg-config.freedesktop.org/>.
-See \`config.log' for more details." >&2;}
+			{ { echo "$as_me:$LINENO: error: WebkitGtk 1.x library is required to build Dupin" >&5
+echo "$as_me: error: WebkitGtk 1.x library is required to build Dupin" >&2;}
    { (exit 1); exit 1; }; }
+
+
 else
 	webkit_CFLAGS=$pkg_cv_webkit_CFLAGS
 	webkit_LIBS=$pkg_cv_webkit_LIBS
         { echo "$as_me:$LINENO: result: yes" >&5
 echo "${ECHO_T}yes" >&6; }
-	:
+		webkit_LIBS=`$PKG_CONFIG --libs "webkit-1.0" 2>/dev/null`
+			webkit_CFLAGS=`$PKG_CONFIG --cflags "webkit-1.0" 2>/dev/null`
+
 fi
 
-  LDFLAGS="$LDFLAGS $webkit_LIBS"
-  CFLAGS="$CFLAGS $webkit_CFLAGS"
-
-  # SQLite
+	# SQLite
 
 pkg_failed=no
 { echo "$as_me:$LINENO: checking for sqlite" >&5
@@ -12870,18 +12998,12 @@ if test -n "$sqlite_CFLAGS"; then
     pkg_cv_sqlite_CFLAGS="$sqlite_CFLAGS"
  elif test -n "$PKG_CONFIG"; then
     if test -n "$PKG_CONFIG" && \
-    { (echo "$as_me:$LINENO: \$PKG_CONFIG --exists --print-errors \"
-    sqlite3 >= 3.4.0
-  \"") >&5
-  ($PKG_CONFIG --exists --print-errors "
-    sqlite3 >= 3.4.0
-  ") 2>&5
+    { (echo "$as_me:$LINENO: \$PKG_CONFIG --exists --print-errors \" sqlite3 >= 3.4.0 \"") >&5
+  ($PKG_CONFIG --exists --print-errors " sqlite3 >= 3.4.0 ") 2>&5
   ac_status=$?
   echo "$as_me:$LINENO: \$? = $ac_status" >&5
   (exit $ac_status); }; then
-  pkg_cv_sqlite_CFLAGS=`$PKG_CONFIG --cflags "
-    sqlite3 >= 3.4.0
-  " 2>/dev/null`
+  pkg_cv_sqlite_CFLAGS=`$PKG_CONFIG --cflags " sqlite3 >= 3.4.0 " 2>/dev/null`
 else
   pkg_failed=yes
 fi
@@ -12892,18 +13014,12 @@ if test -n "$sqlite_LIBS"; then
     pkg_cv_sqlite_LIBS="$sqlite_LIBS"
  elif test -n "$PKG_CONFIG"; then
     if test -n "$PKG_CONFIG" && \
-    { (echo "$as_me:$LINENO: \$PKG_CONFIG --exists --print-errors \"
-    sqlite3 >= 3.4.0
-  \"") >&5
-  ($PKG_CONFIG --exists --print-errors "
-    sqlite3 >= 3.4.0
-  ") 2>&5
+    { (echo "$as_me:$LINENO: \$PKG_CONFIG --exists --print-errors \" sqlite3 >= 3.4.0 \"") >&5
+  ($PKG_CONFIG --exists --print-errors " sqlite3 >= 3.4.0 ") 2>&5
   ac_status=$?
   echo "$as_me:$LINENO: \$? = $ac_status" >&5
   (exit $ac_status); }; then
-  pkg_cv_sqlite_LIBS=`$PKG_CONFIG --libs "
-    sqlite3 >= 3.4.0
-  " 2>/dev/null`
+  pkg_cv_sqlite_LIBS=`$PKG_CONFIG --libs " sqlite3 >= 3.4.0 " 2>/dev/null`
 else
   pkg_failed=yes
 fi
@@ -12914,6 +13030,8 @@ fi
 
 
 if test $pkg_failed = yes; then
+   	{ echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6; }
 
 if $PKG_CONFIG --atleast-pkgconfig-version 0.20; then
         _pkg_short_errors_supported=yes
@@ -12921,78 +13039,449 @@ else
         _pkg_short_errors_supported=no
 fi
         if test $_pkg_short_errors_supported = yes; then
-	        sqlite_PKG_ERRORS=`$PKG_CONFIG --short-errors --print-errors "
-    sqlite3 >= 3.4.0
-  " 2>&1`
+	        sqlite_PKG_ERRORS=`$PKG_CONFIG --short-errors --print-errors " sqlite3 >= 3.4.0 " 2>&1`
         else
-	        sqlite_PKG_ERRORS=`$PKG_CONFIG --print-errors "
-    sqlite3 >= 3.4.0
-  " 2>&1`
+	        sqlite_PKG_ERRORS=`$PKG_CONFIG --print-errors " sqlite3 >= 3.4.0 " 2>&1`
         fi
 	# Put the nasty error message in config.log where it belongs
 	echo "$sqlite_PKG_ERRORS" >&5
 
-	{ { echo "$as_me:$LINENO: error: Package requirements (
-    sqlite3 >= 3.4.0
-  ) were not met:
+		if test "${ac_cv_header_sqlite3_h+set}" = set; then
+  { echo "$as_me:$LINENO: checking for sqlite3.h" >&5
+echo $ECHO_N "checking for sqlite3.h... $ECHO_C" >&6; }
+if test "${ac_cv_header_sqlite3_h+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+fi
+{ echo "$as_me:$LINENO: result: $ac_cv_header_sqlite3_h" >&5
+echo "${ECHO_T}$ac_cv_header_sqlite3_h" >&6; }
+else
+  # Is the header compilable?
+{ echo "$as_me:$LINENO: checking sqlite3.h usability" >&5
+echo $ECHO_N "checking sqlite3.h usability... $ECHO_C" >&6; }
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+$ac_includes_default
+#include <sqlite3.h>
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_header_compiler=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
 
-$sqlite_PKG_ERRORS
+	ac_header_compiler=no
+fi
 
-Consider adjusting the PKG_CONFIG_PATH environment variable if you
-installed software in a non-standard prefix.
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+{ echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+echo "${ECHO_T}$ac_header_compiler" >&6; }
 
-Alternatively, you may set the environment variables sqlite_CFLAGS
-and sqlite_LIBS to avoid the need to call pkg-config.
-See the pkg-config man page for more details.
-" >&5
-echo "$as_me: error: Package requirements (
-    sqlite3 >= 3.4.0
-  ) were not met:
+# Is the header present?
+{ echo "$as_me:$LINENO: checking sqlite3.h presence" >&5
+echo $ECHO_N "checking sqlite3.h presence... $ECHO_C" >&6; }
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+#include <sqlite3.h>
+_ACEOF
+if { (ac_try="$ac_cpp conftest.$ac_ext"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_cpp conftest.$ac_ext") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } >/dev/null && {
+	 test -z "$ac_c_preproc_warn_flag$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       }; then
+  ac_header_preproc=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
 
-$sqlite_PKG_ERRORS
+  ac_header_preproc=no
+fi
 
-Consider adjusting the PKG_CONFIG_PATH environment variable if you
-installed software in a non-standard prefix.
+rm -f conftest.err conftest.$ac_ext
+{ echo "$as_me:$LINENO: result: $ac_header_preproc" >&5
+echo "${ECHO_T}$ac_header_preproc" >&6; }
 
-Alternatively, you may set the environment variables sqlite_CFLAGS
-and sqlite_LIBS to avoid the need to call pkg-config.
-See the pkg-config man page for more details.
-" >&2;}
+# So?  What about this header?
+case $ac_header_compiler:$ac_header_preproc:$ac_c_preproc_warn_flag in
+  yes:no: )
+    { echo "$as_me:$LINENO: WARNING: sqlite3.h: accepted by the compiler, rejected by the preprocessor!" >&5
+echo "$as_me: WARNING: sqlite3.h: accepted by the compiler, rejected by the preprocessor!" >&2;}
+    { echo "$as_me:$LINENO: WARNING: sqlite3.h: proceeding with the compiler's result" >&5
+echo "$as_me: WARNING: sqlite3.h: proceeding with the compiler's result" >&2;}
+    ac_header_preproc=yes
+    ;;
+  no:yes:* )
+    { echo "$as_me:$LINENO: WARNING: sqlite3.h: present but cannot be compiled" >&5
+echo "$as_me: WARNING: sqlite3.h: present but cannot be compiled" >&2;}
+    { echo "$as_me:$LINENO: WARNING: sqlite3.h:     check for missing prerequisite headers?" >&5
+echo "$as_me: WARNING: sqlite3.h:     check for missing prerequisite headers?" >&2;}
+    { echo "$as_me:$LINENO: WARNING: sqlite3.h: see the Autoconf documentation" >&5
+echo "$as_me: WARNING: sqlite3.h: see the Autoconf documentation" >&2;}
+    { echo "$as_me:$LINENO: WARNING: sqlite3.h:     section \"Present But Cannot Be Compiled\"" >&5
+echo "$as_me: WARNING: sqlite3.h:     section \"Present But Cannot Be Compiled\"" >&2;}
+    { echo "$as_me:$LINENO: WARNING: sqlite3.h: proceeding with the preprocessor's result" >&5
+echo "$as_me: WARNING: sqlite3.h: proceeding with the preprocessor's result" >&2;}
+    { echo "$as_me:$LINENO: WARNING: sqlite3.h: in the future, the compiler will take precedence" >&5
+echo "$as_me: WARNING: sqlite3.h: in the future, the compiler will take precedence" >&2;}
+
+    ;;
+esac
+{ echo "$as_me:$LINENO: checking for sqlite3.h" >&5
+echo $ECHO_N "checking for sqlite3.h... $ECHO_C" >&6; }
+if test "${ac_cv_header_sqlite3_h+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  ac_cv_header_sqlite3_h=$ac_header_preproc
+fi
+{ echo "$as_me:$LINENO: result: $ac_cv_header_sqlite3_h" >&5
+echo "${ECHO_T}$ac_cv_header_sqlite3_h" >&6; }
+
+fi
+if test $ac_cv_header_sqlite3_h = yes; then
+  :
+else
+  { { echo "$as_me:$LINENO: error: SQLite3 is required to build Dupin" >&5
+echo "$as_me: error: SQLite3 is required to build Dupin" >&2;}
    { (exit 1); exit 1; }; }
+fi
+
+
+
+{ echo "$as_me:$LINENO: checking for sqlite3_exec in -lsqlite3" >&5
+echo $ECHO_N "checking for sqlite3_exec in -lsqlite3... $ECHO_C" >&6; }
+if test "${ac_cv_lib_sqlite3_sqlite3_exec+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-lsqlite3  $LIBS"
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char sqlite3_exec ();
+int
+main ()
+{
+return sqlite3_exec ();
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext conftest$ac_exeext
+if { (ac_try="$ac_link"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_link") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest$ac_exeext &&
+       $as_test_x conftest$ac_exeext; then
+  ac_cv_lib_sqlite3_sqlite3_exec=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_lib_sqlite3_sqlite3_exec=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+      conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
+fi
+{ echo "$as_me:$LINENO: result: $ac_cv_lib_sqlite3_sqlite3_exec" >&5
+echo "${ECHO_T}$ac_cv_lib_sqlite3_sqlite3_exec" >&6; }
+if test $ac_cv_lib_sqlite3_sqlite3_exec = yes; then
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_LIBSQLITE3 1
+_ACEOF
+
+  LIBS="-lsqlite3 $LIBS"
+
+else
+  { { echo "$as_me:$LINENO: error: SQLite3 is required to build Dupin" >&5
+echo "$as_me: error: SQLite3 is required to build Dupin" >&2;}
+   { (exit 1); exit 1; }; }
+fi
+
+
+
 elif test $pkg_failed = untried; then
-	{ { echo "$as_me:$LINENO: error: The pkg-config script could not be found or is too old.  Make sure it
-is in your PATH or set the PKG_CONFIG environment variable to the full
-path to pkg-config.
+     	{ echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6; }
+		if test "${ac_cv_header_sqlite3_h+set}" = set; then
+  { echo "$as_me:$LINENO: checking for sqlite3.h" >&5
+echo $ECHO_N "checking for sqlite3.h... $ECHO_C" >&6; }
+if test "${ac_cv_header_sqlite3_h+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+fi
+{ echo "$as_me:$LINENO: result: $ac_cv_header_sqlite3_h" >&5
+echo "${ECHO_T}$ac_cv_header_sqlite3_h" >&6; }
+else
+  # Is the header compilable?
+{ echo "$as_me:$LINENO: checking sqlite3.h usability" >&5
+echo $ECHO_N "checking sqlite3.h usability... $ECHO_C" >&6; }
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+$ac_includes_default
+#include <sqlite3.h>
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_header_compiler=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
 
-Alternatively, you may set the environment variables sqlite_CFLAGS
-and sqlite_LIBS to avoid the need to call pkg-config.
-See the pkg-config man page for more details.
+	ac_header_compiler=no
+fi
 
-To get pkg-config, see <http://pkg-config.freedesktop.org/>.
-See \`config.log' for more details." >&5
-echo "$as_me: error: The pkg-config script could not be found or is too old.  Make sure it
-is in your PATH or set the PKG_CONFIG environment variable to the full
-path to pkg-config.
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+{ echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+echo "${ECHO_T}$ac_header_compiler" >&6; }
 
-Alternatively, you may set the environment variables sqlite_CFLAGS
-and sqlite_LIBS to avoid the need to call pkg-config.
-See the pkg-config man page for more details.
+# Is the header present?
+{ echo "$as_me:$LINENO: checking sqlite3.h presence" >&5
+echo $ECHO_N "checking sqlite3.h presence... $ECHO_C" >&6; }
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+#include <sqlite3.h>
+_ACEOF
+if { (ac_try="$ac_cpp conftest.$ac_ext"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_cpp conftest.$ac_ext") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } >/dev/null && {
+	 test -z "$ac_c_preproc_warn_flag$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       }; then
+  ac_header_preproc=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
 
-To get pkg-config, see <http://pkg-config.freedesktop.org/>.
-See \`config.log' for more details." >&2;}
+  ac_header_preproc=no
+fi
+
+rm -f conftest.err conftest.$ac_ext
+{ echo "$as_me:$LINENO: result: $ac_header_preproc" >&5
+echo "${ECHO_T}$ac_header_preproc" >&6; }
+
+# So?  What about this header?
+case $ac_header_compiler:$ac_header_preproc:$ac_c_preproc_warn_flag in
+  yes:no: )
+    { echo "$as_me:$LINENO: WARNING: sqlite3.h: accepted by the compiler, rejected by the preprocessor!" >&5
+echo "$as_me: WARNING: sqlite3.h: accepted by the compiler, rejected by the preprocessor!" >&2;}
+    { echo "$as_me:$LINENO: WARNING: sqlite3.h: proceeding with the compiler's result" >&5
+echo "$as_me: WARNING: sqlite3.h: proceeding with the compiler's result" >&2;}
+    ac_header_preproc=yes
+    ;;
+  no:yes:* )
+    { echo "$as_me:$LINENO: WARNING: sqlite3.h: present but cannot be compiled" >&5
+echo "$as_me: WARNING: sqlite3.h: present but cannot be compiled" >&2;}
+    { echo "$as_me:$LINENO: WARNING: sqlite3.h:     check for missing prerequisite headers?" >&5
+echo "$as_me: WARNING: sqlite3.h:     check for missing prerequisite headers?" >&2;}
+    { echo "$as_me:$LINENO: WARNING: sqlite3.h: see the Autoconf documentation" >&5
+echo "$as_me: WARNING: sqlite3.h: see the Autoconf documentation" >&2;}
+    { echo "$as_me:$LINENO: WARNING: sqlite3.h:     section \"Present But Cannot Be Compiled\"" >&5
+echo "$as_me: WARNING: sqlite3.h:     section \"Present But Cannot Be Compiled\"" >&2;}
+    { echo "$as_me:$LINENO: WARNING: sqlite3.h: proceeding with the preprocessor's result" >&5
+echo "$as_me: WARNING: sqlite3.h: proceeding with the preprocessor's result" >&2;}
+    { echo "$as_me:$LINENO: WARNING: sqlite3.h: in the future, the compiler will take precedence" >&5
+echo "$as_me: WARNING: sqlite3.h: in the future, the compiler will take precedence" >&2;}
+
+    ;;
+esac
+{ echo "$as_me:$LINENO: checking for sqlite3.h" >&5
+echo $ECHO_N "checking for sqlite3.h... $ECHO_C" >&6; }
+if test "${ac_cv_header_sqlite3_h+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  ac_cv_header_sqlite3_h=$ac_header_preproc
+fi
+{ echo "$as_me:$LINENO: result: $ac_cv_header_sqlite3_h" >&5
+echo "${ECHO_T}$ac_cv_header_sqlite3_h" >&6; }
+
+fi
+if test $ac_cv_header_sqlite3_h = yes; then
+  :
+else
+  { { echo "$as_me:$LINENO: error: SQLite3 is required to build Dupin" >&5
+echo "$as_me: error: SQLite3 is required to build Dupin" >&2;}
    { (exit 1); exit 1; }; }
+fi
+
+
+
+{ echo "$as_me:$LINENO: checking for sqlite3_exec in -lsqlite3" >&5
+echo $ECHO_N "checking for sqlite3_exec in -lsqlite3... $ECHO_C" >&6; }
+if test "${ac_cv_lib_sqlite3_sqlite3_exec+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-lsqlite3  $LIBS"
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char sqlite3_exec ();
+int
+main ()
+{
+return sqlite3_exec ();
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext conftest$ac_exeext
+if { (ac_try="$ac_link"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_link") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest$ac_exeext &&
+       $as_test_x conftest$ac_exeext; then
+  ac_cv_lib_sqlite3_sqlite3_exec=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_lib_sqlite3_sqlite3_exec=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+      conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
+fi
+{ echo "$as_me:$LINENO: result: $ac_cv_lib_sqlite3_sqlite3_exec" >&5
+echo "${ECHO_T}$ac_cv_lib_sqlite3_sqlite3_exec" >&6; }
+if test $ac_cv_lib_sqlite3_sqlite3_exec = yes; then
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_LIBSQLITE3 1
+_ACEOF
+
+  LIBS="-lsqlite3 $LIBS"
+
+else
+  { { echo "$as_me:$LINENO: error: SQLite3 is required to build Dupin" >&5
+echo "$as_me: error: SQLite3 is required to build Dupin" >&2;}
+   { (exit 1); exit 1; }; }
+fi
+
+
+
 else
 	sqlite_CFLAGS=$pkg_cv_sqlite_CFLAGS
 	sqlite_LIBS=$pkg_cv_sqlite_LIBS
         { echo "$as_me:$LINENO: result: yes" >&5
 echo "${ECHO_T}yes" >&6; }
-	:
+		sqlite_LIBS=`$PKG_CONFIG --libs "sqlite" 2>/dev/null`
+			sqlite_CFLAGS=`$PKG_CONFIG --cflags "sqlite" 2>/dev/null`
+
 fi
 
-  LDFLAGS="$LDFLAGS $sqlite_LIBS"
-  CFLAGS="$CFLAGS $sqlite_CFLAGS"
-
-  # libXML2
+	# libXML2
 
 pkg_failed=no
 { echo "$as_me:$LINENO: checking for libxml2" >&5
@@ -13002,18 +13491,12 @@ if test -n "$libxml2_CFLAGS"; then
     pkg_cv_libxml2_CFLAGS="$libxml2_CFLAGS"
  elif test -n "$PKG_CONFIG"; then
     if test -n "$PKG_CONFIG" && \
-    { (echo "$as_me:$LINENO: \$PKG_CONFIG --exists --print-errors \"
-    libxml-2.0 >= 2.6.0
-  \"") >&5
-  ($PKG_CONFIG --exists --print-errors "
-    libxml-2.0 >= 2.6.0
-  ") 2>&5
+    { (echo "$as_me:$LINENO: \$PKG_CONFIG --exists --print-errors \" libxml-2.0 >= 2.6.0 \"") >&5
+  ($PKG_CONFIG --exists --print-errors " libxml-2.0 >= 2.6.0 ") 2>&5
   ac_status=$?
   echo "$as_me:$LINENO: \$? = $ac_status" >&5
   (exit $ac_status); }; then
-  pkg_cv_libxml2_CFLAGS=`$PKG_CONFIG --cflags "
-    libxml-2.0 >= 2.6.0
-  " 2>/dev/null`
+  pkg_cv_libxml2_CFLAGS=`$PKG_CONFIG --cflags " libxml-2.0 >= 2.6.0 " 2>/dev/null`
 else
   pkg_failed=yes
 fi
@@ -13024,18 +13507,12 @@ if test -n "$libxml2_LIBS"; then
     pkg_cv_libxml2_LIBS="$libxml2_LIBS"
  elif test -n "$PKG_CONFIG"; then
     if test -n "$PKG_CONFIG" && \
-    { (echo "$as_me:$LINENO: \$PKG_CONFIG --exists --print-errors \"
-    libxml-2.0 >= 2.6.0
-  \"") >&5
-  ($PKG_CONFIG --exists --print-errors "
-    libxml-2.0 >= 2.6.0
-  ") 2>&5
+    { (echo "$as_me:$LINENO: \$PKG_CONFIG --exists --print-errors \" libxml-2.0 >= 2.6.0 \"") >&5
+  ($PKG_CONFIG --exists --print-errors " libxml-2.0 >= 2.6.0 ") 2>&5
   ac_status=$?
   echo "$as_me:$LINENO: \$? = $ac_status" >&5
   (exit $ac_status); }; then
-  pkg_cv_libxml2_LIBS=`$PKG_CONFIG --libs "
-    libxml-2.0 >= 2.6.0
-  " 2>/dev/null`
+  pkg_cv_libxml2_LIBS=`$PKG_CONFIG --libs " libxml-2.0 >= 2.6.0 " 2>/dev/null`
 else
   pkg_failed=yes
 fi
@@ -13046,6 +13523,8 @@ fi
 
 
 if test $pkg_failed = yes; then
+   	{ echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6; }
 
 if $PKG_CONFIG --atleast-pkgconfig-version 0.20; then
         _pkg_short_errors_supported=yes
@@ -13053,78 +13532,450 @@ else
         _pkg_short_errors_supported=no
 fi
         if test $_pkg_short_errors_supported = yes; then
-	        libxml2_PKG_ERRORS=`$PKG_CONFIG --short-errors --print-errors "
-    libxml-2.0 >= 2.6.0
-  " 2>&1`
+	        libxml2_PKG_ERRORS=`$PKG_CONFIG --short-errors --print-errors " libxml-2.0 >= 2.6.0 " 2>&1`
         else
-	        libxml2_PKG_ERRORS=`$PKG_CONFIG --print-errors "
-    libxml-2.0 >= 2.6.0
-  " 2>&1`
+	        libxml2_PKG_ERRORS=`$PKG_CONFIG --print-errors " libxml-2.0 >= 2.6.0 " 2>&1`
         fi
 	# Put the nasty error message in config.log where it belongs
 	echo "$libxml2_PKG_ERRORS" >&5
 
-	{ { echo "$as_me:$LINENO: error: Package requirements (
-    libxml-2.0 >= 2.6.0
-  ) were not met:
+		if test "${ac_cv_header_libxml_parser_h+set}" = set; then
+  { echo "$as_me:$LINENO: checking for libxml/parser.h" >&5
+echo $ECHO_N "checking for libxml/parser.h... $ECHO_C" >&6; }
+if test "${ac_cv_header_libxml_parser_h+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+fi
+{ echo "$as_me:$LINENO: result: $ac_cv_header_libxml_parser_h" >&5
+echo "${ECHO_T}$ac_cv_header_libxml_parser_h" >&6; }
+else
+  # Is the header compilable?
+{ echo "$as_me:$LINENO: checking libxml/parser.h usability" >&5
+echo $ECHO_N "checking libxml/parser.h usability... $ECHO_C" >&6; }
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+$ac_includes_default
+#include <libxml/parser.h>
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_header_compiler=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
 
-$libxml2_PKG_ERRORS
+	ac_header_compiler=no
+fi
 
-Consider adjusting the PKG_CONFIG_PATH environment variable if you
-installed software in a non-standard prefix.
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+{ echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+echo "${ECHO_T}$ac_header_compiler" >&6; }
 
-Alternatively, you may set the environment variables libxml2_CFLAGS
-and libxml2_LIBS to avoid the need to call pkg-config.
-See the pkg-config man page for more details.
-" >&5
-echo "$as_me: error: Package requirements (
-    libxml-2.0 >= 2.6.0
-  ) were not met:
+# Is the header present?
+{ echo "$as_me:$LINENO: checking libxml/parser.h presence" >&5
+echo $ECHO_N "checking libxml/parser.h presence... $ECHO_C" >&6; }
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+#include <libxml/parser.h>
+_ACEOF
+if { (ac_try="$ac_cpp conftest.$ac_ext"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_cpp conftest.$ac_ext") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } >/dev/null && {
+	 test -z "$ac_c_preproc_warn_flag$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       }; then
+  ac_header_preproc=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
 
-$libxml2_PKG_ERRORS
+  ac_header_preproc=no
+fi
 
-Consider adjusting the PKG_CONFIG_PATH environment variable if you
-installed software in a non-standard prefix.
+rm -f conftest.err conftest.$ac_ext
+{ echo "$as_me:$LINENO: result: $ac_header_preproc" >&5
+echo "${ECHO_T}$ac_header_preproc" >&6; }
 
-Alternatively, you may set the environment variables libxml2_CFLAGS
-and libxml2_LIBS to avoid the need to call pkg-config.
-See the pkg-config man page for more details.
-" >&2;}
+# So?  What about this header?
+case $ac_header_compiler:$ac_header_preproc:$ac_c_preproc_warn_flag in
+  yes:no: )
+    { echo "$as_me:$LINENO: WARNING: libxml/parser.h: accepted by the compiler, rejected by the preprocessor!" >&5
+echo "$as_me: WARNING: libxml/parser.h: accepted by the compiler, rejected by the preprocessor!" >&2;}
+    { echo "$as_me:$LINENO: WARNING: libxml/parser.h: proceeding with the compiler's result" >&5
+echo "$as_me: WARNING: libxml/parser.h: proceeding with the compiler's result" >&2;}
+    ac_header_preproc=yes
+    ;;
+  no:yes:* )
+    { echo "$as_me:$LINENO: WARNING: libxml/parser.h: present but cannot be compiled" >&5
+echo "$as_me: WARNING: libxml/parser.h: present but cannot be compiled" >&2;}
+    { echo "$as_me:$LINENO: WARNING: libxml/parser.h:     check for missing prerequisite headers?" >&5
+echo "$as_me: WARNING: libxml/parser.h:     check for missing prerequisite headers?" >&2;}
+    { echo "$as_me:$LINENO: WARNING: libxml/parser.h: see the Autoconf documentation" >&5
+echo "$as_me: WARNING: libxml/parser.h: see the Autoconf documentation" >&2;}
+    { echo "$as_me:$LINENO: WARNING: libxml/parser.h:     section \"Present But Cannot Be Compiled\"" >&5
+echo "$as_me: WARNING: libxml/parser.h:     section \"Present But Cannot Be Compiled\"" >&2;}
+    { echo "$as_me:$LINENO: WARNING: libxml/parser.h: proceeding with the preprocessor's result" >&5
+echo "$as_me: WARNING: libxml/parser.h: proceeding with the preprocessor's result" >&2;}
+    { echo "$as_me:$LINENO: WARNING: libxml/parser.h: in the future, the compiler will take precedence" >&5
+echo "$as_me: WARNING: libxml/parser.h: in the future, the compiler will take precedence" >&2;}
+
+    ;;
+esac
+{ echo "$as_me:$LINENO: checking for libxml/parser.h" >&5
+echo $ECHO_N "checking for libxml/parser.h... $ECHO_C" >&6; }
+if test "${ac_cv_header_libxml_parser_h+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  ac_cv_header_libxml_parser_h=$ac_header_preproc
+fi
+{ echo "$as_me:$LINENO: result: $ac_cv_header_libxml_parser_h" >&5
+echo "${ECHO_T}$ac_cv_header_libxml_parser_h" >&6; }
+
+fi
+if test $ac_cv_header_libxml_parser_h = yes; then
+  :
+else
+  { { echo "$as_me:$LINENO: error: libxml2 is required to build Dupin" >&5
+echo "$as_me: error: libxml2 is required to build Dupin" >&2;}
    { (exit 1); exit 1; }; }
+fi
+
+
+
+{ echo "$as_me:$LINENO: checking for xmlParseFile in -lxml2" >&5
+echo $ECHO_N "checking for xmlParseFile in -lxml2... $ECHO_C" >&6; }
+if test "${ac_cv_lib_xml2_xmlParseFile+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-lxml2  $LIBS"
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char xmlParseFile ();
+int
+main ()
+{
+return xmlParseFile ();
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext conftest$ac_exeext
+if { (ac_try="$ac_link"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_link") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest$ac_exeext &&
+       $as_test_x conftest$ac_exeext; then
+  ac_cv_lib_xml2_xmlParseFile=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_lib_xml2_xmlParseFile=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+      conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
+fi
+{ echo "$as_me:$LINENO: result: $ac_cv_lib_xml2_xmlParseFile" >&5
+echo "${ECHO_T}$ac_cv_lib_xml2_xmlParseFile" >&6; }
+if test $ac_cv_lib_xml2_xmlParseFile = yes; then
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_LIBXML2 1
+_ACEOF
+
+  LIBS="-lxml2 $LIBS"
+
+else
+  { { echo "$as_me:$LINENO: error: libxml2 is required to build Dupin" >&5
+echo "$as_me: error: libxml2 is required to build Dupin" >&2;}
+   { (exit 1); exit 1; }; }
+fi
+
+
+
 elif test $pkg_failed = untried; then
-	{ { echo "$as_me:$LINENO: error: The pkg-config script could not be found or is too old.  Make sure it
-is in your PATH or set the PKG_CONFIG environment variable to the full
-path to pkg-config.
+     	{ echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6; }
+		if test "${ac_cv_header_libxml_parser_h+set}" = set; then
+  { echo "$as_me:$LINENO: checking for libxml/parser.h" >&5
+echo $ECHO_N "checking for libxml/parser.h... $ECHO_C" >&6; }
+if test "${ac_cv_header_libxml_parser_h+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+fi
+{ echo "$as_me:$LINENO: result: $ac_cv_header_libxml_parser_h" >&5
+echo "${ECHO_T}$ac_cv_header_libxml_parser_h" >&6; }
+else
+  # Is the header compilable?
+{ echo "$as_me:$LINENO: checking libxml/parser.h usability" >&5
+echo $ECHO_N "checking libxml/parser.h usability... $ECHO_C" >&6; }
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+$ac_includes_default
+#include <libxml/parser.h>
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_header_compiler=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
 
-Alternatively, you may set the environment variables libxml2_CFLAGS
-and libxml2_LIBS to avoid the need to call pkg-config.
-See the pkg-config man page for more details.
+	ac_header_compiler=no
+fi
 
-To get pkg-config, see <http://pkg-config.freedesktop.org/>.
-See \`config.log' for more details." >&5
-echo "$as_me: error: The pkg-config script could not be found or is too old.  Make sure it
-is in your PATH or set the PKG_CONFIG environment variable to the full
-path to pkg-config.
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+{ echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+echo "${ECHO_T}$ac_header_compiler" >&6; }
 
-Alternatively, you may set the environment variables libxml2_CFLAGS
-and libxml2_LIBS to avoid the need to call pkg-config.
-See the pkg-config man page for more details.
+# Is the header present?
+{ echo "$as_me:$LINENO: checking libxml/parser.h presence" >&5
+echo $ECHO_N "checking libxml/parser.h presence... $ECHO_C" >&6; }
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+#include <libxml/parser.h>
+_ACEOF
+if { (ac_try="$ac_cpp conftest.$ac_ext"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_cpp conftest.$ac_ext") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } >/dev/null && {
+	 test -z "$ac_c_preproc_warn_flag$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       }; then
+  ac_header_preproc=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
 
-To get pkg-config, see <http://pkg-config.freedesktop.org/>.
-See \`config.log' for more details." >&2;}
+  ac_header_preproc=no
+fi
+
+rm -f conftest.err conftest.$ac_ext
+{ echo "$as_me:$LINENO: result: $ac_header_preproc" >&5
+echo "${ECHO_T}$ac_header_preproc" >&6; }
+
+# So?  What about this header?
+case $ac_header_compiler:$ac_header_preproc:$ac_c_preproc_warn_flag in
+  yes:no: )
+    { echo "$as_me:$LINENO: WARNING: libxml/parser.h: accepted by the compiler, rejected by the preprocessor!" >&5
+echo "$as_me: WARNING: libxml/parser.h: accepted by the compiler, rejected by the preprocessor!" >&2;}
+    { echo "$as_me:$LINENO: WARNING: libxml/parser.h: proceeding with the compiler's result" >&5
+echo "$as_me: WARNING: libxml/parser.h: proceeding with the compiler's result" >&2;}
+    ac_header_preproc=yes
+    ;;
+  no:yes:* )
+    { echo "$as_me:$LINENO: WARNING: libxml/parser.h: present but cannot be compiled" >&5
+echo "$as_me: WARNING: libxml/parser.h: present but cannot be compiled" >&2;}
+    { echo "$as_me:$LINENO: WARNING: libxml/parser.h:     check for missing prerequisite headers?" >&5
+echo "$as_me: WARNING: libxml/parser.h:     check for missing prerequisite headers?" >&2;}
+    { echo "$as_me:$LINENO: WARNING: libxml/parser.h: see the Autoconf documentation" >&5
+echo "$as_me: WARNING: libxml/parser.h: see the Autoconf documentation" >&2;}
+    { echo "$as_me:$LINENO: WARNING: libxml/parser.h:     section \"Present But Cannot Be Compiled\"" >&5
+echo "$as_me: WARNING: libxml/parser.h:     section \"Present But Cannot Be Compiled\"" >&2;}
+    { echo "$as_me:$LINENO: WARNING: libxml/parser.h: proceeding with the preprocessor's result" >&5
+echo "$as_me: WARNING: libxml/parser.h: proceeding with the preprocessor's result" >&2;}
+    { echo "$as_me:$LINENO: WARNING: libxml/parser.h: in the future, the compiler will take precedence" >&5
+echo "$as_me: WARNING: libxml/parser.h: in the future, the compiler will take precedence" >&2;}
+
+    ;;
+esac
+{ echo "$as_me:$LINENO: checking for libxml/parser.h" >&5
+echo $ECHO_N "checking for libxml/parser.h... $ECHO_C" >&6; }
+if test "${ac_cv_header_libxml_parser_h+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  ac_cv_header_libxml_parser_h=$ac_header_preproc
+fi
+{ echo "$as_me:$LINENO: result: $ac_cv_header_libxml_parser_h" >&5
+echo "${ECHO_T}$ac_cv_header_libxml_parser_h" >&6; }
+
+fi
+if test $ac_cv_header_libxml_parser_h = yes; then
+  :
+else
+  { { echo "$as_me:$LINENO: error: libxml2 is required to build Dupin" >&5
+echo "$as_me: error: libxml2 is required to build Dupin" >&2;}
    { (exit 1); exit 1; }; }
+fi
+
+
+
+{ echo "$as_me:$LINENO: checking for xmlParseFile in -lxml2" >&5
+echo $ECHO_N "checking for xmlParseFile in -lxml2... $ECHO_C" >&6; }
+if test "${ac_cv_lib_xml2_xmlParseFile+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-lxml2  $LIBS"
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char xmlParseFile ();
+int
+main ()
+{
+return xmlParseFile ();
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext conftest$ac_exeext
+if { (ac_try="$ac_link"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_link") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest$ac_exeext &&
+       $as_test_x conftest$ac_exeext; then
+  ac_cv_lib_xml2_xmlParseFile=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_lib_xml2_xmlParseFile=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+      conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
+fi
+{ echo "$as_me:$LINENO: result: $ac_cv_lib_xml2_xmlParseFile" >&5
+echo "${ECHO_T}$ac_cv_lib_xml2_xmlParseFile" >&6; }
+if test $ac_cv_lib_xml2_xmlParseFile = yes; then
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_LIBXML2 1
+_ACEOF
+
+  LIBS="-lxml2 $LIBS"
+
+else
+  { { echo "$as_me:$LINENO: error: libxml2 is required to build Dupin" >&5
+echo "$as_me: error: libxml2 is required to build Dupin" >&2;}
+   { (exit 1); exit 1; }; }
+fi
+
+
+
 else
 	libxml2_CFLAGS=$pkg_cv_libxml2_CFLAGS
 	libxml2_LIBS=$pkg_cv_libxml2_LIBS
         { echo "$as_me:$LINENO: result: yes" >&5
 echo "${ECHO_T}yes" >&6; }
-	:
+		libxml2_LIBS=`$PKG_CONFIG --libs "libxml-2.0" 2>/dev/null`
+			libxml2_CFLAGS=`$PKG_CONFIG --cflags "libxml-2.0" 2>/dev/null`
+
 fi
 
-  LDFLAGS="$LDFLAGS $libxml2_LIBS"
-  CFLAGS="$CFLAGS $libxml2_CFLAGS"
-
-  # GLib
+	# GLib
+	# TODO: make a full check eventually and fall-back
 
 pkg_failed=no
 { echo "$as_me:$LINENO: checking for glib" >&5
@@ -13135,23 +13986,20 @@ if test -n "$glib_CFLAGS"; then
  elif test -n "$PKG_CONFIG"; then
     if test -n "$PKG_CONFIG" && \
     { (echo "$as_me:$LINENO: \$PKG_CONFIG --exists --print-errors \"
-    glib-2.0    >= 2.6.0
-    gthread-2.0 >= 2.6.0
-    gio-2.0     >= 2.6.0
-  \"") >&5
+		glib-2.0    >= 2.6.0
+		gthread-2.0 >= 2.6.0
+		gio-2.0     >= 2.6.0 \"") >&5
   ($PKG_CONFIG --exists --print-errors "
-    glib-2.0    >= 2.6.0
-    gthread-2.0 >= 2.6.0
-    gio-2.0     >= 2.6.0
-  ") 2>&5
+		glib-2.0    >= 2.6.0
+		gthread-2.0 >= 2.6.0
+		gio-2.0     >= 2.6.0 ") 2>&5
   ac_status=$?
   echo "$as_me:$LINENO: \$? = $ac_status" >&5
   (exit $ac_status); }; then
   pkg_cv_glib_CFLAGS=`$PKG_CONFIG --cflags "
-    glib-2.0    >= 2.6.0
-    gthread-2.0 >= 2.6.0
-    gio-2.0     >= 2.6.0
-  " 2>/dev/null`
+		glib-2.0    >= 2.6.0
+		gthread-2.0 >= 2.6.0
+		gio-2.0     >= 2.6.0 " 2>/dev/null`
 else
   pkg_failed=yes
 fi
@@ -13163,23 +14011,20 @@ if test -n "$glib_LIBS"; then
  elif test -n "$PKG_CONFIG"; then
     if test -n "$PKG_CONFIG" && \
     { (echo "$as_me:$LINENO: \$PKG_CONFIG --exists --print-errors \"
-    glib-2.0    >= 2.6.0
-    gthread-2.0 >= 2.6.0
-    gio-2.0     >= 2.6.0
-  \"") >&5
+		glib-2.0    >= 2.6.0
+		gthread-2.0 >= 2.6.0
+		gio-2.0     >= 2.6.0 \"") >&5
   ($PKG_CONFIG --exists --print-errors "
-    glib-2.0    >= 2.6.0
-    gthread-2.0 >= 2.6.0
-    gio-2.0     >= 2.6.0
-  ") 2>&5
+		glib-2.0    >= 2.6.0
+		gthread-2.0 >= 2.6.0
+		gio-2.0     >= 2.6.0 ") 2>&5
   ac_status=$?
   echo "$as_me:$LINENO: \$? = $ac_status" >&5
   (exit $ac_status); }; then
   pkg_cv_glib_LIBS=`$PKG_CONFIG --libs "
-    glib-2.0    >= 2.6.0
-    gthread-2.0 >= 2.6.0
-    gio-2.0     >= 2.6.0
-  " 2>/dev/null`
+		glib-2.0    >= 2.6.0
+		gthread-2.0 >= 2.6.0
+		gio-2.0     >= 2.6.0 " 2>/dev/null`
 else
   pkg_failed=yes
 fi
@@ -13190,6 +14035,8 @@ fi
 
 
 if test $pkg_failed = yes; then
+   	{ echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6; }
 
 if $PKG_CONFIG --atleast-pkgconfig-version 0.20; then
         _pkg_short_errors_supported=yes
@@ -13198,25 +14045,22 @@ else
 fi
         if test $_pkg_short_errors_supported = yes; then
 	        glib_PKG_ERRORS=`$PKG_CONFIG --short-errors --print-errors "
-    glib-2.0    >= 2.6.0
-    gthread-2.0 >= 2.6.0
-    gio-2.0     >= 2.6.0
-  " 2>&1`
+		glib-2.0    >= 2.6.0
+		gthread-2.0 >= 2.6.0
+		gio-2.0     >= 2.6.0 " 2>&1`
         else
 	        glib_PKG_ERRORS=`$PKG_CONFIG --print-errors "
-    glib-2.0    >= 2.6.0
-    gthread-2.0 >= 2.6.0
-    gio-2.0     >= 2.6.0
-  " 2>&1`
+		glib-2.0    >= 2.6.0
+		gthread-2.0 >= 2.6.0
+		gio-2.0     >= 2.6.0 " 2>&1`
         fi
 	# Put the nasty error message in config.log where it belongs
 	echo "$glib_PKG_ERRORS" >&5
 
 	{ { echo "$as_me:$LINENO: error: Package requirements (
-    glib-2.0    >= 2.6.0
-    gthread-2.0 >= 2.6.0
-    gio-2.0     >= 2.6.0
-  ) were not met:
+		glib-2.0    >= 2.6.0
+		gthread-2.0 >= 2.6.0
+		gio-2.0     >= 2.6.0 ) were not met:
 
 $glib_PKG_ERRORS
 
@@ -13225,13 +14069,11 @@ installed software in a non-standard prefix.
 
 Alternatively, you may set the environment variables glib_CFLAGS
 and glib_LIBS to avoid the need to call pkg-config.
-See the pkg-config man page for more details.
-" >&5
+See the pkg-config man page for more details." >&5
 echo "$as_me: error: Package requirements (
-    glib-2.0    >= 2.6.0
-    gthread-2.0 >= 2.6.0
-    gio-2.0     >= 2.6.0
-  ) were not met:
+		glib-2.0    >= 2.6.0
+		gthread-2.0 >= 2.6.0
+		gio-2.0     >= 2.6.0 ) were not met:
 
 $glib_PKG_ERRORS
 
@@ -13240,10 +14082,11 @@ installed software in a non-standard prefix.
 
 Alternatively, you may set the environment variables glib_CFLAGS
 and glib_LIBS to avoid the need to call pkg-config.
-See the pkg-config man page for more details.
-" >&2;}
+See the pkg-config man page for more details." >&2;}
    { (exit 1); exit 1; }; }
 elif test $pkg_failed = untried; then
+     	{ echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6; }
 	{ { echo "$as_me:$LINENO: error: The pkg-config script could not be found or is too old.  Make sure it
 is in your PATH or set the PKG_CONFIG environment variable to the full
 path to pkg-config.
@@ -13270,13 +14113,21 @@ else
 	glib_LIBS=$pkg_cv_glib_LIBS
         { echo "$as_me:$LINENO: result: yes" >&5
 echo "${ECHO_T}yes" >&6; }
-	:
-fi
 
-  LDFLAGS="$LDFLAGS $glib_LIBS"
-  CFLAGS="$CFLAGS $glib_CFLAGS -DG_DISABLE_DEPRECATED"
+fi
+  else
+	{ { echo "$as_me:$LINENO: error: pkg-config is required to build Dupin" >&5
+echo "$as_me: error: pkg-config is required to build Dupin" >&2;}
+   { (exit 1); exit 1; }; }
+  fi
+
+  # 3. set env
+  LDFLAGS="$LDFLAGS $webkit_LIBS $sqlite_LIBS $libxml2_LIBS $glib_LIBS"
+  CFLAGS="$CFLAGS $webkit_CFLAGS $sqlite_CFLAGS $libxml2_CFLAGS $glib_CFLAGS -DG_DISABLE_DEPRECATED"
 
 else
+
+  # Darwin with frameworks
 
   cat >>confdefs.h <<\_ACEOF
 #define WEBKIT_FRAMEWORK 1
@@ -13285,7 +14136,7 @@ _ACEOF
 
   # WebKit
   CFLAGS="$CFLAGS -I /System/Library/Frameworks/JavaScriptCore.framework/Headers"
-  LDFLAGS="$LDFLAGS  -framework JavaScriptCore"
+  LDFLAGS="$LDFLAGS -framework JavaScriptCore"
 
   # SQLite
   if test "${ac_cv_header_sqlite3_h+set}" = set; then
@@ -13714,7 +14565,8 @@ fi
   LDFLAGS="$LDFLAGS -framework GLib"
 fi
 
-CFLAGS="$CFLAGS -Wall"
+#CFLAGS="$CFLAGS -Wall"
+CFLAGS="-g $CFLAGS -Wall"
 
 ac_config_files="$ac_config_files Makefile src/Makefile src/tbjson/Makefile src/tbjsonpath/Makefile src/lib/Makefile src/httpd/Makefile src/www/Makefile src/tests/Makefile"
 
@@ -14685,6 +15537,9 @@ target_cpu!$target_cpu$ac_delim
 target_vendor!$target_vendor$ac_delim
 target_os!$target_os$ac_delim
 SET_MAKE!$SET_MAKE$ac_delim
+PKG_CONFIG!$PKG_CONFIG$ac_delim
+HOMEBREW!$HOMEBREW$ac_delim
+HAVEPORTS!$HAVEPORTS$ac_delim
 INSTALL_PROGRAM!$INSTALL_PROGRAM$ac_delim
 INSTALL_SCRIPT!$INSTALL_SCRIPT$ac_delim
 INSTALL_DATA!$INSTALL_DATA$ac_delim
@@ -14729,9 +15584,6 @@ LN_S!$LN_S$ac_delim
 LIBTOOL!$LIBTOOL$ac_delim
 SED!$SED$ac_delim
 GREP!$GREP$ac_delim
-EGREP!$EGREP$ac_delim
-FGREP!$FGREP$ac_delim
-LD!$LD$ac_delim
 _ACEOF
 
   if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 97; then
@@ -14773,6 +15625,9 @@ _ACEOF
 ac_delim='%!_!# '
 for ac_last_try in false false false false false :; do
   cat >conf$$subs.sed <<_ACEOF
+EGREP!$EGREP$ac_delim
+FGREP!$FGREP$ac_delim
+LD!$LD$ac_delim
 DUMPBIN!$DUMPBIN$ac_delim
 ac_ct_DUMPBIN!$ac_ct_DUMPBIN$ac_delim
 NM!$NM$ac_delim
@@ -14785,7 +15640,8 @@ LIPO!$LIPO$ac_delim
 OTOOL!$OTOOL$ac_delim
 OTOOL64!$OTOOL64$ac_delim
 CPP!$CPP$ac_delim
-PKG_CONFIG!$PKG_CONFIG$ac_delim
+PKG_CONFIG_PATH!$PKG_CONFIG_PATH$ac_delim
+PKG_CONFIG_LIBDIR!$PKG_CONFIG_LIBDIR$ac_delim
 webkit_CFLAGS!$webkit_CFLAGS$ac_delim
 webkit_LIBS!$webkit_LIBS$ac_delim
 sqlite_CFLAGS!$sqlite_CFLAGS$ac_delim
@@ -14798,7 +15654,7 @@ LIBOBJS!$LIBOBJS$ac_delim
 LTLIBOBJS!$LTLIBOBJS$ac_delim
 _ACEOF
 
-  if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 23; then
+  if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 27; then
     break
   elif $ac_last_try; then
     { { echo "$as_me:$LINENO: error: could not make $CONFIG_STATUS" >&5

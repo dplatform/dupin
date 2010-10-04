@@ -44,6 +44,7 @@ static void command_newView (GList *);
 static void command_deleteView (GList *);
 static void command_countView (GList *);
 static void command_createRecord (GList *);
+static void command_createRecordFromFile (GList *);
 static void command_readRecord (GList *);
 static void command_getListRecord (GList *);
 static void command_updateRecord (GList *);
@@ -87,6 +88,8 @@ struct dp_args
   0, "countView", "Count the record into a view.", command_countView},
   {
   1, "createRecord", "Insert a record.", command_createRecord},
+  {
+  1, "createRecordFromFile", "Insert a record from a file.", command_createRecordFromFile},
   {
   1, "readRecord", "Get a record.", command_readRecord},
   {
@@ -286,6 +289,27 @@ json (gchar * str)
   j = tb_json_new ();
 
   if (tb_json_load_from_buffer (j, str, -1, NULL) == FALSE
+      || tb_json_is_object (j) == FALSE)
+    {
+      tb_json_destroy (j);
+      return NULL;
+    }
+
+  obj = tb_json_object_and_detach (j);
+  tb_json_destroy (j);
+
+  return obj;
+}
+
+static tb_json_object_t *
+json_file (gchar * filename)
+{
+  tb_json_t *j;
+  tb_json_object_t *obj;
+
+  j = tb_json_new ();
+
+  if (tb_json_load_from_file (j, filename, NULL) == FALSE
       || tb_json_is_object (j) == FALSE)
     {
       tb_json_destroy (j);
@@ -535,6 +559,36 @@ command_createRecord (GList * list)
   if (!(obj = json (list->data)))
     {
       fprintf (stderr, "The input is not a json object.\n");
+      return;
+    }
+
+  if (record)
+    dupin_record_close (record);
+
+  if (!(record = dupin_record_create (db, obj, &error)))
+    {
+      fprintf (stderr, "Error: %s\n", error->message);
+      g_error_free (error);
+    }
+
+  tb_json_object_destroy (obj);
+}
+
+static void
+command_createRecordFromFile (GList * list)
+{
+  tb_json_object_t *obj;
+  GError *error = NULL;
+
+  if (!db)
+    {
+      fprintf (stderr, "Open a Db.\n");
+      return;
+    }
+
+  if (!(obj = json_file (list->data)))
+    {
+      fprintf (stderr, "The input is not a file containing a json object.\n");
       return;
     }
 

@@ -10,6 +10,9 @@
 #include "../tbjson/tb_keyvalue.h"
 #include "../tbjsonpath/tb_jsonpath.h"
 
+#include <json-glib/json-glib.h>
+#include <json-glib/json-gobject.h>
+
 #include <string.h>
 #include <stdlib.h>
 
@@ -17,7 +20,7 @@
 #define REQUEST_OBJ_REV	"_rev"
 #define REQUEST_OBJ_PID	"_pid"
 
-static tb_json_object_t *request_record_obj (DupinRecord * record, gchar * id,
+static JsonObject *request_record_obj (DupinRecord * record, gchar * id,
 					     guint rev);
 static tb_json_object_t *request_view_record_obj (DupinViewRecord * record,
 						  gchar * id);
@@ -152,213 +155,142 @@ request_quit (DSHttpdClient * client, GList * paths, GList * arguments)
 static DSHttpStatusCode
 request_status (DSHttpdClient * client, GList * paths, GList * arguments)
 {
-  tb_json_object_t *obj;
-  tb_json_object_t *nobj;
-  tb_json_node_t *node;
-  tb_json_value_t *value;
+  JsonObject *obj;
+  JsonObject *nobj;
+  JsonNode *node;
+  JsonGenerator *gen;
 
   GTimeVal tv;
 
-  if (tb_json_object_new (&obj) == FALSE)
+  obj = json_object_new ();
+
+  if (obj == NULL)
     return HTTP_STATUS_500;
 
   g_mutex_lock (client->thread->data->httpd_mutex);
 
   /* Start TimeVal: */
-  if (tb_json_object_add_node (obj, "startTimeVal", &node) == FALSE)
-    goto request_status_quit;
+  nobj = json_object_new ();
 
-  value = tb_json_node_get_value (node);
-  if (tb_json_value_set_object_new (value, &nobj) == FALSE)
+  if (nobj == NULL)
     goto request_status_quit;
 
   /* timeval:tv_sec: */
-  if (tb_json_object_add_node (nobj, "sec", &node) == FALSE)
-    goto request_status_quit;
-
-  value = tb_json_node_get_value (node);
-  if (tb_json_value_set_number
-      (value, client->thread->data->start_timeval.tv_sec) == FALSE)
-    goto request_status_quit;
+  json_object_set_int_member (nobj, "sec", client->thread->data->start_timeval.tv_sec );
 
   /* timeval:tv_usec: */
-  if (tb_json_object_add_node (nobj, "usec", &node) == FALSE)
-    goto request_status_quit;
+  json_object_set_int_member (nobj, "usec", client->thread->data->start_timeval.tv_usec );
 
-  value = tb_json_node_get_value (node);
-  if (tb_json_value_set_number
-      (value, client->thread->data->start_timeval.tv_usec) == FALSE)
-    goto request_status_quit;
+  json_object_set_object_member (obj, "startTimeVal", nobj );
 
   /* This TimeVal: */
+  nobj = json_object_new ();
+
+  if (nobj == NULL)
+    goto request_status_quit;
+
   g_source_get_current_time (client->channel_source, &tv);
 
-  if (tb_json_object_add_node (obj, "thisTimeVal", &node) == FALSE)
-    goto request_status_quit;
-
-  value = tb_json_node_get_value (node);
-  if (tb_json_value_set_object_new (value, &nobj) == FALSE)
-    goto request_status_quit;
-
   /* timeval:tv_sec: */
-  if (tb_json_object_add_node (nobj, "sec", &node) == FALSE)
-    goto request_status_quit;
-
-  value = tb_json_node_get_value (node);
-  if (tb_json_value_set_number (value, tv.tv_sec) == FALSE)
-    goto request_status_quit;
+  json_object_set_int_member (nobj, "sec", tv.tv_sec );
 
   /* timeval:tv_usec: */
-  if (tb_json_object_add_node (nobj, "usec", &node) == FALSE)
-    goto request_status_quit;
+  json_object_set_int_member (nobj, "usec", tv.tv_usec );
 
-  value = tb_json_node_get_value (node);
-  if (tb_json_value_set_number (value, tv.tv_usec) == FALSE)
-    goto request_status_quit;
+  json_object_set_object_member (obj, "thisTimeVal", nobj );
 
   /* Number of threads: */
-  if (tb_json_object_add_node (obj, "threads", &node) == FALSE)
-    goto request_status_quit;
-
-  value = tb_json_node_get_value (node);
-  if (tb_json_value_set_number
-      (value, client->thread->data->httpd_threads_numb) == FALSE)
-    goto request_status_quit;
+  json_object_set_int_member (obj, "threads", client->thread->data->httpd_threads_numb);
 
   /* Number of clients: */
-  if (tb_json_object_add_node (obj, "clients", &node) == FALSE)
-    goto request_status_quit;
-
-  value = tb_json_node_get_value (node);
-  if (tb_json_value_set_number
-      (value, client->thread->data->httpd_clients_numb) == FALSE)
-    goto request_status_quit;
+  json_object_set_int_member (obj, "clients", client->thread->data->httpd_clients_numb);
 
   /* Limit obj: */
-  if (tb_json_object_add_node (obj, "limits", &node) == FALSE)
-    goto request_status_quit;
+  nobj = json_object_new ();
 
-  value = tb_json_node_get_value (node);
-  if (tb_json_value_set_object_new (value, &nobj) == FALSE)
+  if (nobj == NULL)
     goto request_status_quit;
 
   /* Max Headers: */
-  if (tb_json_object_add_node (nobj, "maxHeaders", &node) == FALSE)
-    goto request_status_quit;
-
-  value = tb_json_node_get_value (node);
-  if (tb_json_value_set_number (value, client->thread->data->limit_maxheaders)
-      == FALSE)
-    goto request_status_quit;
+  json_object_set_int_member (nobj, "maxHeaders", client->thread->data->limit_maxheaders);
 
   /* Max Clients: */
-  if (tb_json_object_add_node (nobj, "maxClients", &node) == FALSE)
-    goto request_status_quit;
-
-  value = tb_json_node_get_value (node);
-  if (tb_json_value_set_number (value, client->thread->data->limit_maxclients)
-      == FALSE)
-    goto request_status_quit;
+  json_object_set_int_member (nobj, "maxClients", client->thread->data->limit_maxclients);
 
   /* Max Content-Length: */
-  if (tb_json_object_add_node (nobj, "maxContentLength", &node) == FALSE)
-    goto request_status_quit;
-
-  value = tb_json_node_get_value (node);
-  if (tb_json_value_set_number
-      (value, client->thread->data->limit_maxcontentlength) == FALSE)
-    goto request_status_quit;
+  json_object_set_int_member (nobj, "maxContentLength", client->thread->data->limit_maxcontentlength);
 
   /* Number of clients for Thread: */
-  if (tb_json_object_add_node (nobj, "clientsForThread", &node) == FALSE)
-    goto request_status_quit;
-
-  value = tb_json_node_get_value (node);
-  if (tb_json_value_set_number
-      (value, client->thread->data->limit_clientsforthread) == FALSE)
-    goto request_status_quit;
+  json_object_set_int_member (nobj, "clientsForThread", client->thread->data->limit_clientsforthread);
 
   /* Timeout: */
-  if (tb_json_object_add_node (nobj, "timeout", &node) == FALSE)
-    goto request_status_quit;
-
-  value = tb_json_node_get_value (node);
-  if (tb_json_value_set_number (value, client->thread->data->limit_timeout) ==
-      FALSE)
-    goto request_status_quit;
+  json_object_set_int_member (nobj, "timeout", client->thread->data->limit_timeout);
 
   /* Timeout for thread: */
-  if (tb_json_object_add_node (nobj, "timeoutForThread", &node) == FALSE)
-    goto request_status_quit;
+  json_object_set_int_member (nobj, "timeoutForThread", client->thread->data->limit_timeoutforthread);
 
-  value = tb_json_node_get_value (node);
-  if (tb_json_value_set_number
-      (value, client->thread->data->limit_timeoutforthread) == FALSE)
-    goto request_status_quit;
+  json_object_set_object_member (obj, "limits", nobj );
 
   /* Httpd obj: */
-  if (tb_json_object_add_node (obj, "httpd", &node) == FALSE)
-    goto request_status_quit;
+  nobj = json_object_new ();
 
-  value = tb_json_node_get_value (node);
-  if (tb_json_value_set_object_new (value, &nobj) == FALSE)
+  if (nobj == NULL)
     goto request_status_quit;
 
   /* Interface: */
-  if (tb_json_object_add_node (nobj, "interface", &node) == FALSE)
-    goto request_status_quit;
-
-  value = tb_json_node_get_value (node);
-  if (client->thread->data->httpd_interface
-      && tb_json_value_set_string (value,
-				   client->thread->data->httpd_interface) ==
-      FALSE)
-    goto request_status_quit;
+  json_object_set_string_member (nobj, "interface", client->thread->data->httpd_interface);
 
   /* port: */
-  if (tb_json_object_add_node (nobj, "port", &node) == FALSE)
-    goto request_status_quit;
-
-  value = tb_json_node_get_value (node);
-  if (tb_json_value_set_number (value, client->thread->data->httpd_port) ==
-      FALSE)
-    goto request_status_quit;
+  json_object_set_int_member (nobj, "port", client->thread->data->httpd_port);
 
   /* listen: */
-  if (tb_json_object_add_node (nobj, "listen", &node) == FALSE)
-    goto request_status_quit;
-
-  value = tb_json_node_get_value (node);
-  if (tb_json_value_set_number (value, client->thread->data->httpd_listen) ==
-      FALSE)
-    goto request_status_quit;
+  json_object_set_int_member (nobj, "listen", client->thread->data->httpd_listen);
 
   /* ipv6: */
-  if (tb_json_object_add_node (nobj, "ipv6", &node) == FALSE)
-    goto request_status_quit;
+  json_object_set_boolean_member (nobj, "ipv6", client->thread->data->httpd_ipv6);
 
-  value = tb_json_node_get_value (node);
-  if (tb_json_value_set_boolean (value, client->thread->data->httpd_ipv6) ==
-      FALSE)
-    goto request_status_quit;
+  json_object_set_object_member (obj, "httpd", nobj );
 
   /* Serialize: */
-  g_mutex_unlock (client->thread->data->httpd_mutex);
   client->output_type = DS_HTTPD_OUTPUT_STRING;
 
-  if (tb_json_object_write_to_buffer
-      (obj, &client->output.string.string, &client->output_size,
-       NULL) == FALSE)
+  node = json_node_new (JSON_NODE_OBJECT);
+
+  if (node == NULL)
+    goto request_status_quit;
+
+  json_node_set_object (node, obj);
+
+  gen = json_generator_new();
+
+  if (gen == NULL)
+    goto request_status_quit;
+
+  json_generator_set_root (gen, node );
+  client->output.string.string = json_generator_to_data (gen,&client->output_size);
+
+  if (client->output.string.string == NULL)
     goto request_status_quit;
 
   client->output_mime = g_strdup (HTTP_MIME_JSON);
 
-  tb_json_object_destroy (obj);
+  g_mutex_unlock (client->thread->data->httpd_mutex);
+
+  if (gen != NULL)
+    g_object_unref (gen);
+  if (node != NULL)
+    g_object_unref (node);
+  g_object_unref (obj);
   return HTTP_STATUS_200;
 
 request_status_quit:
   g_mutex_unlock (client->thread->data->httpd_mutex);
-  tb_json_object_destroy (obj);
+
+  if (gen != NULL)
+    g_object_unref (gen);
+  if (node != NULL)
+    g_object_unref (node);
+  g_object_unref (obj);
   return HTTP_STATUS_500;
 }
 
@@ -488,38 +420,63 @@ request_global_get_all_dbs (DSHttpdClient * client, GList * paths,
 {
   guint i;
   gchar **dbs;
-  tb_json_array_t *array;
-  tb_json_value_t *value;
-
-  gboolean b = FALSE;
+  JsonArray *array;
+  JsonNode *node;
+  JsonGenerator *gen;
 
   if (client->request != DS_HTTPD_REQUEST_GET)
     return HTTP_STATUS_400;
 
-  if (tb_json_array_new (&array) == FALSE)
+  array = json_array_new ();
+
+  if (array == NULL)
     return HTTP_STATUS_500;
 
   dbs = dupin_get_databases (client->thread->data->dupin);
 
   for (i = 0; dbs && dbs[i]; i++)
     {
-      if (tb_json_array_add (array, NULL, &value) == FALSE
-	  || tb_json_value_set_string (value, dbs[i]) == FALSE)
-	goto request_global_get_all_dbs;
+      json_array_add_string_element  (array, dbs[i]);
     }
 
   client->output_type = DS_HTTPD_OUTPUT_STRING;
   client->output_mime = g_strdup (HTTP_MIME_JSON);
 
-  b =
-    tb_json_array_write_to_buffer (array, &client->output.string.string,
-				   &client->output_size, NULL);
+  node = json_node_new (JSON_NODE_ARRAY);
+
+  if (node == NULL)
+    goto request_global_get_all_dbs;
+
+  json_node_set_array (node, array);
+
+  gen = json_generator_new();
+
+  if (gen == NULL)
+    goto request_global_get_all_dbs;
+
+  json_generator_set_root (gen, node );
+  client->output.string.string = json_generator_to_data (gen,&client->output_size);
+
+  if (client->output.string.string == NULL)
+    goto request_global_get_all_dbs;
+
+  if (gen != NULL)
+    g_object_unref (gen);
+  if (node != NULL)
+    g_object_unref (node);
+  g_object_unref (array);
+  g_strfreev (dbs);
+  return HTTP_STATUS_200;
 
 request_global_get_all_dbs:
-  tb_json_array_destroy (array);
-  g_strfreev (dbs);
 
-  return b == FALSE ? HTTP_STATUS_500 : HTTP_STATUS_200;
+  if (gen != NULL)
+    g_object_unref (gen);
+  if (node != NULL)
+    g_object_unref (node);
+  g_object_unref (array);
+  g_strfreev (dbs);
+  return HTTP_STATUS_500;
 }
 
 static DSHttpStatusCode
@@ -528,38 +485,63 @@ request_global_get_all_views (DSHttpdClient * client, GList * paths,
 {
   guint i;
   gchar **views;
-  tb_json_array_t *array;
-  tb_json_value_t *value;
-
-  gboolean b = FALSE;
+  JsonArray *array;
+  JsonNode *node;
+  JsonGenerator *gen;
 
   if (client->request != DS_HTTPD_REQUEST_GET)
     return HTTP_STATUS_400;
 
-  if (tb_json_array_new (&array) == FALSE)
+  array = json_array_new ();
+
+  if (array == NULL)
     return HTTP_STATUS_500;
 
   views = dupin_get_views (client->thread->data->dupin);
 
   for (i = 0; views && views[i]; i++)
     {
-      if (tb_json_array_add (array, NULL, &value) == FALSE
-	  || tb_json_value_set_string (value, views[i]) == FALSE)
-	goto request_global_get_all_views;
+      json_array_add_string_element  (array, views[i]);
     }
 
   client->output_type = DS_HTTPD_OUTPUT_STRING;
   client->output_mime = g_strdup (HTTP_MIME_JSON);
 
-  b =
-    tb_json_array_write_to_buffer (array, &client->output.string.string,
-				   &client->output_size, NULL);
+  node = json_node_new (JSON_NODE_ARRAY);
+
+  if (node == NULL)
+    goto request_global_get_all_views;
+
+  json_node_set_array (node, array);
+
+  gen = json_generator_new();
+
+  if (gen == NULL)
+    goto request_global_get_all_views;
+
+  json_generator_set_root (gen, node );
+  client->output.string.string = json_generator_to_data (gen,&client->output_size);
+
+  if (client->output.string.string == NULL)
+    goto request_global_get_all_views;
+
+  if (gen != NULL)
+    g_object_unref (gen);
+  if (node != NULL)
+    g_object_unref (node);
+  g_object_unref (array);
+  g_strfreev (views);
+  return HTTP_STATUS_200;
 
 request_global_get_all_views:
-  tb_json_array_destroy (array);
-  g_strfreev (views);
 
-  return b == FALSE ? HTTP_STATUS_500 : HTTP_STATUS_200;
+  if (gen != NULL)
+    g_object_unref (gen);
+  if (node != NULL)
+    g_object_unref (node);
+  g_object_unref (array);
+  g_strfreev (views);
+  return HTTP_STATUS_500;
 }
 
 #define REQUEST_GET_ALL_DOCS_DESCENDING	"descending"
@@ -579,10 +561,10 @@ request_global_get_all_docs (DSHttpdClient * client, GList * path,
   guint count = 0;
   guint offset = 0;
 
-  tb_json_object_t *obj;
-  tb_json_node_t *node;
-  tb_json_array_t *array;
-  tb_json_value_t *value;
+  JsonObject *obj;
+  JsonNode *node;
+  JsonArray *array;
+  JsonGenerator *gen;
 
   if (!
       (db =
@@ -608,70 +590,83 @@ request_global_get_all_docs (DSHttpdClient * client, GList * path,
       FALSE)
     return HTTP_STATUS_500;
 
-  if (tb_json_object_new (&obj) == FALSE)
+  obj = json_object_new ();
+
+  if (obj == NULL)
     return HTTP_STATUS_500;
 
-  if (tb_json_object_add_node (obj, "total_rows", &node) == FALSE)
-    goto request_global_get_all_docs_error;
+  json_object_set_int_member (obj, "total_rows", g_list_length (results));
+  json_object_set_int_member (obj, "offset", offset);
 
-  value = tb_json_node_get_value (node);
-  if (tb_json_value_set_number (value, g_list_length (results)) == FALSE)
-    goto request_global_get_all_docs_error;
+  array = json_array_new ();
 
-  if (tb_json_object_add_node (obj, "offset", &node) == FALSE)
-    goto request_global_get_all_docs_error;
-
-  value = tb_json_node_get_value (node);
-  if (tb_json_value_set_number (value, offset) == FALSE)
-    goto request_global_get_all_docs_error;
-
-  if (tb_json_object_add_node (obj, "rows", &node) == FALSE)
-    goto request_global_get_all_docs_error;
-
-  value = tb_json_node_get_value (node);
-  if (tb_json_value_set_array_new (value, &array) == FALSE)
+  if (array == NULL)
     goto request_global_get_all_docs_error;
 
   for (list = results; list; list = list->next)
     {
       DupinRecord *record = list->data;
-      tb_json_object_t *o;
+      JsonObject *o;
 
       if (!
 	  (o =
 	   request_record_obj (record, (gchar *) dupin_record_get_id (record),
 			       dupin_record_get_last_revision (record))))
-	goto request_global_get_all_docs_error;
+        {
+	  g_object_unref (array); /* if here, array is not under obj responsability yet */
+	  goto request_global_get_all_docs_error;
+        }
 
-      if (tb_json_array_add (array, NULL, &value) == FALSE)
-	goto request_global_get_all_docs_error;
-
-      if (tb_json_value_set_object (value, o) == FALSE)
-	goto request_global_get_all_docs_error;
+      json_array_add_object_element( array, o);
     }
 
-  if (tb_json_object_write_to_buffer
-      (obj, &client->output.string.string, &client->output_size,
-       NULL) == FALSE)
-    goto request_global_get_all_docs_error;
+  json_object_set_array_member (obj, "rows", array );
 
   client->output_mime = g_strdup (HTTP_MIME_JSON);
   client->output_type = DS_HTTPD_OUTPUT_STRING;
 
+  node = json_node_new (JSON_NODE_OBJECT);
+
+  if (node == NULL)
+    goto request_global_get_all_docs_error;
+
+  json_node_set_object (node, obj);
+
+  gen = json_generator_new();
+
+  if (gen == NULL)
+    goto request_global_get_all_docs_error;
+
+  json_generator_set_root (gen, node );
+  client->output.string.string = json_generator_to_data (gen,&client->output_size);
+
+  if (client->output.string.string == NULL)
+    goto request_global_get_all_docs_error;
+
   if( results )
      dupin_record_get_list_close (results);
   else
      dupin_database_unref (db);
 
-  tb_json_object_destroy (obj);
+  if (gen != NULL)
+    g_object_unref (gen);
+  if (node != NULL)
+    g_object_unref (node);
+  g_object_unref (obj);
   return HTTP_STATUS_200;
 
 request_global_get_all_docs_error:
+
   if( results )
      dupin_record_get_list_close (results);
   else
      dupin_database_unref (db);
-  tb_json_object_destroy (obj);
+
+  if (gen != NULL)
+    g_object_unref (gen);
+  if (node != NULL)
+    g_object_unref (node);
+  g_object_unref (obj);
   return HTTP_STATUS_500;
 }
 
@@ -788,7 +783,7 @@ request_global_get_record (DSHttpdClient * client, GList * path,
   DupinDB *db;
   DupinRecord *record;
 
-  tb_json_object_t *obj;
+  JsonObject *obj;
   tb_json_node_t *node;
   tb_json_value_t *value;
 
@@ -837,7 +832,7 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 
       for (i = 1; i <= dupin_record_get_last_revision (record); i++)
 	{
-	  tb_json_object_t *o;
+	  JsonObject *o;
 
 	  tb_json_array_add (array, NULL, &value);
 
@@ -2119,54 +2114,34 @@ request_record_response_multi_error:
   return FALSE;
 }
 
-static tb_json_object_t *
+static JsonObject *
 request_record_obj (DupinRecord * record, gchar * id, guint rev)
 {
-  tb_json_object_t *obj;
-  tb_json_node_t *node;
-  tb_json_value_t *value;
+  JsonObject *obj;
 
   if (dupin_record_is_deleted (record, rev) == TRUE)
     {
-      if (tb_json_object_new (&obj) == FALSE)
-	return NULL;
+      obj = json_object_new ();
 
-      if (tb_json_object_add_node (obj, "_deleted", &node) == FALSE)
-	goto request_record_obj_error;
+      if (obj == NULL)
+        return NULL;
 
-      value = tb_json_node_get_value (node);
-      if (tb_json_value_set_boolean (value, TRUE) == FALSE)
-	goto request_record_obj_error;
+      json_object_set_boolean_member (obj, "_deleted", TRUE);
     }
 
   else
     {
-      tb_json_object_t *o;
+      obj = dupin_record_get_revision (record, rev);
 
-      o = dupin_record_get_revision (record, rev);
-      tb_json_object_duplicate (o, &obj);
+      if (obj == NULL)
+        return NULL;
     }
 
   /* Setting _id and _rev: */
-  if (tb_json_object_add_node (obj, REQUEST_OBJ_ID, &node) == FALSE)
-    goto request_record_obj_error;
-
-  value = tb_json_node_get_value (node);
-  if (tb_json_value_set_string (value, id) == FALSE)
-    goto request_record_obj_error;
-
-  if (tb_json_object_add_node (obj, REQUEST_OBJ_REV, &node) == FALSE)
-    goto request_record_obj_error;
-
-  value = tb_json_node_get_value (node);
-  if (tb_json_value_set_number (value, rev) == FALSE)
-    goto request_record_obj_error;
+  json_object_set_string_member (obj, REQUEST_OBJ_ID, id);
+  json_object_set_double_member (obj, REQUEST_OBJ_REV, (gdouble) rev);
 
   return obj;
-
-request_record_obj_error:
-  tb_json_object_destroy (obj);
-  return NULL;
 }
 
 static tb_json_object_t *

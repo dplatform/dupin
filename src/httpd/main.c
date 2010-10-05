@@ -34,7 +34,10 @@ main (int argc, char **argv)
   GError *error = NULL;
   DSGlobal *data;
 
-  g_thread_init (NULL);
+  // better make double-sure glib itself is initialized properly.
+  if (!g_thread_supported ())
+	g_thread_init (NULL);
+  g_type_init();
 
   /* Read the config file: */
   if (!(data = configure_init (argc, argv, &error)))

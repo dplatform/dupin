@@ -3,6 +3,8 @@
 
 #include <glib.h>
 
+#include <glib-object.h>
+
 /* ERROR */
 enum
 {

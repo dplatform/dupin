@@ -386,14 +386,14 @@ dupin_view_p_update (DupinView * view, GError ** error)
 
 void
 dupin_view_p_record_insert (DupinViewP * p, gchar * id,
-			    tb_json_object_t * obj)
+			    JsonObject * obj)
 {
   gsize i;
 
   for (i = 0; i < p->numb; i++)
     {
       DupinView *view = p->views[i];
-      tb_json_object_t *nobj;
+      JsonObject *nobj;
 
       if ((nobj = dupin_mr_record (view, obj)))
 	{
@@ -780,7 +780,7 @@ dupin_view_sync_thread_real_mr (DupinView * view, GList * list)
   for (; list; list = list->next)
     {
       struct dupin_view_sync_t *data = list->data;
-      tb_json_object_t *nobj;
+      JsonObject *nobj;
 
       if ((nobj = dupin_mr_record (view, data->obj)))
 	{

@@ -5,6 +5,8 @@
 #include <glib/gstdio.h>
 #include <gio/gio.h>
 
+#include <glib-object.h>
+
 #include "../lib/dupin.h"
 
 typedef enum {

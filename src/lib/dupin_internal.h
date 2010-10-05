@@ -6,6 +6,9 @@
 #include <glib/gstdio.h>
 #include <sqlite3.h>
 
+#include <json-glib/json-glib.h>
+#include <json-glib/json-gobject.h>
+
 #ifdef WEBKIT_FRAMEWORK
 #  include <JavaScriptCore.h>
 #else
@@ -104,7 +107,7 @@ struct dupin_record_rev_t
   gchar *	obj_serialized;
   gsize		obj_serialized_len;
 
-  tb_json_object_t *obj;
+  JsonObject *obj;
 };
 
 struct dupin_view_record_t
@@ -158,7 +161,7 @@ gboolean	dupin_view_p_update
 void		dupin_view_p_record_insert
 				(DupinViewP *	p,
 				 gchar *	id,
-				 tb_json_object_t *obj);
+				 JsonObject *obj);
 
 void		dupin_view_p_record_delete
 				(DupinViewP *	p,

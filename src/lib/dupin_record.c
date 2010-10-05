@@ -9,6 +9,9 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include <json-glib/json-glib.h>
+#include <json-glib/json-gobject.h>
+
 #define DUPIN_DB_SQL_EXISTS \
 	"SELECT count(id) FROM Dupin WHERE id = '%q' "
 
@@ -466,17 +469,15 @@ dupin_record_get_last_revision (DupinRecord * record)
   return record->last->revision;
 }
 
-tb_json_object_t *
+JsonObject *
 dupin_record_get_revision (DupinRecord * record, gint revision)
 {
-  tb_json_t *json;
   DupinRecordRev *r;
 
   g_return_val_if_fail (record != NULL, NULL);
 
   if (revision < 0 || revision == record->last->revision)
     r = record->last;
-
   else
     {
       if (revision > record->last->revision)
@@ -491,22 +492,42 @@ dupin_record_get_revision (DupinRecord * record, gint revision)
     g_return_val_if_fail (dupin_record_is_deleted (record, revision) != FALSE,
 			  NULL);
 
+  /* TODO - make double check/sure that r->obj is not GC and valid */
   if (r->obj)
     return r->obj;
 
-  json = tb_json_new ();
+  JsonParser *parser = json_parser_new ();
 
-  if (tb_json_load_from_buffer
-      (json, r->obj_serialized, r->obj_serialized_len, NULL) == FALSE
-      || tb_json_is_object (json) == FALSE)
-    {
-      tb_json_destroy (json);
-      return NULL;
-    }
+  if (parser == NULL)
+    goto dupin_record_get_revision_error;
 
-  r->obj = tb_json_object_and_detach (json);
-  tb_json_destroy (json);
+  /* we do not check any parsing error due we stored earlier, we assume it is sane */
+  if (json_parser_load_from_data (parser, r->obj_serialized, r->obj_serialized_len, NULL) == FALSE)
+    goto dupin_record_get_revision_error;
+
+  JsonNode * node = json_parser_get_root (parser);
+
+  if (node == NULL)
+    goto dupin_record_get_revision_error;
+
+  if (json_node_get_node_type (node) != JSON_NODE_OBJECT)
+    goto dupin_record_get_revision_error;
+
+  /* the dupin record r->obj becomes responsability of the caller - see dupin_record_rev_close() */
+  r->obj = json_node_dup_object (node);
+
+  if (r->obj == NULL)
+    goto dupin_record_get_revision_error;
+
+  if (parser != NULL)
+    g_object_unref (parser);
   return r->obj;
+
+dupin_record_get_revision_error:
+
+  if (parser != NULL)
+    g_object_unref (parser);
+  return NULL;
 }
 
 gboolean
@@ -556,7 +577,7 @@ dupin_record_rev_close (DupinRecordRev * rev)
     g_free (rev->obj_serialized);
 
   if (rev->obj)
-    tb_json_object_destroy (rev->obj);
+    g_object_unref(rev->obj);
 
   g_free (rev);
 }

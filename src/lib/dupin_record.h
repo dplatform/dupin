@@ -4,6 +4,9 @@
 #include <dupin.h>
 #include <tb_json.h>
 
+#include <json-glib/json-glib.h>
+#include <json-glib/json-gobject.h>
+
 G_BEGIN_DECLS
 
 DupinRecord *	dupin_record_create	(DupinDB *		db,
@@ -48,7 +51,7 @@ const gchar *	dupin_record_get_id	(DupinRecord *		record);
 guint		dupin_record_get_last_revision
 					(DupinRecord *		record);
 
-tb_json_object_t *
+JsonObject *
 		dupin_record_get_revision
 					(DupinRecord *		record,
 					 gint			revision);

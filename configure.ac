@@ -135,13 +135,25 @@ if	test -n "$HOMEBREW" || \
 		glib-2.0    >= 2.6.0
 		gthread-2.0 >= 2.6.0
 		gio-2.0     >= 2.6.0 ])
+
+	# json-glib
+	PKG_CHECK_MODULES(jsonglib, [ json-glib-1.0 >= 0.12.0 ],
+		[	[jsonglib_LIBS=`$PKG_CONFIG --libs "json-glib-1.0" 2>/dev/null`]
+			[jsonglib_CFLAGS=`$PKG_CONFIG --cflags "json-glib-1.0" 2>/dev/null`]
+		],
+		[
+  			AC_CHECK_HEADER(json-glib/json-glib.h,,AC_MSG_ERROR(jsonglib is required to build Dupin))
+			AC_CHECK_LIB(json-glib,json_parser_load_from_file,, AC_MSG_ERROR(jsonglib is required to build Dupin))
+		]
+		)
+
   else
 	AC_MSG_ERROR(pkg-config is required to build Dupin)
   fi
 
   # 3. set env
-  LDFLAGS="$LDFLAGS $webkit_LIBS $sqlite_LIBS $libxml2_LIBS $glib_LIBS"
-  CFLAGS="$CFLAGS $webkit_CFLAGS $sqlite_CFLAGS $libxml2_CFLAGS $glib_CFLAGS -DG_DISABLE_DEPRECATED"
+  LDFLAGS="$LDFLAGS $webkit_LIBS $sqlite_LIBS $libxml2_LIBS $glib_LIBS $jsonglib_LIBS"
+  CFLAGS="$CFLAGS $webkit_CFLAGS $sqlite_CFLAGS $libxml2_CFLAGS $glib_CFLAGS $jsonglib_CFLAGS -DG_DISABLE_DEPRECATED"
 
 else
 
@@ -154,16 +166,21 @@ else
   LDFLAGS="$LDFLAGS -framework JavaScriptCore"
 
   # SQLite
-  AC_CHECK_HEADER(sqlite3.h,,AC_MSG_ERROR(sqlite3 is required to compile this software))
-  AC_CHECK_LIB(sqlite3,sqlite3_exec,, AC_MSG_ERROR(sqlite3 is required to compile this software))
+  AC_CHECK_HEADER(sqlite3.h,,AC_MSG_ERROR(sqlite3 is required to build Dupin))
+  AC_CHECK_LIB(sqlite3,sqlite3_exec,, AC_MSG_ERROR(sqlite3 is required to build Dupin))
 
   # libXML2
-  AC_CHECK_HEADER(libxml/parser.h,,AC_MSG_ERROR(libxml2 is required to compile this software))
-  AC_CHECK_LIB(xml2,xmlParseFile,, AC_MSG_ERROR(libxml2 is required to compile this software))
+  AC_CHECK_HEADER(libxml/parser.h,,AC_MSG_ERROR(libxml2 is required to build Dupin))
+  AC_CHECK_LIB(xml2,xmlParseFile,, AC_MSG_ERROR(libxml2 is required to build Dupin))
+
+  # json-glib
+  AC_CHECK_HEADER(json-glib/json-glib.h,,AC_MSG_ERROR(jsonglib is required to build Dupin))
+  AC_CHECK_LIB(json-glib,json_parser_load_from_file,, AC_MSG_ERROR(jsonglib is required to build Dupin))
 
   # GLib
   CFLAGS="$CFLAGS -I/Library/Frameworks/GLib.framework/Headers"
   LDFLAGS="$LDFLAGS -framework GLib"
+
 fi
 
 #CFLAGS="$CFLAGS -Wall"

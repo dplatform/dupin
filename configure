@@ -884,6 +884,8 @@ libxml2_CFLAGS
 libxml2_LIBS
 glib_CFLAGS
 glib_LIBS
+jsonglib_CFLAGS
+jsonglib_LIBS
 LIBOBJS
 LTLIBOBJS'
 ac_subst_files=''
@@ -906,7 +908,9 @@ sqlite_LIBS
 libxml2_CFLAGS
 libxml2_LIBS
 glib_CFLAGS
-glib_LIBS'
+glib_LIBS
+jsonglib_CFLAGS
+jsonglib_LIBS'
 
 
 # Initialize some variables set by options.
@@ -1534,6 +1538,10 @@ Some influential environment variables:
               linker flags for libxml2, overriding pkg-config
   glib_CFLAGS C compiler flags for glib, overriding pkg-config
   glib_LIBS   linker flags for glib, overriding pkg-config
+  jsonglib_CFLAGS
+              C compiler flags for jsonglib, overriding pkg-config
+  jsonglib_LIBS
+              linker flags for jsonglib, overriding pkg-config
 
 Use these variables to override the choices made by `configure' or to help
 it to find libraries and programs with nonstandard names/locations.
@@ -4612,13 +4620,13 @@ if test "${lt_cv_nm_interface+set}" = set; then
 else
   lt_cv_nm_interface="BSD nm"
   echo "int some_variable = 0;" > conftest.$ac_ext
-  (eval echo "\"\$as_me:4615: $ac_compile\"" >&5)
+  (eval echo "\"\$as_me:4623: $ac_compile\"" >&5)
   (eval "$ac_compile" 2>conftest.err)
   cat conftest.err >&5
-  (eval echo "\"\$as_me:4618: $NM \\\"conftest.$ac_objext\\\"\"" >&5)
+  (eval echo "\"\$as_me:4626: $NM \\\"conftest.$ac_objext\\\"\"" >&5)
   (eval "$NM \"conftest.$ac_objext\"" 2>conftest.err > conftest.out)
   cat conftest.err >&5
-  (eval echo "\"\$as_me:4621: output\"" >&5)
+  (eval echo "\"\$as_me:4629: output\"" >&5)
   cat conftest.out >&5
   if $GREP 'External.*some_variable' conftest.out > /dev/null; then
     lt_cv_nm_interface="MS dumpbin"
@@ -5717,7 +5725,7 @@ ia64-*-hpux*)
   ;;
 *-*-irix6*)
   # Find out which ABI we are using.
-  echo '#line 5720 "configure"' > conftest.$ac_ext
+  echo '#line 5728 "configure"' > conftest.$ac_ext
   if { (eval echo "$as_me:$LINENO: \"$ac_compile\"") >&5
   (eval $ac_compile) 2>&5
   ac_status=$?
@@ -7564,11 +7572,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:7567: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:7575: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:7571: \$? = $ac_status" >&5
+   echo "$as_me:7579: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -7888,11 +7896,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:7891: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:7899: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:7895: \$? = $ac_status" >&5
+   echo "$as_me:7903: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -7993,11 +8001,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:7996: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8004: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:8000: \$? = $ac_status" >&5
+   echo "$as_me:8008: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -8048,11 +8056,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8051: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8059: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:8055: \$? = $ac_status" >&5
+   echo "$as_me:8063: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -10796,7 +10804,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 10799 "configure"
+#line 10807 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -10896,7 +10904,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 10899 "configure"
+#line 10907 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -14115,6 +14123,502 @@ else
 echo "${ECHO_T}yes" >&6; }
 
 fi
+
+	# json-glib
+
+pkg_failed=no
+{ echo "$as_me:$LINENO: checking for jsonglib" >&5
+echo $ECHO_N "checking for jsonglib... $ECHO_C" >&6; }
+
+if test -n "$jsonglib_CFLAGS"; then
+    pkg_cv_jsonglib_CFLAGS="$jsonglib_CFLAGS"
+ elif test -n "$PKG_CONFIG"; then
+    if test -n "$PKG_CONFIG" && \
+    { (echo "$as_me:$LINENO: \$PKG_CONFIG --exists --print-errors \" json-glib-1.0 >= 0.12.0 \"") >&5
+  ($PKG_CONFIG --exists --print-errors " json-glib-1.0 >= 0.12.0 ") 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; then
+  pkg_cv_jsonglib_CFLAGS=`$PKG_CONFIG --cflags " json-glib-1.0 >= 0.12.0 " 2>/dev/null`
+else
+  pkg_failed=yes
+fi
+ else
+    pkg_failed=untried
+fi
+if test -n "$jsonglib_LIBS"; then
+    pkg_cv_jsonglib_LIBS="$jsonglib_LIBS"
+ elif test -n "$PKG_CONFIG"; then
+    if test -n "$PKG_CONFIG" && \
+    { (echo "$as_me:$LINENO: \$PKG_CONFIG --exists --print-errors \" json-glib-1.0 >= 0.12.0 \"") >&5
+  ($PKG_CONFIG --exists --print-errors " json-glib-1.0 >= 0.12.0 ") 2>&5
+  ac_status=$?
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); }; then
+  pkg_cv_jsonglib_LIBS=`$PKG_CONFIG --libs " json-glib-1.0 >= 0.12.0 " 2>/dev/null`
+else
+  pkg_failed=yes
+fi
+ else
+    pkg_failed=untried
+fi
+
+
+
+if test $pkg_failed = yes; then
+   	{ echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6; }
+
+if $PKG_CONFIG --atleast-pkgconfig-version 0.20; then
+        _pkg_short_errors_supported=yes
+else
+        _pkg_short_errors_supported=no
+fi
+        if test $_pkg_short_errors_supported = yes; then
+	        jsonglib_PKG_ERRORS=`$PKG_CONFIG --short-errors --print-errors " json-glib-1.0 >= 0.12.0 " 2>&1`
+        else
+	        jsonglib_PKG_ERRORS=`$PKG_CONFIG --print-errors " json-glib-1.0 >= 0.12.0 " 2>&1`
+        fi
+	# Put the nasty error message in config.log where it belongs
+	echo "$jsonglib_PKG_ERRORS" >&5
+
+
+  			if test "${ac_cv_header_json_glib_json_glib_h+set}" = set; then
+  { echo "$as_me:$LINENO: checking for json-glib/json-glib.h" >&5
+echo $ECHO_N "checking for json-glib/json-glib.h... $ECHO_C" >&6; }
+if test "${ac_cv_header_json_glib_json_glib_h+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+fi
+{ echo "$as_me:$LINENO: result: $ac_cv_header_json_glib_json_glib_h" >&5
+echo "${ECHO_T}$ac_cv_header_json_glib_json_glib_h" >&6; }
+else
+  # Is the header compilable?
+{ echo "$as_me:$LINENO: checking json-glib/json-glib.h usability" >&5
+echo $ECHO_N "checking json-glib/json-glib.h usability... $ECHO_C" >&6; }
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+$ac_includes_default
+#include <json-glib/json-glib.h>
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_header_compiler=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_header_compiler=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+{ echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+echo "${ECHO_T}$ac_header_compiler" >&6; }
+
+# Is the header present?
+{ echo "$as_me:$LINENO: checking json-glib/json-glib.h presence" >&5
+echo $ECHO_N "checking json-glib/json-glib.h presence... $ECHO_C" >&6; }
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+#include <json-glib/json-glib.h>
+_ACEOF
+if { (ac_try="$ac_cpp conftest.$ac_ext"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_cpp conftest.$ac_ext") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } >/dev/null && {
+	 test -z "$ac_c_preproc_warn_flag$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       }; then
+  ac_header_preproc=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+  ac_header_preproc=no
+fi
+
+rm -f conftest.err conftest.$ac_ext
+{ echo "$as_me:$LINENO: result: $ac_header_preproc" >&5
+echo "${ECHO_T}$ac_header_preproc" >&6; }
+
+# So?  What about this header?
+case $ac_header_compiler:$ac_header_preproc:$ac_c_preproc_warn_flag in
+  yes:no: )
+    { echo "$as_me:$LINENO: WARNING: json-glib/json-glib.h: accepted by the compiler, rejected by the preprocessor!" >&5
+echo "$as_me: WARNING: json-glib/json-glib.h: accepted by the compiler, rejected by the preprocessor!" >&2;}
+    { echo "$as_me:$LINENO: WARNING: json-glib/json-glib.h: proceeding with the compiler's result" >&5
+echo "$as_me: WARNING: json-glib/json-glib.h: proceeding with the compiler's result" >&2;}
+    ac_header_preproc=yes
+    ;;
+  no:yes:* )
+    { echo "$as_me:$LINENO: WARNING: json-glib/json-glib.h: present but cannot be compiled" >&5
+echo "$as_me: WARNING: json-glib/json-glib.h: present but cannot be compiled" >&2;}
+    { echo "$as_me:$LINENO: WARNING: json-glib/json-glib.h:     check for missing prerequisite headers?" >&5
+echo "$as_me: WARNING: json-glib/json-glib.h:     check for missing prerequisite headers?" >&2;}
+    { echo "$as_me:$LINENO: WARNING: json-glib/json-glib.h: see the Autoconf documentation" >&5
+echo "$as_me: WARNING: json-glib/json-glib.h: see the Autoconf documentation" >&2;}
+    { echo "$as_me:$LINENO: WARNING: json-glib/json-glib.h:     section \"Present But Cannot Be Compiled\"" >&5
+echo "$as_me: WARNING: json-glib/json-glib.h:     section \"Present But Cannot Be Compiled\"" >&2;}
+    { echo "$as_me:$LINENO: WARNING: json-glib/json-glib.h: proceeding with the preprocessor's result" >&5
+echo "$as_me: WARNING: json-glib/json-glib.h: proceeding with the preprocessor's result" >&2;}
+    { echo "$as_me:$LINENO: WARNING: json-glib/json-glib.h: in the future, the compiler will take precedence" >&5
+echo "$as_me: WARNING: json-glib/json-glib.h: in the future, the compiler will take precedence" >&2;}
+
+    ;;
+esac
+{ echo "$as_me:$LINENO: checking for json-glib/json-glib.h" >&5
+echo $ECHO_N "checking for json-glib/json-glib.h... $ECHO_C" >&6; }
+if test "${ac_cv_header_json_glib_json_glib_h+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  ac_cv_header_json_glib_json_glib_h=$ac_header_preproc
+fi
+{ echo "$as_me:$LINENO: result: $ac_cv_header_json_glib_json_glib_h" >&5
+echo "${ECHO_T}$ac_cv_header_json_glib_json_glib_h" >&6; }
+
+fi
+if test $ac_cv_header_json_glib_json_glib_h = yes; then
+  :
+else
+  { { echo "$as_me:$LINENO: error: jsonglib is required to build Dupin" >&5
+echo "$as_me: error: jsonglib is required to build Dupin" >&2;}
+   { (exit 1); exit 1; }; }
+fi
+
+
+
+{ echo "$as_me:$LINENO: checking for json_parser_load_from_file in -ljson-glib" >&5
+echo $ECHO_N "checking for json_parser_load_from_file in -ljson-glib... $ECHO_C" >&6; }
+if test "${ac_cv_lib_json_glib_json_parser_load_from_file+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-ljson-glib  $LIBS"
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char json_parser_load_from_file ();
+int
+main ()
+{
+return json_parser_load_from_file ();
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext conftest$ac_exeext
+if { (ac_try="$ac_link"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_link") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest$ac_exeext &&
+       $as_test_x conftest$ac_exeext; then
+  ac_cv_lib_json_glib_json_parser_load_from_file=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_lib_json_glib_json_parser_load_from_file=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+      conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
+fi
+{ echo "$as_me:$LINENO: result: $ac_cv_lib_json_glib_json_parser_load_from_file" >&5
+echo "${ECHO_T}$ac_cv_lib_json_glib_json_parser_load_from_file" >&6; }
+if test $ac_cv_lib_json_glib_json_parser_load_from_file = yes; then
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_LIBJSON_GLIB 1
+_ACEOF
+
+  LIBS="-ljson-glib $LIBS"
+
+else
+  { { echo "$as_me:$LINENO: error: jsonglib is required to build Dupin" >&5
+echo "$as_me: error: jsonglib is required to build Dupin" >&2;}
+   { (exit 1); exit 1; }; }
+fi
+
+
+
+elif test $pkg_failed = untried; then
+     	{ echo "$as_me:$LINENO: result: no" >&5
+echo "${ECHO_T}no" >&6; }
+
+  			if test "${ac_cv_header_json_glib_json_glib_h+set}" = set; then
+  { echo "$as_me:$LINENO: checking for json-glib/json-glib.h" >&5
+echo $ECHO_N "checking for json-glib/json-glib.h... $ECHO_C" >&6; }
+if test "${ac_cv_header_json_glib_json_glib_h+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+fi
+{ echo "$as_me:$LINENO: result: $ac_cv_header_json_glib_json_glib_h" >&5
+echo "${ECHO_T}$ac_cv_header_json_glib_json_glib_h" >&6; }
+else
+  # Is the header compilable?
+{ echo "$as_me:$LINENO: checking json-glib/json-glib.h usability" >&5
+echo $ECHO_N "checking json-glib/json-glib.h usability... $ECHO_C" >&6; }
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+$ac_includes_default
+#include <json-glib/json-glib.h>
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_header_compiler=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_header_compiler=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+{ echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+echo "${ECHO_T}$ac_header_compiler" >&6; }
+
+# Is the header present?
+{ echo "$as_me:$LINENO: checking json-glib/json-glib.h presence" >&5
+echo $ECHO_N "checking json-glib/json-glib.h presence... $ECHO_C" >&6; }
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+#include <json-glib/json-glib.h>
+_ACEOF
+if { (ac_try="$ac_cpp conftest.$ac_ext"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_cpp conftest.$ac_ext") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } >/dev/null && {
+	 test -z "$ac_c_preproc_warn_flag$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       }; then
+  ac_header_preproc=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+  ac_header_preproc=no
+fi
+
+rm -f conftest.err conftest.$ac_ext
+{ echo "$as_me:$LINENO: result: $ac_header_preproc" >&5
+echo "${ECHO_T}$ac_header_preproc" >&6; }
+
+# So?  What about this header?
+case $ac_header_compiler:$ac_header_preproc:$ac_c_preproc_warn_flag in
+  yes:no: )
+    { echo "$as_me:$LINENO: WARNING: json-glib/json-glib.h: accepted by the compiler, rejected by the preprocessor!" >&5
+echo "$as_me: WARNING: json-glib/json-glib.h: accepted by the compiler, rejected by the preprocessor!" >&2;}
+    { echo "$as_me:$LINENO: WARNING: json-glib/json-glib.h: proceeding with the compiler's result" >&5
+echo "$as_me: WARNING: json-glib/json-glib.h: proceeding with the compiler's result" >&2;}
+    ac_header_preproc=yes
+    ;;
+  no:yes:* )
+    { echo "$as_me:$LINENO: WARNING: json-glib/json-glib.h: present but cannot be compiled" >&5
+echo "$as_me: WARNING: json-glib/json-glib.h: present but cannot be compiled" >&2;}
+    { echo "$as_me:$LINENO: WARNING: json-glib/json-glib.h:     check for missing prerequisite headers?" >&5
+echo "$as_me: WARNING: json-glib/json-glib.h:     check for missing prerequisite headers?" >&2;}
+    { echo "$as_me:$LINENO: WARNING: json-glib/json-glib.h: see the Autoconf documentation" >&5
+echo "$as_me: WARNING: json-glib/json-glib.h: see the Autoconf documentation" >&2;}
+    { echo "$as_me:$LINENO: WARNING: json-glib/json-glib.h:     section \"Present But Cannot Be Compiled\"" >&5
+echo "$as_me: WARNING: json-glib/json-glib.h:     section \"Present But Cannot Be Compiled\"" >&2;}
+    { echo "$as_me:$LINENO: WARNING: json-glib/json-glib.h: proceeding with the preprocessor's result" >&5
+echo "$as_me: WARNING: json-glib/json-glib.h: proceeding with the preprocessor's result" >&2;}
+    { echo "$as_me:$LINENO: WARNING: json-glib/json-glib.h: in the future, the compiler will take precedence" >&5
+echo "$as_me: WARNING: json-glib/json-glib.h: in the future, the compiler will take precedence" >&2;}
+
+    ;;
+esac
+{ echo "$as_me:$LINENO: checking for json-glib/json-glib.h" >&5
+echo $ECHO_N "checking for json-glib/json-glib.h... $ECHO_C" >&6; }
+if test "${ac_cv_header_json_glib_json_glib_h+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  ac_cv_header_json_glib_json_glib_h=$ac_header_preproc
+fi
+{ echo "$as_me:$LINENO: result: $ac_cv_header_json_glib_json_glib_h" >&5
+echo "${ECHO_T}$ac_cv_header_json_glib_json_glib_h" >&6; }
+
+fi
+if test $ac_cv_header_json_glib_json_glib_h = yes; then
+  :
+else
+  { { echo "$as_me:$LINENO: error: jsonglib is required to build Dupin" >&5
+echo "$as_me: error: jsonglib is required to build Dupin" >&2;}
+   { (exit 1); exit 1; }; }
+fi
+
+
+
+{ echo "$as_me:$LINENO: checking for json_parser_load_from_file in -ljson-glib" >&5
+echo $ECHO_N "checking for json_parser_load_from_file in -ljson-glib... $ECHO_C" >&6; }
+if test "${ac_cv_lib_json_glib_json_parser_load_from_file+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-ljson-glib  $LIBS"
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char json_parser_load_from_file ();
+int
+main ()
+{
+return json_parser_load_from_file ();
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext conftest$ac_exeext
+if { (ac_try="$ac_link"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_link") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest$ac_exeext &&
+       $as_test_x conftest$ac_exeext; then
+  ac_cv_lib_json_glib_json_parser_load_from_file=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_lib_json_glib_json_parser_load_from_file=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+      conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
+fi
+{ echo "$as_me:$LINENO: result: $ac_cv_lib_json_glib_json_parser_load_from_file" >&5
+echo "${ECHO_T}$ac_cv_lib_json_glib_json_parser_load_from_file" >&6; }
+if test $ac_cv_lib_json_glib_json_parser_load_from_file = yes; then
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_LIBJSON_GLIB 1
+_ACEOF
+
+  LIBS="-ljson-glib $LIBS"
+
+else
+  { { echo "$as_me:$LINENO: error: jsonglib is required to build Dupin" >&5
+echo "$as_me: error: jsonglib is required to build Dupin" >&2;}
+   { (exit 1); exit 1; }; }
+fi
+
+
+
+else
+	jsonglib_CFLAGS=$pkg_cv_jsonglib_CFLAGS
+	jsonglib_LIBS=$pkg_cv_jsonglib_LIBS
+        { echo "$as_me:$LINENO: result: yes" >&5
+echo "${ECHO_T}yes" >&6; }
+		jsonglib_LIBS=`$PKG_CONFIG --libs "json-glib-1.0" 2>/dev/null`
+			jsonglib_CFLAGS=`$PKG_CONFIG --cflags "json-glib-1.0" 2>/dev/null`
+
+fi
+
   else
 	{ { echo "$as_me:$LINENO: error: pkg-config is required to build Dupin" >&5
 echo "$as_me: error: pkg-config is required to build Dupin" >&2;}
@@ -14122,8 +14626,8 @@ echo "$as_me: error: pkg-config is required to build Dupin" >&2;}
   fi
 
   # 3. set env
-  LDFLAGS="$LDFLAGS $webkit_LIBS $sqlite_LIBS $libxml2_LIBS $glib_LIBS"
-  CFLAGS="$CFLAGS $webkit_CFLAGS $sqlite_CFLAGS $libxml2_CFLAGS $glib_CFLAGS -DG_DISABLE_DEPRECATED"
+  LDFLAGS="$LDFLAGS $webkit_LIBS $sqlite_LIBS $libxml2_LIBS $glib_LIBS $jsonglib_LIBS"
+  CFLAGS="$CFLAGS $webkit_CFLAGS $sqlite_CFLAGS $libxml2_CFLAGS $glib_CFLAGS $jsonglib_CFLAGS -DG_DISABLE_DEPRECATED"
 
 else
 
@@ -14267,8 +14771,8 @@ fi
 if test $ac_cv_header_sqlite3_h = yes; then
   :
 else
-  { { echo "$as_me:$LINENO: error: sqlite3 is required to compile this software" >&5
-echo "$as_me: error: sqlite3 is required to compile this software" >&2;}
+  { { echo "$as_me:$LINENO: error: sqlite3 is required to build Dupin" >&5
+echo "$as_me: error: sqlite3 is required to build Dupin" >&2;}
    { (exit 1); exit 1; }; }
 fi
 
@@ -14343,8 +14847,8 @@ _ACEOF
   LIBS="-lsqlite3 $LIBS"
 
 else
-  { { echo "$as_me:$LINENO: error: sqlite3 is required to compile this software" >&5
-echo "$as_me: error: sqlite3 is required to compile this software" >&2;}
+  { { echo "$as_me:$LINENO: error: sqlite3 is required to build Dupin" >&5
+echo "$as_me: error: sqlite3 is required to build Dupin" >&2;}
    { (exit 1); exit 1; }; }
 fi
 
@@ -14478,8 +14982,8 @@ fi
 if test $ac_cv_header_libxml_parser_h = yes; then
   :
 else
-  { { echo "$as_me:$LINENO: error: libxml2 is required to compile this software" >&5
-echo "$as_me: error: libxml2 is required to compile this software" >&2;}
+  { { echo "$as_me:$LINENO: error: libxml2 is required to build Dupin" >&5
+echo "$as_me: error: libxml2 is required to build Dupin" >&2;}
    { (exit 1); exit 1; }; }
 fi
 
@@ -14554,8 +15058,219 @@ _ACEOF
   LIBS="-lxml2 $LIBS"
 
 else
-  { { echo "$as_me:$LINENO: error: libxml2 is required to compile this software" >&5
-echo "$as_me: error: libxml2 is required to compile this software" >&2;}
+  { { echo "$as_me:$LINENO: error: libxml2 is required to build Dupin" >&5
+echo "$as_me: error: libxml2 is required to build Dupin" >&2;}
+   { (exit 1); exit 1; }; }
+fi
+
+
+  # json-glib
+  if test "${ac_cv_header_json_glib_json_glib_h+set}" = set; then
+  { echo "$as_me:$LINENO: checking for json-glib/json-glib.h" >&5
+echo $ECHO_N "checking for json-glib/json-glib.h... $ECHO_C" >&6; }
+if test "${ac_cv_header_json_glib_json_glib_h+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+fi
+{ echo "$as_me:$LINENO: result: $ac_cv_header_json_glib_json_glib_h" >&5
+echo "${ECHO_T}$ac_cv_header_json_glib_json_glib_h" >&6; }
+else
+  # Is the header compilable?
+{ echo "$as_me:$LINENO: checking json-glib/json-glib.h usability" >&5
+echo $ECHO_N "checking json-glib/json-glib.h usability... $ECHO_C" >&6; }
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+$ac_includes_default
+#include <json-glib/json-glib.h>
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+  ac_header_compiler=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_header_compiler=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+{ echo "$as_me:$LINENO: result: $ac_header_compiler" >&5
+echo "${ECHO_T}$ac_header_compiler" >&6; }
+
+# Is the header present?
+{ echo "$as_me:$LINENO: checking json-glib/json-glib.h presence" >&5
+echo $ECHO_N "checking json-glib/json-glib.h presence... $ECHO_C" >&6; }
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+#include <json-glib/json-glib.h>
+_ACEOF
+if { (ac_try="$ac_cpp conftest.$ac_ext"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_cpp conftest.$ac_ext") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } >/dev/null && {
+	 test -z "$ac_c_preproc_warn_flag$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       }; then
+  ac_header_preproc=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+  ac_header_preproc=no
+fi
+
+rm -f conftest.err conftest.$ac_ext
+{ echo "$as_me:$LINENO: result: $ac_header_preproc" >&5
+echo "${ECHO_T}$ac_header_preproc" >&6; }
+
+# So?  What about this header?
+case $ac_header_compiler:$ac_header_preproc:$ac_c_preproc_warn_flag in
+  yes:no: )
+    { echo "$as_me:$LINENO: WARNING: json-glib/json-glib.h: accepted by the compiler, rejected by the preprocessor!" >&5
+echo "$as_me: WARNING: json-glib/json-glib.h: accepted by the compiler, rejected by the preprocessor!" >&2;}
+    { echo "$as_me:$LINENO: WARNING: json-glib/json-glib.h: proceeding with the compiler's result" >&5
+echo "$as_me: WARNING: json-glib/json-glib.h: proceeding with the compiler's result" >&2;}
+    ac_header_preproc=yes
+    ;;
+  no:yes:* )
+    { echo "$as_me:$LINENO: WARNING: json-glib/json-glib.h: present but cannot be compiled" >&5
+echo "$as_me: WARNING: json-glib/json-glib.h: present but cannot be compiled" >&2;}
+    { echo "$as_me:$LINENO: WARNING: json-glib/json-glib.h:     check for missing prerequisite headers?" >&5
+echo "$as_me: WARNING: json-glib/json-glib.h:     check for missing prerequisite headers?" >&2;}
+    { echo "$as_me:$LINENO: WARNING: json-glib/json-glib.h: see the Autoconf documentation" >&5
+echo "$as_me: WARNING: json-glib/json-glib.h: see the Autoconf documentation" >&2;}
+    { echo "$as_me:$LINENO: WARNING: json-glib/json-glib.h:     section \"Present But Cannot Be Compiled\"" >&5
+echo "$as_me: WARNING: json-glib/json-glib.h:     section \"Present But Cannot Be Compiled\"" >&2;}
+    { echo "$as_me:$LINENO: WARNING: json-glib/json-glib.h: proceeding with the preprocessor's result" >&5
+echo "$as_me: WARNING: json-glib/json-glib.h: proceeding with the preprocessor's result" >&2;}
+    { echo "$as_me:$LINENO: WARNING: json-glib/json-glib.h: in the future, the compiler will take precedence" >&5
+echo "$as_me: WARNING: json-glib/json-glib.h: in the future, the compiler will take precedence" >&2;}
+
+    ;;
+esac
+{ echo "$as_me:$LINENO: checking for json-glib/json-glib.h" >&5
+echo $ECHO_N "checking for json-glib/json-glib.h... $ECHO_C" >&6; }
+if test "${ac_cv_header_json_glib_json_glib_h+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  ac_cv_header_json_glib_json_glib_h=$ac_header_preproc
+fi
+{ echo "$as_me:$LINENO: result: $ac_cv_header_json_glib_json_glib_h" >&5
+echo "${ECHO_T}$ac_cv_header_json_glib_json_glib_h" >&6; }
+
+fi
+if test $ac_cv_header_json_glib_json_glib_h = yes; then
+  :
+else
+  { { echo "$as_me:$LINENO: error: jsonglib is required to build Dupin" >&5
+echo "$as_me: error: jsonglib is required to build Dupin" >&2;}
+   { (exit 1); exit 1; }; }
+fi
+
+
+
+{ echo "$as_me:$LINENO: checking for json_parser_load_from_file in -ljson-glib" >&5
+echo $ECHO_N "checking for json_parser_load_from_file in -ljson-glib... $ECHO_C" >&6; }
+if test "${ac_cv_lib_json_glib_json_parser_load_from_file+set}" = set; then
+  echo $ECHO_N "(cached) $ECHO_C" >&6
+else
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-ljson-glib  $LIBS"
+cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char json_parser_load_from_file ();
+int
+main ()
+{
+return json_parser_load_from_file ();
+  ;
+  return 0;
+}
+_ACEOF
+rm -f conftest.$ac_objext conftest$ac_exeext
+if { (ac_try="$ac_link"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_link") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_c_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest$ac_exeext &&
+       $as_test_x conftest$ac_exeext; then
+  ac_cv_lib_json_glib_json_parser_load_from_file=yes
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+	ac_cv_lib_json_glib_json_parser_load_from_file=no
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest_ipa8_conftest.oo \
+      conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
+fi
+{ echo "$as_me:$LINENO: result: $ac_cv_lib_json_glib_json_parser_load_from_file" >&5
+echo "${ECHO_T}$ac_cv_lib_json_glib_json_parser_load_from_file" >&6; }
+if test $ac_cv_lib_json_glib_json_parser_load_from_file = yes; then
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_LIBJSON_GLIB 1
+_ACEOF
+
+  LIBS="-ljson-glib $LIBS"
+
+else
+  { { echo "$as_me:$LINENO: error: jsonglib is required to build Dupin" >&5
+echo "$as_me: error: jsonglib is required to build Dupin" >&2;}
    { (exit 1); exit 1; }; }
 fi
 
@@ -14563,6 +15278,7 @@ fi
   # GLib
   CFLAGS="$CFLAGS -I/Library/Frameworks/GLib.framework/Headers"
   LDFLAGS="$LDFLAGS -framework GLib"
+
 fi
 
 #CFLAGS="$CFLAGS -Wall"
@@ -15650,11 +16366,13 @@ libxml2_CFLAGS!$libxml2_CFLAGS$ac_delim
 libxml2_LIBS!$libxml2_LIBS$ac_delim
 glib_CFLAGS!$glib_CFLAGS$ac_delim
 glib_LIBS!$glib_LIBS$ac_delim
+jsonglib_CFLAGS!$jsonglib_CFLAGS$ac_delim
+jsonglib_LIBS!$jsonglib_LIBS$ac_delim
 LIBOBJS!$LIBOBJS$ac_delim
 LTLIBOBJS!$LTLIBOBJS$ac_delim
 _ACEOF
 
-  if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 27; then
+  if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 29; then
     break
   elif $ac_last_try; then
     { { echo "$as_me:$LINENO: error: could not make $CONFIG_STATUS" >&5

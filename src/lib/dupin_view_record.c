@@ -260,7 +260,7 @@ dupin_view_record_close (DupinViewRecord * record)
     g_free (record->obj_serialized);
 
   if (record->obj)
-    tb_json_object_destroy (record->obj);
+    g_object_unref (record->obj);
 
   g_free (record);
 }
@@ -281,29 +281,48 @@ dupin_view_record_get_pid (DupinViewRecord * record)
   return record->pid;
 }
 
-tb_json_object_t *
+JsonObject *
 dupin_view_record_get (DupinViewRecord * record)
 {
-  tb_json_t *json;
+  JsonObject *json;
 
   g_return_val_if_fail (record != NULL, NULL);
 
   if (record->obj)
     return record->obj;
 
-  json = tb_json_new ();
+  JsonParser *parser = json_parser_new ();
 
-  if (tb_json_load_from_buffer
-      (json, record->obj_serialized, record->obj_serialized_len,
-       NULL) == FALSE || tb_json_is_object (json) == FALSE)
-    {
-      tb_json_destroy (json);
-      return NULL;
-    }
+  if (parser == NULL)
+    goto dupin_view_record_get_error;
 
-  record->obj = tb_json_object_and_detach (json);
-  tb_json_destroy (json);
+  /* we do not check any parsing error due we stored earlier, we assume it is sane */
+  if (json_parser_load_from_data (parser, record->obj_serialized, record->obj_serialized_len, NULL) == FALSE)
+    goto dupin_view_record_get_error;
+
+  JsonNode * node = json_parser_get_root (parser);
+
+  if (node == NULL)
+    goto dupin_view_record_get_error;
+
+  if (json_node_get_node_type (node) != JSON_NODE_OBJECT)
+    goto dupin_view_record_get_error;
+
+  /* the dupin record record->obj becomes responsability of the caller - see dupin_view_record_close() */
+  record->obj = json_node_dup_object (node);
+
+  if (record->obj == NULL)
+    goto dupin_view_record_get_error;
+
+  if (parser != NULL)
+    g_object_unref (parser);
   return record->obj;
+
+dupin_view_record_get_error:
+
+  if (parser != NULL)
+    g_object_unref (parser);
+  return NULL;
 }
 
 /* EOF */

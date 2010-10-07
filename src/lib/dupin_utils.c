@@ -44,7 +44,7 @@ dupin_util_is_valid_record_id (gchar * id)
 }
 
 gboolean
-dupin_util_is_valid_obj (tb_json_object_t * obj)
+dupin_util_is_valid_obj (JsonObject * obj)
 {
   g_return_val_if_fail (obj != NULL, FALSE);
 

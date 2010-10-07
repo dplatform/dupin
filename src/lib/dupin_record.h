@@ -10,12 +10,12 @@
 G_BEGIN_DECLS
 
 DupinRecord *	dupin_record_create	(DupinDB *		db,
-					 tb_json_object_t *	obj,
+					 JsonObject *	obj,
 					 GError **		error);
 
 DupinRecord *	dupin_record_create_with_id
 					(DupinDB *		db,
-					 tb_json_object_t *	obj,
+					 JsonObject *	obj,
 					 gchar *		id,
 					 GError **		error);
 
@@ -38,7 +38,7 @@ void		dupin_record_get_list_close
 					(GList *		list);
 
 gboolean	dupin_record_update	(DupinRecord *		record,
-					 tb_json_object_t *	obj,
+					 JsonObject *	obj,
 					 GError **		error);
 
 gboolean	dupin_record_delete	(DupinRecord *		record,

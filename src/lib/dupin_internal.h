@@ -120,7 +120,7 @@ struct dupin_view_record_t
   gchar *	obj_serialized;
   gsize		obj_serialized_len;
 
-  tb_json_object_t *obj;
+  JsonObject *obj;
 };
 
 struct dupin_js_t

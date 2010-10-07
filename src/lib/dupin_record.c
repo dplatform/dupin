@@ -31,7 +31,7 @@
         "VALUES('%q', '%" G_GSIZE_FORMAT "', 'TRUE')"
 
 static DupinRecord *dupin_record_create_with_id_real (DupinDB * db,
-						      tb_json_object_t * obj,
+						      JsonObject * obj,
 						      gchar * id,
 						      GError ** error,
 						      gboolean lock);
@@ -41,7 +41,7 @@ static DupinRecord *dupin_record_read_real (DupinDB * db, gchar * id,
 static void dupin_record_rev_close (DupinRecordRev * rev);
 static DupinRecord *dupin_record_new (DupinDB * db, gchar * id);
 static void dupin_record_add_revision_obj (DupinRecord * record, guint rev,
-					   tb_json_object_t * obj,
+					   JsonObject * obj,
 					   gboolean delete);
 static void dupin_record_add_revision_str (DupinRecord * record, guint rev,
 					   gchar * obj, gssize size,
@@ -89,7 +89,7 @@ dupin_record_exists_real (DupinDB * db, gchar * id, gboolean lock)
 }
 
 DupinRecord *
-dupin_record_create (DupinDB * db, tb_json_object_t * obj, GError ** error)
+dupin_record_create (DupinDB * db, JsonObject * obj, GError ** error)
 {
   gchar *id;
   DupinRecord *record;
@@ -115,7 +115,7 @@ dupin_record_create (DupinDB * db, tb_json_object_t * obj, GError ** error)
 }
 
 DupinRecord *
-dupin_record_create_with_id (DupinDB * db, tb_json_object_t * obj, gchar * id,
+dupin_record_create_with_id (DupinDB * db, JsonObject * obj, gchar * id,
 			     GError ** error)
 {
   g_return_val_if_fail (db != NULL, NULL);
@@ -128,7 +128,7 @@ dupin_record_create_with_id (DupinDB * db, tb_json_object_t * obj, gchar * id,
 }
 
 static DupinRecord *
-dupin_record_create_with_id_real (DupinDB * db, tb_json_object_t * obj,
+dupin_record_create_with_id_real (DupinDB * db, JsonObject * obj,
 				  gchar * id, GError ** error, gboolean lock)
 {
   DupinRecord *record;
@@ -352,7 +352,7 @@ dupin_record_get_list_close (GList * list)
 }
 
 gboolean
-dupin_record_update (DupinRecord * record, tb_json_object_t * obj,
+dupin_record_update (DupinRecord * record, JsonObject * obj,
 		     GError ** error)
 {
   guint rev;
@@ -492,7 +492,7 @@ dupin_record_get_revision (DupinRecord * record, gint revision)
     g_return_val_if_fail (dupin_record_is_deleted (record, revision) != FALSE,
 			  NULL);
 
-  /* TODO - make double check/sure that r->obj is not GC and valid */
+  /* TODO - make double check/sure that r->obj is not garbage-collected and stays valid */
   if (r->obj)
     return r->obj;
 
@@ -584,7 +584,7 @@ dupin_record_rev_close (DupinRecordRev * rev)
 
 static void
 dupin_record_add_revision_obj (DupinRecord * record, guint rev,
-			       tb_json_object_t * obj, gboolean delete)
+			       JsonObject * obj, gboolean delete)
 {
   DupinRecordRev *r;
   gint *revp;
@@ -594,9 +594,17 @@ dupin_record_add_revision_obj (DupinRecord * record, guint rev,
 
   if (obj)
     {
-      tb_json_object_duplicate (obj, &r->obj);
-      tb_json_object_write_to_buffer (obj, &r->obj_serialized,
-				      &r->obj_serialized_len, NULL);
+      JsonNode * node = json_node_new (JSON_NODE_OBJECT);
+      json_node_set_object (node, obj);
+
+      JsonGenerator * gen = json_generator_new();
+      json_generator_set_root (gen, node );
+      r->obj_serialized = json_generator_to_data (gen,&r->obj_serialized_len);
+
+      /* NOTE - check whether or not a deep copy is not needed here - we just inc refcount with about json_node_set_object() call
+	        i.e. we store a copy into DB anyway, see above and Dupin/HTTP is "stateless" between POST and PUT etc) */
+
+      r->obj = obj;
     }
 
   r->deleted = delete;

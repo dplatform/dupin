@@ -11,7 +11,7 @@ gboolean	dupin_util_is_valid_view_name	(gchar *	db);
 
 gboolean	dupin_util_is_valid_record_id	(gchar *	id);
 
-gboolean	dupin_util_is_valid_obj		(tb_json_object_t *obj);
+gboolean	dupin_util_is_valid_obj		(JsonObject *obj);
 
 void		dupin_util_generate_id		(gchar		id[255]);
 

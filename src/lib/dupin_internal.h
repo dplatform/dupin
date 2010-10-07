@@ -125,8 +125,8 @@ struct dupin_view_record_t
 
 struct dupin_js_t
 {
-  tb_json_object_t *	emit;
-  tb_json_array_t *	emitIntermediate;
+  JsonObject *	emit;
+  JsonArray *	emitIntermediate;
 };
 
 DupinDB *	dupin_db_create	(Dupin *	d,
@@ -170,7 +170,7 @@ void		dupin_view_p_record_delete
 void		dupin_view_record_save
 				(DupinView *	view,
 				 gchar *	pid,
-				 tb_json_object_t * obj);
+				 JsonObject * obj);
 
 void		dupin_view_record_delete
 				(DupinView *	view,

@@ -9,10 +9,10 @@ DupinJs *	dupin_js_new		(gchar *	js);
 
 void		dupin_js_destroy	(DupinJs *	js);
 
-const tb_json_object_t *
+const JsonObject *
 		dupin_js_get_emit	(DupinJs *	js);
 
-const tb_json_array_t *
+const JsonArray *
 		dupin_js_get_emitIntermediate
 					(DupinJs *	js);
 

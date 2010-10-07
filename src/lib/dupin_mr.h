@@ -5,8 +5,8 @@
 
 G_BEGIN_DECLS
 
-tb_json_object_t *	dupin_mr_record		(DupinView *	view,
-		 	 	 		 tb_json_object_t * obj);
+JsonObject *	dupin_mr_record		(DupinView *	view,
+		 	 	 		 JsonObject * obj);
 
 G_END_DECLS
 

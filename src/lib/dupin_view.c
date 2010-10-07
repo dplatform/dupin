@@ -400,7 +400,7 @@ dupin_view_p_record_insert (DupinViewP * p, gchar * id,
 	  dupin_view_record_save (view, id, nobj);
 
 	  dupin_view_p_record_insert (&view->views, id, nobj);
-	  tb_json_object_destroy (nobj);
+	  g_object_unref (nobj);
 	}
     }
 }
@@ -419,37 +419,41 @@ dupin_view_p_record_delete (DupinViewP * p, gchar * pid)
 }
 
 void
-dupin_view_record_save (DupinView * view, gchar * pid, tb_json_object_t * obj)
+dupin_view_record_save (DupinView * view, gchar * pid, JsonObject * obj)
 {
-  GList *nodes;
+  GList *nodes, *n;
+  JsonNode *node;
+  JsonGenerator *gen;
 
-  gchar *id = NULL;
+  const gchar *id = NULL;
   gchar *tmp, *serialized;
 
   g_return_if_fail (dupin_util_is_valid_obj (obj) != FALSE);
 
   g_mutex_lock (view->mutex);
 
-  for (nodes = tb_json_object_get_nodes (obj); nodes; nodes = nodes->next)
+  nodes = json_object_get_members (obj);
+
+  for (n = nodes; n != NULL; n = n->next)
     {
-      tb_json_node_t *node = nodes->data;
-      gchar *str = tb_json_node_get_string (node);
+      gchar *member_name = (gchar *) n->data;
 
-      if (!strcmp (str, "_id"))
-	{
-	  tb_json_value_t *value = tb_json_node_get_value (node);
-	  id = g_strdup (tb_json_value_get_string (value));
+      if (!strcmp (member_name, "_id"))
+        {
+	  id = g_strdup ( json_node_get_string (json_object_get_member (obj, member_name)) );
 
-	  if (dupin_util_is_valid_record_id (id) == FALSE)
+	  if (dupin_util_is_valid_record_id ((gchar *)id) == FALSE)
 	    {
 	      g_mutex_unlock (view->mutex);
-	      g_return_if_fail (dupin_util_is_valid_record_id (id) != FALSE);
+              g_free ((gchar *)id);
+	      g_return_if_fail (dupin_util_is_valid_record_id ((gchar *)id) != FALSE);
 	    }
 
-	  tb_json_object_remove_node (obj, node);
+          json_object_remove_member (obj, member_name);
 	  break;
 	}
     }
+  g_list_free (nodes);
 
   if (!id && !(id = dupin_view_generate_id (view)))
     {
@@ -457,7 +461,42 @@ dupin_view_record_save (DupinView * view, gchar * pid, tb_json_object_t * obj)
       return;
     }
 
-  tb_json_object_write_to_buffer (obj, &serialized, NULL, NULL);
+  node = json_node_new (JSON_NODE_OBJECT);
+
+  if (node == NULL)
+    {
+      g_mutex_unlock (view->mutex);
+      g_free ((gchar *)id);
+      return;
+    }
+
+  json_node_set_object (node, obj);
+
+  gen = json_generator_new();
+
+  if (gen == NULL)
+    {
+      g_mutex_unlock (view->mutex);
+      g_free ((gchar *)id);
+      if (node != NULL)
+        g_object_unref (node);
+      return;
+    }
+
+  json_generator_set_root (gen, node );
+  serialized = json_generator_to_data (gen,NULL);
+
+  if (serialized == NULL)
+    {
+      g_mutex_unlock (view->mutex);
+      g_free ((gchar *)id);
+      if (gen != NULL)
+        g_object_unref (gen);
+      if (node != NULL)
+        g_object_unref (node);
+      return;
+    }
+
   tmp = sqlite3_mprintf (DUPIN_VIEW_SQL_INSERT, id, pid, serialized);
   sqlite3_exec (view->db, tmp, NULL, NULL, NULL);
 
@@ -465,7 +504,11 @@ dupin_view_record_save (DupinView * view, gchar * pid, tb_json_object_t * obj)
 
   sqlite3_free (tmp);
   g_free (serialized);
-  g_free (id);
+  g_free ((gchar *)id);
+  if (gen != NULL)
+    g_object_unref (gen);
+  if (node != NULL)
+    g_object_unref (node);
 }
 
 static void
@@ -770,7 +813,7 @@ dupin_view_sync_cb (void *data, int argc, char **argv, char **col)
 
 struct dupin_view_sync_t
 {
-  tb_json_object_t *obj;
+  JsonObject *obj;
   gchar *pid;
 };
 
@@ -787,7 +830,7 @@ dupin_view_sync_thread_real_mr (DupinView * view, GList * list)
 	  dupin_view_record_save (view, data->pid, nobj);
 
 	  dupin_view_p_record_insert (&view->views, data->pid, nobj);
-	  tb_json_object_destroy (nobj);
+	  g_object_unref (nobj);
 	}
     }
 }

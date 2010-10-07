@@ -284,8 +284,6 @@ dupin_view_record_get_pid (DupinViewRecord * record)
 JsonObject *
 dupin_view_record_get (DupinViewRecord * record)
 {
-  JsonObject *json;
-
   g_return_val_if_fail (record != NULL, NULL);
 
   if (record->obj)

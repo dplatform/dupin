@@ -3,10 +3,11 @@
 #endif
 
 #include <JavaScriptCore/JavaScript.h>
-#include<glib.h>
+#include <glib.h>
 #include <stdio.h>
 
-#include "../tbjson/tb_json.h"
+#include <json-glib/json-glib.h>
+#include <json-glib/json-gobject.h>
 
 static JSValueRef js_emitIntermediate (JSContextRef ctx, JSObjectRef object,
 				       JSObjectRef thisObject,
@@ -19,9 +20,9 @@ static JSValueRef js_emit (JSContextRef ctx, JSObjectRef object,
 			   JSValueRef * exception);
 
 static void js_value (JSContextRef ctx, JSValueRef value,
-		      tb_json_value_t * v);
+		      JsonNode ** v);
 static void js_obj (JSContextRef ctx, JSObjectRef object,
-		    tb_json_object_t * obj);
+		    JsonObject * obj);
 
 gint
 main (gint argc, gchar ** argv)
@@ -33,8 +34,8 @@ main (gint argc, gchar ** argv)
   JSValueRef result;
   JSValueRef exception = NULL;
 
-  tb_json_object_t *obj;
-  tb_json_node_t *node;
+  JsonObject *obj;
+  JsonNode *node;
 
   gchar *buffer;
 
@@ -62,26 +63,55 @@ main (gint argc, gchar ** argv)
   result = JSEvaluateScript (ctx, str, NULL, NULL, 0, &exception);
   JSStringRelease (str);
 
-  tb_json_object_new (&obj);
+  obj = json_object_new ();
 
   if (!result || exception)
     {
-      tb_json_object_add_node (obj, "error", &node);
-      js_value (ctx, exception, tb_json_node_get_value (node));
+      js_value (ctx, exception, &node);
 
-      tb_json_object_add_node (obj, "status", &node);
-      tb_json_value_set_boolean (tb_json_node_get_value (node), FALSE);
+      json_object_set_member (obj, "error", node);
+
+      json_object_set_boolean_member (obj, "status", FALSE);
 
       JSGlobalContextRelease (ctx);
     }
   else
     {
-      tb_json_object_add_node (obj, "status", &node);
-      tb_json_value_set_boolean (tb_json_node_get_value (node), TRUE);
+      json_object_set_boolean_member (obj, "status", TRUE);
     }
 
-  tb_json_object_write_to_buffer (obj, &buffer, NULL, NULL);
-  tb_json_object_destroy (obj);
+  JsonNode *node1 = json_node_new (JSON_NODE_OBJECT);
+
+  if (node1 == NULL)
+    {
+      g_object_unref (obj);
+      JSGlobalContextRelease (ctx);
+      return 1;
+    }
+
+  json_node_set_object (node1, obj);
+
+  JsonGenerator *gen = json_generator_new();
+
+  if (gen == NULL)
+    {
+      g_object_unref (node1);
+      JSGlobalContextRelease (ctx);
+      return 1;
+    }
+
+  json_generator_set_root (gen, node1 );
+  buffer = json_generator_to_data (gen,NULL);
+
+  if (buffer == NULL)
+    {
+      g_object_unref (node1);
+      JSGlobalContextRelease (ctx);
+      return 1;
+    }
+
+  g_object_unref (node1);
+
   puts (buffer);
   g_free (buffer);
 
@@ -103,7 +133,7 @@ js_string (JSStringRef js_string)
 }
 
 static void
-js_value (JSContextRef ctx, JSValueRef value, tb_json_value_t * v)
+js_value (JSContextRef ctx, JSValueRef value, JsonNode ** v)
 {
   switch (JSValueGetType (ctx, value))
     {
@@ -112,45 +142,55 @@ js_value (JSContextRef ctx, JSValueRef value, tb_json_value_t * v)
       break;
 
     case kJSTypeBoolean:
-      tb_json_value_set_boolean (v,
-				 JSValueToBoolean (ctx,
-						   value) ==
-				 true ? TRUE : FALSE);
+      *v = json_node_new (JSON_NODE_VALUE);
+
+      json_node_set_boolean (*v,
+                                 JSValueToBoolean (ctx,
+                                                   value) ==
+                                 true ? TRUE : FALSE);
       break;
 
     case kJSTypeNumber:
-      tb_json_value_set_number (v,
-				(gdouble) JSValueToNumber (ctx, value, NULL));
+      *v = json_node_new (JSON_NODE_VALUE);
+
+      json_node_set_double (*v,
+                                (gdouble) JSValueToNumber (ctx, value, NULL));
       break;
 
     case kJSTypeString:
       {
-	JSStringRef string;
-	gchar *str;
+        JSStringRef string;
+        gchar *str;
 
-	string = JSValueToStringCopy (ctx, value, NULL);
-	str = js_string (string);
-	JSStringRelease (string);
+        string = JSValueToStringCopy (ctx, value, NULL);
+        str = js_string (string);
+        JSStringRelease (string);
 
-	tb_json_value_set_string (v, str);
-	g_free (str);
-	break;
+        *v = json_node_new (JSON_NODE_VALUE);
+
+        json_node_set_string (*v, str);
+
+        g_free (str);
+        break;
       }
 
     case kJSTypeObject:
       {
-	tb_json_object_t *obj;
-	tb_json_value_set_object_new (v, &obj);
-	js_obj (ctx, JSValueToObject (ctx, value, NULL), obj);
-	break;
+        *v = json_node_new (JSON_NODE_OBJECT);
+
+        js_obj (ctx, JSValueToObject (ctx, value, NULL), json_node_get_object (*v));
+        break;
       }
     }
 
-  /* FIXME: array?!? */
+  /* FIXME: array?!? integer?!?
+            -> probably arrays are considered instances of Array() Javascript object ?!
+
+            see http://developer.apple.com/library/mac/#documentation/Carbon/Reference/WebKit_JavaScriptCore_Ref/JSValueRef_h/index.html%23//apple_ref/c/func/JSValueGetType */
 }
 
 static void
-js_obj (JSContextRef ctx, JSObjectRef object, tb_json_object_t * obj)
+js_obj (JSContextRef ctx, JSObjectRef object, JsonObject * obj)
 {
   JSPropertyNameArrayRef props;
   gsize nprops, i;
@@ -163,16 +203,17 @@ js_obj (JSContextRef ctx, JSObjectRef object, tb_json_object_t * obj)
       JSStringRef prop = JSPropertyNameArrayGetNameAtIndex (props, i);
 
       JSValueRef value;
-      tb_json_node_t *node;
+      JsonNode *node;
       gchar *p;
 
       p = js_string (prop);
-      tb_json_object_add_node (obj, p, &node);
-      g_free (p);
 
       value = JSObjectGetProperty (ctx, object, prop, NULL);
-      js_value (ctx, value, tb_json_node_get_value (node));
+      js_value (ctx, value, &node);
 
+      json_object_set_member (obj, p, node);
+
+      g_free (p);
       JSStringRelease (prop);
     }
 
@@ -181,28 +222,60 @@ js_obj (JSContextRef ctx, JSObjectRef object, tb_json_object_t * obj)
 
 static JSValueRef
 js_emitIntermediate (JSContextRef ctx, JSObjectRef object,
-		     JSObjectRef thisObject, size_t argumentCount,
-		     const JSValueRef arguments[], JSValueRef * exception)
+                           JSObjectRef thisObject, size_t argumentCount,
+                           const JSValueRef arguments[],
+                           JSValueRef * exception)
 {
-  tb_json_object_t *obj;
-  tb_json_node_t *node;
+  JsonObject *obj;
+  JsonNode *node;
   gchar *buffer;
-
   if (argumentCount != 1)
     {
       *exception = JSValueMakeNumber (ctx, 1);
       return NULL;
     }
 
-  tb_json_object_new (&obj);
-  tb_json_object_add_node (obj, "emitIntermediate", &node);
-  js_value (ctx, (JSObjectRef) arguments[0], tb_json_node_get_value (node));
-  tb_json_object_write_to_buffer (obj, &buffer, NULL, NULL);
-  tb_json_object_destroy (obj);
+  obj = json_object_new();
+
+  js_value (ctx, (JSObjectRef) arguments[0], &node);
+
+  json_object_set_member (obj, "emitIntermediate", node);
+
+  JsonNode *node1 = json_node_new (JSON_NODE_OBJECT);
+
+  if (node1 == NULL)
+    {
+      g_object_unref (obj);
+      return NULL;
+    }
+
+  json_node_set_object (node1, obj);
+
+  JsonGenerator *gen = json_generator_new();
+
+  if (gen == NULL)
+    {
+      g_object_unref (node1);
+      return NULL;
+    }
+
+  json_generator_set_root (gen, node1 );
+  buffer = json_generator_to_data (gen,NULL);
+
+  if (buffer == NULL)
+    {
+      g_object_unref (node1);
+      g_object_unref (gen);
+      return NULL;
+    }
+
+  g_object_unref (node1);
+  g_object_unref (gen);
+
   puts (buffer);
   g_free (buffer);
 
-  return NULL;
+  return NULL; /* shouldn't be an object ? */
 }
 
 static JSValueRef
@@ -210,31 +283,59 @@ js_emit (JSContextRef ctx, JSObjectRef object, JSObjectRef thisObject,
 	 size_t argumentCount, const JSValueRef arguments[],
 	 JSValueRef * exception)
 {
-  tb_json_object_t *obj;
-  tb_json_node_t *node;
+  JsonObject *obj;
+  JsonNode *node;
   gchar *buffer;
-
   if (argumentCount != 1)
     {
       *exception = JSValueMakeNumber (ctx, 1);
       return NULL;
     }
-
   if (JSValueIsObject (ctx, arguments[0]) == false)
     {
       *exception = JSValueMakeNumber (ctx, 1);
       return NULL;
     }
 
-  tb_json_object_new (&obj);
-  tb_json_object_add_node (obj, "emit", &node);
-  js_value (ctx, (JSObjectRef) arguments[0], tb_json_node_get_value (node));
-  tb_json_object_write_to_buffer (obj, &buffer, NULL, NULL);
-  tb_json_object_destroy (obj);
+  obj = json_object_new();
+
+  js_value (ctx, (JSObjectRef) arguments[0], &node);
+  json_object_set_member (obj, "emit", node);
+
+  JsonNode *node1 = json_node_new (JSON_NODE_OBJECT);
+
+  if (node1 == NULL)
+    {
+      g_object_unref (obj);
+      return NULL;
+    }
+
+  json_node_set_object (node1, obj);
+
+  JsonGenerator *gen = json_generator_new();
+
+  if (gen == NULL)
+    {
+      g_object_unref (node1);
+      return NULL;
+    }
+
+  json_generator_set_root (gen, node1 );
+  buffer = json_generator_to_data (gen,NULL);
+
+  if (buffer == NULL)
+    {
+      g_object_unref (node1);
+      g_object_unref (gen);
+      return NULL;
+    }
+
+  g_object_unref (node1);
+  g_object_unref (gen);
+
   puts (buffer);
   g_free (buffer);
 
-  return NULL;
+  return NULL; /* shouldn't be an object ? */
 }
-
 /* EOF */

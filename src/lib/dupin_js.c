@@ -17,7 +17,7 @@ static JSValueRef dupin_js_emit (JSContextRef ctx, JSObjectRef object,
 				 JSValueRef * exception);
 
 static void dupin_js_obj (JSContextRef ctx, JSObjectRef object,
-			  tb_json_object_t * obj);
+			  JsonObject * obj);
 
 DupinJs *
 dupin_js_new (gchar * script)
@@ -79,15 +79,15 @@ dupin_js_destroy (DupinJs * js)
     return;
 
   if (js->emit)
-    tb_json_object_destroy (js->emit);
+    g_object_unref (js->emit);
 
   if (js->emitIntermediate)
-    tb_json_array_destroy (js->emitIntermediate);
+    g_object_unref (js->emitIntermediate);
 
   g_free (js);
 }
 
-const tb_json_object_t *
+const JsonObject *
 dupin_js_get_emit (DupinJs * js)
 {
   g_return_val_if_fail (js != NULL, NULL);
@@ -95,7 +95,7 @@ dupin_js_get_emit (DupinJs * js)
   return js->emit;
 }
 
-const tb_json_array_t *
+const JsonArray *
 dupin_js_get_emitIntermediate (DupinJs * js)
 {
   g_return_val_if_fail (js != NULL, NULL);
@@ -117,7 +117,7 @@ dupin_js_string (JSStringRef js_string)
 }
 
 static void
-dupin_js_value (JSContextRef ctx, JSValueRef value, tb_json_value_t * v)
+dupin_js_value (JSContextRef ctx, JSValueRef value, JsonNode ** v)
 {
   switch (JSValueGetType (ctx, value))
     {
@@ -126,14 +126,18 @@ dupin_js_value (JSContextRef ctx, JSValueRef value, tb_json_value_t * v)
       break;
 
     case kJSTypeBoolean:
-      tb_json_value_set_boolean (v,
+      *v = json_node_new (JSON_NODE_VALUE);
+
+      json_node_set_boolean (*v, 
 				 JSValueToBoolean (ctx,
 						   value) ==
 				 true ? TRUE : FALSE);
       break;
 
     case kJSTypeNumber:
-      tb_json_value_set_number (v,
+      *v = json_node_new (JSON_NODE_VALUE);
+
+      json_node_set_double (*v, 
 				(gdouble) JSValueToNumber (ctx, value, NULL));
       break;
 
@@ -146,25 +150,31 @@ dupin_js_value (JSContextRef ctx, JSValueRef value, tb_json_value_t * v)
 	str = dupin_js_string (string);
 	JSStringRelease (string);
 
-	tb_json_value_set_string (v, str);
+        *v = json_node_new (JSON_NODE_VALUE);
+
+        json_node_set_string (*v, str);
+
 	g_free (str);
 	break;
       }
 
     case kJSTypeObject:
       {
-	tb_json_object_t *obj;
-	tb_json_value_set_object_new (v, &obj);
-	dupin_js_obj (ctx, JSValueToObject (ctx, value, NULL), obj);
+        *v = json_node_new (JSON_NODE_OBJECT);
+
+	dupin_js_obj (ctx, JSValueToObject (ctx, value, NULL), json_node_get_object (*v));
 	break;
       }
     }
 
-  /* FIXME: array?!? */
+  /* FIXME: array?!? integer?!?
+            -> probably arrays are considered instances of Array() Javascript object ?!
+
+            see http://developer.apple.com/library/mac/#documentation/Carbon/Reference/WebKit_JavaScriptCore_Ref/JSValueRef_h/index.html%23//apple_ref/c/func/JSValueGetType */
 }
 
 static void
-dupin_js_obj (JSContextRef ctx, JSObjectRef object, tb_json_object_t * obj)
+dupin_js_obj (JSContextRef ctx, JSObjectRef object, JsonObject * obj)
 {
   JSPropertyNameArrayRef props;
   gsize nprops, i;
@@ -177,16 +187,17 @@ dupin_js_obj (JSContextRef ctx, JSObjectRef object, tb_json_object_t * obj)
       JSStringRef prop = JSPropertyNameArrayGetNameAtIndex (props, i);
 
       JSValueRef value;
-      tb_json_node_t *node;
+      JsonNode *node;
       gchar *p;
 
       p = dupin_js_string (prop);
-      tb_json_object_add_node (obj, p, &node);
-      g_free (p);
 
       value = JSObjectGetProperty (ctx, object, prop, NULL);
-      dupin_js_value (ctx, value, tb_json_node_get_value (node));
+      dupin_js_value (ctx, value, &node);
 
+      json_object_set_member (obj, p, node);
+
+      g_free (p);
       JSStringRelease (prop);
     }
 
@@ -203,7 +214,7 @@ dupin_js_emitIntermediate (JSContextRef ctx, JSObjectRef object,
   JSStringRef str;
   DupinJs *js;
 
-  tb_json_value_t *v;
+  JsonNode *v;
 
   if (argumentCount != 1)
     {
@@ -224,10 +235,11 @@ dupin_js_emitIntermediate (JSContextRef ctx, JSObjectRef object,
     }
 
   if (!js->emitIntermediate)
-    tb_json_array_new (&js->emitIntermediate);
+    js->emitIntermediate = json_array_new ();
 
-  tb_json_array_add (js->emitIntermediate, NULL, &v);
-  dupin_js_value (ctx, (JSObjectRef) arguments[0], v);
+  dupin_js_value (ctx, (JSObjectRef) arguments[0], &v);
+
+  json_array_add_element(js->emitIntermediate, v);
 
   return NULL;
 }
@@ -266,10 +278,12 @@ dupin_js_emit (JSContextRef ctx, JSObjectRef object, JSObjectRef thisObject,
     }
 
   if (js->emit)
-    tb_json_object_destroy (js->emit);
+    g_object_unref (js->emit);
 
-  tb_json_object_new (&js->emit);
+  js->emit = json_object_new ();
+
   dupin_js_obj (ctx, (JSObjectRef) arguments[0], js->emit);
+
   return NULL;
 }
 

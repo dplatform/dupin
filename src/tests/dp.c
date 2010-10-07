@@ -26,7 +26,7 @@ gboolean dp_exit = FALSE;
 static void prompt (void);
 static void parse (GList * list);
 static GList *split (gchar * ar);
-static tb_json_object_t *json (gchar * str);
+static JsonObject *json (gchar * str);
 static void showRecord (DupinRecord * record);
 static void showViewRecord (DupinViewRecord * record);
 
@@ -283,44 +283,78 @@ parse (GList * list)
   printf ("Command unknown. Write 'help' to get the list of commands.\n");
 }
 
-static tb_json_object_t *
+static JsonObject *
 json (gchar * str)
 {
-  tb_json_t *j;
-  tb_json_object_t *obj;
+  JsonParser *j;
+  JsonObject *obj;
 
-  j = tb_json_new ();
+  j = json_parser_new ();
 
-  if (tb_json_load_from_buffer (j, str, -1, NULL) == FALSE
-      || tb_json_is_object (j) == FALSE)
+  if (j == NULL)
+    return NULL;
+
+  if (json_parser_load_from_data (j, str, -1, NULL) == FALSE)
     {
-      tb_json_destroy (j);
+      g_object_unref (j);
       return NULL;
     }
 
-  obj = tb_json_object_and_detach (j);
-  tb_json_destroy (j);
+  JsonNode * node = json_parser_get_root (j);
+
+  if (node == NULL)
+    {
+      g_object_unref (j);
+      return NULL;
+    }
+
+  if (json_node_get_node_type (node) != JSON_NODE_OBJECT)
+    {
+      g_object_unref (j);
+      return NULL;
+    }
+
+  obj = json_node_dup_object (node);
+
+  g_object_unref (j);
 
   return obj;
 }
 
-static tb_json_object_t *
+static JsonObject *
 json_file (gchar * filename)
 {
-  tb_json_t *j;
-  tb_json_object_t *obj;
+  JsonParser *j;
+  JsonObject *obj;
 
-  j = tb_json_new ();
+  j = json_parser_new ();
 
-  if (tb_json_load_from_file (j, filename, NULL) == FALSE
-      || tb_json_is_object (j) == FALSE)
+  if (j == NULL)
+    return NULL;
+
+  if (json_parser_load_from_file (j, filename, NULL) == FALSE)
     {
-      tb_json_destroy (j);
+      g_object_unref (j);
       return NULL;
     }
 
-  obj = tb_json_object_and_detach (j);
-  tb_json_destroy (j);
+  JsonNode * node = json_parser_get_root (j);
+
+  if (node == NULL)
+    {
+      g_object_unref (j);
+      return NULL;
+    }
+
+  if (json_node_get_node_type (node) != JSON_NODE_OBJECT)
+    {
+      g_object_unref (j);
+      return NULL;
+    }
+
+  obj = json_node_dup_object (node);
+
+  g_object_unref (j);
 
   return obj;
 }
@@ -550,7 +584,7 @@ command_countView (GList * list)
 static void
 command_createRecord (GList * list)
 {
-  tb_json_object_t *obj;
+  JsonObject *obj;
   GError *error = NULL;
 
   if (!db)
@@ -574,13 +608,13 @@ command_createRecord (GList * list)
       g_error_free (error);
     }
 
-  tb_json_object_destroy (obj);
+  g_object_unref (obj);
 }
 
 static void
 command_createRecordFromFile (GList * list)
 {
-  tb_json_object_t *obj;
+  JsonObject *obj;
   GError *error = NULL;
 
   if (!db)
@@ -604,7 +638,7 @@ command_createRecordFromFile (GList * list)
       g_error_free (error);
     }
 
-  tb_json_object_destroy (obj);
+  g_object_unref (obj);
 }
 
 static void
@@ -671,7 +705,7 @@ static void
 command_updateRecord (GList * list)
 {
   GError *error = NULL;
-  tb_json_object_t *obj;
+  JsonObject *obj;
 
   if (!db)
     {
@@ -697,7 +731,7 @@ command_updateRecord (GList * list)
       g_error_free (error);
     }
 
-  tb_json_object_destroy (obj);
+  g_object_unref (obj);
 }
 
 static void
@@ -746,7 +780,6 @@ static void
 showRecord (DupinRecord * record)
 {
   gint i;
-  GError *error = NULL;
 
   for (i = 1; i <= dupin_record_get_last_revision (record); i++)
     {
@@ -755,17 +788,35 @@ showRecord (DupinRecord * record)
 
       else
 	{
-	  tb_json_object_t *obj;
+	  JsonObject *obj;
 	  gchar *buffer;
+	  gsize size;
 
 	  obj = dupin_record_get_revision (record, i);
 
-	  if (tb_json_object_write_to_buffer (obj, &buffer, NULL, &error) ==
-	      FALSE)
+	  JsonNode *node = json_node_new (JSON_NODE_OBJECT);
+
+          if (node == NULL)
+            {
+              return;
+            }
+
+  	  json_node_set_object (node, obj);
+
+	  JsonGenerator *gen = json_generator_new();
+
+          if (gen == NULL)
+            {
+              g_object_unref (node);
+              return;
+            }
+
+  	  json_generator_set_root (gen, node );
+	  buffer = json_generator_to_data (gen,&size);
+
+	  if (buffer == NULL )
 	    {
-	      fprintf (stdout, "Rev: %d - Error: %s\n", i, error->message);
-	      g_error_free (error);
-	      error = NULL;
+	      fprintf (stdout, "Rev: %d - Error: cannot generate JSON output of size %d\n", i,(gint)size);
 	    }
 
 	  else
@@ -858,18 +909,34 @@ command_showViewRecord (GList * list)
 static void
 showViewRecord (DupinViewRecord * record)
 {
-  GError *error = NULL;
-
-  tb_json_object_t *obj;
+  JsonObject *obj;
   gchar *buffer;
+  gsize size;
 
   obj = dupin_view_record_get (record);
 
-  if (tb_json_object_write_to_buffer (obj, &buffer, NULL, &error) == FALSE)
+  JsonNode *node = json_node_new (JSON_NODE_OBJECT);
+
+  if (node == NULL)
+    return;
+
+  json_node_set_object (node, obj);
+
+  JsonGenerator *gen = json_generator_new();
+
+  if (gen == NULL)
     {
-      fprintf (stdout, "Error: %s\n", error->message);
-      g_error_free (error);
-      error = NULL;
+      g_object_unref (node);
+      return;
+    }
+
+  json_generator_set_root (gen, node );
+
+  buffer = json_generator_to_data (gen,&size);
+
+  if (buffer == NULL )
+    {
+      fprintf (stdout, "Error: cannot generate JSON output of size %d\n",(gint)size);
     }
 
   else

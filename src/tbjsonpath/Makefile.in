@@ -44,7 +44,8 @@ CONFIG_HEADER = $(top_builddir)/config.h
 CONFIG_CLEAN_FILES =
 LTLIBRARIES = $(noinst_LTLIBRARIES)
 libtbjsonpath_la_LIBADD =
-am_libtbjsonpath_la_OBJECTS = tb_jsonpath.lo tb_jsonpath_function.lo
+am_libtbjsonpath_la_OBJECTS = tb_jsonpath.lo tb_jsonpath_function.lo \
+	tb_jsonpath_scanner.lo
 libtbjsonpath_la_OBJECTS = $(am_libtbjsonpath_la_OBJECTS)
 DEFAULT_INCLUDES = -I. -I$(top_builddir)@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/depcomp
@@ -198,7 +199,10 @@ libtbjsonpath_la_SOURCES = \
 	tb_jsonpath.h \
 	tb_jsonpath_function.c \
 	tb_jsonpath_function.h \
-	tb_jsonpath_function_internal.h
+	tb_jsonpath_function_internal.h \
+        tb_jsonpath_scanner.c \
+        tb_jsonpath_scanner.h \
+        tb_jsonpath_scanner_internal.h
 
 all: all-am
 
@@ -253,6 +257,7 @@ distclean-compile:
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tb_jsonpath.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tb_jsonpath_function.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tb_jsonpath_scanner.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<

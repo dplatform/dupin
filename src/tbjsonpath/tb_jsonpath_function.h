@@ -49,12 +49,13 @@
 
 #include <glib.h>
 
-#include "../tbjson/tb_json.h"
+#include <json-glib/json-glib.h>
+#include <json-glib/json-gobject.h>
 
 G_BEGIN_DECLS
 
 typedef gboolean (*tb_jsonpath_function_cb)	(GList *		args,
-						 tb_json_value_t *	ret_value,
+						 JsonNode *		ret_value,
 						 GError **		error);
 
 typedef struct tb_jsonpath_functions_t tb_jsonpath_functions_t;

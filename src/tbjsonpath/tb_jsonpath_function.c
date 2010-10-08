@@ -51,79 +51,75 @@
 #include <stdlib.h>
 #include <string.h>
 
-static gboolean tb_jsonpath_function_value_string (tb_json_value_t * value,
+static gboolean tb_jsonpath_function_value_string (JsonNode * value,
 						   gchar ** string,
 						   GError ** error);
-static gboolean tb_jsonpath_function_value_number (tb_json_value_t * value,
+static gboolean tb_jsonpath_function_value_number (JsonNode * value,
 						   gdouble * number,
 						   GError ** error);
 
 static gboolean tb_jsonpath_function_last (GList * args,
-					   tb_json_value_t * retvalue,
+					   JsonNode * retvalue,
 					   GError ** error);
 static gboolean tb_jsonpath_function_count (GList * args,
-					    tb_json_value_t * retvalue,
+					    JsonNode * retvalue,
 					    GError ** error);
 static gboolean tb_jsonpath_function_string (GList * args,
-					     tb_json_value_t * retvalue,
+					     JsonNode * retvalue,
 					     GError ** error);
 static gboolean tb_jsonpath_function_concat (GList * args,
-					     tb_json_value_t * retvalue,
+					     JsonNode * retvalue,
 					     GError ** error);
 static gboolean tb_jsonpath_function_starts_with (GList * args,
-						  tb_json_value_t * retvalue,
+						  JsonNode * retvalue,
 						  GError ** error);
 static gboolean tb_jsonpath_function_contains (GList * args,
-					       tb_json_value_t * retvalue,
+					       JsonNode * retvalue,
 					       GError ** error);
 static gboolean tb_jsonpath_function_substring_before (GList * args,
-						       tb_json_value_t *
-						       retvalue,
+						       JsonNode * retvalue,
 						       GError ** error);
 static gboolean tb_jsonpath_function_substring_after (GList * args,
-						      tb_json_value_t *
-						      retvalue,
+						      JsonNode * retvalue,
 						      GError ** error);
 static gboolean tb_jsonpath_function_substring (GList * args,
-						tb_json_value_t * retvalue,
+						JsonNode * retvalue,
 						GError ** error);
 static gboolean tb_jsonpath_function_string_length (GList * args,
-						    tb_json_value_t *
-						    retvalue,
+						    JsonNode * retvalue,
 						    GError ** error);
 static gboolean tb_jsonpath_function_normalize_space (GList * args,
-						      tb_json_value_t *
-						      retvalue,
+						      JsonNode * retvalue,
 						      GError ** error);
 static gboolean tb_jsonpath_function_translate (GList * args,
-						tb_json_value_t * retvalue,
+						JsonNode * retvalue,
 						GError ** error);
 static gboolean tb_jsonpath_function_boolean (GList * args,
-					      tb_json_value_t * retvalue,
+					      JsonNode * retvalue,
 					      GError ** error);
 static gboolean tb_jsonpath_function_not (GList * args,
-					  tb_json_value_t * retvalue,
+					  JsonNode * retvalue,
 					  GError ** error);
 static gboolean tb_jsonpath_function_true (GList * args,
-					   tb_json_value_t * retvalue,
+					   JsonNode * retvalue,
 					   GError ** error);
 static gboolean tb_jsonpath_function_false (GList * args,
-					    tb_json_value_t * retvalue,
+					    JsonNode * retvalue,
 					    GError ** error);
 static gboolean tb_jsonpath_function_number (GList * args,
-					     tb_json_value_t * retvalue,
+					     JsonNode * retvalue,
 					     GError ** error);
 static gboolean tb_jsonpath_function_sum (GList * args,
-					  tb_json_value_t * retvalue,
+					  JsonNode * retvalue,
 					  GError ** error);
 static gboolean tb_jsonpath_function_floor (GList * args,
-					    tb_json_value_t * retvalue,
+					    JsonNode * retvalue,
 					    GError ** error);
 static gboolean tb_jsonpath_function_ceiling (GList * args,
-					      tb_json_value_t * retvalue,
+					      JsonNode * retvalue,
 					      GError ** error);
 static gboolean tb_jsonpath_function_round (GList * args,
-					    tb_json_value_t * retvalue,
+					    JsonNode * retvalue,
 					    GError ** error);
 
 static tb_jsonpath_function_t tb_jsonpath_default_functions[] = {
@@ -247,87 +243,162 @@ tb_jsonpath_function_destroy_single (tb_jsonpath_function_t * func)
 }
 
 static gboolean
-tb_jsonpath_function_value_string (tb_json_value_t * value,
+tb_jsonpath_function_value_string (JsonNode * value,
 				   gchar ** string, GError ** error)
 {
-  switch (tb_json_value_get_type (value))
-    {
-    case TB_JSON_VALUE_STRING:
-      *string = g_strdup (tb_json_value_get_string (value));
-      break;
+  switch (json_node_get_node_type (value))
+    {   
+      case JSON_NODE_VALUE:
+        {   
+          if (json_node_get_value_type (value) == G_TYPE_STRING)
+          { 
+            *string = g_strdup (json_node_get_string (value));
+            break;
+          } 
 
-    case TB_JSON_VALUE_NUMBER:
-      {
-	gdouble numb = tb_json_value_get_number (value);
-	*string = g_strdup_printf ("%f", numb);
-	break;
-      }
+          if (json_node_get_value_type (value) == G_TYPE_DOUBLE
+                || json_node_get_value_type (value) == G_TYPE_FLOAT)
+          {
+	    gdouble numb = json_node_get_double (value);
+	    *string = g_strdup_printf ("%f", numb);
+	    break;
+          }
 
-    case TB_JSON_VALUE_OBJECT:
-      if (tb_json_object_write_to_buffer
-	  (tb_json_value_get_object (value), string, NULL, error) == FALSE)
-	return FALSE;
+          if (json_node_get_value_type (value) == G_TYPE_INT
+                || json_node_get_value_type (value) == G_TYPE_INT64
+                || json_node_get_value_type (value) == G_TYPE_UINT)
+          { 
+	    gint numb = (gint) json_node_get_int (value);
+	    *string = g_strdup_printf ("%d", numb);
+	    break;
+          } 
+          if (json_node_get_value_type (value) == G_TYPE_BOOLEAN)
+          { 
+            *string = g_strdup_printf (json_node_get_boolean (value) == TRUE ? "true" : "false");
+            break;
+          } 
+        } 
 
-      break;
+      case JSON_NODE_OBJECT:
+        {
+          JsonGenerator *gen;
 
-    case TB_JSON_VALUE_ARRAY:
-      if (tb_json_array_write_to_buffer
-	  (tb_json_value_get_array (value), string, NULL, error) == FALSE)
-	return FALSE;
+          gen = json_generator_new();
 
-      break;
+          if (gen == NULL)
+            {
+              return FALSE;
+            }
 
-    case TB_JSON_VALUE_BOOLEAN:
-      *string =
-	g_strdup_printf (tb_json_value_get_boolean (value) ==
-			 TRUE ? "true" : "false");
-      break;
+          json_generator_set_root (gen, value );
+          *string = json_generator_to_data (gen,NULL);
 
-    case TB_JSON_VALUE_NULL:
-      *string = g_strdup ("null");
-      break;
+          if (string == NULL)
+            {
+	      g_object_unref (gen);
+              return FALSE;
+            }
 
-    default:
-      *string = g_strdup ("");
-      break;
+	  g_object_unref (gen);
+
+          break;
+        }
+
+      case JSON_NODE_ARRAY:
+        {
+          JsonGenerator *gen;
+
+          gen = json_generator_new();
+
+          if (gen == NULL)
+            {
+              return FALSE;
+            }
+
+          json_generator_set_root (gen, value );
+          *string = json_generator_to_data (gen,NULL);
+
+          if (string == NULL)
+            {
+	      g_object_unref (gen);
+              return FALSE;
+            }
+
+	  g_object_unref (gen);
+
+          break;
+        }
+
+      case JSON_NODE_NULL:
+        {
+          *string = g_strdup ("null");
+          break;
+        }
+
+      default:
+        {
+          *string = g_strdup ("");
+          break;
+        }
     }
 
   return TRUE;
 }
 
 static gboolean
-tb_jsonpath_function_value_number (tb_json_value_t * value,
+tb_jsonpath_function_value_number (JsonNode * value,
 				   gdouble * number, GError ** error)
 {
-  switch (tb_json_value_get_type (value))
-    {
-    case TB_JSON_VALUE_STRING:
-      {
-	gchar *string = tb_json_value_get_string (value);
-	*number = strtod (string, NULL);
-	break;
-      }
+  switch (json_node_get_node_type (value))
+    {   
+      case JSON_NODE_VALUE:
+        {   
+          if (json_node_get_value_type (value) == G_TYPE_STRING)
+          { 
+            gchar *string = json_node_get_string (value);
+	    *number = strtod (string, NULL);
+            break;
+          } 
 
-    case TB_JSON_VALUE_NUMBER:
-      *number = tb_json_value_get_number (value);
-      break;
+          if (json_node_get_value_type (value) == G_TYPE_DOUBLE
+                || json_node_get_value_type (value) == G_TYPE_FLOAT)
+          {
+	    *number = json_node_get_double (value);
+	    break;
+          }
 
-    case TB_JSON_VALUE_OBJECT:
-    case TB_JSON_VALUE_ARRAY:
-      *number = 0;
-      break;
+          if (json_node_get_value_type (value) == G_TYPE_INT
+                || json_node_get_value_type (value) == G_TYPE_INT64
+                || json_node_get_value_type (value) == G_TYPE_UINT)
+          { 
+	    *number = (gdouble) json_node_get_int (value);
+	    break;
+          } 
+          if (json_node_get_value_type (value) == G_TYPE_BOOLEAN)
+          { 
+            *number = json_node_get_boolean (value) == TRUE ? 1 : 0;
+            break;
+          } 
+        } 
 
-    case TB_JSON_VALUE_BOOLEAN:
-      *number = tb_json_value_get_boolean (value) == TRUE ? 1 : 0;
-      break;
+      case JSON_NODE_OBJECT:
+      case JSON_NODE_ARRAY:
+        {
+          *number = 0;
+          break;
+        }
 
-    case TB_JSON_VALUE_NULL:
-      *number = 0;
-      break;
+      case JSON_NODE_NULL:
+        {
+          *number = 0;
+          break;
+        }
 
-    default:
-      *number = 0;
-      break;
+      default:
+        {
+          *number = 0;
+          break;
+        }
     }
 
   return TRUE;
@@ -336,74 +407,74 @@ tb_jsonpath_function_value_number (tb_json_value_t * value,
 /* Functions */
 static gboolean
 tb_jsonpath_function_last (GList * args,
-			   tb_json_value_t * retvalue, GError ** error)
+			   JsonNode * retvalue, GError ** error)
 {
   tb_jsonpath_result_t *result;
-  tb_json_value_t *value;
-  tb_json_array_t *array;
+  JsonNode *value;
+  JsonArray *array;
 
   if (!args || !(result = args->data)
       || tb_jsonpath_result_next (result, &value) == FALSE
-      || tb_json_value_get_type (value) != TB_JSON_VALUE_ARRAY)
+      || json_node_get_node_type (value) != JSON_NODE_ARRAY) /* see tb_jsonpath.c we never have arrays or objects returned?!? */
     {
-      tb_json_value_set_number (retvalue, 0);
+      json_node_set_double (retvalue, 0);
       return TRUE;
     }
 
-  array = tb_json_value_get_array (value);
-  tb_json_value_set_number (retvalue, tb_json_array_length (array) - 1);
+  array = json_node_get_array (value);
+  json_node_set_double (retvalue, json_array_get_length (array) - 1); /* -1 correct ? */
   return TRUE;
 }
 
 static gboolean
 tb_jsonpath_function_count (GList * args,
-			    tb_json_value_t * retvalue, GError ** error)
+			    JsonNode * retvalue, GError ** error)
 {
   tb_jsonpath_result_t *result;
-  tb_json_value_t *value;
-  tb_json_array_t *array;
+  JsonNode *value;
+  JsonArray *array;
 
   result = args->data;
 
   if (!args || !(result = args->data)
       || tb_jsonpath_result_next (result, &value) == FALSE
-      || tb_json_value_get_type (value) != TB_JSON_VALUE_ARRAY)
+      || json_node_get_node_type (value) != JSON_NODE_ARRAY) /* see tb_jsonpath.c we never have arrays or objects returned?!? */
     {
-      tb_json_value_set_number (retvalue, 1);
+      json_node_set_double (retvalue, 1);
       return TRUE;
     }
 
-  array = tb_json_value_get_array (value);
-  tb_json_value_set_number (retvalue, tb_json_array_length (array));
+  array = json_node_get_array (value);
+  json_node_set_double (retvalue, json_array_get_length (array));
   return TRUE;
 }
 
 static gboolean
 tb_jsonpath_function_string (GList * args,
-			     tb_json_value_t * retvalue, GError ** error)
+			     JsonNode * retvalue, GError ** error)
 {
   tb_jsonpath_result_t *result;
-  tb_json_value_t *value;
+  JsonNode *value;
   gchar *string;
 
   if (!args || !(result = args->data)
       || tb_jsonpath_result_next (result, &value) == FALSE)
     {
-      tb_json_value_set_string (retvalue, "");
+      json_node_set_string (retvalue, "");
       return TRUE;
     }
 
   if (tb_jsonpath_function_value_string (value, &string, error) == FALSE)
     return FALSE;
 
-  tb_json_value_set_string (retvalue, string);
+  json_node_set_string (retvalue, string);
   g_free (string);
   return TRUE;
 }
 
 static gboolean
 tb_jsonpath_function_concat (GList * args,
-			     tb_json_value_t * retvalue, GError ** error)
+			     JsonNode * retvalue, GError ** error)
 {
   GList *list;
   GString *str;
@@ -414,7 +485,7 @@ tb_jsonpath_function_concat (GList * args,
   for (list = args; list; list = list->next)
     {
       tb_jsonpath_result_t *result = list->data;
-      tb_json_value_t *value;
+      JsonNode *value;
 
       if (tb_jsonpath_result_next (result, &value) == FALSE)
 	continue;
@@ -433,7 +504,7 @@ tb_jsonpath_function_concat (GList * args,
     }
 
   string = g_string_free (str, FALSE);
-  tb_json_value_set_string (retvalue, string);
+  json_node_set_string (retvalue, string);
   g_free (string);
 
   return TRUE;
@@ -441,17 +512,17 @@ tb_jsonpath_function_concat (GList * args,
 
 static gboolean
 tb_jsonpath_function_starts_with (GList * args,
-				  tb_json_value_t * retvalue, GError ** error)
+				  JsonNode * retvalue, GError ** error)
 {
   tb_jsonpath_result_t *result;
-  tb_json_value_t *v1, *v2;
+  JsonNode *v1, *v2;
   gchar *string;
   gchar *prefix;
 
   if (!args || !(result = args->data)
       || tb_jsonpath_result_next (result, &v1) == FALSE)
     {
-      tb_json_value_set_boolean (retvalue, FALSE);
+      json_node_set_boolean (retvalue, FALSE);
       return TRUE;
     }
 
@@ -460,7 +531,7 @@ tb_jsonpath_function_starts_with (GList * args,
   if (!args || !(result = args->data)
       || tb_jsonpath_result_next (result, &v2) == FALSE)
     {
-      tb_json_value_set_boolean (retvalue, FALSE);
+      json_node_set_boolean (retvalue, FALSE);
       return TRUE;
     }
 
@@ -473,7 +544,7 @@ tb_jsonpath_function_starts_with (GList * args,
       return FALSE;
     }
 
-  tb_json_value_set_boolean (retvalue, g_str_has_prefix (string, prefix));
+  json_node_set_boolean (retvalue, g_str_has_prefix (string, prefix));
 
   g_free (prefix);
   g_free (string);
@@ -483,17 +554,17 @@ tb_jsonpath_function_starts_with (GList * args,
 
 static gboolean
 tb_jsonpath_function_contains (GList * args,
-			       tb_json_value_t * retvalue, GError ** error)
+			       JsonNode * retvalue, GError ** error)
 {
   tb_jsonpath_result_t *result;
-  tb_json_value_t *v1, *v2;
+  JsonNode *v1, *v2;
   gchar *string;
   gchar *contained;
 
   if (!args || !(result = args->data)
       || tb_jsonpath_result_next (result, &v1) == FALSE)
     {
-      tb_json_value_set_boolean (retvalue, FALSE);
+      json_node_set_boolean (retvalue, FALSE);
       return TRUE;
     }
 
@@ -502,7 +573,7 @@ tb_jsonpath_function_contains (GList * args,
   if (!args || !(result = args->data)
       || tb_jsonpath_result_next (result, &v2) == FALSE)
     {
-      tb_json_value_set_boolean (retvalue, FALSE);
+      json_node_set_boolean (retvalue, FALSE);
       return TRUE;
     }
 
@@ -515,7 +586,7 @@ tb_jsonpath_function_contains (GList * args,
       return FALSE;
     }
 
-  tb_json_value_set_boolean (retvalue,
+  json_node_set_boolean (retvalue,
 			     g_strrstr (string, contained) ? TRUE : FALSE);
 
   g_free (contained);
@@ -526,17 +597,17 @@ tb_jsonpath_function_contains (GList * args,
 
 static gboolean
 tb_jsonpath_function_substring_before (GList * args,
-				       tb_json_value_t * retvalue,
+				       JsonNode * retvalue,
 				       GError ** error)
 {
   tb_jsonpath_result_t *result;
-  tb_json_value_t *v1, *v2;
+  JsonNode *v1, *v2;
   gchar *string, *sub, *ret;
 
   if (!args || !(result = args->data)
       || tb_jsonpath_result_next (result, &v1) == FALSE)
     {
-      tb_json_value_set_string (retvalue, "");
+      json_node_set_string (retvalue, "");
       return TRUE;
     }
 
@@ -545,7 +616,7 @@ tb_jsonpath_function_substring_before (GList * args,
   if (!args || !(result = args->data)
       || tb_jsonpath_result_next (result, &v2) == FALSE)
     {
-      tb_json_value_set_string (retvalue, string);
+      json_node_set_string (retvalue, string);
       return TRUE;
     }
 
@@ -560,7 +631,7 @@ tb_jsonpath_function_substring_before (GList * args,
 
   if (!(ret = g_strstr_len (string, strlen (string), sub)))
     {
-      tb_json_value_set_string (retvalue, string);
+      json_node_set_string (retvalue, string);
 
       g_free (string);
       g_free (sub);
@@ -568,7 +639,7 @@ tb_jsonpath_function_substring_before (GList * args,
     }
 
   ret[0] = 0;
-  tb_json_value_set_string (retvalue, string);
+  json_node_set_string (retvalue, string);
 
   g_free (string);
   g_free (sub);
@@ -577,17 +648,17 @@ tb_jsonpath_function_substring_before (GList * args,
 
 static gboolean
 tb_jsonpath_function_substring_after (GList * args,
-				      tb_json_value_t * retvalue,
+				      JsonNode * retvalue,
 				      GError ** error)
 {
   tb_jsonpath_result_t *result;
-  tb_json_value_t *v1, *v2;
+  JsonNode *v1, *v2;
   gchar *string, *sub, *ret;
 
   if (!args || !(result = args->data)
       || tb_jsonpath_result_next (result, &v1) == FALSE)
     {
-      tb_json_value_set_string (retvalue, "");
+      json_node_set_string (retvalue, "");
       return TRUE;
     }
 
@@ -596,7 +667,7 @@ tb_jsonpath_function_substring_after (GList * args,
   if (!args || !(result = args->data)
       || tb_jsonpath_result_next (result, &v2) == FALSE)
     {
-      tb_json_value_set_string (retvalue, "");
+      json_node_set_string (retvalue, "");
       return TRUE;
     }
 
@@ -608,7 +679,7 @@ tb_jsonpath_function_substring_after (GList * args,
 
   if (!(ret = g_strstr_len (string, strlen (string), sub)))
     {
-      tb_json_value_set_string (retvalue, "");
+      json_node_set_string (retvalue, "");
 
       g_free (string);
       g_free (sub);
@@ -616,7 +687,7 @@ tb_jsonpath_function_substring_after (GList * args,
     }
 
   ret++;
-  tb_json_value_set_string (retvalue, ret);
+  json_node_set_string (retvalue, ret);
 
   g_free (string);
   g_free (sub);
@@ -625,10 +696,10 @@ tb_jsonpath_function_substring_after (GList * args,
 
 static gboolean
 tb_jsonpath_function_substring (GList * args,
-				tb_json_value_t * retvalue, GError ** error)
+				JsonNode * retvalue, GError ** error)
 {
   tb_jsonpath_result_t *result;
-  tb_json_value_t *v1, *v2, *v3;
+  JsonNode *v1, *v2, *v3;
   gdouble numb1, numb2, i;
   gchar *string, *ptr;
   GString *ret;
@@ -647,7 +718,7 @@ tb_jsonpath_function_substring (GList * args,
   if (!(result = args->data)
       || tb_jsonpath_result_next (result, &v1) == FALSE)
     {
-      tb_json_value_set_string (retvalue, "");
+      json_node_set_string (retvalue, "");
       return TRUE;
     }
 
@@ -659,7 +730,7 @@ tb_jsonpath_function_substring (GList * args,
   if (!(result = args->data)
       || tb_jsonpath_result_next (result, &v2) == FALSE)
     {
-      tb_json_value_set_string (retvalue, string);
+      json_node_set_string (retvalue, string);
       g_free (string);
       return TRUE;
     }
@@ -686,7 +757,7 @@ tb_jsonpath_function_substring (GList * args,
 
   if ((len = g_utf8_strlen (string, -1)) < numb1)
     {
-      tb_json_value_set_string (retvalue, "");
+      json_node_set_string (retvalue, "");
 
       g_free (string);
       return TRUE;
@@ -709,7 +780,7 @@ tb_jsonpath_function_substring (GList * args,
   g_free (string);
 
   string = g_string_free (ret, FALSE);
-  tb_json_value_set_string (retvalue, string);
+  json_node_set_string (retvalue, string);
   g_free (string);
 
   return TRUE;
@@ -717,24 +788,24 @@ tb_jsonpath_function_substring (GList * args,
 
 static gboolean
 tb_jsonpath_function_string_length (GList * args,
-				    tb_json_value_t * retvalue,
+				    JsonNode * retvalue,
 				    GError ** error)
 {
   tb_jsonpath_result_t *result;
-  tb_json_value_t *v;
+  JsonNode *v;
   gchar *string;
 
   if (!args || !(result = args->data)
       || tb_jsonpath_result_next (result, &v) == FALSE)
     {
-      tb_json_value_set_number (retvalue, 0);
+      json_node_set_double (retvalue, 0);
       return TRUE;
     }
 
   if (tb_jsonpath_function_value_string (v, &string, error) == FALSE)
     return FALSE;
 
-  tb_json_value_set_number (retvalue, g_utf8_strlen (string, -1));
+  json_node_set_double (retvalue, g_utf8_strlen (string, -1));
   g_free (string);
 
   return TRUE;
@@ -742,7 +813,7 @@ tb_jsonpath_function_string_length (GList * args,
 
 static gboolean
 tb_jsonpath_function_normalize_space (GList * args,
-				      tb_json_value_t * retvalue,
+				      JsonNode * retvalue,
 				      GError ** error)
 {
   gint len;
@@ -750,13 +821,13 @@ tb_jsonpath_function_normalize_space (GList * args,
   GString *str;
   gboolean w = TRUE;
   gchar *string, *ptr;
-  tb_json_value_t *v;
+  JsonNode *v;
   tb_jsonpath_result_t *result;
 
   if (!args || !(result = args->data)
       || tb_jsonpath_result_next (result, &v) == FALSE)
     {
-      tb_json_value_set_string (retvalue, "");
+      json_node_set_string (retvalue, "");
       return TRUE;
     }
 
@@ -803,7 +874,7 @@ tb_jsonpath_function_normalize_space (GList * args,
 	string[len - 1] = 0;
     }
 
-  tb_json_value_set_string (retvalue, string);
+  json_node_set_string (retvalue, string);
   g_free (string);
 
   return TRUE;
@@ -811,18 +882,18 @@ tb_jsonpath_function_normalize_space (GList * args,
 
 static gboolean
 tb_jsonpath_function_translate (GList * args,
-				tb_json_value_t * retvalue, GError ** error)
+				JsonNode * retvalue, GError ** error)
 {
   tb_jsonpath_result_t *result;
   gchar *string, *a, *b, *ptr;
-  tb_json_value_t *v1, *v2, *v3;
+  JsonNode *v1, *v2, *v3;
   GString *str;
   gint len;
 
   if (!args || !(result = args->data)
       || tb_jsonpath_result_next (result, &v1) == FALSE)
     {
-      tb_json_value_set_string (retvalue, "");
+      json_node_set_string (retvalue, "");
       return TRUE;
     }
 
@@ -831,7 +902,7 @@ tb_jsonpath_function_translate (GList * args,
   if (!args || !(result = args->data)
       || tb_jsonpath_result_next (result, &v2) == FALSE)
     {
-      tb_json_value_set_string (retvalue, "");
+      json_node_set_string (retvalue, "");
       return TRUE;
     }
 
@@ -840,7 +911,7 @@ tb_jsonpath_function_translate (GList * args,
   if (!args || !(result = args->data)
       || tb_jsonpath_result_next (result, &v3) == FALSE)
     {
-      tb_json_value_set_string (retvalue, "");
+      json_node_set_string (retvalue, "");
       return TRUE;
     }
 
@@ -902,7 +973,7 @@ tb_jsonpath_function_translate (GList * args,
   g_free (b);
 
   string = g_string_free (str, FALSE);
-  tb_json_value_set_string (retvalue, string);
+  json_node_set_string (retvalue, string);
   g_free (string);
 
   return TRUE;
@@ -910,49 +981,67 @@ tb_jsonpath_function_translate (GList * args,
 
 static gboolean
 tb_jsonpath_function_boolean (GList * args,
-			      tb_json_value_t * retvalue, GError ** error)
+			      JsonNode * retvalue, GError ** error)
 {
   tb_jsonpath_result_t *result;
-  tb_json_value_t *value;
+  JsonNode *value;
 
   if (!args || !(result = args->data)
       || tb_jsonpath_result_next (result, &value) == FALSE)
     {
-      tb_json_value_set_boolean (retvalue, FALSE);
+      json_node_set_boolean (retvalue, FALSE);
       return TRUE;
     }
 
-  switch (tb_json_value_get_type (value))
-    {
-    case TB_JSON_VALUE_STRING:
-      {
-	gchar *string = tb_json_value_get_string (value);
-	tb_json_value_set_boolean (retvalue, *string ? TRUE : FALSE);
-	break;
-      }
+  switch (json_node_get_node_type (value))
+    {   
+      case JSON_NODE_VALUE:
+        {   
+          if (json_node_get_value_type (value) == G_TYPE_STRING)
+          {
+	    gchar *string = (gchar *) json_node_get_string (value);
+	    json_node_set_boolean (retvalue, *string ? TRUE : FALSE);
+	    break;
+          }
 
-    case TB_JSON_VALUE_NUMBER:
-      {
-	gdouble numb = tb_json_value_get_number (value);
-	tb_json_value_set_boolean (retvalue, numb ? TRUE : FALSE);
-	break;
-      }
+          if (json_node_get_value_type (value) == G_TYPE_DOUBLE
+                || json_node_get_value_type (value) == G_TYPE_FLOAT)
+          {
+	    gdouble numb = json_node_get_double (value);
+	    json_node_set_boolean (retvalue, numb ? TRUE : FALSE);
+	    break;
+          }
 
-    case TB_JSON_VALUE_OBJECT:
-      tb_json_value_set_boolean (retvalue, TRUE);
-      break;
+          if (json_node_get_value_type (value) == G_TYPE_INT
+                || json_node_get_value_type (value) == G_TYPE_INT64
+                || json_node_get_value_type (value) == G_TYPE_UINT)
+          { 
+	    gint numb = (gint) json_node_get_int (value);
+	    json_node_set_boolean (retvalue, numb ? TRUE : FALSE);
+	    break;
+          } 
+          if (json_node_get_value_type (value) == G_TYPE_BOOLEAN)
+          { 
+            json_node_set_boolean (retvalue, json_node_get_boolean (value));
+            break;
+          } 
+        } 
 
-    case TB_JSON_VALUE_ARRAY:
-      tb_json_value_set_boolean (retvalue, TRUE);
-      break;
+      case JSON_NODE_OBJECT:
+        {
+          json_node_set_boolean (retvalue, TRUE);
+        }
 
-    case TB_JSON_VALUE_BOOLEAN:
-      tb_json_value_set_boolean (retvalue, tb_json_value_get_boolean (value));
-      break;
+      case JSON_NODE_ARRAY:
+        {
+          json_node_set_boolean (retvalue, TRUE);
+        }
 
-    case TB_JSON_VALUE_NULL:
-      tb_json_value_set_boolean (retvalue, FALSE);
-      break;
+      case JSON_NODE_NULL:
+        {
+          json_node_set_boolean (retvalue, FALSE);
+          break;
+        }
     }
 
   return TRUE;
@@ -960,68 +1049,68 @@ tb_jsonpath_function_boolean (GList * args,
 
 static gboolean
 tb_jsonpath_function_not (GList * args,
-			  tb_json_value_t * retvalue, GError ** error)
+			  JsonNode * retvalue, GError ** error)
 {
   tb_jsonpath_result_t *result;
-  tb_json_value_t *value;
+  JsonNode *value;
 
   if (!args || !(result = args->data)
       || tb_jsonpath_result_next (result, &value) == FALSE)
     {
-      tb_json_value_set_boolean (retvalue, TRUE);
+      json_node_set_boolean (retvalue, TRUE);
       return TRUE;
     }
 
-  if (tb_json_value_get_type (value) == TB_JSON_VALUE_BOOLEAN
-      && tb_json_value_get_boolean (value) == FALSE)
-    tb_json_value_set_boolean (retvalue, TRUE);
+  if (json_node_get_value_type (value) == G_TYPE_BOOLEAN
+      && json_node_get_boolean (value) == FALSE)
+    json_node_set_boolean (retvalue, TRUE);
   else
-    tb_json_value_set_boolean (retvalue, FALSE);
+    json_node_set_boolean (retvalue, FALSE);
 
   return TRUE;
 }
 
 static gboolean
 tb_jsonpath_function_true (GList * args,
-			   tb_json_value_t * retvalue, GError ** error)
+			   JsonNode * retvalue, GError ** error)
 {
-  tb_json_value_set_boolean (retvalue, TRUE);
+  json_node_set_boolean (retvalue, TRUE);
   return TRUE;
 }
 
 static gboolean
 tb_jsonpath_function_false (GList * args,
-			    tb_json_value_t * retvalue, GError ** error)
+			    JsonNode * retvalue, GError ** error)
 {
-  tb_json_value_set_boolean (retvalue, FALSE);
+  json_node_set_boolean (retvalue, FALSE);
   return TRUE;
 }
 
 static gboolean
 tb_jsonpath_function_number (GList * args,
-			     tb_json_value_t * retvalue, GError ** error)
+			     JsonNode * retvalue, GError ** error)
 {
   tb_jsonpath_result_t *result;
-  tb_json_value_t *value;
+  JsonNode *value;
   gdouble number;
 
   if (!args || !(result = args->data)
       || tb_jsonpath_result_next (result, &value) == FALSE)
     {
-      tb_json_value_set_number (retvalue, 0);
+      json_node_set_double (retvalue, 0);
       return TRUE;
     }
 
   if (tb_jsonpath_function_value_number (value, &number, error) == FALSE)
     return FALSE;
 
-  tb_json_value_set_number (retvalue, number);
+  json_node_set_double (retvalue, number);
   return TRUE;
 }
 
 static gboolean
 tb_jsonpath_function_sum (GList * args,
-			  tb_json_value_t * retvalue, GError ** error)
+			  JsonNode * retvalue, GError ** error)
 {
   GList *list;
   gdouble numb, total;
@@ -1029,7 +1118,7 @@ tb_jsonpath_function_sum (GList * args,
   for (total = 0, list = args; list; list = list->next)
     {
       tb_jsonpath_result_t *result = list->data;
-      tb_json_value_t *value;
+      JsonNode *value;
 
       if (tb_jsonpath_result_next (result, &value) == FALSE)
 	continue;
@@ -1040,23 +1129,23 @@ tb_jsonpath_function_sum (GList * args,
       total += numb;
     }
 
-  tb_json_value_set_number (retvalue, total);
+  json_node_set_double (retvalue, total);
   return TRUE;
 }
 
 static gboolean
 tb_jsonpath_function_floor (GList * args,
-			    tb_json_value_t * retvalue, GError ** error)
+			    JsonNode * retvalue, GError ** error)
 {
   GList *list;
   gdouble max, numb;
-  tb_json_value_t *value;
+  JsonNode *value;
   tb_jsonpath_result_t *result;
 
   if (!args || !(result = args->data)
       || tb_jsonpath_result_next (result, &value) == FALSE)
     {
-      tb_json_value_set_number (retvalue, 0);
+      json_node_set_double (retvalue, 0);
       return TRUE;
     }
 
@@ -1077,23 +1166,23 @@ tb_jsonpath_function_floor (GList * args,
 	max = numb;
     }
 
-  tb_json_value_set_number (retvalue, max);
+  json_node_set_double (retvalue, max);
   return TRUE;
 }
 
 static gboolean
 tb_jsonpath_function_ceiling (GList * args,
-			      tb_json_value_t * retvalue, GError ** error)
+			      JsonNode * retvalue, GError ** error)
 {
   GList *list;
   gdouble min, numb;
-  tb_json_value_t *value;
+  JsonNode *value;
   tb_jsonpath_result_t *result;
 
   if (!args || !(result = args->data)
       || tb_jsonpath_result_next (result, &value) == FALSE)
     {
-      tb_json_value_set_number (retvalue, 0);
+      json_node_set_double (retvalue, 0);
       return TRUE;
     }
 
@@ -1115,23 +1204,23 @@ tb_jsonpath_function_ceiling (GList * args,
 	min = numb;
     }
 
-  tb_json_value_set_number (retvalue, min);
+  json_node_set_double (retvalue, min);
   return TRUE;
 }
 
 static gboolean
 tb_jsonpath_function_round (GList * args,
-			    tb_json_value_t * retvalue, GError ** error)
+			    JsonNode * retvalue, GError ** error)
 {
   gchar *string, **split;
   gdouble numb, mantissa;
-  tb_json_value_t *value;
+  JsonNode *value;
   tb_jsonpath_result_t *result;
 
   if (!args || !(result = args->data)
       || tb_jsonpath_result_next (result, &value) == FALSE)
     {
-      tb_json_value_set_number (retvalue, 0);
+      json_node_set_double (retvalue, 0);
       return TRUE;
     }
 
@@ -1157,7 +1246,7 @@ tb_jsonpath_function_round (GList * args,
   if (mantissa >= 5)
     numb = numb >= 0 ? numb + 1 : numb - 1;
 
-  tb_json_value_set_number (retvalue, numb);
+  json_node_set_double (retvalue, numb);
   return TRUE;
 }
 

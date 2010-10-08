@@ -6,7 +6,6 @@
 #include "map.h"
 #include "request.h"
 
-#include "../tbjson/tb_json.h"
 #include "../tbjsonpath/tb_jsonpath.h"
 
 #include <json-glib/json-glib.h>
@@ -1233,14 +1232,16 @@ request_global_get_database_query (DSHttpdClient * client, GList * path,
   GList *results;
   gsize offset = 0;
 
-  tb_json_array_t *array;
+  JsonArray *array;
+  JsonNode *node;
+  JsonGenerator *gen;
 
   if (!
       (db =
        dupin_database_open (client->thread->data->dupin, path->data, NULL)))
     return HTTP_STATUS_404;
 
-  tb_json_array_new (&array);
+  array = json_array_new ();
 
   while (dupin_record_get_list
 	 (db, QUERY_BLOCK, offset, FALSE, &results, NULL) == TRUE && results)
@@ -1256,12 +1257,11 @@ request_global_get_database_query (DSHttpdClient * client, GList * path,
 	      (query, -1, dupin_record_get_revision (record, -1), &ret, NULL,
 	       NULL) == TRUE && ret)
 	    {
-	      tb_json_value_t *value, *v;
+	      JsonNode *value;
 
 	      while (tb_jsonpath_result_next (ret, &value) == TRUE)
 		{
-		  tb_json_array_add (array, NULL, &v);
-		  tb_json_value_duplicate_exists (value, v);
+		  json_array_add_element (array, json_node_copy (value));
 		}
 
 	      tb_jsonpath_result_free (ret);
@@ -1272,15 +1272,44 @@ request_global_get_database_query (DSHttpdClient * client, GList * path,
       dupin_record_get_list_close (results);
     }
 
-  tb_json_array_write_to_buffer (array, &client->output.string.string,
-				 &client->output_size, NULL);
+  node = json_node_new (JSON_NODE_ARRAY);
+
+  if (node == NULL)
+    goto request_global_get_database_query_error;
+
+  json_node_set_array (node, array);
+
+  gen = json_generator_new();
+
+  if (gen == NULL)
+    goto request_global_get_database_query_error;
+
+  json_generator_set_root (gen, node );
+  client->output.string.string = json_generator_to_data (gen,&client->output_size);
+
+  if (client->output.string.string == NULL)
+    goto request_global_get_database_query_error;
 
   client->output_mime = g_strdup (HTTP_MIME_JSON);
   client->output_type = DS_HTTPD_OUTPUT_STRING;
-  tb_json_array_destroy (array);
 
+  if (gen != NULL)
+    g_object_unref (gen);
+  if (node != NULL)
+    g_object_unref (node);
+  g_object_unref (array);
   dupin_database_unref (db);
   return HTTP_STATUS_200;
+
+request_global_get_database_query_error:
+
+  if (gen != NULL)
+    g_object_unref (gen);
+  if (node != NULL)
+    g_object_unref (node);
+  g_object_unref (array);
+  dupin_database_unref (db);
+  return HTTP_STATUS_500;
 }
 
 static DSHttpStatusCode
@@ -1291,14 +1320,16 @@ request_global_get_view_query (DSHttpdClient * client, GList * path,
   GList *results;
   gsize offset = 0;
 
-  tb_json_array_t *array;
+  JsonArray *array;
+  JsonNode *node;
+  JsonGenerator *gen;
 
   if (!
       (view =
        dupin_view_open (client->thread->data->dupin, path->next->data, NULL)))
     return HTTP_STATUS_404;
 
-  tb_json_array_new (&array);
+  array = json_array_new ();
 
   while (dupin_view_record_get_list
 	 (view, QUERY_BLOCK, offset, FALSE, &results, NULL) == TRUE
@@ -1315,12 +1346,11 @@ request_global_get_view_query (DSHttpdClient * client, GList * path,
 	      (query, -1, dupin_view_record_get (record), &ret, NULL,
 	       NULL) == TRUE)
 	    {
-	      tb_json_value_t *value, *v;
+	      JsonNode *value;
 
 	      while (tb_jsonpath_result_next (ret, &value) == TRUE)
 		{
-		  tb_json_array_add (array, NULL, &v);
-		  tb_json_value_duplicate_exists (value, v);
+		  json_array_add_element (array, json_node_copy (value));
 		}
 	    }
 
@@ -1331,15 +1361,44 @@ request_global_get_view_query (DSHttpdClient * client, GList * path,
       dupin_view_record_get_list_close (results);
     }
 
-  tb_json_array_write_to_buffer (array, &client->output.string.string,
-				 &client->output_size, NULL);
+  node = json_node_new (JSON_NODE_ARRAY);
+
+  if (node == NULL)
+    goto request_global_get_view_query_error;
+
+  json_node_set_array (node, array);
+
+  gen = json_generator_new();
+
+  if (gen == NULL)
+    goto request_global_get_view_query_error;
+
+  json_generator_set_root (gen, node );
+  client->output.string.string = json_generator_to_data (gen,&client->output_size);
+
+  if (client->output.string.string == NULL)
+    goto request_global_get_view_query_error;
 
   client->output_mime = g_strdup (HTTP_MIME_JSON);
   client->output_type = DS_HTTPD_OUTPUT_STRING;
-  tb_json_array_destroy (array);
 
+  if (gen != NULL)
+    g_object_unref (gen);
+  if (node != NULL)
+    g_object_unref (node);
+  g_object_unref (array);
   dupin_view_unref (view);
   return HTTP_STATUS_200;
+
+request_global_get_view_query_error:
+
+  if (gen != NULL)
+    g_object_unref (gen);
+  if (node != NULL)
+    g_object_unref (node);
+  g_object_unref (array);
+  dupin_view_unref (view);
+  return HTTP_STATUS_500;
 }
 
 /* POST ********************************************************************/

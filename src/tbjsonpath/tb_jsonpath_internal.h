@@ -126,7 +126,7 @@ struct tb_jsonpath_item_t
   tb_jsonpath_filter_t *	filter;
   tb_jsonpath_script_t *	script;
   tb_jsonpath_query_t *		query;
-  tb_json_value_t *		value;
+  JsonNode *			value;
 
   gboolean			is_operation;
   tb_jsonpath_operation_type_t	operation;
@@ -154,8 +154,8 @@ gboolean	tb_jsonpath_parser	(gchar *		jsonpath,
 void		tb_jsonpath_free	(tb_jsonpath_item_t *	item);
 
 gboolean	tb_jsonpath_exec_real	(tb_jsonpath_item_t *	item,
-					 tb_json_object_t *	parent,
-					 tb_json_object_t *	object,
+					 JsonObject *	parent,
+					 JsonObject *	object,
 					 tb_jsonpath_result_t ** result,
 					 GError **		error);
 

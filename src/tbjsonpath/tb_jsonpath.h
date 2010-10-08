@@ -49,7 +49,9 @@
 
 #include <glib.h>
 
-#include "../tbjson/tb_json.h"
+#include <json-glib/json-glib.h>
+#include <json-glib/json-gobject.h>
+
 #include "tb_jsonpath_function.h"
 
 G_BEGIN_DECLS
@@ -62,17 +64,17 @@ gboolean	tb_jsonpath_validate	(gchar *		jsonpath,
 
 gboolean	tb_jsonpath_exec	(gchar *		jsonpath,
 					 gssize			size,
-					 tb_json_object_t *	object,
+					 JsonObject *		object,
 					 tb_jsonpath_result_t ** result,
 					 tb_jsonpath_functions_t *
 					 			functions,
 					 GError **		error);
 
 gboolean	tb_jsonpath_result_next (tb_jsonpath_result_t * result,
-					 tb_json_value_t **	value);
+					 JsonNode **		value);
 
 gboolean	tb_jsonpath_result_prev (tb_jsonpath_result_t * result,
-					 tb_json_value_t **	value);
+					 JsonNode **		value);
 
 gint		tb_jsonpath_result_length
 					(tb_jsonpath_result_t * result);

@@ -45,7 +45,7 @@ case "$host_os" in
 esac
 
 AM_SANITY_CHECK
-AM_INIT_AUTOMAKE(dupin, 0.1)
+AM_INIT_AUTOMAKE(dupin, 0.2)
 AM_CONFIG_HEADER(config.h)
 AM_MAINTAINER_MODE
 

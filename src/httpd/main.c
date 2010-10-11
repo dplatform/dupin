@@ -28,6 +28,18 @@ static void pid_check_close (DSGlobal * data);
 static gboolean permission (DSGlobal * data, GError ** error);
 #endif
 
+#if defined(DARWIN) && !defined(__cplusplus) && !defined(_ANSI_SOURCE)
+/* work around Darwin header file bugs
+ *   http://www.opensource.apple.com/bugs/X/BSD%20Kernel/2657228.html
+ */
+#undef SIG_DFL
+#undef SIG_IGN
+#undef SIG_ERR
+#define SIG_DFL (void (*)(int))0
+#define SIG_IGN (void (*)(int))1
+#define SIG_ERR (void (*)(int))-1
+#endif
+
 int
 main (int argc, char **argv)
 {

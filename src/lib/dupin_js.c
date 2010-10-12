@@ -79,10 +79,10 @@ dupin_js_destroy (DupinJs * js)
     return;
 
   if (js->emit)
-    g_object_unref (js->emit);
+    json_object_unref (js->emit);
 
   if (js->emitIntermediate)
-    g_object_unref (js->emitIntermediate);
+    json_array_unref (js->emitIntermediate);
 
   g_free (js);
 }
@@ -278,7 +278,7 @@ dupin_js_emit (JSContextRef ctx, JSObjectRef object, JSObjectRef thisObject,
     }
 
   if (js->emit)
-    g_object_unref (js->emit);
+    json_object_unref (js->emit);
 
   js->emit = json_object_new ();
 

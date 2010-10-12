@@ -260,7 +260,7 @@ dupin_view_record_close (DupinViewRecord * record)
     g_free (record->obj_serialized);
 
   if (record->obj)
-    g_object_unref (record->obj);
+    json_node_free (record->obj);
 
   g_free (record);
 }
@@ -281,39 +281,27 @@ dupin_view_record_get_pid (DupinViewRecord * record)
   return record->pid;
 }
 
-JsonObject *
+JsonNode *
 dupin_view_record_get (DupinViewRecord * record)
 {
   g_return_val_if_fail (record != NULL, NULL);
 
+  /* record->obj stays owernship of the view record - the caller eventually need to json_node_copy() it */
   if (record->obj)
     return record->obj;
 
-  JsonParser *parser = json_parser_new ();
-
-  if (parser == NULL)
-    goto dupin_view_record_get_error;
+  JsonParser * parser = json_parser_new ();
 
   /* we do not check any parsing error due we stored earlier, we assume it is sane */
   if (json_parser_load_from_data (parser, record->obj_serialized, record->obj_serialized_len, NULL) == FALSE)
     goto dupin_view_record_get_error;
 
-  JsonNode * node = json_parser_get_root (parser);
-
-  if (node == NULL)
-    goto dupin_view_record_get_error;
-
-  if (json_node_get_node_type (node) != JSON_NODE_OBJECT)
-    goto dupin_view_record_get_error;
-
-  /* the dupin record record->obj becomes responsability of the caller - see dupin_view_record_close() */
-  record->obj = json_node_dup_object (node);
-
-  if (record->obj == NULL)
-    goto dupin_view_record_get_error;
+  record->obj = json_node_copy (json_parser_get_root (parser));
 
   if (parser != NULL)
     g_object_unref (parser);
+
+  /* record->obj stays owernship of the view record - the caller eventually need to json_node_copy() it */
   return record->obj;
 
 dupin_view_record_get_error:

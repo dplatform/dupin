@@ -51,7 +51,7 @@ const gchar *	dupin_record_get_id	(DupinRecord *		record);
 guint		dupin_record_get_last_revision
 					(DupinRecord *		record);
 
-JsonObject *
+JsonNode *
 		dupin_record_get_revision
 					(DupinRecord *		record,
 					 gint			revision);

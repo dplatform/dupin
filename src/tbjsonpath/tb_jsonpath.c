@@ -97,7 +97,7 @@ tb_jsonpath_free (tb_jsonpath_item_t * item)
     tb_jsonpath_free_query (item->query);
 
   if (item->value)
-    g_object_unref (item->value);
+    json_node_free (item->value);
 
   g_free (item);
 }
@@ -2673,7 +2673,7 @@ tb_jsonpath_result_free (tb_jsonpath_result_t * result)
 
   for (result->current = result->values; result->current;
        result->current = result->current->next)
-    g_object_unref (result->current->data);
+    json_node_free (result->current->data); /* TODO - check it is actually correct to free JsonNode and we do not have JsonObject or JsonArray as well */
 
   g_list_free (result->values);
   g_free (result);

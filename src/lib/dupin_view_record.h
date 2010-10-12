@@ -34,7 +34,7 @@ const gchar *	dupin_view_record_get_id
 const gchar *	dupin_view_record_get_pid
 					(DupinViewRecord *	record);
 
-JsonObject *
+JsonNode *
 		dupin_view_record_get	(DupinViewRecord *	record);
 
 G_END_DECLS

@@ -84,7 +84,7 @@ main (gint argc, gchar ** argv)
 
   if (node1 == NULL)
     {
-      g_object_unref (obj);
+      json_object_unref (obj);
       JSGlobalContextRelease (ctx);
       return 1;
     }
@@ -95,7 +95,7 @@ main (gint argc, gchar ** argv)
 
   if (gen == NULL)
     {
-      g_object_unref (node1);
+      json_node_free (node1);
       JSGlobalContextRelease (ctx);
       return 1;
     }
@@ -105,12 +105,12 @@ main (gint argc, gchar ** argv)
 
   if (buffer == NULL)
     {
-      g_object_unref (node1);
+      json_node_free (node1);
       JSGlobalContextRelease (ctx);
       return 1;
     }
 
-  g_object_unref (node1);
+  json_node_free (node1);
 
   puts (buffer);
   g_free (buffer);
@@ -245,7 +245,7 @@ js_emitIntermediate (JSContextRef ctx, JSObjectRef object,
 
   if (node1 == NULL)
     {
-      g_object_unref (obj);
+      json_object_unref (obj);
       return NULL;
     }
 
@@ -255,7 +255,7 @@ js_emitIntermediate (JSContextRef ctx, JSObjectRef object,
 
   if (gen == NULL)
     {
-      g_object_unref (node1);
+      json_node_free (node1);
       return NULL;
     }
 
@@ -264,12 +264,12 @@ js_emitIntermediate (JSContextRef ctx, JSObjectRef object,
 
   if (buffer == NULL)
     {
-      g_object_unref (node1);
+      json_node_free (node1);
       g_object_unref (gen);
       return NULL;
     }
 
-  g_object_unref (node1);
+  json_node_free (node1);
   g_object_unref (gen);
 
   puts (buffer);
@@ -306,7 +306,7 @@ js_emit (JSContextRef ctx, JSObjectRef object, JSObjectRef thisObject,
 
   if (node1 == NULL)
     {
-      g_object_unref (obj);
+      json_object_unref (obj);
       return NULL;
     }
 
@@ -316,7 +316,7 @@ js_emit (JSContextRef ctx, JSObjectRef object, JSObjectRef thisObject,
 
   if (gen == NULL)
     {
-      g_object_unref (node1);
+      json_node_free (node1);
       return NULL;
     }
 
@@ -325,12 +325,12 @@ js_emit (JSContextRef ctx, JSObjectRef object, JSObjectRef thisObject,
 
   if (buffer == NULL)
     {
-      g_object_unref (node1);
+      json_node_free (node1);
       g_object_unref (gen);
       return NULL;
     }
 
-  g_object_unref (node1);
+  json_node_free (node1);
   g_object_unref (gen);
 
   puts (buffer);

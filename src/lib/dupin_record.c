@@ -173,7 +173,7 @@ dupin_record_create_with_id_real (DupinDB * db, JsonObject * obj,
 
   dupin_view_p_record_insert (&db->views,
 			      (gchar *) dupin_record_get_id (record),
-			      dupin_record_get_revision (record, -1));
+			      json_node_get_object (dupin_record_get_revision (record, -1)));
 
   sqlite3_free (tmp);
   return record;
@@ -189,6 +189,7 @@ dupin_record_read_cb (void *data, int argc, char **argv, char **col)
 
   for (i = 0; i < argc; i++)
     {
+      /* shouldn't this be double and use atof() ?!? */
       if (!strcmp (col[i], "rev"))
 	rev = atoi (argv[i]);
 
@@ -390,7 +391,7 @@ dupin_record_update (DupinRecord * record, JsonObject * obj,
 			      (gchar *) dupin_record_get_id (record));
   dupin_view_p_record_insert (&record->db->views,
 			      (gchar *) dupin_record_get_id (record),
-			      dupin_record_get_revision (record, -1));
+			      json_node_get_object (dupin_record_get_revision (record, -1)));
 
   sqlite3_free (tmp);
   return TRUE;
@@ -469,7 +470,7 @@ dupin_record_get_last_revision (DupinRecord * record)
   return record->last->revision;
 }
 
-JsonObject *
+JsonNode *
 dupin_record_get_revision (DupinRecord * record, gint revision)
 {
   DupinRecordRev *r;
@@ -492,41 +493,23 @@ dupin_record_get_revision (DupinRecord * record, gint revision)
     g_return_val_if_fail (dupin_record_is_deleted (record, revision) != FALSE,
 			  NULL);
 
-  /* TODO - make double check/sure that r->obj is not garbage-collected and stays valid */
+  /* r->obj stays owernship of the record revision - the caller eventually need to json_node_copy() it */
   if (r->obj)
     return r->obj;
 
-  JsonParser *parser = json_parser_new ();
-
-  if (parser == NULL)
-    goto dupin_record_get_revision_error;
+  JsonParser * parser = json_parser_new();
 
   /* we do not check any parsing error due we stored earlier, we assume it is sane */
   if (json_parser_load_from_data (parser, r->obj_serialized, r->obj_serialized_len, NULL) == FALSE)
     goto dupin_record_get_revision_error;
 
-  JsonNode * node = json_parser_get_root (parser);
+  r->obj = json_node_copy (json_parser_get_root (parser));
 
-  if (node == NULL)
-    goto dupin_record_get_revision_error;
-
-  if (json_node_get_node_type (node) != JSON_NODE_OBJECT)
-    goto dupin_record_get_revision_error;
-
-  /* the dupin record r->obj becomes responsability of the caller - see dupin_record_rev_close() */
-  r->obj = json_node_dup_object (node);
-
-  if (r->obj == NULL)
-    goto dupin_record_get_revision_error;
-
-  if (parser != NULL)
-    g_object_unref (parser);
+  /* r->obj stays owernship of the record revision - the caller eventually need to json_node_copy() it */
   return r->obj;
 
 dupin_record_get_revision_error:
 
-  if (parser != NULL)
-    g_object_unref (parser);
   return NULL;
 }
 
@@ -577,7 +560,7 @@ dupin_record_rev_close (DupinRecordRev * rev)
     g_free (rev->obj_serialized);
 
   if (rev->obj)
-    g_object_unref(rev->obj);
+    json_node_free (rev->obj);
 
   g_free (rev);
 }
@@ -594,17 +577,17 @@ dupin_record_add_revision_obj (DupinRecord * record, guint rev,
 
   if (obj)
     {
-      JsonNode * node = json_node_new (JSON_NODE_OBJECT);
-      json_node_set_object (node, obj);
-
       JsonGenerator * gen = json_generator_new();
-      json_generator_set_root (gen, node );
+
+      r->obj = json_node_new (JSON_NODE_OBJECT);
+
+      /* or json_node_take_object() ?!? */
+      json_node_set_object (r->obj, obj);
+
+      json_generator_set_root (gen, r->obj );
       r->obj_serialized = json_generator_to_data (gen,&r->obj_serialized_len);
 
-      /* NOTE - check whether or not a deep copy is not needed here - we just inc refcount with about json_node_set_object() call
-	        i.e. we store a copy into DB anyway, see above and Dupin/HTTP is "stateless" between POST and PUT etc) */
-
-      r->obj = obj;
+      g_object_unref (gen);
     }
 
   r->deleted = delete;

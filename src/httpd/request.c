@@ -155,8 +155,8 @@ request_status (DSHttpdClient * client, GList * paths, GList * arguments)
 {
   JsonObject *obj;
   JsonObject *nobj;
-  JsonNode *node;
-  JsonGenerator *gen;
+  JsonNode *node=NULL;
+  JsonGenerator *gen=NULL;
 
   GTimeVal tv;
 
@@ -277,8 +277,8 @@ request_status (DSHttpdClient * client, GList * paths, GList * arguments)
   if (gen != NULL)
     g_object_unref (gen);
   if (node != NULL)
-    g_object_unref (node);
-  g_object_unref (obj);
+    json_node_free (node);
+  json_object_unref (obj);
   return HTTP_STATUS_200;
 
 request_status_quit:
@@ -287,8 +287,8 @@ request_status_quit:
   if (gen != NULL)
     g_object_unref (gen);
   if (node != NULL)
-    g_object_unref (node);
-  g_object_unref (obj);
+    json_node_free (node);
+  json_object_unref (obj);
   return HTTP_STATUS_500;
 }
 
@@ -419,8 +419,8 @@ request_global_get_all_dbs (DSHttpdClient * client, GList * paths,
   guint i;
   gchar **dbs;
   JsonArray *array;
-  JsonNode *node;
-  JsonGenerator *gen;
+  JsonNode *node=NULL;
+  JsonGenerator *gen=NULL;
 
   if (client->request != DS_HTTPD_REQUEST_GET)
     return HTTP_STATUS_400;
@@ -461,8 +461,8 @@ request_global_get_all_dbs (DSHttpdClient * client, GList * paths,
   if (gen != NULL)
     g_object_unref (gen);
   if (node != NULL)
-    g_object_unref (node);
-  g_object_unref (array);
+    json_node_free (node);
+  json_array_unref (array);
   g_strfreev (dbs);
   return HTTP_STATUS_200;
 
@@ -471,8 +471,8 @@ request_global_get_all_dbs:
   if (gen != NULL)
     g_object_unref (gen);
   if (node != NULL)
-    g_object_unref (node);
-  g_object_unref (array);
+    json_node_free (node);
+  json_array_unref (array);
   g_strfreev (dbs);
   return HTTP_STATUS_500;
 }
@@ -484,8 +484,8 @@ request_global_get_all_views (DSHttpdClient * client, GList * paths,
   guint i;
   gchar **views;
   JsonArray *array;
-  JsonNode *node;
-  JsonGenerator *gen;
+  JsonNode *node=NULL;
+  JsonGenerator *gen=NULL;
 
   if (client->request != DS_HTTPD_REQUEST_GET)
     return HTTP_STATUS_400;
@@ -526,8 +526,8 @@ request_global_get_all_views (DSHttpdClient * client, GList * paths,
   if (gen != NULL)
     g_object_unref (gen);
   if (node != NULL)
-    g_object_unref (node);
-  g_object_unref (array);
+    json_node_free (node);
+  json_array_unref (array);
   g_strfreev (views);
   return HTTP_STATUS_200;
 
@@ -536,8 +536,8 @@ request_global_get_all_views:
   if (gen != NULL)
     g_object_unref (gen);
   if (node != NULL)
-    g_object_unref (node);
-  g_object_unref (array);
+    json_node_free (node);
+  json_array_unref (array);
   g_strfreev (views);
   return HTTP_STATUS_500;
 }
@@ -560,9 +560,9 @@ request_global_get_all_docs (DSHttpdClient * client, GList * path,
   guint offset = 0;
 
   JsonObject *obj;
-  JsonNode *node;
+  JsonNode *node=NULL;
   JsonArray *array;
-  JsonGenerator *gen;
+  JsonGenerator *gen=NULL;
 
   if (!
       (db =
@@ -611,7 +611,7 @@ request_global_get_all_docs (DSHttpdClient * client, GList * path,
 	   request_record_obj (record, (gchar *) dupin_record_get_id (record),
 			       dupin_record_get_last_revision (record))))
         {
-	  g_object_unref (array); /* if here, array is not under obj responsability yet */
+	  json_array_unref (array); /* if here, array is not under obj responsability yet */
 	  goto request_global_get_all_docs_error;
         }
 
@@ -649,8 +649,8 @@ request_global_get_all_docs (DSHttpdClient * client, GList * path,
   if (gen != NULL)
     g_object_unref (gen);
   if (node != NULL)
-    g_object_unref (node);
-  g_object_unref (obj);
+    json_node_free (node);
+  json_object_unref (obj);
   return HTTP_STATUS_200;
 
 request_global_get_all_docs_error:
@@ -663,8 +663,8 @@ request_global_get_all_docs_error:
   if (gen != NULL)
     g_object_unref (gen);
   if (node != NULL)
-    g_object_unref (node);
-  g_object_unref (obj);
+    json_node_free (node);
+  json_object_unref (obj);
   return HTTP_STATUS_500;
 }
 
@@ -677,8 +677,8 @@ request_global_get_database (DSHttpdClient * client, GList * path,
   DupinDB *db;
   GList *list;
   JsonObject *obj;
-  JsonNode *node;
-  JsonGenerator *gen;
+  JsonNode *node=NULL;
+  JsonGenerator *gen=NULL;
 
   for (list = arguments; list; list = list->next)
     {
@@ -740,8 +740,8 @@ request_global_get_database (DSHttpdClient * client, GList * path,
   if (gen != NULL)
     g_object_unref (gen);
   if (node != NULL)
-    g_object_unref (node);
-  g_object_unref (obj);
+    json_node_free (node);
+  json_object_unref (obj);
   dupin_database_unref (db);
   return HTTP_STATUS_200;
 
@@ -750,8 +750,8 @@ request_global_get_database_error:
   if (gen != NULL)
     g_object_unref (gen);
   if (node != NULL)
-    g_object_unref (node);
-  g_object_unref (obj);
+    json_node_free (node);
+  json_object_unref (obj);
   dupin_database_unref (db);
   return HTTP_STATUS_500;
 }
@@ -772,8 +772,8 @@ request_global_get_record (DSHttpdClient * client, GList * path,
   DupinRecord *record;
 
   JsonObject *obj;
-  JsonNode *node;
-  JsonGenerator *gen;
+  JsonNode *node=NULL;
+  JsonGenerator *gen=NULL;
 
   if (!
       (db =
@@ -828,7 +828,7 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 				   (gchar *) dupin_record_get_id (record),
 				   i)))
             {
-	      g_object_unref (array); /* if here, array is not under obj responsability yet */
+	      json_array_unref (array); /* if here, array is not under obj responsability yet */
 	      goto request_global_get_record_error;
             }
 
@@ -887,8 +887,8 @@ request_global_get_record (DSHttpdClient * client, GList * path,
   if (gen != NULL)
     g_object_unref (gen);
   if (node != NULL)
-    g_object_unref (node);
-  g_object_unref (obj);
+    json_node_free (node);
+  json_object_unref (obj);
   dupin_record_close (record);
   dupin_database_unref (db);
   return HTTP_STATUS_200;
@@ -898,8 +898,8 @@ request_global_get_record_error:
   if (gen != NULL)
     g_object_unref (gen);
   if (node != NULL)
-    g_object_unref (node);
-  g_object_unref (obj);
+    json_node_free (node);
+  json_object_unref (obj);
   dupin_record_close (record);
   dupin_database_unref (db);
   return HTTP_STATUS_500;
@@ -914,8 +914,8 @@ request_global_get_view (DSHttpdClient * client, GList * path,
 
   JsonObject *obj;
   JsonObject *subobj;
-  JsonNode *node;
-  JsonGenerator *gen;
+  JsonNode *node=NULL;
+  JsonGenerator *gen=NULL;
 
   for (list = arguments; list; list = list->next)
     {
@@ -1000,8 +1000,8 @@ request_global_get_view (DSHttpdClient * client, GList * path,
   if (gen != NULL)
     g_object_unref (gen);
   if (node != NULL)
-    g_object_unref (node);
-  g_object_unref (obj);
+    json_node_free (node);
+  json_object_unref (obj);
   dupin_view_unref (view);
   return HTTP_STATUS_200;
 
@@ -1010,8 +1010,8 @@ request_global_get_view_error:
   if (gen != NULL)
     g_object_unref (gen);
   if (node != NULL)
-    g_object_unref (node);
-  g_object_unref (obj);
+    json_node_free (node);
+  json_object_unref (obj);
   dupin_view_unref (view);
   return HTTP_STATUS_500;
 }
@@ -1030,9 +1030,9 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
   guint offset = 0;
 
   JsonObject *obj;
-  JsonNode *node;
+  JsonNode *node=NULL;
   JsonArray *array;
-  JsonGenerator *gen;
+  JsonGenerator *gen=NULL;
 
   if (!
       (view =
@@ -1089,7 +1089,7 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
 				    (gchar *)
 				    dupin_view_record_get_id (record))))
         {
-          g_object_unref (array);
+          json_array_unref (array);
 	  goto request_global_get_all_docs_view_error;
         }
 
@@ -1123,8 +1123,8 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
   if (gen != NULL)
     g_object_unref (gen);
   if (node != NULL)
-    g_object_unref (node);
-  g_object_unref (obj);
+    json_node_free (node);
+  json_object_unref (obj);
   if( results )
      dupin_view_record_get_list_close(results);
   else
@@ -1136,8 +1136,8 @@ request_global_get_all_docs_view_error:
   if (gen != NULL)
     g_object_unref (gen);
   if (node != NULL)
-    g_object_unref (node);
-  g_object_unref (obj);
+    json_node_free (node);
+  json_object_unref (obj);
 
   /* by AR 2010-05-24 - CHECK corrected/changed the below to dupin_view_record_get_list_close() - it was dupin_record_get_list_close() - see above for matching statement ! */
   if( results )
@@ -1155,8 +1155,8 @@ request_global_get_record_view (DSHttpdClient * client, GList * path,
   DupinViewRecord *record;
 
   JsonObject *obj;
-  JsonNode *node;
-  JsonGenerator *gen;
+  JsonNode *node=NULL;
+  JsonGenerator *gen=NULL;
 
   if (!
       (view =
@@ -1204,8 +1204,8 @@ request_global_get_record_view (DSHttpdClient * client, GList * path,
   if (gen != NULL)
     g_object_unref (gen);
   if (node != NULL)
-    g_object_unref (node);
-  g_object_unref (obj);
+    json_node_free (node);
+  json_object_unref (obj);
   dupin_view_record_close (record);
   dupin_view_unref (view);
   return HTTP_STATUS_200;
@@ -1215,8 +1215,8 @@ request_global_get_view_record_error:
   if (gen != NULL)
     g_object_unref (gen);
   if (node != NULL)
-    g_object_unref (node);
-  g_object_unref (obj);
+    json_node_free (node);
+  json_object_unref (obj);
   dupin_view_record_close (record);
   dupin_view_unref (view);
   return HTTP_STATUS_500;
@@ -1233,8 +1233,8 @@ request_global_get_database_query (DSHttpdClient * client, GList * path,
   gsize offset = 0;
 
   JsonArray *array;
-  JsonNode *node;
-  JsonGenerator *gen;
+  JsonNode *node=NULL;
+  JsonGenerator *gen=NULL;
 
   if (!
       (db =
@@ -1254,7 +1254,7 @@ request_global_get_database_query (DSHttpdClient * client, GList * path,
 	  tb_jsonpath_result_t *ret = NULL;
 
 	  if (tb_jsonpath_exec
-	      (query, -1, dupin_record_get_revision (record, -1), &ret, NULL,
+	      (query, -1, json_node_get_object (dupin_record_get_revision (record, -1)), &ret, NULL,
 	       NULL) == TRUE && ret)
 	    {
 	      JsonNode *value;
@@ -1296,8 +1296,8 @@ request_global_get_database_query (DSHttpdClient * client, GList * path,
   if (gen != NULL)
     g_object_unref (gen);
   if (node != NULL)
-    g_object_unref (node);
-  g_object_unref (array);
+    json_node_free (node);
+  json_array_unref (array);
   dupin_database_unref (db);
   return HTTP_STATUS_200;
 
@@ -1306,8 +1306,8 @@ request_global_get_database_query_error:
   if (gen != NULL)
     g_object_unref (gen);
   if (node != NULL)
-    g_object_unref (node);
-  g_object_unref (array);
+    json_node_free (node);
+  json_array_unref (array);
   dupin_database_unref (db);
   return HTTP_STATUS_500;
 }
@@ -1321,8 +1321,8 @@ request_global_get_view_query (DSHttpdClient * client, GList * path,
   gsize offset = 0;
 
   JsonArray *array;
-  JsonNode *node;
-  JsonGenerator *gen;
+  JsonNode *node=NULL;
+  JsonGenerator *gen=NULL;
 
   if (!
       (view =
@@ -1343,7 +1343,7 @@ request_global_get_view_query (DSHttpdClient * client, GList * path,
 	  tb_jsonpath_result_t *ret;
 
 	  if (tb_jsonpath_exec
-	      (query, -1, dupin_view_record_get (record), &ret, NULL,
+	      (query, -1, json_node_get_object (dupin_view_record_get (record)), &ret, NULL,
 	       NULL) == TRUE)
 	    {
 	      JsonNode *value;
@@ -1385,8 +1385,8 @@ request_global_get_view_query (DSHttpdClient * client, GList * path,
   if (gen != NULL)
     g_object_unref (gen);
   if (node != NULL)
-    g_object_unref (node);
-  g_object_unref (array);
+    json_node_free (node);
+  json_array_unref (array);
   dupin_view_unref (view);
   return HTTP_STATUS_200;
 
@@ -1395,8 +1395,8 @@ request_global_get_view_query_error:
   if (gen != NULL)
     g_object_unref (gen);
   if (node != NULL)
-    g_object_unref (node);
-  g_object_unref (array);
+    json_node_free (node);
+  json_array_unref (array);
   dupin_view_unref (view);
   return HTTP_STATUS_500;
 }
@@ -1503,8 +1503,8 @@ request_global_post_uuids (DSHttpdClient * client, GList * path,
   guint i;
 
   JsonArray *array;
-  JsonNode *node;
-  JsonGenerator *gen;
+  JsonNode *node=NULL;
+  JsonGenerator *gen=NULL;
 
   for (list = arguments; list; list = list->next)
     {
@@ -1555,8 +1555,8 @@ request_global_post_uuids (DSHttpdClient * client, GList * path,
   if (gen != NULL)
     g_object_unref (gen);
   if (node != NULL)
-    g_object_unref (node);
-  g_object_unref (array);
+    json_node_free (node);
+  json_array_unref (array);
   return HTTP_STATUS_200;
 
 request_global_post_uuids_error:
@@ -1564,8 +1564,8 @@ request_global_post_uuids_error:
   if (gen != NULL)
     g_object_unref (gen);
   if (node != NULL)
-    g_object_unref (node);
-  g_object_unref (array);
+    json_node_free (node);
+  json_array_unref (array);
   return HTTP_STATUS_500;
 }
 
@@ -2240,15 +2240,15 @@ static gboolean
 request_record_response_single (DSHttpdClient * client, DupinRecord * record)
 {
   JsonObject *obj;
-  JsonNode *node;
-  JsonGenerator *gen;
+  JsonNode *node=NULL;
+  JsonGenerator *gen=NULL;
 
   obj = json_object_new ();
 
   if (obj == NULL)
     return FALSE;
 
-  /* TODO - we we ever set this to false? no... ! */
+  /* TODO - do we ever set this to false? no... ! */
   json_object_set_boolean_member (obj, "ok", TRUE);
   json_object_set_string_member (obj, REQUEST_OBJ_ID, (gchar *) dupin_record_get_id (record));
   json_object_set_int_member (obj, REQUEST_OBJ_REV, dupin_record_get_last_revision (record));
@@ -2277,8 +2277,8 @@ request_record_response_single (DSHttpdClient * client, DupinRecord * record)
   if (gen != NULL)
     g_object_unref (gen);
   if (node != NULL)
-    g_object_unref (node);
-  g_object_unref (obj);
+    json_node_free (node);
+  json_object_unref (obj);
   return TRUE;
 
 request_record_response_single_error:
@@ -2286,8 +2286,8 @@ request_record_response_single_error:
   if (gen != NULL)
     g_object_unref (gen);
   if (node != NULL)
-    g_object_unref (node);
-  g_object_unref (obj);
+    json_node_free (node);
+  json_object_unref (obj);
   return FALSE;
 }
 
@@ -2295,16 +2295,16 @@ static gboolean
 request_record_response_multi (DSHttpdClient * client, GList * list)
 {
   JsonObject *obj;
-  JsonNode *node;
+  JsonNode *node=NULL;
   JsonArray *array;
-  JsonGenerator *gen;
+  JsonGenerator *gen=NULL;
 
   obj = json_object_new ();
 
   if (obj == NULL)
     return FALSE;
 
-  /* TODO - we we ever set this to false? no... ! */
+  /* TODO - do we ever set this to false? no... ! */
   json_object_set_boolean_member (obj, "ok", TRUE);
 
   array = json_array_new ();
@@ -2353,8 +2353,8 @@ request_record_response_multi (DSHttpdClient * client, GList * list)
   if (gen != NULL)
     g_object_unref (gen);
   if (node != NULL)
-    g_object_unref (node);
-  g_object_unref (obj);
+    json_node_free (node);
+  json_object_unref (obj);
   return TRUE;
 
 request_record_response_multi_error:
@@ -2362,8 +2362,8 @@ request_record_response_multi_error:
   if (gen != NULL)
     g_object_unref (gen);
   if (node != NULL)
-    g_object_unref (node);
-  g_object_unref (obj);
+    json_node_free (node);
+  json_object_unref (obj);
   return FALSE;
 }
 
@@ -2372,22 +2372,36 @@ request_record_obj (DupinRecord * record, gchar * id, guint rev)
 {
   JsonObject *obj;
 
+  obj = json_object_new ();
+
+  if (obj == NULL)
+    return NULL;
+
   if (dupin_record_is_deleted (record, rev) == TRUE)
     {
-      obj = json_object_new ();
-
-      if (obj == NULL)
-        return NULL;
-
       json_object_set_boolean_member (obj, "_deleted", TRUE);
     }
 
   else
     {
-      obj = dupin_record_get_revision (record, rev);
+      GList *members, *m;
 
-      if (obj == NULL)
-        return NULL;
+      JsonNode * node = dupin_record_get_revision (record, rev);
+
+      if (node == NULL)
+        {
+          json_object_unref (obj);
+          return NULL;
+        }
+
+      JsonObject * nodeobject = json_node_get_object (node);
+
+      members = json_object_get_members (nodeobject);
+      for ( m = members ; m != NULL ; m = m->next )
+        {
+          json_object_set_member (obj, m->data, json_object_get_member (nodeobject, m->data));
+        }
+      g_list_free (members);
     }
 
   /* Setting _id and _rev: */
@@ -2401,11 +2415,29 @@ static JsonObject *
 request_view_record_obj (DupinViewRecord * record, gchar * id)
 {
   JsonObject *obj;
+  GList *members, *m;
 
-  obj = dupin_view_record_get (record);
+  obj = json_object_new ();
 
   if (obj == NULL)
     return NULL;
+
+  JsonNode * node = dupin_view_record_get (record);
+
+  if (node == NULL)
+    {
+      json_object_unref (obj);
+      return NULL;
+    }
+
+  JsonObject * nodeobject = json_node_get_object (node);
+
+  members = json_object_get_members (nodeobject);
+  for ( m = members ; m != NULL ; m = m->next )
+    {
+      json_object_set_member (obj, m->data, json_object_get_member (nodeobject, m->data));
+    }
+  g_list_free (members);
 
   /* Setting _id and _pid - views do not have _rev yet */
   json_object_set_string_member (obj, REQUEST_OBJ_ID, id);

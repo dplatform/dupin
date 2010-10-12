@@ -400,7 +400,7 @@ dupin_view_p_record_insert (DupinViewP * p, gchar * id,
 	  dupin_view_record_save (view, id, nobj);
 
 	  dupin_view_p_record_insert (&view->views, id, nobj);
-	  g_object_unref (nobj);
+	  json_object_unref (nobj);
 	}
     }
 }
@@ -479,7 +479,7 @@ dupin_view_record_save (DupinView * view, gchar * pid, JsonObject * obj)
       g_mutex_unlock (view->mutex);
       g_free ((gchar *)id);
       if (node != NULL)
-        g_object_unref (node);
+        json_node_free (node);
       return;
     }
 
@@ -493,7 +493,7 @@ dupin_view_record_save (DupinView * view, gchar * pid, JsonObject * obj)
       if (gen != NULL)
         g_object_unref (gen);
       if (node != NULL)
-        g_object_unref (node);
+        json_node_free (node);
       return;
     }
 
@@ -508,7 +508,7 @@ dupin_view_record_save (DupinView * view, gchar * pid, JsonObject * obj)
   if (gen != NULL)
     g_object_unref (gen);
   if (node != NULL)
-    g_object_unref (node);
+    json_node_free (node);
 }
 
 static void
@@ -830,7 +830,7 @@ dupin_view_sync_thread_real_mr (DupinView * view, GList * list)
 	  dupin_view_record_save (view, data->pid, nobj);
 
 	  dupin_view_p_record_insert (&view->views, data->pid, nobj);
-	  g_object_unref (nobj);
+	  json_object_unref (nobj);
 	}
     }
 }
@@ -864,7 +864,7 @@ dupin_view_sync_thread_real_db (DupinView * view, gsize count, gsize offset)
     {
       struct dupin_view_sync_t *data =
 	g_malloc0 (sizeof (struct dupin_view_sync_t));
-      data->obj = dupin_record_get_revision (list->data, -1);
+      data->obj = json_node_get_object (dupin_record_get_revision (list->data, -1));
       data->pid = (gchar *) dupin_record_get_id (list->data);
 
       sync_id = data->pid;
@@ -916,7 +916,7 @@ dupin_view_sync_thread_real_view (DupinView * view, gsize count, gsize offset)
     {
       struct dupin_view_sync_t *data =
 	g_malloc0 (sizeof (struct dupin_view_sync_t));
-      data->obj = dupin_view_record_get (list->data);
+      data->obj = json_node_get_object (dupin_view_record_get (list->data));
       data->pid = (gchar *) dupin_view_record_get_id (list->data);
 
       sync_id = data->pid;

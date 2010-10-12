@@ -106,8 +106,7 @@ struct dupin_record_rev_t
 
   gchar *	obj_serialized;
   gsize		obj_serialized_len;
-
-  JsonObject *obj;
+  JsonNode *    obj;
 };
 
 struct dupin_view_record_t
@@ -119,8 +118,7 @@ struct dupin_view_record_t
 
   gchar *	obj_serialized;
   gsize		obj_serialized_len;
-
-  JsonObject *obj;
+  JsonNode *    obj;
 };
 
 struct dupin_js_t

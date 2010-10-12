@@ -314,7 +314,7 @@ json (gchar * str)
       return NULL;
     }
 
-  obj = json_node_dup_object (node);
+  obj = json_node_get_object (json_node_copy (node));
 
   g_object_unref (j);
 
@@ -352,7 +352,7 @@ json_file (gchar * filename)
       return NULL;
     }
 
-  obj = json_node_dup_object (node);
+  obj = json_node_get_object (json_node_copy (node));
 
   g_object_unref (j);
 
@@ -608,7 +608,7 @@ command_createRecord (GList * list)
       g_error_free (error);
     }
 
-  g_object_unref (obj);
+  json_object_unref (obj);
 }
 
 static void
@@ -638,7 +638,7 @@ command_createRecordFromFile (GList * list)
       g_error_free (error);
     }
 
-  g_object_unref (obj);
+  json_object_unref (obj);
 }
 
 static void
@@ -731,7 +731,7 @@ command_updateRecord (GList * list)
       g_error_free (error);
     }
 
-  g_object_unref (obj);
+  json_object_unref (obj);
 }
 
 static void
@@ -792,7 +792,7 @@ showRecord (DupinRecord * record)
 	  gchar *buffer;
 	  gsize size;
 
-	  obj = dupin_record_get_revision (record, i);
+	  obj = json_node_get_object (dupin_record_get_revision (record, i));
 
 	  JsonNode *node = json_node_new (JSON_NODE_OBJECT);
 
@@ -807,7 +807,7 @@ showRecord (DupinRecord * record)
 
           if (gen == NULL)
             {
-              g_object_unref (node);
+              json_node_free (node);
               return;
             }
 
@@ -817,12 +817,16 @@ showRecord (DupinRecord * record)
 	  if (buffer == NULL )
 	    {
 	      fprintf (stdout, "Rev: %d - Error: cannot generate JSON output of size %d\n", i,(gint)size);
+	      json_node_free (node);
+	      g_object_unref (gen);
 	    }
 
 	  else
 	    {
 	      fprintf (stdout, "Rev: %d - %s\n", i, buffer);
 	      g_free (buffer);
+	      json_node_free (node);
+	      g_object_unref (gen);
 	    }
 	}
     }
@@ -913,7 +917,7 @@ showViewRecord (DupinViewRecord * record)
   gchar *buffer;
   gsize size;
 
-  obj = dupin_view_record_get (record);
+  obj = json_node_get_object (dupin_view_record_get (record));
 
   JsonNode *node = json_node_new (JSON_NODE_OBJECT);
 
@@ -926,7 +930,7 @@ showViewRecord (DupinViewRecord * record)
 
   if (gen == NULL)
     {
-      g_object_unref (node);
+      json_node_free (node);
       return;
     }
 
@@ -937,12 +941,16 @@ showViewRecord (DupinViewRecord * record)
   if (buffer == NULL )
     {
       fprintf (stdout, "Error: cannot generate JSON output of size %d\n",(gint)size);
+      json_node_free (node);
+      g_object_unref (gen);
     }
 
   else
     {
       fprintf (stdout, "%s\n", buffer);
       g_free (buffer);
+      json_node_free (node);
+      g_object_unref (gen);
     }
 }
 

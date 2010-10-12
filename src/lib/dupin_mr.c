@@ -24,12 +24,12 @@ dupin_mr_record (DupinView * view, JsonObject * obj)
 
   if (!dupin_mr_map (view->map, view->map_lang, obj, array))
     {
-      g_object_unref (array);
+      json_array_unref (array);
       return NULL;
     }
 
   object = dupin_mr_reduce (view->reduce, view->reduce_lang, array);
-  g_object_unref (array);
+  json_array_unref (array);
 
   return object;
 }
@@ -61,7 +61,7 @@ dupin_mr_map (gchar * map, DupinMRLang language, JsonObject * obj,
 
 	if (gen == NULL)
           {
-            g_object_unref (node);
+            json_node_free (node);
             return 0;
           }
 
@@ -71,7 +71,7 @@ dupin_mr_map (gchar * map, DupinMRLang language, JsonObject * obj,
 	if (buffer == NULL)
           {
             g_object_unref (gen);
-            g_object_unref (node);
+            json_node_free (node);
             return 0;
           }
 
@@ -91,7 +91,7 @@ dupin_mr_map (gchar * map, DupinMRLang language, JsonObject * obj,
 	  {
 	    g_free (buffer);
             g_object_unref (gen);
-            g_object_unref (node);
+            json_node_free (node);
 	    return 0;
 	  }
 
@@ -100,7 +100,7 @@ dupin_mr_map (gchar * map, DupinMRLang language, JsonObject * obj,
 	if (!(array = (JsonArray *) dupin_js_get_emitIntermediate (js)))
 	  {
             g_object_unref (gen);
-            g_object_unref (node);
+            json_node_free (node);
 	    return 0;
 	  }
 
@@ -118,7 +118,7 @@ dupin_mr_map (gchar * map, DupinMRLang language, JsonObject * obj,
               {
                 g_free (nodes);
                 g_object_unref (gen);
-                g_object_unref (node);
+                json_node_free (node);
 	        return 0;
               }
 
@@ -127,7 +127,7 @@ dupin_mr_map (gchar * map, DupinMRLang language, JsonObject * obj,
         g_free (nodes);
 
         g_object_unref (gen);
-        g_object_unref (node);
+        json_node_free (node);
 	return len;
       }
     }
@@ -161,7 +161,7 @@ dupin_mr_reduce (gchar * reduce, DupinMRLang language,
 
 	if (gen == NULL)
           {
-            g_object_unref (node);
+            json_node_free (node);
             return NULL;
           }
 
@@ -171,7 +171,7 @@ dupin_mr_reduce (gchar * reduce, DupinMRLang language,
 	if (buffer == NULL)
           {
             g_object_unref (gen);
-            g_object_unref (node);
+            json_node_free (node);
             return NULL;
           }
 
@@ -192,7 +192,7 @@ dupin_mr_reduce (gchar * reduce, DupinMRLang language,
 	  {
 	    g_free (buffer);
             g_object_unref (gen);
-            g_object_unref (node);
+            json_node_free (node);
 	    return NULL;
 	  }
 
@@ -201,7 +201,7 @@ dupin_mr_reduce (gchar * reduce, DupinMRLang language,
 	if (!(object = (JsonObject *) dupin_js_get_emit (js)))
 	  {
             g_object_unref (gen);
-            g_object_unref (node);
+            json_node_free (node);
 	    return NULL;
 	  }
 
@@ -211,7 +211,7 @@ dupin_mr_reduce (gchar * reduce, DupinMRLang language,
 	if (nodecopy == NULL)
 	  {
             g_object_unref (gen);
-            g_object_unref (node);
+            json_node_free (node);
 	    return NULL;
 	  }
 
@@ -221,17 +221,17 @@ dupin_mr_reduce (gchar * reduce, DupinMRLang language,
 
 	if (nodecopy_real == NULL)
 	  {
-            g_object_unref (nodecopy);
+            json_node_free (nodecopy);
             g_object_unref (gen);
-            g_object_unref (node);
+            json_node_free (node);
 	    return NULL;
 	  }
 
 	ret = json_node_get_object (nodecopy_real);
 
-        g_object_unref (nodecopy);
+        json_node_free (nodecopy);
         g_object_unref (gen);
-        g_object_unref (node);
+        json_node_free (node);
 
 	return ret;
       }

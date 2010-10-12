@@ -3,6 +3,7 @@
 
 #include <glib.h>
 #include <glib/gstdio.h>
+#include <glib/gmappedfile.h>
 #include <gio/gio.h>
 
 #include <glib-object.h>

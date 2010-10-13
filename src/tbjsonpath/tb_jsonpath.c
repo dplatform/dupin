@@ -1139,7 +1139,8 @@ tb_jsonpath_exec_query_real (tb_jsonpath_item_t * item,
 
       /* If the match is normal node: */
       if (match->node.node
-	  && json_object_has_member (object, match->node.node) == TRUE)
+	  && json_object_has_member (object, match->node.node) == TRUE
+	  && json_node_get_node_type (json_object_get_member (object, match->node.node)) != JSON_NODE_NULL) /* need to check more on array values ? */
 	return tb_jsonpath_exec_query_node (item, parent, object, query,
 					    json_object_get_member (object,
 								     match->node.node),
@@ -1217,6 +1218,7 @@ tb_jsonpath_exec_query_node_rec (tb_jsonpath_item_t * item,
   GList *list, *l;
 
   if (json_object_has_member (object, node) == TRUE
+      && json_node_get_node_type (json_object_get_member (object, node)) != JSON_NODE_NULL
       && tb_jsonpath_exec_query_node (item, parent, object, query,
 				      json_object_get_member (object, node),
 				      result, error) == FALSE)

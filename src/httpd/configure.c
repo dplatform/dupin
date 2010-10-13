@@ -233,6 +233,9 @@ configure_log_verbose (xmlChar * string, LogVerbose * verbose,
   else if (!xmlStrcmp (string, (xmlChar *) "info"))
     *verbose = LOG_VERBOSE_INFO;
 
+  else if (!xmlStrcmp (string, (xmlChar *) "debug"))
+    *verbose = LOG_VERBOSE_DEBUG;
+
   else
     {
       g_set_error (error, ds_error_quark (), 0,

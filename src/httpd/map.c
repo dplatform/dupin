@@ -44,7 +44,11 @@ map_free (DSMap * map)
     g_free (map->filename);
 
   if (map->map)
-    g_mapped_file_free (map->map);
+#if GLIB_CHECK_VERSION(2,21,3)
+      g_mapped_file_unref (map->map);
+#else
+      g_mapped_file_free (map->map);
+#endif
 
   if (map->mime)
     g_free (map->mime);

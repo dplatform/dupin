@@ -355,7 +355,7 @@ tb_jsonpath_function_value_number (JsonNode * value,
         {   
           if (json_node_get_value_type (value) == G_TYPE_STRING)
           { 
-            gchar *string = json_node_get_string (value);
+            gchar *string = (gchar *) json_node_get_string (value);
 	    *number = strtod (string, NULL);
             break;
           } 

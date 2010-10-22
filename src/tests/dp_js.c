@@ -9,6 +9,16 @@
 #include <json-glib/json-glib.h>
 #include <json-glib/json-gobject.h>
 
+static void
+debug_print_json_node (JsonNode * node, char * msg )
+{
+  JsonGenerator *gen = json_generator_new();
+  json_generator_set_root (gen, node);
+  gchar * buffer = json_generator_to_data (gen,NULL);
+  g_message("%s - Json Node of type %d: %s\n",msg, (gint)json_node_get_value_type (node), buffer);
+  g_free (buffer);
+}
+
 static JSValueRef js_emitIntermediate (JSContextRef ctx, JSObjectRef object,
 				       JSObjectRef thisObject,
 				       size_t argumentCount,
@@ -36,6 +46,8 @@ main (gint argc, gchar ** argv)
 
   JsonObject *obj;
   JsonNode *node;
+
+  g_type_init();
 
   gchar *buffer;
 
@@ -139,6 +151,8 @@ js_value (JSContextRef ctx, JSValueRef value, JsonNode ** v)
     {
     case kJSTypeUndefined:
     case kJSTypeNull:
+      *v = json_node_new (JSON_NODE_NULL);
+
       break;
 
     case kJSTypeBoolean:
@@ -177,8 +191,12 @@ js_value (JSContextRef ctx, JSValueRef value, JsonNode ** v)
     case kJSTypeObject:
       {
         *v = json_node_new (JSON_NODE_OBJECT);
+        JsonObject *o = json_object_new ();
 
-        js_obj (ctx, JSValueToObject (ctx, value, NULL), json_node_get_object (*v));
+        js_obj (ctx, JSValueToObject (ctx, value, NULL), o);
+
+        json_node_take_object (*v, o);
+
         break;
       }
     }
@@ -187,6 +205,8 @@ js_value (JSContextRef ctx, JSValueRef value, JsonNode ** v)
             -> probably arrays are considered instances of Array() Javascript object ?!
 
             see http://developer.apple.com/library/mac/#documentation/Carbon/Reference/WebKit_JavaScriptCore_Ref/JSValueRef_h/index.html%23//apple_ref/c/func/JSValueGetType */
+
+  debug_print_json_node ( *v, "js_value(): " );
 }
 
 static void
@@ -207,15 +227,23 @@ js_obj (JSContextRef ctx, JSObjectRef object, JsonObject * obj)
       gchar *p;
 
       p = js_string (prop);
+g_message("Getting obj property %s\n",p);
 
       value = JSObjectGetProperty (ctx, object, prop, NULL);
       js_value (ctx, value, &node);
+
+g_message("Got obj property %s\n",p);
+
+debug_print_json_node ( node, "js_obj(): " );
+
+g_message("obj=%p\n",obj);
 
       json_object_set_member (obj, p, node);
 
       g_free (p);
       JSStringRelease (prop);
     }
+g_message("Done get properties\n");
 
   JSPropertyNameArrayRelease (props);
 }

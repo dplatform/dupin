@@ -7,8 +7,6 @@ AC_CANONICAL_TARGET
 AC_PROG_MAKE_SET
 
 AC_PATH_PROG(PKG_CONFIG, pkg-config)
-AC_PATH_PROG(HOMEBREW, brew)
-AC_PATH_PROG(HAVEPORTS, port)
 
 # host checking - inspired by the Webkit/GTK+ configure.in
 # TODO: move these to dupin.m4?
@@ -75,6 +73,12 @@ if test "$MIMEGUESS" = yes; then
   AC_DEFINE(MIMEGUESS_STRICT)
 fi
 
+AC_ARG_WITH(webkitframework,
+   AC_HELP_STRING([--with-webkitframework=none|auto (default=auto)],
+                  [Build dupin using OSX Darwin Webkit built in Framework.]),
+   USEWEBKITFRAMEWORK=$withval,
+   USEWEBKITFRAMEWORK=yes)
+
 AC_ARG_WITH(couchdbstrict,
    AC_HELP_STRING([--with-couchdbstrict=none|auto (default=auto)],
                   [do you want dupin following the couchdb protocol strictly?]),
@@ -89,25 +93,7 @@ fi
 
 AH_TEMPLATE([WEBKIT_FRAMEWORK], [Define to 1 if you want to compile this code with Webkit framework under Darwin])
 
-if	test -n "$HOMEBREW" || \
-	test -n "$HAVEPORTS" ] || \
-	test "$os_darwin" != "yes" ; then
-
-  if test -n "$PKG_CONFIG"; then
-
-	# 1. yes we have pkg-config, yes we needed it for Webkit and Glib (we do not check all deps here yet...) but we could 
-	#    not still have everything in it, so we have checkings to do :(
-	# 2. we expanded the macro below because PKG_CHECK_MODULES seems not working as written on the thin for darwin...
-
-	# WebKit
-	PKG_CHECK_MODULES(webkit, [ webkit-1.0 >= 1.0.0 ],
-		[	[webkit_LIBS=`$PKG_CONFIG --libs "webkit-1.0" 2>/dev/null`]
-			[webkit_CFLAGS=`$PKG_CONFIG --cflags "webkit-1.0" 2>/dev/null`]
-		],
-		[
-			AC_MSG_ERROR(WebkitGtk 1.x library is required to build Dupin)
-		]
-		)
+if test -n "$PKG_CONFIG"; then
 
 	# SQLite
 	PKG_CHECK_MODULES(sqlite, [ sqlite3 >= 3.4.0 ],
@@ -129,13 +115,6 @@ if	test -n "$HOMEBREW" || \
 		]
 		)
 
-	# GLib
-	# TODO: make a full check eventually and fall-back
-	PKG_CHECK_MODULES(glib, [
-		glib-2.0    >= 2.6.0
-		gthread-2.0 >= 2.6.0
-		gio-2.0     >= 2.6.0 ])
-
 	# json-glib
 	PKG_CHECK_MODULES(jsonglib, [ json-glib-1.0 >= 0.12.0 ],
 		[	[jsonglib_LIBS=`$PKG_CONFIG --libs "json-glib-1.0" 2>/dev/null`]
@@ -147,44 +126,44 @@ if	test -n "$HOMEBREW" || \
 		]
 		)
 
-  else
-	AC_MSG_ERROR(pkg-config is required to build Dupin)
-  fi
+	# GLib
+	# TODO: make a full check eventually and fall-back
+	PKG_CHECK_MODULES(glib, [
+		glib-2.0    >= 2.6.0
+		gthread-2.0 >= 2.6.0
+		gio-2.0     >= 2.6.0 ])
+
+	if	test "$USEWEBKITFRAMEWORK" != "yes" ; then
+
+		# WebKit
+		PKG_CHECK_MODULES(webkit, [ webkit-1.0 >= 1.0.0 ],
+			[	[webkit_LIBS=`$PKG_CONFIG --libs "webkit-1.0" 2>/dev/null`]
+				[webkit_CFLAGS=`$PKG_CONFIG --cflags "webkit-1.0" 2>/dev/null`]
+			],
+			[
+				AC_MSG_ERROR(Webkit library is required to build Dupin)
+			]
+			)
+
+	else
+  		# Darwin with frameworks
+  		AC_DEFINE(WEBKIT_FRAMEWORK)
+
+  		# WebKit
+  		webkit_CFLAGS="-I /System/Library/Frameworks/JavaScriptCore.framework/Headers"
+  		webkit_LIBS="-framework JavaScriptCore"
+	fi
 
   # 3. set env
   LDFLAGS="$LDFLAGS $webkit_LIBS $sqlite_LIBS $libxml2_LIBS $glib_LIBS $jsonglib_LIBS"
   CFLAGS="$CFLAGS $webkit_CFLAGS $sqlite_CFLAGS $libxml2_CFLAGS $glib_CFLAGS $jsonglib_CFLAGS -DG_DISABLE_DEPRECATED"
 
 else
-
-  # Darwin with frameworks
-
-  AC_DEFINE(WEBKIT_FRAMEWORK)
-
-  # WebKit
-  CFLAGS="$CFLAGS -I /System/Library/Frameworks/JavaScriptCore.framework/Headers"
-  LDFLAGS="$LDFLAGS -framework JavaScriptCore"
-
-  # SQLite
-  AC_CHECK_HEADER(sqlite3.h,,AC_MSG_ERROR(sqlite3 is required to build Dupin))
-  AC_CHECK_LIB(sqlite3,sqlite3_exec,, AC_MSG_ERROR(sqlite3 is required to build Dupin))
-
-  # libXML2
-  AC_CHECK_HEADER(libxml/parser.h,,AC_MSG_ERROR(libxml2 is required to build Dupin))
-  AC_CHECK_LIB(xml2,xmlParseFile,, AC_MSG_ERROR(libxml2 is required to build Dupin))
-
-  # json-glib
-  AC_CHECK_HEADER(json-glib/json-glib.h,,AC_MSG_ERROR(jsonglib is required to build Dupin))
-  AC_CHECK_LIB(json-glib,json_parser_load_from_file,, AC_MSG_ERROR(jsonglib is required to build Dupin))
-
-  # GLib
-  CFLAGS="$CFLAGS -I/Library/Frameworks/GLib.framework/Headers"
-  LDFLAGS="$LDFLAGS -framework GLib"
-
+	AC_MSG_ERROR(pkg-config is required to build Dupin)
 fi
 
 #CFLAGS="$CFLAGS -Wall"
-CFLAGS="-g $CFLAGS -Wall"
+CFLAGS="-g $CFLAGS -Wall -Werror"
 
 AC_OUTPUT([
 Makefile

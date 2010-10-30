@@ -18,7 +18,7 @@ if [ `uname` == "Darwin" ]; then
     echo ""
     echo "If you using Homebrew try the following command:"
     echo ""
-    echo " sudo -n -s /usr/local/share/aclocal/pkg.m4 /usr/share/aclocal/pkg.m4"
+    echo " sudo ln -s /usr/local/share/aclocal/pkg.m4 /usr/share/aclocal/pkg.m4"
     echo " (you might need to run the above command also for other libraries such as gtk-doc)"
     echo ""
     exit 1;

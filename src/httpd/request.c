@@ -18,6 +18,9 @@
 #define REQUEST_OBJ_REV	"_rev"
 #define REQUEST_OBJ_PID	"_pid"
 
+#define DUPIN_DB_MAX_DOCS_COUNT     50
+#define DUPIN_VIEW_MAX_DOCS_COUNT   50
+
 static JsonObject *request_record_obj (DupinRecord * record, gchar * id,
 					     guint rev);
 static JsonObject *request_view_record_obj (DupinViewRecord * record,
@@ -145,8 +148,13 @@ request_www (DSHttpdClient * client, GList * paths, GList * arguments)
 static DSHttpStatusCode
 request_quit (DSHttpdClient * client, GList * paths, GList * arguments)
 {
+  g_warning ("_quit disabled\n");
+  return HTTP_STATUS_503;
+
+  /*
   g_main_loop_quit (client->thread->data->loop);
   return HTTP_STATUS_200;
+  */
 }
 
 /* STATUS FUNCTION *********************************************************/
@@ -556,7 +564,7 @@ request_global_get_all_docs (DSHttpdClient * client, GList * path,
   GList *results;
 
   gboolean descending = FALSE;
-  guint count = 0;
+  guint count = DUPIN_DB_MAX_DOCS_COUNT;
   guint offset = 0;
 
   JsonObject *obj;
@@ -591,7 +599,13 @@ request_global_get_all_docs (DSHttpdClient * client, GList * path,
   obj = json_object_new ();
 
   if (obj == NULL)
-    return HTTP_STATUS_500;
+    {
+      if( results )
+        dupin_record_get_list_close (results);
+      else
+        dupin_database_unref (db);
+      return HTTP_STATUS_500;
+    }
 
   json_object_set_int_member (obj, "total_rows", g_list_length (results));
   json_object_set_int_member (obj, "offset", offset);
@@ -945,9 +959,8 @@ request_global_get_view (DSHttpdClient * client, GList * path,
   if (subobj == NULL)
     goto request_global_get_view_error;
 
-  json_object_set_string_member (obj, "name", (gchar *) dupin_view_get_parent (view));
-  json_object_set_boolean_member (obj, "is_db", dupin_view_get_parent_is_db (view));
-
+  json_object_set_string_member (subobj, "name", (gchar *) dupin_view_get_parent (view));
+  json_object_set_boolean_member (subobj, "is_db", dupin_view_get_parent_is_db (view));
   json_object_set_object_member (obj, "parent", subobj );
 
   subobj = json_object_new ();
@@ -956,19 +969,18 @@ request_global_get_view (DSHttpdClient * client, GList * path,
     goto request_global_get_view_error;
 
   /* TODO - double check that the actual Javascript code does not need any special escaping or anything here */
-  json_object_set_string_member (obj, "code", (gchar *) dupin_view_get_map (view));
-  json_object_set_string_member (obj, "language", (gchar *) dupin_util_mr_lang_to_string (dupin_view_get_map_language (view)));
-
+  json_object_set_string_member (subobj, "code", (gchar *) dupin_view_get_map (view));
+  json_object_set_string_member (subobj, "language", (gchar *) dupin_util_mr_lang_to_string (dupin_view_get_map_language (view)));
   json_object_set_object_member (obj, "map", subobj );
 
+  subobj = json_object_new ();
 
   if (subobj == NULL)
     goto request_global_get_view_error;
 
   /* TODO - double check that the actual Javascript code does not need any special escaping or anything here */
-  json_object_set_string_member (obj, "code", (gchar *) dupin_view_get_reduce (view));
-  json_object_set_string_member (obj, "language", (gchar *) dupin_util_mr_lang_to_string (dupin_view_get_reduce_language (view)));
-
+  json_object_set_string_member (subobj, "code", (gchar *) dupin_view_get_reduce (view));
+  json_object_set_string_member (subobj, "language", (gchar *) dupin_util_mr_lang_to_string (dupin_view_get_reduce_language (view)));
   json_object_set_object_member (obj, "reduce", subobj );
 
   json_object_set_int_member (obj, "doc_count", dupin_view_count (view));
@@ -1026,7 +1038,7 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
   GList *results;
 
   gboolean descending = FALSE;
-  guint count = 0;
+  guint count = DUPIN_VIEW_MAX_DOCS_COUNT;
   guint offset = 0;
 
   JsonObject *obj;
@@ -1071,7 +1083,6 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
 
   json_object_set_int_member (obj, "total_rows", g_list_length (results));
   json_object_set_int_member (obj, "offset", offset);
-
 
   array = json_array_new ();
 
@@ -1253,6 +1264,7 @@ request_global_get_database_query (DSHttpdClient * client, GList * path,
 	  DupinRecord *record = list->data;
 	  tb_jsonpath_result_t *ret = NULL;
 
+	  /* TODO - check if we need to json_node_copy ( dupin_record_get_revision() ) or not */
 	  if (tb_jsonpath_exec
 	      (query, -1, json_node_get_object (dupin_record_get_revision (record, -1)), &ret, NULL,
 	       NULL) == TRUE && ret)
@@ -1342,6 +1354,7 @@ request_global_get_view_query (DSHttpdClient * client, GList * path,
 	  DupinViewRecord *record = list->data;
 	  tb_jsonpath_result_t *ret;
 
+	  /* TODO - check if we need to json_node_copy ( dupin_view_record_get() ) or not */
 	  if (tb_jsonpath_exec
 	      (query, -1, json_node_get_object (dupin_view_record_get (record)), &ret, NULL,
 	       NULL) == TRUE)
@@ -1641,7 +1654,6 @@ request_global_post_bulk_docs (DSHttpdClient * client, GList * path,
       goto request_global_post_bulk_docs_error;
     }
 
-
   /* scan JSON array */
   list = NULL;
  
@@ -1763,9 +1775,9 @@ request_global_put_view (DSHttpdClient * client, GList * path,
   const gchar *parent = NULL;
   gboolean parent_is_db = FALSE;
   const gchar *map = NULL;
-  const gchar *map_lang = NULL;
+  const gchar *map_lang = "javascript";
   const gchar *reduce = NULL;
-  const gchar *reduce_lang = NULL;
+  const gchar *reduce_lang = "javascript";
 
   if (!client->body)
     return HTTP_STATUS_400;
@@ -2394,7 +2406,7 @@ request_record_obj (DupinRecord * record, gchar * id, guint rev)
           return NULL;
         }
 
-      JsonObject * nodeobject = json_node_get_object (node);
+      JsonObject * nodeobject = json_node_get_object (json_node_copy (node));
 
       members = json_object_get_members (nodeobject);
       for ( m = members ; m != NULL ; m = m->next )
@@ -2430,7 +2442,7 @@ request_view_record_obj (DupinViewRecord * record, gchar * id)
       return NULL;
     }
 
-  JsonObject * nodeobject = json_node_get_object (node);
+  JsonObject * nodeobject = json_node_get_object (json_node_copy (node));
 
   members = json_object_get_members (nodeobject);
   for ( m = members ; m != NULL ; m = m->next )

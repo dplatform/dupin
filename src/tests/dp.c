@@ -792,7 +792,7 @@ showRecord (DupinRecord * record)
 	  gchar *buffer;
 	  gsize size;
 
-	  obj = json_node_get_object (dupin_record_get_revision (record, i));
+	  obj = json_node_get_object (json_node_copy (dupin_record_get_revision (record, i)));
 
 	  JsonNode *node = json_node_new (JSON_NODE_OBJECT);
 
@@ -917,7 +917,7 @@ showViewRecord (DupinViewRecord * record)
   gchar *buffer;
   gsize size;
 
-  obj = json_node_get_object (dupin_view_record_get (record));
+  obj = json_node_get_object (json_node_copy (dupin_view_record_get (record)));
 
   JsonNode *node = json_node_new (JSON_NODE_OBJECT);
 

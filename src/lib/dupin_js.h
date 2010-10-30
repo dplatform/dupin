@@ -5,11 +5,14 @@
 
 G_BEGIN_DECLS
 
-DupinJs *	dupin_js_new		(gchar *	js);
+DupinJs *	dupin_js_new		(gchar *	js_json,
+                                         gchar *        js_code,
+                                         gchar *        what,
+              				 gchar**        exception_string);
 
 void		dupin_js_destroy	(DupinJs *	js);
 
-const JsonObject *
+const JsonNode *
 		dupin_js_get_emit	(DupinJs *	js);
 
 const JsonArray *

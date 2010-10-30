@@ -7,15 +7,15 @@
 
 static gsize dupin_mr_map (gchar * map, DupinMRLang language,
 			   JsonObject * obj, JsonArray * array);
-static JsonObject *dupin_mr_reduce (gchar * reduce,
+static JsonNode *dupin_mr_reduce (gchar * reduce,
 					  DupinMRLang language,
 					  JsonArray * array);
 
-JsonObject *
+JsonNode *
 dupin_mr_record (DupinView * view, JsonObject * obj)
 {
-  JsonArray *array;
-  JsonObject *object;
+  JsonArray *array=NULL;
+  JsonNode *object_node=NULL;
 
   array = json_array_new ();
 
@@ -28,10 +28,15 @@ dupin_mr_record (DupinView * view, JsonObject * obj)
       return NULL;
     }
 
-  object = dupin_mr_reduce (view->reduce, view->reduce_lang, array);
+  /* TODO - we can have just map and no reduce step */
+
+  object_node = dupin_mr_reduce (view->reduce, view->reduce_lang, array);
+
   json_array_unref (array);
 
-  return object;
+  /* TODO - make sure called frees this node properly due dupin_mr_reduce() here allocates it */
+
+  return object_node;
 }
 
 static gsize
@@ -75,19 +80,11 @@ dupin_mr_map (gchar * map, DupinMRLang language, JsonObject * obj,
             return 0;
           }
 
-	GString *str = g_string_new ("var mapObject = ");
+	/* TODO - we should really make sure escaping from JSON to Javascript structures is transferred right - and returned clean JSON too */
 
-	/* TODO - we should really make sure escaping from JSON to Javascript structures is transferred right */
+        //g_message("to call MAP code %s for length=%d of JSON: %s\n", map, (gint)size, buffer);
 
-	str = g_string_append_len (str, buffer, size);
-	g_free (buffer);
-
-	str = g_string_append (str, ";\n");
-	str = g_string_append (str, map);
-
-	buffer = g_string_free (str, FALSE);
-
-	if (!(js = dupin_js_new (buffer)))
+	if (!(js = dupin_js_new (buffer,map,"map", NULL)))
 	  {
 	    g_free (buffer);
             g_object_unref (gen);
@@ -124,7 +121,7 @@ dupin_mr_map (gchar * map, DupinMRLang language, JsonObject * obj,
 
             json_array_add_element (ret_array, copy);
 	  }
-        g_free (nodes);
+        g_list_free (nodes);
 
         g_object_unref (gen);
         json_node_free (node);
@@ -135,7 +132,7 @@ dupin_mr_map (gchar * map, DupinMRLang language, JsonObject * obj,
   return 0;
 }
 
-static JsonObject *
+static JsonNode *
 dupin_mr_reduce (gchar * reduce, DupinMRLang language,
 		 JsonArray * array)
 {
@@ -144,11 +141,12 @@ dupin_mr_reduce (gchar * reduce, DupinMRLang language,
     case DP_MR_LANG_JAVASCRIPT:
       {
 	DupinJs *js;
-	JsonObject *object, *ret;
+	JsonNode *ret;
+	JsonNode *object_node;
 	gchar *buffer;
 	gsize size;
 	JsonGenerator *gen;
-	JsonNode *node, *nodecopy, *nodecopy_real;
+	JsonNode *node;
 
         node = json_node_new (JSON_NODE_ARRAY);
 
@@ -176,19 +174,10 @@ dupin_mr_reduce (gchar * reduce, DupinMRLang language,
           }
 
 	/* TODO - check that mapObjects is correct plural here */
-	GString *str = g_string_new ("var mapObjects = ");
 
-	/* TODO - we should really make sure escaping from JSON to Javascript structures is transferred right */
+	//g_message("to call REDUCE code %s for length=%d of JSON: %s\n", reduce, (gint)size, buffer);
 
-	str = g_string_append_len (str, buffer, size);
-	g_free (buffer);
-
-	str = g_string_append (str, ";\n");
-	str = g_string_append (str, reduce);
-
-	buffer = g_string_free (str, FALSE);
-
-	if (!(js = dupin_js_new (buffer)))
+	if (!(js = dupin_js_new (buffer,reduce,"reduce", NULL)))
 	  {
 	    g_free (buffer);
             g_object_unref (gen);
@@ -198,7 +187,7 @@ dupin_mr_reduce (gchar * reduce, DupinMRLang language,
 
 	g_free (buffer);
 
-	if (!(object = (JsonObject *) dupin_js_get_emit (js)))
+	if (!(object_node = (JsonNode *) dupin_js_get_emit (js)))
 	  {
             g_object_unref (gen);
             json_node_free (node);
@@ -206,30 +195,8 @@ dupin_mr_reduce (gchar * reduce, DupinMRLang language,
 	  }
 
         /* TODO - check if json-glib has a simpler and safe way to copy objects ! */
-        nodecopy = json_node_new (JSON_NODE_OBJECT);
+        ret = json_node_copy ((JsonNode*)object_node);
 
-	if (nodecopy == NULL)
-	  {
-            g_object_unref (gen);
-            json_node_free (node);
-	    return NULL;
-	  }
-
-        json_node_set_object (nodecopy, object);
-
-	nodecopy_real = json_node_copy (nodecopy);
-
-	if (nodecopy_real == NULL)
-	  {
-            json_node_free (nodecopy);
-            g_object_unref (gen);
-            json_node_free (node);
-	    return NULL;
-	  }
-
-	ret = json_node_get_object (nodecopy_real);
-
-        json_node_free (nodecopy);
         g_object_unref (gen);
         json_node_free (node);
 

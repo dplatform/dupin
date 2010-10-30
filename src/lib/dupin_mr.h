@@ -5,7 +5,7 @@
 
 G_BEGIN_DECLS
 
-JsonObject *	dupin_mr_record		(DupinView *	view,
+JsonNode *	dupin_mr_record		(DupinView *	view,
 		 	 	 		 JsonObject * obj);
 
 G_END_DECLS

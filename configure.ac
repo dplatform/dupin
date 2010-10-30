@@ -163,7 +163,8 @@ else
 fi
 
 #CFLAGS="$CFLAGS -Wall"
-CFLAGS="-g $CFLAGS -Wall -Werror"
+#CFLAGS="-g $CFLAGS -Wall -Werror -O0 "
+CFLAGS="-g $CFLAGS -Wall -O0 "
 
 AC_OUTPUT([
 Makefile

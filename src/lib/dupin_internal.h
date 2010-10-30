@@ -123,7 +123,7 @@ struct dupin_view_record_t
 
 struct dupin_js_t
 {
-  JsonObject *	emit;
+  JsonNode *	emit;
   JsonArray *	emitIntermediate;
 };
 

@@ -14566,7 +14566,8 @@ echo "$as_me: error: pkg-config is required to build Dupin" >&2;}
 fi
 
 #CFLAGS="$CFLAGS -Wall"
-CFLAGS="-g $CFLAGS -Wall -Werror"
+#CFLAGS="-g $CFLAGS -Wall -Werror -O0 "
+CFLAGS="-g $CFLAGS -Wall -O0 "
 
 ac_config_files="$ac_config_files Makefile src/Makefile src/tbjson/Makefile src/tbjsonpath/Makefile src/lib/Makefile src/httpd/Makefile src/www/Makefile src/tests/Makefile"
 

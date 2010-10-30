@@ -96,9 +96,13 @@ dupin_view_open (Dupin * d, gchar * view, GError ** error)
   g_mutex_lock (d->mutex);
 
   if (!(ret = g_hash_table_lookup (d->views, view)) || ret->todelete == TRUE)
-    g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
+    {
+      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
 		 "View '%s' doesn't exist.", view);
 
+      g_mutex_unlock (d->mutex);
+      return NULL;
+    }
   else
     ret->ref++;
 
@@ -394,13 +398,17 @@ dupin_view_p_record_insert (DupinViewP * p, gchar * id,
     {
       DupinView *view = p->views[i];
       JsonObject *nobj;
+      JsonNode *node;
 
-      if ((nobj = dupin_mr_record (view, obj)))
+      if ((node = dupin_mr_record (view, obj)))
 	{
+          nobj = json_node_get_object (node);
+
 	  dupin_view_record_save (view, id, nobj);
 
 	  dupin_view_p_record_insert (&view->views, id, nobj);
-	  json_object_unref (nobj);
+
+	  json_node_free (node);
 	}
     }
 }
@@ -824,13 +832,17 @@ dupin_view_sync_thread_real_mr (DupinView * view, GList * list)
     {
       struct dupin_view_sync_t *data = list->data;
       JsonObject *nobj;
+      JsonNode *node;
 
-      if ((nobj = dupin_mr_record (view, data->obj)))
+      if ((node = dupin_mr_record (view, data->obj)))
 	{
+          nobj = json_node_get_object (node);
+
 	  dupin_view_record_save (view, data->pid, nobj);
 
 	  dupin_view_p_record_insert (&view->views, data->pid, nobj);
-	  json_object_unref (nobj);
+
+	  json_node_free (node);
 	}
     }
 }
@@ -864,7 +876,7 @@ dupin_view_sync_thread_real_db (DupinView * view, gsize count, gsize offset)
     {
       struct dupin_view_sync_t *data =
 	g_malloc0 (sizeof (struct dupin_view_sync_t));
-      data->obj = json_node_get_object (dupin_record_get_revision (list->data, -1));
+      data->obj = json_node_get_object (json_node_copy (dupin_record_get_revision (list->data, -1)));
       data->pid = (gchar *) dupin_record_get_id (list->data);
 
       sync_id = data->pid;
@@ -916,7 +928,7 @@ dupin_view_sync_thread_real_view (DupinView * view, gsize count, gsize offset)
     {
       struct dupin_view_sync_t *data =
 	g_malloc0 (sizeof (struct dupin_view_sync_t));
-      data->obj = json_node_get_object (dupin_view_record_get (list->data));
+      data->obj = json_node_get_object (json_node_copy (dupin_view_record_get (list->data)));
       data->pid = (gchar *) dupin_view_record_get_id (list->data);
 
       sync_id = data->pid;

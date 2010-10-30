@@ -505,10 +505,16 @@ dupin_record_get_revision (DupinRecord * record, gint revision)
 
   r->obj = json_node_copy (json_parser_get_root (parser));
 
+  if (parser != NULL)
+    g_object_unref (parser);
+
   /* r->obj stays owernship of the record revision - the caller eventually need to json_node_copy() it */
   return r->obj;
 
 dupin_record_get_revision_error:
+
+  if (parser != NULL)
+    g_object_unref (parser);
 
   return NULL;
 }

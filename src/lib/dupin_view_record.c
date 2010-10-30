@@ -308,6 +308,7 @@ dupin_view_record_get_error:
 
   if (parser != NULL)
     g_object_unref (parser);
+
   return NULL;
 }
 

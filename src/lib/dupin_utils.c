@@ -40,7 +40,7 @@ dupin_util_is_valid_record_id (gchar * id)
 
   /* FIXME: something else? */
 
-  return TRUE;
+  return (strlen(id)<=255) ? TRUE : FALSE;
 }
 
 gboolean
@@ -58,11 +58,19 @@ dupin_util_generate_id (gchar id[255])
 {
   GRand *rand;
   gint32 i;
+  gint32 ttime=0;
+  GTimeVal tnow;
+
+  /* TODO - rework this function to be network portable (indep. of NTP) and sequential etc */
+
+  /* prefix time in nanoseconds */
+  g_get_current_time(&tnow); 
+  ttime= tnow.tv_sec * 1000000 + tnow.tv_usec;
 
   rand = g_rand_new ();
 
   i = g_rand_int_range (rand, 1, G_MAXINT32);
-  snprintf (id, 255, "%X", i);
+  snprintf (id, 255, "%X-%X", ttime, i);
 
   g_rand_free (rand);
 }

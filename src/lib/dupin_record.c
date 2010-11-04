@@ -15,20 +15,23 @@
 #define DUPIN_DB_SQL_EXISTS \
 	"SELECT count(id) FROM Dupin WHERE id = '%q' "
 
+#define DUPIN_DB_SQL_TOTAL \
+	"SELECT count(*) AS c FROM Dupin "
+
 #define DUPIN_DB_SQL_INSERT \
-	"INSERT INTO Dupin (id, rev, obj) " \
-        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q')"
+	"INSERT INTO Dupin (id, rev, ord_id, obj) " \
+        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', '%q')"
 
 #define DUPIN_DB_SQL_UPDATE \
-	"INSERT OR REPLACE INTO Dupin (id, rev, obj) " \
-        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q')"
+	"INSERT OR REPLACE INTO Dupin (id, rev, ord_id, obj) " \
+        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', '%q')"
 
 #define DUPIN_DB_SQL_READ \
 	"SELECT rev, obj, deleted FROM Dupin WHERE id='%q'"
 
 #define DUPIN_DB_SQL_DELETE \
-	"INSERT OR REPLACE INTO Dupin (id, rev, deleted) " \
-        "VALUES('%q', '%" G_GSIZE_FORMAT "', 'TRUE')"
+	"INSERT OR REPLACE INTO Dupin (id, rev, ord_id, deleted) " \
+        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', 'TRUE')"
 
 static DupinRecord *dupin_record_create_with_id_real (DupinDB * db,
 						      JsonObject * obj,
@@ -86,6 +89,40 @@ dupin_record_exists_real (DupinDB * db, gchar * id, gboolean lock)
   sqlite3_free (tmp);
 
   return numb > 0 ? TRUE : FALSE;
+}
+
+static int
+dupin_record_get_total_records_cb (void *data, int argc, char **argv, char **col)
+{
+  gsize *numb = data;
+
+  if (argv[0])
+    *numb = atoi (argv[0]);
+
+  return 0;
+}
+
+/* NOTE - bear in mind SQLite might be able to store more than gsize total records
+          see also ROWID and http://www.sqlite.org/autoinc.html */
+gboolean
+dupin_record_get_total_records (DupinDB * db, gsize * total)
+{
+  g_return_val_if_fail (db != NULL, FALSE);
+
+  gchar *tmp;
+  *total = 0;
+
+  tmp = sqlite3_mprintf (DUPIN_DB_SQL_TOTAL);
+
+  g_mutex_lock (db->mutex);
+
+  sqlite3_exec (db->db, tmp, dupin_record_get_total_records_cb, total, NULL);
+
+  g_mutex_unlock (db->mutex);
+
+  sqlite3_free (tmp);
+
+  return TRUE;
 }
 
 DupinRecord *
@@ -150,8 +187,11 @@ dupin_record_create_with_id_real (DupinDB * db, JsonObject * obj,
   record = dupin_record_new (db, id);
   dupin_record_add_revision_obj (record, 1, obj, FALSE);
 
+  gchar ord_id[255];
+  dupin_util_generate_id (ord_id);
+
   tmp =
-    sqlite3_mprintf (DUPIN_DB_SQL_INSERT, id, 1,
+    sqlite3_mprintf (DUPIN_DB_SQL_INSERT, id, 1, ord_id,
 		     record->last->obj_serialized);
 
   if (sqlite3_exec (db->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
@@ -298,7 +338,7 @@ dupin_record_get_list (DupinDB * db, guint count, guint offset,
   memset (&s, 0, sizeof (s));
   s.db = db;
 
-  str = g_string_new ("SELECT id FROM Dupin GROUP BY id ORDER BY id");
+  str = g_string_new ("SELECT id FROM Dupin GROUP BY id ORDER BY ord_id");
 
   if (descending)
     str = g_string_append (str, " DESC");
@@ -318,6 +358,8 @@ dupin_record_get_list (DupinDB * db, guint count, guint offset,
     }
 
   tmp = g_string_free (str, FALSE);
+
+//g_message("dupin_record_get_list() query=%s\n",tmp);
 
   g_mutex_lock (db->mutex);
 
@@ -369,8 +411,11 @@ dupin_record_update (DupinRecord * record, JsonObject * obj,
   rev = record->last->revision + 1;
   dupin_record_add_revision_obj (record, rev, obj, FALSE);
 
+  gchar ord_id[255];
+  dupin_util_generate_id (ord_id); /* new internal ord_id on each update */
+
   tmp =
-    sqlite3_mprintf (DUPIN_DB_SQL_INSERT, record->id, rev,
+    sqlite3_mprintf (DUPIN_DB_SQL_INSERT, record->id, rev, ord_id,
 		     record->last->obj_serialized);
 
   if (sqlite3_exec (record->db->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
@@ -419,7 +464,10 @@ dupin_record_delete (DupinRecord * record, GError ** error)
   rev = record->last->revision + 1;
   dupin_record_add_revision_obj (record, rev, NULL, TRUE);
 
-  tmp = sqlite3_mprintf (DUPIN_DB_SQL_DELETE, record->id, rev);
+  gchar ord_id[255];
+  dupin_util_generate_id (ord_id);
+
+  tmp = sqlite3_mprintf (DUPIN_DB_SQL_DELETE, record->id, rev, ord_id);
 
   if (sqlite3_exec (record->db->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
     {

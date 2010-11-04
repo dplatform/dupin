@@ -11,8 +11,11 @@
 #define DUPIN_VIEW_SQL_EXISTS \
 	"SELECT count(id) FROM Dupin WHERE id = '%q' "
 
+#define DUPIN_VIEW_SQL_TOTAL \
+	"SELECT count(*) AS c FROM Dupin "
+
 #define DUPIN_VIEW_SQL_READ \
-	"SELECT pid, obj FROM Dupin WHERE id='%q'"
+	"SELECT pid, key, obj FROM Dupin WHERE id='%q'"
 
 static DupinViewRecord *dupin_view_record_read_real (DupinView * view,
 						     gchar * id,
@@ -63,6 +66,43 @@ dupin_view_record_exists_real (DupinView * view, gchar * id, gboolean lock)
 }
 
 static int
+dupin_view_record_get_total_records_cb (void *data, int argc, char **argv,
+				  char **col)
+{
+  gsize *numb = data;
+
+  if (argv[0])
+    *numb = atoi (argv[0]);
+
+  return 0;
+}
+
+/* NOTE - bear in mind SQLite might be able to store more than gsize total records
+          see also ROWID and http://www.sqlite.org/autoinc.html */
+
+gboolean
+dupin_view_record_get_total_records (DupinView * view, gsize * total)
+{
+  g_return_val_if_fail (view != NULL, FALSE);
+
+  gchar *tmp;
+
+  *total = 0;
+
+  tmp = sqlite3_mprintf (DUPIN_VIEW_SQL_TOTAL);
+
+  g_mutex_lock (view->mutex);
+
+  sqlite3_exec (view->db, tmp, dupin_view_record_get_total_records_cb, total, NULL);
+
+  g_mutex_unlock (view->mutex);
+
+  sqlite3_free (tmp);
+
+  return TRUE;
+}
+
+static int
 dupin_view_record_read_cb (void *data, int argc, char **argv, char **col)
 {
   DupinViewRecord *record = data;
@@ -71,8 +111,15 @@ dupin_view_record_read_cb (void *data, int argc, char **argv, char **col)
   for (i = 0; i < argc; i++)
     {
       if (!strcmp (col[i], "pid"))
-	record->pid = g_strdup (argv[i]);
-
+	{
+	  record->pid_serialized = g_strdup (argv[i]);
+	  record->pid_serialized_len = strlen (argv[i]);
+	}
+      else if (!strcmp (col[i], "key"))
+	{
+	  record->key_serialized = g_strdup (argv[i]);
+	  record->key_serialized_len = strlen (argv[i]);
+	}
       else if (!strcmp (col[i], "obj"))
 	{
 	  record->obj_serialized = g_strdup (argv[i]);
@@ -176,7 +223,9 @@ dupin_view_record_get_list (DupinView * view, guint count, guint offset,
   memset (&s, 0, sizeof (s));
   s.view = view;
 
+  /* TODO - check if group by key is OK - also when key can be null (I.e. map function returned (null,value) ) */
   str = g_string_new ("SELECT id FROM Dupin GROUP BY id ORDER BY id");
+  //str = g_string_new ("SELECT id,key AS c FROM Dupin GROUP BY id ORDER BY c");
 
   if (descending)
     str = g_string_append (str, " DESC");
@@ -253,8 +302,17 @@ dupin_view_record_close (DupinViewRecord * record)
   if (record->id)
     g_free (record->id);
 
+  if (record->pid_serialized)
+    g_free (record->pid_serialized);
+
   if (record->pid)
-    g_free (record->pid);
+    json_node_free (record->pid);
+
+  if (record->key_serialized)
+    g_free (record->key_serialized);
+
+  if (record->key)
+    json_node_free (record->key);
 
   if (record->obj_serialized)
     g_free (record->obj_serialized);
@@ -273,12 +331,66 @@ dupin_view_record_get_id (DupinViewRecord * record)
   return record->id;
 }
 
-const gchar *
+JsonNode *
+dupin_view_record_get_key (DupinViewRecord * record)
+{
+  g_return_val_if_fail (record != NULL, NULL);
+
+  /* record->key stays owernship of the view record - the caller eventually need to json_node_copy() it */
+  if (record->key)
+    return record->key;
+
+  JsonParser * parser = json_parser_new ();
+
+  /* we do not check any parsing error due we stored earlier, we assume it is sane */
+  if (json_parser_load_from_data (parser, record->key_serialized, record->key_serialized_len, NULL) == FALSE)
+    goto dupin_view_record_get_key_error;
+
+  record->key = json_node_copy (json_parser_get_root (parser));
+
+  if (parser != NULL)
+    g_object_unref (parser);
+
+  /* record->key stays owernship of the view record - the caller eventually need to json_node_copy() it */
+  return record->key;
+
+dupin_view_record_get_key_error:
+
+  if (parser != NULL)
+    g_object_unref (parser);
+
+  return NULL;
+}
+
+JsonNode *
 dupin_view_record_get_pid (DupinViewRecord * record)
 {
-  g_return_val_if_fail (record != NULL, 0);
+  g_return_val_if_fail (record != NULL, NULL);
 
+  /* record->pid stays owernship of the view record - the caller eventually need to json_node_copy() it */
+  if (record->pid)
+    return record->pid;
+
+  JsonParser * parser = json_parser_new ();
+
+  /* we do not check any parsing error due we stored earlier, we assume it is sane */
+  if (json_parser_load_from_data (parser, record->pid_serialized, record->pid_serialized_len, NULL) == FALSE)
+    goto dupin_view_record_get_pid_error;
+
+  record->pid = json_node_copy (json_parser_get_root (parser));
+
+  if (parser != NULL)
+    g_object_unref (parser);
+
+  /* record->pid stays owernship of the view record - the caller eventually need to json_node_copy() it */
   return record->pid;
+
+dupin_view_record_get_pid_error:
+
+  if (parser != NULL)
+    g_object_unref (parser);
+
+  return NULL;
 }
 
 JsonNode *

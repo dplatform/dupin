@@ -71,9 +71,13 @@ struct dupin_view_t
 
   gboolean	todelete;
 
-  GThread *	sync_thread;
+  GThread *	sync_map_thread;
+  GThread *	sync_reduce_thread;
+  GThread *	sync_rereduce_thread;
+  gsize		sync_map_offset;
+  gsize		sync_reduce_offset;
+  gsize		sync_rereduce_offset;
   gboolean	sync_toquit;
-  gsize		sync_offset;
 
   sqlite3 *	db;
 
@@ -114,7 +118,14 @@ struct dupin_view_record_t
   DupinView *	view;
 
   gchar	*	id;
-  gchar *	pid;
+
+  gchar *	pid_serialized;
+  gsize		pid_serialized_len;
+  JsonNode *    pid;
+
+  gchar *	key_serialized;
+  gsize		key_serialized_len;
+  JsonNode *    key;
 
   gchar *	obj_serialized;
   gsize		obj_serialized_len;
@@ -123,8 +134,8 @@ struct dupin_view_record_t
 
 struct dupin_js_t
 {
-  JsonNode *	emit;
-  JsonArray *	emitIntermediate;
+  JsonNode *	reduceResult;
+  JsonArray *	mapResults;
 };
 
 DupinDB *	dupin_db_create	(Dupin *	d,
@@ -167,7 +178,8 @@ void		dupin_view_p_record_delete
 
 void		dupin_view_record_save
 				(DupinView *	view,
-				 gchar *	pid,
+				 JsonNode     * pid,
+				 JsonNode     * key,
 				 JsonObject * obj);
 
 void		dupin_view_record_delete

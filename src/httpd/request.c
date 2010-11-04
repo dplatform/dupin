@@ -3,6 +3,8 @@
 #endif
 
 #include "dupin.h"
+#include "dupin_internal.h"
+
 #include "map.h"
 #include "request.h"
 
@@ -338,6 +340,7 @@ request_global (DSHttpdClient * client, GList * path, GList * arguments)
 #define REQUEST_ALL_VIEWS	"_all_views"
 #define REQUEST_ALL_DOCS	"_all_docs"
 #define REQUEST_VIEWS		"_views"
+#define REQUEST_SYNC		"_sync"
 
 static DSHttpStatusCode request_global_get_all_dbs (DSHttpdClient * client,
 						    GList * paths,
@@ -372,6 +375,10 @@ static DSHttpStatusCode request_global_get_view_query (DSHttpdClient * client,
 						       GList * path,
 						       gchar * query);
 
+static DSHttpStatusCode request_global_view_sync (DSHttpdClient * client,
+						  GList * path,
+						  GList * arguments);
+
 static DSHttpStatusCode
 request_global_get (DSHttpdClient * client, GList * path, GList * arguments)
 {
@@ -405,6 +412,10 @@ request_global_get (DSHttpdClient * client, GList * path, GList * arguments)
 	  /* GET /_views/view/_all_docs */
 	  if (!strcmp (path->next->next->data, REQUEST_ALL_DOCS))
 	    return request_global_get_all_docs_view (client, path, arguments);
+
+	  /* GET /_views/view/_sync */
+	  if (!strcmp (path->next->next->data, REQUEST_SYNC))
+	    return request_global_view_sync (client, path, arguments);
 
 	  /* GET /_views/view/id */
 	  return request_global_get_record_view (client, path, arguments);
@@ -566,6 +577,7 @@ request_global_get_all_docs (DSHttpdClient * client, GList * path,
   gboolean descending = FALSE;
   guint count = DUPIN_DB_MAX_DOCS_COUNT;
   guint offset = 0;
+  gsize total_rows = 0;
 
   JsonObject *obj;
   JsonNode *node=NULL;
@@ -592,6 +604,9 @@ request_global_get_all_docs (DSHttpdClient * client, GList * path,
 	offset = atoi (kv->value);
     }
 
+  if (dupin_record_get_total_records (db, &total_rows) == FALSE)
+    return HTTP_STATUS_500;
+
   if (dupin_record_get_list (db, count, offset, descending, &results, NULL) ==
       FALSE)
     return HTTP_STATUS_500;
@@ -607,7 +622,7 @@ request_global_get_all_docs (DSHttpdClient * client, GList * path,
       return HTTP_STATUS_500;
     }
 
-  json_object_set_int_member (obj, "total_rows", g_list_length (results));
+  json_object_set_int_member (obj, "total_rows", total_rows);
   json_object_set_int_member (obj, "offset", offset);
 
   array = json_array_new ();
@@ -721,7 +736,8 @@ request_global_get_database (DSHttpdClient * client, GList * path,
 
 #ifdef COUCHDB_STRICT
   /* FIXME: not really a lot of documentation about this stuff (update_seq)... - see also
-     http://guide.couchdb.org/draft/replication.html and http://ayende.com/Blog/archive/2008/10/04/erlang-reading-couchdb-digging-down-to-disk.aspx */
+     http://guide.couchdb.org/draft/replication.html and http://ayende.com/Blog/archive/2008/10/04/erlang-reading-couchdb-digging-down-to-disk.aspx
+     and https://issues.apache.org/jira/browse/COUCHDB-576?page=com.atlassian.jira.plugin.system.issuetabpanels:all-tabpanel */
   json_object_set_int_member (obj, "update_seq", 0);
 #endif
 
@@ -973,15 +989,21 @@ request_global_get_view (DSHttpdClient * client, GList * path,
   json_object_set_string_member (subobj, "language", (gchar *) dupin_util_mr_lang_to_string (dupin_view_get_map_language (view)));
   json_object_set_object_member (obj, "map", subobj );
 
-  subobj = json_object_new ();
+  gchar * reduce = (gchar *) dupin_view_get_reduce (view);
+  gchar * reduce_lang = (gchar *) dupin_util_mr_lang_to_string (dupin_view_get_reduce_language (view));
 
-  if (subobj == NULL)
-    goto request_global_get_view_error;
+  if (reduce != NULL)
+    {
+      subobj = json_object_new ();
 
-  /* TODO - double check that the actual Javascript code does not need any special escaping or anything here */
-  json_object_set_string_member (subobj, "code", (gchar *) dupin_view_get_reduce (view));
-  json_object_set_string_member (subobj, "language", (gchar *) dupin_util_mr_lang_to_string (dupin_view_get_reduce_language (view)));
-  json_object_set_object_member (obj, "reduce", subobj );
+      if (subobj == NULL)
+        goto request_global_get_view_error;
+
+      /* TODO - double check that the actual Javascript code does not need any special escaping or anything here */
+      json_object_set_string_member (subobj, "code", reduce);
+      json_object_set_string_member (subobj, "language", reduce_lang);
+      json_object_set_object_member (obj, "reduce", subobj );
+    }
 
   json_object_set_int_member (obj, "doc_count", dupin_view_count (view));
   json_object_set_int_member (obj, "disk_size", dupin_view_get_size (view));
@@ -1028,6 +1050,29 @@ request_global_get_view_error:
   return HTTP_STATUS_500;
 }
 
+/* TODO - probably useless to ask sync on demand */
+
+static DSHttpStatusCode
+request_global_view_sync (DSHttpdClient * client, GList * path,
+			  GList * arguments)
+{
+  DupinView *view;
+
+  if (!
+      (view =
+       dupin_view_open (client->thread->data->dupin, path->next->data, NULL)))
+    return HTTP_STATUS_404;
+
+  if (dupin_view_is_sync (view) == TRUE)
+    {
+      dupin_view_sync (view);
+    }
+
+  dupin_view_unref (view);
+
+  return HTTP_STATUS_200;
+}
+
 static DSHttpStatusCode
 request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
 				  GList * arguments)
@@ -1037,6 +1082,7 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
   GList *list;
   GList *results;
 
+  gsize total_rows = 0;
   gboolean descending = FALSE;
   guint count = DUPIN_VIEW_MAX_DOCS_COUNT;
   guint offset = 0;
@@ -1066,6 +1112,9 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
 	offset = atoi (kv->value);
     }
 
+  if (dupin_view_record_get_total_records (view, &total_rows) == FALSE)
+    return HTTP_STATUS_500;
+
   if (dupin_view_record_get_list
       (view, count, offset, descending, &results, NULL) == FALSE)
     return HTTP_STATUS_500;
@@ -1081,7 +1130,7 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
       return HTTP_STATUS_500;
     }
 
-  json_object_set_int_member (obj, "total_rows", g_list_length (results));
+  json_object_set_int_member (obj, "total_rows", total_rows);
   json_object_set_int_member (obj, "offset", offset);
 
   array = json_array_new ();
@@ -1891,7 +1940,7 @@ request_global_put_view (DSHttpdClient * client, GList * path,
     }
   g_list_free (nodes);
 
-  if (!map || !map_lang || !reduce || !reduce_lang || !parent)
+  if (!map || !map_lang || !parent)
     {
       code = HTTP_STATUS_400;
       goto request_global_put_view_error;
@@ -2453,7 +2502,8 @@ request_view_record_obj (DupinViewRecord * record, gchar * id)
 
   /* Setting _id and _pid - views do not have _rev yet */
   json_object_set_string_member (obj, REQUEST_OBJ_ID, id);
-  json_object_set_string_member (obj, REQUEST_OBJ_PID, (gchar *) dupin_view_record_get_pid (record));
+
+  json_object_set_array_member (obj, REQUEST_OBJ_PID, json_node_get_array ( json_node_copy (dupin_view_record_get_pid (record))));
 
   return obj;
 }

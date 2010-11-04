@@ -80,10 +80,10 @@ AC_ARG_WITH(webkitframework,
    USEWEBKITFRAMEWORK=yes)
 
 AC_ARG_WITH(couchdbstrict,
-   AC_HELP_STRING([--with-couchdbstrict=none|auto (default=auto)],
+   AC_HELP_STRING([--with-couchdbstrict=none|auto (default=no)],
                   [do you want dupin following the couchdb protocol strictly?]),
    COUCHDB=$withval,
-   COUCHDB=yes)
+   COUCHDB=no)
 
 AH_TEMPLATE([COUCHDB_STRICT], [Define to 1 if you want dupin following the couchdb protocol strictly?])
 
@@ -164,7 +164,7 @@ fi
 
 #CFLAGS="$CFLAGS -Wall"
 #CFLAGS="-g $CFLAGS -Wall -Werror -O0 "
-CFLAGS="-g $CFLAGS -Wall -O0 "
+CFLAGS="-g $CFLAGS -Wall -O0 -DSQLITE_MEMDEBUG"
 
 AC_OUTPUT([
 Makefile

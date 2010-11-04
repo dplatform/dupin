@@ -10,12 +10,23 @@
 #include <json-glib/json-gobject.h>
 
 static void
-debug_print_json_node (JsonNode * node, char * msg )
+debug_print_json_node (char * msg, JsonNode * node)
 {
-  JsonGenerator *gen = json_generator_new();
-  json_generator_set_root (gen, node);
-  gchar * buffer = json_generator_to_data (gen,NULL);
-  g_message("%s - Json Node of type %d: %s\n",msg, (gint)json_node_get_value_type (node), buffer);
+  g_assert (node != NULL);
+ 
+  gchar * buffer;
+  if (json_node_get_node_type (node) == JSON_NODE_VALUE)
+    {
+     buffer = g_strdup ( json_node_get_string (node) ); /* we should check number, boolean too */
+    }
+  else
+   {
+     JsonGenerator *gen = json_generator_new();
+     json_generator_set_root (gen, node);
+     buffer = json_generator_to_data (gen,NULL);
+     g_object_unref (gen);
+   }
+  g_message("%s - Json Node of type %d: %s\n",msg, (gint)json_node_get_node_type (node), buffer);
   g_free (buffer);
 }
 
@@ -206,7 +217,7 @@ js_value (JSContextRef ctx, JSValueRef value, JsonNode ** v)
 
             see http://developer.apple.com/library/mac/#documentation/Carbon/Reference/WebKit_JavaScriptCore_Ref/JSValueRef_h/index.html%23//apple_ref/c/func/JSValueGetType */
 
-  debug_print_json_node ( *v, "js_value(): " );
+  debug_print_json_node ( "js_value(): ", *v );
 }
 
 static void
@@ -234,7 +245,7 @@ g_message("Getting obj property %s\n",p);
 
 g_message("Got obj property %s\n",p);
 
-debug_print_json_node ( node, "js_obj(): " );
+debug_print_json_node ( "js_obj(): ", node );
 
 g_message("obj=%p\n",obj);
 

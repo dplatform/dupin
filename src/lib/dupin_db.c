@@ -9,14 +9,24 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* NOTE - ord_id is used internally for keeping records sorted due id could be
+          passed by client/application and not under control to the server - for views (see dupin_view.c)
+          we always generate a valid controlled and ordered id due they are read-only at the moment */
+
 #define DUPIN_DB_SQL_MAIN_CREATE \
   "CREATE TABLE IF NOT EXISTS Dupin (\n" \
+  "  ord_id  CHAR(255) NOT NULL,\n" \
   "  id      CHAR(255) NOT NULL,\n" \
   "  rev     INTEGER NOT NULL DEFAULT 1,\n" \
   "  obj     TEXT,\n" \
   "  deleted BOOL DEFAULT FALSE,\n" \
   "  PRIMARY KEY(id, rev)\n" \
   ");"
+
+#define DUPIN_DB_SQL_CREATE_INDEX \
+  "CREATE INDEX IF NOT EXISTS DupinId ON Dupin (id);\n" \
+  "CREATE INDEX IF NOT EXISTS DupinRev ON Dupin (rev);\n" \
+  "CREATE INDEX IF NOT EXISTS DupinOrdId ON Dupin (ord_id);"
 
 gchar **
 dupin_get_databases (Dupin * d)
@@ -283,8 +293,8 @@ dupin_db_create (Dupin * d, gchar * name, gchar * path, GError ** error)
       return NULL;
     }
 
-  if (sqlite3_exec (db->db, DUPIN_DB_SQL_MAIN_CREATE, NULL, NULL, &errmsg) !=
-      SQLITE_OK)
+  if (sqlite3_exec (db->db, DUPIN_DB_SQL_MAIN_CREATE, NULL, NULL, &errmsg) != SQLITE_OK
+      || sqlite3_exec (db->db, DUPIN_DB_SQL_CREATE_INDEX, NULL, NULL, &errmsg) != SQLITE_OK)
     {
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
 		   errmsg);

@@ -119,10 +119,14 @@ dupin_shutdown_sync (Dupin * d)
   while (g_hash_table_iter_next (&iter, NULL, &p) == TRUE)
     {
       DupinView *view = p;
-      if (view->sync_thread)
+      if (view->sync_map_thread
+          || view->sync_reduce_thread)
 	view->sync_toquit = TRUE;
 
-      while (view->sync_thread)
+      while (view->sync_map_thread)
+	g_usleep (200);
+
+      while (view->sync_reduce_thread)
 	g_usleep (200);
     }
 

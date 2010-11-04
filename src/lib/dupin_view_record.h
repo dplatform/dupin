@@ -14,6 +14,10 @@ DupinViewRecord *
 					 gchar *		id,
 					 GError **		error);
 
+/* get total of records into view */
+gboolean        dupin_view_record_get_total_records (DupinView * view,
+							gsize * total);
+
 /* List of DupinViewRecord: */
 gboolean	dupin_view_record_get_list
 					(DupinView *		view,
@@ -31,8 +35,12 @@ void		dupin_view_record_close	(DupinViewRecord *	record);
 const gchar *	dupin_view_record_get_id
 					(DupinViewRecord *	record);
 
-const gchar *	dupin_view_record_get_pid
+JsonNode *
+		dupin_view_record_get_pid
 					(DupinViewRecord *	record);
+
+JsonNode *
+		dupin_view_record_get_key (DupinViewRecord *	record);
 
 JsonNode *
 		dupin_view_record_get	(DupinViewRecord *	record);

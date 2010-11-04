@@ -12,25 +12,35 @@ debug_print_json_node (char * msg, JsonNode * node)
 {
   g_assert (node != NULL);
  
-  JsonGenerator *gen = json_generator_new();
-  json_generator_set_root (gen, node);
-  gchar * buffer = json_generator_to_data (gen,NULL);
+  gchar * buffer;
+  if (json_node_get_node_type (node) == JSON_NODE_VALUE)
+    {
+     buffer = g_strdup ( json_node_get_string (node) ); /* we should check number, boolean too */
+    }
+  else
+   {
+     JsonGenerator *gen = json_generator_new();
+     json_generator_set_root (gen, node);
+     buffer = json_generator_to_data (gen,NULL);
+     g_object_unref (gen);
+   }
   g_message("%s - Json Node of type %d: %s\n",msg, (gint)json_node_get_node_type (node), buffer);
   g_free (buffer);
-  g_object_unref (gen);
 }
 
-static JSValueRef dupin_js_emitIntermediate (JSContextRef ctx,
+static JSValueRef dupin_js_emit (JSContextRef ctx,
 					     JSObjectRef object,
 					     JSObjectRef thisObject,
 					     size_t argumentCount,
 					     const JSValueRef arguments[],
 					     JSValueRef * exception);
 
-static JSValueRef dupin_js_emit (JSContextRef ctx, JSObjectRef object,
-				 JSObjectRef thisObject, size_t argumentCount,
-				 const JSValueRef arguments[],
-				 JSValueRef * exception);
+static JSValueRef dupin_js_log (JSContextRef ctx,
+					     JSObjectRef object,
+					     JSObjectRef thisObject,
+					     size_t argumentCount,
+					     const JSValueRef arguments[],
+					     JSValueRef * exception);
 
 static gchar* dupin_js_string_utf8 (JSStringRef js_string);
 
@@ -40,11 +50,20 @@ static void dupin_js_obj (JSContextRef ctx, JSValueRef object_value,
 static void dupin_js_value (JSContextRef ctx, JSValueRef value,
                           JsonNode ** v);
 
+
+/*
+ See http://wiki.apache.org/couchdb/Introduction_to_CouchDB_views#Concept
+
+ function(doc) {
+    ...
+    emit(key, value);
+  }
+ */
+
 DupinJs *
-dupin_js_new (gchar *        js_json,
-              gchar *        js_code,
-              gchar *        what,
-              gchar**        exception_string)
+dupin_js_new_map (gchar *        js_json_doc,
+                  gchar *        js_code,
+                  gchar**        exception_string)
 {
   DupinJs *js;
   JSGlobalContextRef ctx;
@@ -54,11 +73,10 @@ dupin_js_new (gchar *        js_json,
   JSValueRef p, result;
   JSValueRef js_exception=NULL;
 
-  g_return_val_if_fail (js_json != NULL, NULL);
+  g_return_val_if_fail (js_json_doc != NULL, NULL);
   g_return_val_if_fail (js_code != NULL, NULL);
-  g_return_val_if_fail (what != NULL, NULL);
 
-  if (g_utf8_validate (js_json, -1, NULL) == FALSE)
+  if (g_utf8_validate (js_json_doc, -1, NULL) == FALSE)
     return NULL;
 
   if (g_utf8_validate (js_code, -1, NULL) == FALSE)
@@ -69,80 +87,64 @@ dupin_js_new (gchar *        js_json,
 
   js = g_malloc0 (sizeof (DupinJs));
 
-  /* work around 32 vs 64 bits points problem of original solution using GPOINTER_TO_INT / GINT_TO_POINTER
-     in combination with webkit/gtk (I.e. 0x10248dff0 vs 0x248dff0 nightmare) by passing explicitly DupinJs
-     structure pointer js to Javascript and back we keep a global in scope of context array and object
-     to be filled in by the various calls to emitIntermediate() and emit()
-
-     TODO:
+  /*
+     TODO
 	-> we should have ctx in scope of of caller to avoid too many of these and
            if we do it, note we could have multiple views, so we should have the
            global state in context kept per view (E.g. an object or array of states)
-
-
-     ALGORITHM:
-	-> make a pice of Javascript contaning the JSON + code (map/reduce)
-	-> set call back for map and reduce to which fills in global javascript array of results
-	-> post-process arrays of results and build up JSON structure to return
   */
 
-  /* NOTE - we could actually have the follwing written in Javascript directly and pre-pended to script */
-
-  /* hack to use built-in Array constructor - we can not use JSObjectMakeArray for this */
-
-  /* array for maps */
-  str = JSStringCreateWithUTF8CString ("return new Array");
-  array = JSObjectMakeFunction(ctx, NULL, 0, NULL, str, NULL, 1, NULL);
-  JSStringRelease (str);
-  p = JSObjectCallAsFunction(ctx, array, NULL, 0, NULL, NULL);
-  str = JSStringCreateWithUTF8CString ("__dupin_emitIntermediate");
-  JSObjectSetProperty (ctx, globalObject, str, p,
-		       kJSPropertyAttributeDontDelete, NULL); /* or kJSPropertyAttributeNone ? */
-  JSStringRelease (str);
-
-  /* array for reduce(s) - yes we do use an array of one element - can't get JS object to work */
-  str = JSStringCreateWithUTF8CString ("return new Array");
-  array = JSObjectMakeFunction(ctx, NULL, 0, NULL, str, NULL, 1, NULL);
-  JSStringRelease (str);
-  p = JSObjectCallAsFunction(ctx, array, NULL, 0, NULL, NULL);
-  str = JSStringCreateWithUTF8CString ("__dupin_emit");
-  JSObjectSetProperty (ctx, globalObject, str, p,
-		       kJSPropertyAttributeDontDelete, NULL); /* or kJSPropertyAttributeNone ? */
-  JSStringRelease (str);
-
-  str = JSStringCreateWithUTF8CString ("emitIntermediate");
-  func =
-    JSObjectMakeFunctionWithCallback (ctx, str, dupin_js_emitIntermediate);
+  /* register call back for debugging / logging purposes */
+  str = JSStringCreateWithUTF8CString ("dupin_log");
+  func = JSObjectMakeFunctionWithCallback (ctx, str, dupin_js_log);
   JSObjectSetProperty (ctx, globalObject, str, func,
-		       kJSPropertyAttributeNone, NULL);
+                            kJSPropertyAttributeNone, NULL);
   JSStringRelease (str);
 
+  GString *buffer;
+  gchar *b=NULL;
+
+  /* we will keep callback result pairs (key,value) in two separated arrays keys[i]->values[i] for simplicity */
+  str = JSStringCreateWithUTF8CString ("return new Array");
+  array = JSObjectMakeFunction(ctx, NULL, 0, NULL, str, NULL, 1, NULL);
+  JSStringRelease (str);
+  p = JSObjectCallAsFunction(ctx, array, NULL, 0, NULL, NULL);
+  str = JSStringCreateWithUTF8CString ("__dupin_emit_keys");
+  JSObjectSetProperty (ctx, globalObject, str, p,
+		       kJSPropertyAttributeDontDelete, NULL); /* or kJSPropertyAttributeNone ? */
+  JSStringRelease (str);
+
+  str = JSStringCreateWithUTF8CString ("return new Array");
+  array = JSObjectMakeFunction(ctx, NULL, 0, NULL, str, NULL, 1, NULL);
+  JSStringRelease (str);
+  p = JSObjectCallAsFunction(ctx, array, NULL, 0, NULL, NULL);
+  str = JSStringCreateWithUTF8CString ("__dupin_emit_values");
+  JSObjectSetProperty (ctx, globalObject, str, p,
+		       kJSPropertyAttributeDontDelete, NULL); /* or kJSPropertyAttributeNone ? */
+  JSStringRelease (str);
+
+  /* register call back fro emit(k,v) */
   str = JSStringCreateWithUTF8CString ("emit");
   func = JSObjectMakeFunctionWithCallback (ctx, str, dupin_js_emit);
   JSObjectSetProperty (ctx, globalObject, str, func,
 		       kJSPropertyAttributeNone, NULL);
   JSStringRelease (str);
 
-  GString *buffer;
-  gchar *b=NULL;
-  if (g_strcmp0 (what, "map")==0)
-    {
-      buffer = g_string_new ("var mapObject = ");
-    }
-  else
-    {
-      buffer = g_string_new ("var mapObjects = ");
-    }
-
-  /* we need to split up js_json strings in chunks of to avoid problems with JS parsing of big >27k JS */
-  buffer = g_string_append_len (buffer, js_json, strlen(js_json));
-  buffer = g_string_append (buffer, ";\n");
-  buffer = g_string_append (buffer, js_code);
+  /* make map function (doc) { ... passed JS code calling eventually emit(k,v) ... }  */
+  buffer = g_string_new ("var __dupin_map_function = ");
+  buffer = g_string_append_len (buffer, js_code, strlen(js_code));
+  buffer = g_string_append (buffer, "\n"); /* no semicolon to avoid checking input js_code for it */
+  buffer = g_string_append (buffer, "__dupin_map_function (");
+  buffer = g_string_append_len (buffer, js_json_doc, strlen(js_json_doc));
+  buffer = g_string_append (buffer, ");\n");
   b = g_string_free (buffer, FALSE);
 
-  //g_message("script is: %s\n",js_code);
-  //g_message("json is: %s\n",js_json);
-  //g_message("whole is: %s\n",b);
+/*
+  g_message("MAP:\n");
+  g_message("\tscript is: %s\n",js_code);
+  g_message("\tjs_json_doc is: %s\n",js_json_doc);
+  g_message("\twhole is: %s\n",b);
+*/
 
   str = JSStringCreateWithUTF8CString (b);
   result = JSEvaluateScript (ctx, str, NULL, NULL, 0, &js_exception);
@@ -156,7 +158,7 @@ dupin_js_new (gchar *        js_json,
         *exception_string = value;
       else
         {
-          g_warning ("dupin_js_new: %s", value);
+          g_warning ("dupin_js_new_map: %s", value);
           g_free (value);
         }
       JSStringRelease (js_message);
@@ -169,80 +171,205 @@ dupin_js_new (gchar *        js_json,
     {
       /* convert matching Javascript objects to JSON */
 
-      /* TODO - we should either set reduce if there/set or just map */
+      /* return an array of mapped objects in JSON like [ { "key": key, "value": value } ... { ... } ] where key and objects can be arbitrary objects */
 
-      /* mapped values */
-      gint i;
-      gsize nmaps;
-      JSStringRef str;
-      JSObjectRef maps;
-      JSPropertyNameArrayRef maps_names;
+      /* mapped keys and values */
 
-      str = JSStringCreateWithUTF8CString ("__dupin_emitIntermediate");
-      JSValueRef mo = JSObjectGetProperty (ctx, globalObject, str, NULL);
+      str = JSStringCreateWithUTF8CString ("__dupin_emit_keys");
+      JSValueRef mkeys = JSObjectGetProperty (ctx, globalObject, str, NULL);
       JSStringRelease (str);
-      if (mo)
+
+      str = JSStringCreateWithUTF8CString ("__dupin_emit_values");
+      JSValueRef mvalues = JSObjectGetProperty (ctx, globalObject, str, NULL);
+      JSStringRelease (str);
+
+      if (mkeys && mvalues)
         {
-          maps = JSValueToObject(ctx, mo, NULL);
-          maps_names = JSObjectCopyPropertyNames (ctx, maps);
-          nmaps = JSPropertyNameArrayGetCount (maps_names);
+          JSObjectRef map_keys = JSValueToObject(ctx, mkeys, NULL);
+          JSObjectRef map_values = JSValueToObject(ctx, mvalues, NULL);
+          JSPropertyNameArrayRef maps_names = JSObjectCopyPropertyNames (ctx, map_keys);
+	  /* NOTE - we assumed emit keys and value to have the same cardinality */
+          gsize nmaps = JSPropertyNameArrayGetCount (maps_names);
 
-          if (!js->emitIntermediate)
-            js->emitIntermediate = json_array_new ();
+          if (!js->mapResults)
+            js->mapResults = json_array_new ();
 
+          gint i;
           for (i = 0; i < nmaps; i++)
             {
-              JsonNode *v;
-              JSValueRef  ele = JSObjectGetPropertyAtIndex (ctx,maps,i,NULL);
+              JsonNode *key_node;
+              JsonNode *value_node;
+              JSValueRef  key = JSObjectGetPropertyAtIndex (ctx,map_keys,i,NULL);
+              JSValueRef  value = JSObjectGetPropertyAtIndex (ctx,map_values,i,NULL);
 
-              dupin_js_value (ctx, ele, &v);
+	      /* TODO - check if we migth not want to emit an empty key or empty value */
 
-              json_array_add_element(js->emitIntermediate, v);
+              dupin_js_value (ctx, key, &key_node);
+              dupin_js_value (ctx, value, &value_node);
+
+	      JsonObject *map_object = json_object_new (); /* TODO - make double sure we do nto need a json node object for GC reasons */
+	      json_object_set_member (map_object, "key", key_node);
+	      json_object_set_member (map_object, "value", value_node);
+
+              json_array_add_object_element(js->mapResults, map_object);
             }
 
 	  /* debug print what's there */
-#if 0
+/*
 	  JsonNode *node = json_node_new (JSON_NODE_ARRAY);
-          json_node_set_array (node, js->emitIntermediate);
-          debug_print_json_node ("emitIntermediate: ",node);
+          json_node_set_array (node, js->mapResults);
+          debug_print_json_node ("mapResults: ",node);
           json_node_free (node);
-#endif
+*/
 
           JSPropertyNameArrayRelease (maps_names);
         }
+    }
 
-      /* reduced value */
-      gsize nreduces;
-      JSObjectRef reduces;
-      JSPropertyNameArrayRef reduces_names;
-      str = JSStringCreateWithUTF8CString ("__dupin_emit");
-      JSValueRef ro = JSObjectGetProperty (ctx, globalObject, str, NULL);
-      JSStringRelease (str);
-      if (ro)
+  JSGlobalContextRelease (ctx);
+
+  return js;
+}
+
+/*
+
+See http://wiki.apache.org/couchdb/Introduction_to_CouchDB_views#Concept
+
+function (key, values, rereduce) {
+    return sum(values);
+}
+Reduce functions are passed three arguments in the order key, values and rereduce
+
+Reduce functions must handle two cases:
+
+1. When rereduce is false:
+
+- key will be an array whose elements are arrays of the form [key,id], where key is a key emitted by the map function and id is that of the document from which the key was generated.
+- values will be an array of the values emitted for the respective elements in keys
+- i.e. reduce([ [key1,id1], [key2,id2], [key3,id3] ], [value1,value2,value3], false)
+
+2. When rereduce is true:
+
+- key will be null
+- values will be an array of values returned by previous calls to the reduce function
+- i.e. reduce(null, [intermediate1,intermediate2,intermediate3], true)
+
+Reduce functions should return a single value, suitable for both the value field of the final view and as a member of the values array passed to the reduce function.
+
+CouchDB doesn't necessarily pass in all the values for a unique key to the reduce function. This means that the reduce function needs to handle values potentially being an array of previous outputs.
+
+ */
+
+DupinJs *
+dupin_js_new_reduce (gchar *        js_json_keys,
+		     gchar *        js_json_values,
+                     gboolean       rereduce,
+                     gchar *        js_code,
+                     gchar**        exception_string)
+{
+  DupinJs *js;
+  JSGlobalContextRef ctx;
+
+  JSStringRef str;
+  JSObjectRef func, globalObject;
+  JSValueRef result;
+  JSValueRef js_exception=NULL;
+
+  g_return_val_if_fail (js_json_values != NULL, NULL);
+  g_return_val_if_fail (js_code != NULL, NULL);
+
+  if (g_utf8_validate (js_json_values, -1, NULL) == FALSE)
+    return NULL;
+
+  if (js_json_keys != NULL
+      && g_utf8_validate (js_json_keys, -1, NULL) == FALSE)
+    return NULL;
+
+  if (g_utf8_validate (js_code, -1, NULL) == FALSE)
+    return NULL;
+
+  ctx = JSGlobalContextCreate (NULL);
+  globalObject = JSContextGetGlobalObject(ctx);
+
+  js = g_malloc0 (sizeof (DupinJs));
+
+  /*
+     TODO
+	-> we should have ctx in scope of of caller to avoid too many of these and
+           if we do it, note we could have multiple views, so we should have the
+           global state in context kept per view (E.g. an object or array of states)
+  */
+
+  /* register call back for debugging / logging purposes */
+  str = JSStringCreateWithUTF8CString ("dupin_log");
+  func = JSObjectMakeFunctionWithCallback (ctx, str, dupin_js_log);
+  JSObjectSetProperty (ctx, globalObject, str, func,
+                            kJSPropertyAttributeNone, NULL);
+  JSStringRelease (str);
+
+  GString *buffer;
+  gchar *b=NULL;
+
+  /* make map function (keys,values,rereduce) { ... passed JS code returning an object ... } */
+  buffer = g_string_new ("var __dupin_reduce_function = ");
+  buffer = g_string_append_len (buffer, js_code, strlen(js_code));
+  buffer = g_string_append (buffer, "\n"); /* no semicolon to avoid checking input js_code for it */
+  buffer = g_string_append (buffer, "__dupin_reduce_result = __dupin_reduce_function (");
+  /* TODO - check reduce passed function takes three params - or return error */
+  buffer = g_string_append_len (buffer, js_json_keys, strlen(js_json_keys));
+  buffer = g_string_append (buffer, ", ");
+  buffer = g_string_append_len (buffer, js_json_values, strlen(js_json_values));
+  buffer = g_string_append (buffer, ", ");
+  gchar * rereduce_param = (rereduce == TRUE) ? "true" : "false";
+  buffer = g_string_append_len (buffer, rereduce_param, strlen(rereduce_param));
+  buffer = g_string_append (buffer, ");\n");
+  b = g_string_free (buffer, FALSE);
+
+/*
+  g_message("REDUCE:\n");
+  g_message("\tscript is: %s\n",js_code);
+  g_message("\tjs_json_keys is: %s\n",js_json_keys);
+  g_message("\tjs_json_values is: %s\n",js_json_values);
+  g_message("\trereduce is: %s\n",rereduce_param);
+  g_message("\twhole is: %s\n",b);
+*/
+
+  str = JSStringCreateWithUTF8CString (b);
+  result = JSEvaluateScript (ctx, str, NULL, NULL, 0, &js_exception);
+  JSStringRelease (str);
+
+  if (!result)
+    {
+      JSStringRef js_message = JSValueToStringCopy (ctx, js_exception, NULL);
+      gchar* value = dupin_js_string_utf8 (js_message);
+      if (exception_string)
+        *exception_string = value;
+      else
         {
-          reduces = JSValueToObject(ctx, ro, NULL);
-          reduces_names = JSObjectCopyPropertyNames (ctx, reduces);
-          nreduces = JSPropertyNameArrayGetCount (reduces_names);
-          JSPropertyNameArrayRelease (reduces_names);
-
-          /* we just consider the first element of reduces array I.e. we could not get a proper JS object to work :( */
-          JSValueRef  ele = JSObjectGetPropertyAtIndex (ctx,reduces,0,NULL);
-
-          if (ele
-              && JSValueGetType (ctx, ele) == kJSTypeObject)
-            {
-              if (js->emit)
-                json_node_free (js->emit);
-
-	      /* this is not dupin_js_value() */
-              dupin_js_obj (ctx, ele, &js->emit);
-
-	      /* debug print what's there */
-#if 0
-              debug_print_json_node ("emit: ",js->emit);
-#endif
-            }
+          g_warning ("dupin_js_new_reduce: %s", value);
+          g_free (value);
         }
+      JSStringRelease (js_message);
+
+      JSGlobalContextRelease (ctx);
+      dupin_js_destroy (js);
+      return NULL;
+    }
+  else
+    {
+      /* convert matching Javascript objects to JSON */
+      /* process __dupin_reduce_result */
+
+      str = JSStringCreateWithUTF8CString ("__dupin_reduce_result");
+      JSValueRef reduce_results = JSObjectGetProperty (ctx, globalObject, str, NULL);
+      JSStringRelease (str);
+
+      dupin_js_value (ctx, reduce_results, &js->reduceResult);
+
+      /* debug print what's there */
+/*
+      debug_print_json_node ("reduceResult: ",js->reduceResult);
+*/
     }
 
   JSGlobalContextRelease (ctx);
@@ -270,29 +397,29 @@ dupin_js_destroy (DupinJs * js)
   if (!js)
     return;
 
-  if (js->emit)
-    json_node_free (js->emit);
+  if (js->reduceResult)
+    json_node_free (js->reduceResult);
 
-  if (js->emitIntermediate)
-    json_array_unref (js->emitIntermediate);
+  if (js->mapResults)
+    json_array_unref (js->mapResults);
 
   g_free (js);
 }
 
 const JsonNode *
-dupin_js_get_emit (DupinJs * js)
+dupin_js_get_reduceResult (DupinJs * js)
 {
   g_return_val_if_fail (js != NULL, NULL);
 
-  return js->emit;
+  return js->reduceResult;
 }
 
 const JsonArray *
-dupin_js_get_emitIntermediate (DupinJs * js)
+dupin_js_get_mapResults (DupinJs * js)
 {
   g_return_val_if_fail (js != NULL, NULL);
 
-  return js->emitIntermediate;
+  return js->mapResults;
 }
 
 gchar *
@@ -432,16 +559,22 @@ dupin_js_obj (JSContextRef ctx, JSValueRef object_value, JsonNode ** obj_node)
   JSPropertyNameArrayRelease (props);
 }
 
+/* emit(key,value) { ... } */
 static JSValueRef
-dupin_js_emitIntermediate (JSContextRef ctx, JSObjectRef object,
+dupin_js_emit(JSContextRef ctx, JSObjectRef object,
 			   JSObjectRef thisObject, size_t argumentCount,
 			   const JSValueRef arguments[],
 			   JSValueRef * exception)
 {
-  /* we should have this in JS very simply like function emitIntermediate(mapObject) { window.__dupin_emitIntermediate.push(mapObject); } */
-  if (argumentCount != 1)
+  if (argumentCount != 2) /* does it work if key or value are null/empty ? */
     {
       *exception = JSValueMakeNumber (ctx, 1);
+      return NULL;
+    }
+
+  /* does nothing if both NULL */
+  if (!arguments[0] && !arguments[1])
+    {
       return NULL;
     }
 
@@ -450,53 +583,51 @@ dupin_js_emitIntermediate (JSContextRef ctx, JSObjectRef object,
   gsize last;
   JSPropertyNameArrayRef array_names;
 
-  /* keep object in global scope */
+  /* keep key and object in global scope */
+
+  /* TODO - check if we need to allow/disallow key or value null/empty and how */
+
+  /* key */
   JSObjectRef globalObject = JSContextGetGlobalObject(ctx);
-  str = JSStringCreateWithUTF8CString ("__dupin_emitIntermediate");
+  str = JSStringCreateWithUTF8CString ("__dupin_emit_keys");
   JSValueRef o = JSObjectGetProperty (ctx, globalObject, str, NULL);
   JSStringRelease (str);
   array = JSValueToObject(ctx,o, NULL);
   array_names = JSObjectCopyPropertyNames (ctx, array);
   last = JSPropertyNameArrayGetCount (array_names);
   JSPropertyNameArrayRelease (array_names);
+  JSObjectSetPropertyAtIndex(ctx,array,last, arguments[0], NULL); /* push */
 
-  /* push */
-  JSObjectSetPropertyAtIndex(ctx,array,last, arguments[0], NULL);
+  /* value */
+  globalObject = JSContextGetGlobalObject(ctx);
+  str = JSStringCreateWithUTF8CString ("__dupin_emit_values");
+  o = JSObjectGetProperty (ctx, globalObject, str, NULL);
+  JSStringRelease (str);
+  array = JSValueToObject(ctx,o, NULL);
+  array_names = JSObjectCopyPropertyNames (ctx, array);
+  last = JSPropertyNameArrayGetCount (array_names);
+  JSPropertyNameArrayRelease (array_names);
+  JSObjectSetPropertyAtIndex(ctx,array,last, arguments[1], NULL); /* push */
 
   return NULL;
 }
 
 static JSValueRef
-dupin_js_emit (JSContextRef ctx, JSObjectRef object, JSObjectRef thisObject,
-	       size_t argumentCount, const JSValueRef arguments[],
-	       JSValueRef * exception)
+dupin_js_log(JSContextRef ctx, JSObjectRef object,
+			   JSObjectRef thisObject, size_t argumentCount,
+			   const JSValueRef arguments[],
+			   JSValueRef * exception)
 {
-  /* we should have this in JS very simply like function emit(reduceObject) { if (typeof(reduceObject) != 'object') return; window.__dupin_emit = reduceObject; } */
-
   if (argumentCount != 1)
     {
       *exception = JSValueMakeNumber (ctx, 1);
       return NULL;
     }
 
-  if (JSValueIsObject (ctx, arguments[0]) == false)
-    {
-      *exception = JSValueMakeNumber (ctx, 1);
-      return NULL;
-    }
-
-  JSStringRef str;
-  JSObjectRef array;
-
-  /* keep object in global scope */
-  JSObjectRef globalObject = JSContextGetGlobalObject(ctx);
-  str = JSStringCreateWithUTF8CString ("__dupin_emit");
-  JSValueRef o = JSObjectGetProperty (ctx, globalObject, str, NULL);
-  JSStringRelease (str);
-  array = JSValueToObject(ctx,o, NULL);
-
-  /* push */
-  JSObjectSetPropertyAtIndex(ctx,array,0, arguments[0], NULL);
+  JsonNode * node = NULL;
+  dupin_js_value (ctx, arguments[0], &node);
+  debug_print_json_node ("dupin_js_log(): ",node);
+  json_node_free (node);
 
   return NULL;
 }

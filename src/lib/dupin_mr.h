@@ -5,8 +5,13 @@
 
 G_BEGIN_DECLS
 
-JsonNode *	dupin_mr_record		(DupinView *	view,
+JsonArray *	dupin_mr_record_map	(DupinView *	view,
 		 	 	 		 JsonObject * obj);
+
+JsonNode *	dupin_mr_record_reduce	(DupinView *	view,
+		 	 	 		 JsonNode  * keys,
+		 	 	 		 JsonArray * values,
+						 gboolean rereduce);
 
 G_END_DECLS
 

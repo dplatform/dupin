@@ -43,8 +43,7 @@ See http://wiki.apache.org/couchdb/Introduction_to_CouchDB_views
   "  reduce_lang               CHAR(255),\n" \
   "  sync_map_id               CHAR(255),\n" \
   "  sync_map_processed_count  INTEGER DEFAULT 0,\n" \
-  "  sync_reduce_id            CHAR(255),\n" \
-  "  sync_rereduce_id          CHAR(255)\n" \
+  "  sync_reduce_id            CHAR(255)\n" \
   ");"
 
 #define DUPIN_VIEW_SQL_INSERT \
@@ -753,7 +752,7 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid, JsonNode * key, Js
 
   if (sqlite3_exec (view->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
     {
-      g_error("%s", errmsg);
+      g_error("dupin_view_record_save_map: %s", errmsg);
       sqlite3_free (errmsg);
     }
 
@@ -804,7 +803,7 @@ g_message("dupin_view_record_delete() query=%s\n",query);
 
   if (sqlite3_exec (view->db, query, NULL, NULL, &errmsg) != SQLITE_OK)
     {
-      g_error("%s", errmsg);
+      g_error("dupin_view_record_delete: %s", errmsg);
       sqlite3_free (errmsg);
     }
 
@@ -872,7 +871,7 @@ dupin_view_delete (DupinView * view, GError ** error)
     {
       g_mutex_unlock (view->mutex);
 
-      g_error("%s", errmsg);
+      g_error("dupin_view_delete: %s", errmsg);
       sqlite3_free (errmsg);
 
       return FALSE;
@@ -909,7 +908,7 @@ dupin_view_force_quit (DupinView * view, GError ** error)
     {
       g_mutex_unlock (view->mutex);
 
-      g_error("%s", errmsg);
+      g_error("dupin_view_force_quit: %s", errmsg);
       sqlite3_free (errmsg);
 
       return FALSE;
@@ -1005,7 +1004,7 @@ dupin_view_free (DupinView * view)
 
   if (sqlite3_exec (view->db, query, dupin_view_get_status_cb, &status, &errmsg) != SQLITE_OK)
     {
-      g_error("%s", errmsg);
+      g_error("dupin_view_free: %s", errmsg);
       sqlite3_free (errmsg);
     }
 
@@ -1022,7 +1021,7 @@ dupin_view_free (DupinView * view)
 
   if (sqlite3_exec (view->db, query, NULL, NULL, &errmsg) != SQLITE_OK)
     {
-      g_error("%s", errmsg);
+      g_error("dupin_view_free: %s", errmsg);
       sqlite3_free (errmsg);
     }
 
@@ -1091,7 +1090,6 @@ dupin_view_create (Dupin * d, gchar * name, gchar * path, GError ** error)
   view->sync_map_processed_count = 0;
   view->sync_reduce_total_records = 0;
   view->sync_reduce_processed_count = 0;
-  view->sync_rereduce_total_records = 0;
 
   view->d = d;
 
@@ -1347,7 +1345,7 @@ dupin_view_sync_thread_map_db (DupinView * view, gsize count, gsize offset)
 
       dupin_database_unref (db);
 
-      g_error("%s", errmsg);
+      g_error("dupin_view_sync_thread_map_db: %s", errmsg);
       sqlite3_free (errmsg);
 
       return FALSE;
@@ -1469,7 +1467,7 @@ dupin_view_sync_thread_map_view (DupinView * view, gsize count, gsize offset)
 
       dupin_view_unref (v);
 
-      g_error("%s", errmsg);
+      g_error("dupin_view_sync_thread_map_view: %s", errmsg);
       sqlite3_free (errmsg);
 
       return FALSE;
@@ -1517,7 +1515,7 @@ g_message("dupin_view_record_update() delete query=%s\n",query);
       sqlite3_free (query);
       g_free (replace_rowid_str);
 
-      g_error("%s", errmsg);
+      g_error("dupin_view_record_update: %s", errmsg);
       sqlite3_free (errmsg);
 
       return;
@@ -1543,7 +1541,7 @@ g_message("dupin_view_record_update() update query=%s\n",query);
       sqlite3_free (query);
       g_free (replace_rowid_str);
 
-      g_error("%s", errmsg);
+      g_error("dupin_view_record_update: %s", errmsg);
       sqlite3_free (errmsg);
 
       return;
@@ -1595,7 +1593,7 @@ g_message("dupin_view_sync_thread_reduce(%p) count=%d\n",g_thread_self (), (gint
     {
       g_mutex_unlock (view->mutex);
 
-      g_error("%s", errmsg);
+      g_error("dupin_view_sync_thread_reduce: %s", errmsg);
       sqlite3_free (errmsg);
 
       return FALSE;
@@ -1865,7 +1863,7 @@ dupin_view_debug_print_json_node ("REDUCE parameters:", reduce_parameters);
       g_mutex_unlock (view->mutex);
       sqlite3_free (str);
 
-      g_error("%s", errmsg);
+      g_error("dupin_view_sync_thread_reduce: %s", errmsg);
       sqlite3_free (errmsg);
 
       return FALSE;
@@ -1938,7 +1936,7 @@ dupin_view_sync_total_rereduce (DupinView * view, gsize * total)
       g_mutex_unlock (view->mutex);
       sqlite3_free (tmp);
 
-      g_error("%s", errmsg);
+      g_error("dupin_view_sync_total_rereduce: %s", errmsg);
       sqlite3_free (errmsg);
 
       return FALSE;
@@ -1978,7 +1976,7 @@ dupin_view_sync_map_thread (DupinView * view)
         {
           g_mutex_unlock (view->mutex);
 
-          g_error("%s", errmsg);
+          g_error("dupin_view_sync_map_thread: %s", errmsg);
           sqlite3_free (errmsg);
 
           break;
@@ -2007,7 +2005,7 @@ g_message("dupin_view_sync_map_thread(%p) Mapped %d records out of %d in total\n
                sqlite3_free (str);
                g_free (str1);
 
-               g_error("%s", errmsg);
+               g_error("dupin_view_sync_map_thread: %s", errmsg);
                sqlite3_free (errmsg);
 
                break;
@@ -2030,7 +2028,7 @@ g_message("dupin_view_sync_map_thread(%p) Mapped TOTAL %d records out of %d in t
              {
                g_mutex_unlock (view->mutex);
 
-               g_error("%s", errmsg);
+               g_error("dupin_view_sync_map_thread: %s", errmsg);
                sqlite3_free (errmsg);
 
                break;
@@ -2090,7 +2088,7 @@ g_message("dupin_view_sync_reduce_thread(%p) started", g_thread_self ());
         {
           g_mutex_unlock (view->mutex);
 
-          g_error("%s", errmsg);
+          g_error("dupin_view_sync_reduce_thread: %s", errmsg);
           sqlite3_free (errmsg);
 
           break;
@@ -2134,7 +2132,7 @@ g_message("Done first round of reduce but there are still %d record to re-reduce
             {
               g_mutex_unlock (view->mutex);
 
-              g_error("%s", errmsg);
+              g_error("dupin_view_sync_reduce_thread: %s", errmsg);
               sqlite3_free (errmsg);
 
               break;
@@ -2198,7 +2196,7 @@ dupin_view_sync (DupinView * view)
         {
           g_mutex_unlock (view->mutex);
 
-          g_error("%s", errmsg);
+          g_error("dupin_view_sync: %s", errmsg);
           sqlite3_free (errmsg);
 
           return;
@@ -2242,8 +2240,7 @@ dupin_view_is_sync (DupinView * view)
   g_return_val_if_fail (view != NULL, FALSE);
 
   if (view->sync_map_thread
-      || view->sync_reduce_thread
-      || view->sync_rereduce_thread)
+      || view->sync_reduce_thread)
     return FALSE;
 
   return TRUE;

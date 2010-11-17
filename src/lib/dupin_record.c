@@ -89,7 +89,7 @@ dupin_record_exists_real (DupinDB * db, gchar * id, gboolean lock)
 
       sqlite3_free (tmp);
 
-      g_error ("%s", errmsg);
+      g_error ("dupin_record_exists_real: %s", errmsg);
 
       sqlite3_free (errmsg);
 
@@ -136,7 +136,7 @@ dupin_record_get_total_records (DupinDB * db, gsize * total)
 
       sqlite3_free (tmp);
 
-      g_error ("%s", errmsg);
+      g_error ("dupin_record_get_total_records: %s", errmsg);
 
       sqlite3_free (errmsg);
 

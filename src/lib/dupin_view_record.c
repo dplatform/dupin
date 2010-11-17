@@ -63,7 +63,7 @@ dupin_view_record_exists_real (DupinView * view, gchar * id, gboolean lock)
 
       sqlite3_free (tmp);
 
-      g_error ("%s", errmsg);
+      g_error ("dupin_view_record_exists_real: %s", errmsg);
 
       sqlite3_free (errmsg);
 
@@ -113,7 +113,7 @@ dupin_view_record_get_total_records (DupinView * view, gsize * total)
 
       sqlite3_free (tmp);
 
-      g_error ("%s", errmsg);
+      g_error ("dupin_view_record_get_total_records: %s", errmsg);
 
       sqlite3_free (errmsg);
 

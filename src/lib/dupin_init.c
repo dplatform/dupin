@@ -121,13 +121,13 @@ dupin_shutdown_sync (Dupin * d)
       DupinView *view = p;
       if (view->sync_map_thread
           || view->sync_reduce_thread)
-	view->sync_toquit = TRUE;
+        dupin_view_force_quit (view, NULL);
 
       while (view->sync_map_thread)
-	g_usleep (200);
+	g_usleep (700);
 
       while (view->sync_reduce_thread)
-	g_usleep (200);
+	g_usleep (700);
     }
 
   g_mutex_unlock (d->mutex);

@@ -7,6 +7,8 @@
 
 #include <string.h>
 
+#define DUPIN_JS_FUNCTION_SUM "function sum(values) { var rv = 0; for (var i in values) { rv += values[i]; } return rv; };\n"
+
 static void
 debug_print_json_node (char * msg, JsonNode * node)
 {
@@ -21,6 +23,7 @@ debug_print_json_node (char * msg, JsonNode * node)
    {
      JsonGenerator *gen = json_generator_new();
      json_generator_set_root (gen, node);
+     g_object_set (gen, "pretty", TRUE, NULL);
      buffer = json_generator_to_data (gen,NULL);
      g_object_unref (gen);
    }
@@ -131,7 +134,8 @@ dupin_js_new_map (gchar *        js_json_doc,
   JSStringRelease (str);
 
   /* make map function (doc) { ... passed JS code calling eventually emit(k,v) ... }  */
-  buffer = g_string_new ("var __dupin_map_function = ");
+  buffer = g_string_new (DUPIN_JS_FUNCTION_SUM);
+  buffer = g_string_append (buffer, "var __dupin_map_function = ");
   buffer = g_string_append_len (buffer, js_code, strlen(js_code));
   buffer = g_string_append (buffer, "\n"); /* no semicolon to avoid checking input js_code for it */
   buffer = g_string_append (buffer, "__dupin_map_function (");
@@ -204,7 +208,7 @@ dupin_js_new_map (gchar *        js_json_doc,
 
 	      /* TODO - check if we migth not want to emit an empty key or empty value */
 
-              dupin_js_value (ctx, key, &key_node);
+              dupin_js_value (ctx, key, &key_node); /* CHECK - possible bug when mapped key=NULL but seen as string by dupin_js_value() ?!? */
               dupin_js_value (ctx, value, &value_node);
 
 	      JsonObject *map_object = json_object_new (); /* TODO - make double sure we do nto need a json node object for GC reasons */
@@ -311,12 +315,16 @@ dupin_js_new_reduce (gchar *        js_json_keys,
   gchar *b=NULL;
 
   /* make map function (keys,values,rereduce) { ... passed JS code returning an object ... } */
-  buffer = g_string_new ("var __dupin_reduce_function = ");
+  buffer = g_string_new (DUPIN_JS_FUNCTION_SUM);
+  buffer = g_string_append (buffer, "var __dupin_reduce_function = ");
   buffer = g_string_append_len (buffer, js_code, strlen(js_code));
   buffer = g_string_append (buffer, "\n"); /* no semicolon to avoid checking input js_code for it */
   buffer = g_string_append (buffer, "__dupin_reduce_result = __dupin_reduce_function (");
   /* TODO - check reduce passed function takes three params - or return error */
-  buffer = g_string_append_len (buffer, js_json_keys, strlen(js_json_keys));
+  if (js_json_keys != NULL)
+    buffer = g_string_append_len (buffer, js_json_keys, strlen(js_json_keys));
+  else
+    buffer = g_string_append_len (buffer, "null", 4);
   buffer = g_string_append (buffer, ", ");
   buffer = g_string_append_len (buffer, js_json_values, strlen(js_json_values));
   buffer = g_string_append (buffer, ", ");

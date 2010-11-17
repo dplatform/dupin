@@ -19,19 +19,19 @@
 	"SELECT count(*) AS c FROM Dupin "
 
 #define DUPIN_DB_SQL_INSERT \
-	"INSERT INTO Dupin (id, rev, ord_id, obj) " \
-        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', '%q')"
+	"INSERT INTO Dupin (id, rev, obj) " \
+        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q')"
 
 #define DUPIN_DB_SQL_UPDATE \
-	"INSERT OR REPLACE INTO Dupin (id, rev, ord_id, obj) " \
-        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', '%q')"
+	"INSERT OR REPLACE INTO Dupin (id, rev, obj) " \
+        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q')"
 
 #define DUPIN_DB_SQL_READ \
-	"SELECT rev, obj, deleted FROM Dupin WHERE id='%q'"
+	"SELECT rev, obj, deleted, ROWID AS rowid FROM Dupin WHERE id='%q'"
 
 #define DUPIN_DB_SQL_DELETE \
-	"INSERT OR REPLACE INTO Dupin (id, rev, ord_id, deleted) " \
-        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', 'TRUE')"
+	"INSERT OR REPLACE INTO Dupin (id, rev, deleted) " \
+        "VALUES('%q', '%" G_GSIZE_FORMAT "', 'TRUE')"
 
 static DupinRecord *dupin_record_create_with_id_real (DupinDB * db,
 						      JsonObject * obj,
@@ -48,7 +48,7 @@ static void dupin_record_add_revision_obj (DupinRecord * record, guint rev,
 					   gboolean delete);
 static void dupin_record_add_revision_str (DupinRecord * record, guint rev,
 					   gchar * obj, gssize size,
-					   gboolean delete);
+					   gboolean delete, gsize rowid);
 
 gboolean
 dupin_record_exists (DupinDB * db, gchar * id)
@@ -74,6 +74,7 @@ gboolean
 dupin_record_exists_real (DupinDB * db, gchar * id, gboolean lock)
 {
   gchar *tmp;
+  gchar * errmsg;
   gint numb = 0;
 
   tmp = sqlite3_mprintf (DUPIN_DB_SQL_EXISTS, id);
@@ -81,7 +82,19 @@ dupin_record_exists_real (DupinDB * db, gchar * id, gboolean lock)
   if (lock == TRUE)
     g_mutex_lock (db->mutex);
 
-  sqlite3_exec (db->db, tmp, dupin_record_exists_real_cb, &numb, NULL);
+  if (sqlite3_exec (db->db, tmp, dupin_record_exists_real_cb, &numb, &errmsg) != SQLITE_OK)
+    {
+      if (lock == TRUE)
+        g_mutex_unlock (db->mutex);
+
+      sqlite3_free (tmp);
+
+      g_error ("%s", errmsg);
+
+      sqlite3_free (errmsg);
+
+      return FALSE;
+    }
 
   if (lock == TRUE)
     g_mutex_unlock (db->mutex);
@@ -110,13 +123,25 @@ dupin_record_get_total_records (DupinDB * db, gsize * total)
   g_return_val_if_fail (db != NULL, FALSE);
 
   gchar *tmp;
+  gchar * errmsg;
   *total = 0;
 
   tmp = sqlite3_mprintf (DUPIN_DB_SQL_TOTAL);
 
   g_mutex_lock (db->mutex);
 
-  sqlite3_exec (db->db, tmp, dupin_record_get_total_records_cb, total, NULL);
+  if (sqlite3_exec (db->db, tmp, dupin_record_get_total_records_cb, total, &errmsg) != SQLITE_OK)
+    {
+      g_mutex_unlock (db->mutex);
+
+      sqlite3_free (tmp);
+
+      g_error ("%s", errmsg);
+
+      sqlite3_free (errmsg);
+
+      return FALSE;
+    }
 
   g_mutex_unlock (db->mutex);
 
@@ -187,11 +212,8 @@ dupin_record_create_with_id_real (DupinDB * db, JsonObject * obj,
   record = dupin_record_new (db, id);
   dupin_record_add_revision_obj (record, 1, obj, FALSE);
 
-  gchar ord_id[255];
-  dupin_util_generate_id (ord_id);
-
   tmp =
-    sqlite3_mprintf (DUPIN_DB_SQL_INSERT, id, 1, ord_id,
+    sqlite3_mprintf (DUPIN_DB_SQL_INSERT, id, 1,
 		     record->last->obj_serialized);
 
   if (sqlite3_exec (db->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
@@ -225,6 +247,7 @@ dupin_record_read_cb (void *data, int argc, char **argv, char **col)
   guint rev = 0;
   gchar *obj = NULL;
   gboolean delete = FALSE;
+  gsize rowid;
   gint i;
 
   for (i = 0; i < argc; i++)
@@ -238,10 +261,13 @@ dupin_record_read_cb (void *data, int argc, char **argv, char **col)
 
       else if (!strcmp (col[i], "deleted"))
 	delete = !strcmp (argv[i], "TRUE") ? TRUE : FALSE;
+
+      else if (!strcmp (col[i], "rowid"))
+	rowid = atoi(argv[i]);
     }
 
   if (rev)
-    dupin_record_add_revision_str (data, rev, obj, -1, delete);
+    dupin_record_add_revision_str (data, rev, obj, -1, delete, rowid);
 
   return 0;
 }
@@ -284,7 +310,7 @@ dupin_record_read_real (DupinDB * db, gchar * id, GError ** error,
       dupin_record_close (record);
       sqlite3_free (errmsg);
       sqlite3_free (tmp);
-      return 0;
+      return NULL;
     }
 
   if (lock == TRUE)
@@ -292,7 +318,7 @@ dupin_record_read_real (DupinDB * db, gchar * id, GError ** error,
 
   sqlite3_free (tmp);
 
-  if (!record->last)
+  if (!record->last || !record->last->rowid)
     {
       dupin_record_close (record);
 
@@ -338,7 +364,7 @@ dupin_record_get_list (DupinDB * db, guint count, guint offset,
   memset (&s, 0, sizeof (s));
   s.db = db;
 
-  str = g_string_new ("SELECT id FROM Dupin GROUP BY id ORDER BY ord_id");
+  str = g_string_new ("SELECT id FROM Dupin GROUP BY id ORDER BY ROWID");
 
   if (descending)
     str = g_string_append (str, " DESC");
@@ -411,11 +437,8 @@ dupin_record_update (DupinRecord * record, JsonObject * obj,
   rev = record->last->revision + 1;
   dupin_record_add_revision_obj (record, rev, obj, FALSE);
 
-  gchar ord_id[255];
-  dupin_util_generate_id (ord_id); /* new internal ord_id on each update */
-
   tmp =
-    sqlite3_mprintf (DUPIN_DB_SQL_INSERT, record->id, rev, ord_id,
+    sqlite3_mprintf (DUPIN_DB_SQL_INSERT, record->id, rev,
 		     record->last->obj_serialized);
 
   if (sqlite3_exec (record->db->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
@@ -464,15 +487,14 @@ dupin_record_delete (DupinRecord * record, GError ** error)
   rev = record->last->revision + 1;
   dupin_record_add_revision_obj (record, rev, NULL, TRUE);
 
-  gchar ord_id[255];
-  dupin_util_generate_id (ord_id);
-
-  tmp = sqlite3_mprintf (DUPIN_DB_SQL_DELETE, record->id, rev, ord_id);
+  tmp = sqlite3_mprintf (DUPIN_DB_SQL_DELETE, record->id, rev);
 
   if (sqlite3_exec (record->db->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
     {
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
 		   errmsg);
+
+      sqlite3_free (errmsg);
       ret = FALSE;
     }
 
@@ -508,6 +530,14 @@ dupin_record_get_id (DupinRecord * record)
   g_return_val_if_fail (record != NULL, 0);
 
   return record->id;
+}
+
+gsize
+dupin_record_get_rowid (DupinRecord * record)
+{
+  g_return_val_if_fail (record != NULL, 0);
+
+  return record->last->rowid;
 }
 
 guint
@@ -657,7 +687,7 @@ dupin_record_add_revision_obj (DupinRecord * record, guint rev,
 
 static void
 dupin_record_add_revision_str (DupinRecord * record, guint rev, gchar * str,
-			       gssize size, gboolean delete)
+			       gssize size, gboolean delete, gsize rowid)
 {
   DupinRecordRev *r;
   gint *revp;
@@ -675,6 +705,7 @@ dupin_record_add_revision_str (DupinRecord * record, guint rev, gchar * str,
     }
 
   r->deleted = delete;
+  r->rowid = rowid;
 
   revp = g_malloc (sizeof (guint));
   *revp = rev;

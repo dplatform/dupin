@@ -33,6 +33,9 @@ void		dupin_view_unref	(DupinView *	view);
 gboolean	dupin_view_delete	(DupinView *	view,
 					 GError **	error);
 
+gboolean        dupin_view_force_quit   (DupinView *    view,
+					 GError **	error);
+
 const gchar *	dupin_view_get_name	(DupinView *	view);
 
 const gchar *	dupin_view_get_parent	(DupinView *	view);

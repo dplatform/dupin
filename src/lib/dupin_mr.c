@@ -12,7 +12,7 @@ static gsize dupin_mr_map (gchar * map,
 
 static JsonNode * dupin_mr_reduce (gchar * reduce,
 		                   DupinMRLang language,
-		 		   JsonNode  * keys,
+		 		   JsonArray * keys,
 				   JsonArray * values,
 				   gboolean rereduce);
 
@@ -36,9 +36,8 @@ dupin_mr_record_map (DupinView * view, JsonObject * obj)
 }
 
 JsonNode *
-dupin_mr_record_reduce  (DupinView * view, JsonNode * keys, JsonArray * values, gboolean rereduce)
+dupin_mr_record_reduce  (DupinView * view, JsonArray * keys, JsonArray * values, gboolean rereduce)
 {
-  g_return_val_if_fail (json_node_get_node_type (keys) != JSON_NODE_ARRAY, NULL);
   g_return_val_if_fail (values != NULL, NULL);
 
   return dupin_mr_reduce (view->reduce, view->reduce_lang, keys, values, rereduce);
@@ -138,38 +137,53 @@ dupin_mr_map (gchar * map, DupinMRLang language, JsonObject * obj,
 static JsonNode *
 dupin_mr_reduce (gchar * reduce,
 		 DupinMRLang language,
-		 JsonNode  * keys, /* null or JSON Array */
-	         JsonArray * values,
+		 JsonArray  * keys,
+	         JsonArray  * values,
 		 gboolean rereduce)
 {
   switch (language)
     {
     case DP_MR_LANG_JAVASCRIPT:
       {
-	DupinJs *js;
-	JsonNode *ret;
-	JsonNode *object_node;
-	gchar *buffer_keys;
-	gchar *buffer_values;
+	DupinJs *js=NULL;
+	JsonNode *ret=NULL;
+	JsonNode *object_node=NULL;
+	gchar *buffer_keys=NULL;
+	gchar *buffer_values=NULL;
 	gsize size_values,size_keys;
-	JsonGenerator *gen;
-	JsonNode *node_values;
+	JsonGenerator *gen=NULL;
+	JsonNode *node_keys=NULL;
+	JsonNode *node_values=NULL;
 
         /* serialise keys */
-  	gen = json_generator_new();
-
-	if (gen == NULL)
+        if (keys != NULL) /* re-reduce requires this null */
           {
-            return NULL;
-          }
+            node_keys = json_node_new (JSON_NODE_ARRAY);
 
-	json_generator_set_root (gen, keys );
-	buffer_keys = json_generator_to_data (gen,&size_keys);
-        g_object_unref (gen);
+	    if (node_keys == NULL)
+              {
+	        return NULL;
+              }
 
-	if (buffer_keys == NULL)
-          {
-            return NULL;
+            json_node_set_array (node_keys, keys);
+
+  	    gen = json_generator_new();
+
+	    if (gen == NULL)
+              {
+                return NULL;
+              }
+
+	    json_generator_set_root (gen, node_keys );
+	    buffer_keys = json_generator_to_data (gen,&size_keys);
+            g_object_unref (gen);
+
+	    if (buffer_keys == NULL)
+              {
+                if (node_keys != NULL)
+                  json_node_free (node_keys);
+                return NULL;
+              }
           }
 
         /* serialise values */
@@ -177,6 +191,8 @@ dupin_mr_reduce (gchar * reduce,
 
 	if (node_values == NULL)
           {
+            if (node_keys != NULL)
+              json_node_free (node_keys);
 	    return NULL;
           }
 
@@ -186,6 +202,8 @@ dupin_mr_reduce (gchar * reduce,
 
 	if (gen == NULL)
           {
+            if (node_keys != NULL)
+              json_node_free (node_keys);
             json_node_free (node_values);
             return NULL;
           }
@@ -196,6 +214,8 @@ dupin_mr_reduce (gchar * reduce,
 
 	if (buffer_values == NULL)
           {
+            if (node_keys != NULL)
+              json_node_free (node_keys);
             json_node_free (node_values);
             return NULL;
           }
@@ -206,13 +226,19 @@ dupin_mr_reduce (gchar * reduce,
 
 	if (!(js = dupin_js_new_reduce (buffer_keys, buffer_values, rereduce, reduce, NULL)))
 	  {
-	    g_free (buffer_keys);
+            if (node_keys != NULL)
+              json_node_free (node_keys);
+            if (buffer_keys != NULL)
+	      g_free (buffer_keys);
 	    g_free (buffer_values);
             json_node_free (node_values);
 	    return NULL;
 	  }
 
-	g_free (buffer_keys);
+        if (node_keys != NULL)
+          json_node_free (node_keys);
+        if (buffer_keys != NULL)
+	  g_free (buffer_keys);
 	g_free (buffer_values);
         json_node_free (node_values);
 

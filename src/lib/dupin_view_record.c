@@ -15,7 +15,7 @@
 	"SELECT count(*) AS c FROM Dupin "
 
 #define DUPIN_VIEW_SQL_READ \
-	"SELECT pid, key, obj FROM Dupin WHERE id='%q'"
+	"SELECT pid, key, obj, ROWID AS rowid FROM Dupin WHERE id='%q'"
 
 static DupinViewRecord *dupin_view_record_read_real (DupinView * view,
 						     gchar * id,
@@ -47,6 +47,7 @@ dupin_view_record_exists_real_cb (void *data, int argc, char **argv,
 gboolean
 dupin_view_record_exists_real (DupinView * view, gchar * id, gboolean lock)
 {
+  gchar *errmsg;
   gchar *tmp;
   gint numb = 0;
 
@@ -55,7 +56,19 @@ dupin_view_record_exists_real (DupinView * view, gchar * id, gboolean lock)
   if (lock == TRUE)
     g_mutex_lock (view->mutex);
 
-  sqlite3_exec (view->db, tmp, dupin_view_record_exists_real_cb, &numb, NULL);
+  if (sqlite3_exec (view->db, tmp, dupin_view_record_exists_real_cb, &numb, &errmsg) != SQLITE_OK)
+    {
+      if (lock == TRUE)
+        g_mutex_unlock (view->mutex);
+
+      sqlite3_free (tmp);
+
+      g_error ("%s", errmsg);
+
+      sqlite3_free (errmsg);
+
+      return FALSE;
+    }
 
   if (lock == TRUE)
     g_mutex_unlock (view->mutex);
@@ -85,6 +98,7 @@ dupin_view_record_get_total_records (DupinView * view, gsize * total)
 {
   g_return_val_if_fail (view != NULL, FALSE);
 
+  gchar *errmsg;
   gchar *tmp;
 
   *total = 0;
@@ -93,7 +107,18 @@ dupin_view_record_get_total_records (DupinView * view, gsize * total)
 
   g_mutex_lock (view->mutex);
 
-  sqlite3_exec (view->db, tmp, dupin_view_record_get_total_records_cb, total, NULL);
+  if (sqlite3_exec (view->db, tmp, dupin_view_record_get_total_records_cb, total, &errmsg) != SQLITE_OK)
+    {
+      g_mutex_unlock (view->mutex);
+
+      sqlite3_free (tmp);
+
+      g_error ("%s", errmsg);
+
+      sqlite3_free (errmsg);
+
+      return FALSE;
+    }
 
   g_mutex_unlock (view->mutex);
 
@@ -125,6 +150,10 @@ dupin_view_record_read_cb (void *data, int argc, char **argv, char **col)
 	  record->obj_serialized = g_strdup (argv[i]);
 	  record->obj_serialized_len = strlen (argv[i]);
 	}
+      else if (!strcmp (col[i], "rowid"))
+	{
+	  record->rowid = atoi(argv[i]);
+        }
     }
 
   return 0;
@@ -168,7 +197,7 @@ dupin_view_record_read_real (DupinView * view, gchar * id, GError ** error,
       dupin_view_record_close (record);
       sqlite3_free (errmsg);
       sqlite3_free (tmp);
-      return 0;
+      return NULL;
     }
 
   if (lock == TRUE)
@@ -176,7 +205,7 @@ dupin_view_record_read_real (DupinView * view, gchar * id, GError ** error,
 
   sqlite3_free (tmp);
 
-  if (!record->id)
+  if (!record->id || !record->rowid)
     {
       dupin_view_record_close (record);
 
@@ -208,12 +237,16 @@ dupin_view_record_get_list_cb (void *data, int argc, char **argv, char **col)
 
 gboolean
 dupin_view_record_get_list (DupinView * view, guint count, guint offset,
-			    gboolean descending, GList ** list,
-			    GError ** error)
+			    gsize rowid_start, gsize rowid_end,
+			    gboolean descending, gboolean order_by_key,
+			    gboolean not_distinct_key,
+			    GList ** list, GError ** error)
 {
   GString *str;
   gchar *tmp;
   gchar *errmsg;
+
+  gchar * inner_count="";
 
   struct dupin_view_record_get_list_t s;
 
@@ -224,8 +257,32 @@ dupin_view_record_get_list (DupinView * view, guint count, guint offset,
   s.view = view;
 
   /* TODO - check if group by key is OK - also when key can be null (I.e. map function returned (null,value) ) */
-  str = g_string_new ("SELECT id FROM Dupin GROUP BY id ORDER BY id");
-  //str = g_string_new ("SELECT id,key AS c FROM Dupin GROUP BY id ORDER BY c");
+
+  str = g_string_new ("SELECT id FROM Dupin as d");
+
+
+  /* used for re-reduce */
+  if (not_distinct_key)
+    {
+      /* TODO - check if we can do this better / more efficient and less no-nosql :) */
+
+      g_string_append_printf (str, " LEFT OUTER JOIN (select key as inner_key, count(*) as inner_count from Dupin GROUP BY inner_key HAVING inner_count > 1) ON d.key=inner_key ");
+      inner_count = "inner_count!=''";
+    }
+
+  if (rowid_start > 0 && rowid_end > 0)
+    g_string_append_printf (str, " WHERE %s %s d.ROWID >= %d AND d.ROWID <= %d ", inner_count, (not_distinct_key) ? "AND" : "", (gint)rowid_start, (gint)rowid_end);
+  else if (rowid_start > 0)
+    g_string_append_printf (str, " WHERE %s %s d.ROWID >= %d ", inner_count, (not_distinct_key) ? "AND" : "", (gint)rowid_start);
+  else if (rowid_end > 0)
+    g_string_append_printf (str, " WHERE %s %s d.ROWID <= %d ", inner_count, (not_distinct_key) ? "AND" : "", (gint)rowid_end);
+  else if (not_distinct_key)
+    g_string_append_printf (str, " WHERE %s ", inner_count);
+
+  if (order_by_key)
+    str = g_string_append (str, " GROUP BY id ORDER BY d.key"); /* this should never be used for reduce internal operations */
+  else
+    str = g_string_append (str, " GROUP BY id ORDER BY d.ROWID");
 
   if (descending)
     str = g_string_append (str, " DESC");
@@ -245,6 +302,8 @@ dupin_view_record_get_list (DupinView * view, guint count, guint offset,
     }
 
   tmp = g_string_free (str, FALSE);
+
+g_message("dupin_view_record_get_list() query=%s\n",tmp);
 
   g_mutex_lock (view->mutex);
 
@@ -329,6 +388,14 @@ dupin_view_record_get_id (DupinViewRecord * record)
   g_return_val_if_fail (record != NULL, 0);
 
   return record->id;
+}
+
+gsize
+dupin_view_record_get_rowid (DupinViewRecord * record)
+{
+  g_return_val_if_fail (record != NULL, 0);
+
+  return record->rowid;
 }
 
 JsonNode *

@@ -23,7 +23,11 @@ gboolean	dupin_view_record_get_list
 					(DupinView *		view,
 					 guint			count,
 					 guint			offset,
+					 gsize  		rowid_start,
+					 gsize  		rowid_end,
 					 gboolean		descending,
+					 gboolean		order_by_key,
+				         gboolean               not_distinct_key,
 					 GList **		list,
 					 GError **		error);
 
@@ -33,6 +37,9 @@ void		dupin_view_record_get_list_close
 void		dupin_view_record_close	(DupinViewRecord *	record);
 
 const gchar *	dupin_view_record_get_id
+					(DupinViewRecord *	record);
+
+gsize 	        dupin_view_record_get_rowid
 					(DupinViewRecord *	record);
 
 JsonNode *

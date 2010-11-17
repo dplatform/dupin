@@ -624,6 +624,7 @@ request_global_get_all_docs (DSHttpdClient * client, GList * path,
 
   json_object_set_int_member (obj, "total_rows", total_rows);
   json_object_set_int_member (obj, "offset", offset);
+  json_object_set_int_member (obj, "rows_per_page", count);
 
   array = json_array_new ();
 
@@ -743,7 +744,8 @@ request_global_get_database (DSHttpdClient * client, GList * path,
 
   json_object_set_int_member (obj, "disk_size", dupin_database_get_size (db));
 
-  /* FIXME: this does not make sense for dupin */
+  /* FIXME: this does not make sense for dupin yet, see also http://blog.couchone.com/post/632718824/simple-document-versioning-with-couchdb */
+  /* NOTE - Compaction removes old revs, only the latest rev is represented in view queries, and only the latest revision is replicated. */
   json_object_set_boolean_member (obj, "compact_running", FALSE);
 
   node = json_node_new (JSON_NODE_OBJECT);
@@ -1116,7 +1118,7 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
     return HTTP_STATUS_500;
 
   if (dupin_view_record_get_list
-      (view, count, offset, descending, &results, NULL) == FALSE)
+      (view, count, offset, 0, 0, descending, TRUE, FALSE, &results, NULL) == FALSE)
     return HTTP_STATUS_500;
 
   obj = json_object_new ();
@@ -1132,6 +1134,7 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
 
   json_object_set_int_member (obj, "total_rows", total_rows);
   json_object_set_int_member (obj, "offset", offset);
+  json_object_set_int_member (obj, "rows_per_page", count);
 
   array = json_array_new ();
 
@@ -1393,7 +1396,7 @@ request_global_get_view_query (DSHttpdClient * client, GList * path,
   array = json_array_new ();
 
   while (dupin_view_record_get_list
-	 (view, QUERY_BLOCK, offset, FALSE, &results, NULL) == TRUE
+	 (view, QUERY_BLOCK, offset, 0, 0, FALSE, TRUE, FALSE, &results, NULL) == TRUE
 	 && results)
     {
       GList *list;
@@ -2460,6 +2463,7 @@ request_record_obj (DupinRecord * record, gchar * id, guint rev)
       members = json_object_get_members (nodeobject);
       for ( m = members ; m != NULL ; m = m->next )
         {
+          /* TODO - check if this shouldn't be json_object_set_object_member()/json_object_set_array_member() etc instead to make sure GC works */
           json_object_set_member (obj, m->data, json_object_get_member (nodeobject, m->data));
         }
       g_list_free (members);
@@ -2496,6 +2500,7 @@ request_view_record_obj (DupinViewRecord * record, gchar * id)
   members = json_object_get_members (nodeobject);
   for ( m = members ; m != NULL ; m = m->next )
     {
+      /* TODO - check if this shouldn't be json_object_set_object_member()/json_object_set_array_member() etc instead to make sure GC works */
       json_object_set_member (obj, m->data, json_object_get_member (nodeobject, m->data));
     }
   g_list_free (members);

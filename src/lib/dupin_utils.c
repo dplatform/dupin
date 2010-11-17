@@ -53,24 +53,30 @@ dupin_util_is_valid_obj (JsonObject * obj)
   return TRUE;
 }
 
+/* see also http://engineering.twitter.com/2010/06/announcing-snowflake.html */
+
+/* roughly we want an ID which is unique per thread, machine/server and sequential, and sortable */
 void
 dupin_util_generate_id (gchar id[255])
 {
   GRand *rand;
   gint32 i;
-  gint32 ttime=0;
-  GTimeVal tnow;
+  /*gsize ttime=0;
+  GTimeVal tnow;*/
 
   /* TODO - rework this function to be network portable (indep. of NTP) and sequential etc */
 
-  /* prefix time in nanoseconds */
+  /* time in nanoseconds */
+  /*
   g_get_current_time(&tnow); 
   ttime= tnow.tv_sec * 1000000 + tnow.tv_usec;
+  */
 
   rand = g_rand_new ();
 
   i = g_rand_int_range (rand, 1, G_MAXINT32);
-  snprintf (id, 255, "%X-%X", ttime, i);
+  /*snprintf (id, 255, "%X-%X", i, ttime);*/
+  snprintf (id, 255, "%X", i);
 
   g_rand_free (rand);
 }

@@ -9,13 +9,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* NOTE - ord_id is used internally for keeping records sorted due id could be
-          passed by client/application and not under control to the server - for views (see dupin_view.c)
-          we always generate a valid controlled and ordered id due they are read-only at the moment */
-
 #define DUPIN_DB_SQL_MAIN_CREATE \
   "CREATE TABLE IF NOT EXISTS Dupin (\n" \
-  "  ord_id  CHAR(255) NOT NULL,\n" \
   "  id      CHAR(255) NOT NULL,\n" \
   "  rev     INTEGER NOT NULL DEFAULT 1,\n" \
   "  obj     TEXT,\n" \
@@ -25,8 +20,7 @@
 
 #define DUPIN_DB_SQL_CREATE_INDEX \
   "CREATE INDEX IF NOT EXISTS DupinId ON Dupin (id);\n" \
-  "CREATE INDEX IF NOT EXISTS DupinRev ON Dupin (rev);\n" \
-  "CREATE INDEX IF NOT EXISTS DupinOrdId ON Dupin (ord_id);"
+  "CREATE INDEX IF NOT EXISTS DupinRev ON Dupin (rev);"
 
 gchar **
 dupin_get_databases (Dupin * d)

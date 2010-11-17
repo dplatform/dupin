@@ -51,6 +51,8 @@ void		dupin_record_close	(DupinRecord *		record);
 
 const gchar *	dupin_record_get_id	(DupinRecord *		record);
 
+gsize 	        dupin_record_get_rowid	(DupinRecord *		record);
+
 guint		dupin_record_get_last_revision
 					(DupinRecord *		record);
 

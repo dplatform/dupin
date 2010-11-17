@@ -9,7 +9,7 @@ JsonArray *	dupin_mr_record_map	(DupinView *	view,
 		 	 	 		 JsonObject * obj);
 
 JsonNode *	dupin_mr_record_reduce	(DupinView *	view,
-		 	 	 		 JsonNode  * keys,
+		 	 	 		 JsonArray * keys,
 		 	 	 		 JsonArray * values,
 						 gboolean rereduce);
 

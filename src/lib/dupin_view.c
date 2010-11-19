@@ -35,14 +35,11 @@ See http://wiki.apache.org/couchdb/Introduction_to_CouchDB_views
   "CREATE TABLE IF NOT EXISTS DupinView (\n" \
   "  parent                    CHAR(255) NOT NULL,\n" \
   "  isdb                      BOOL DEFAULT TRUE,\n" \
-  "  todelete                  BOOL DEFAULT FALSE,\n" \
-  "  sync_toquit               BOOL DEFAULT FALSE,\n" \
   "  map                       TEXT,\n" \
   "  map_lang                  CHAR(255),\n" \
   "  reduce                    TEXT,\n" \
   "  reduce_lang               CHAR(255),\n" \
   "  sync_map_id               CHAR(255),\n" \
-  "  sync_map_processed_count  INTEGER DEFAULT 0,\n" \
   "  sync_reduce_id            CHAR(255)\n" \
   ");"
 
@@ -81,16 +78,6 @@ dupin_view_debug_print_json_node (char * msg, JsonNode * node)
 }
 
 static gchar *dupin_view_generate_id (DupinView * view);
-
-struct dupin_view_p_status_t
-{
-  gboolean todelete;
-  gboolean sync_toquit;
-  gchar * sync_map_id;
-  gsize sync_map_processed_count;
-};
-
-static int dupin_view_get_status_cb (void *data, int argc, char **argv, char **col);
 
 gchar **
 dupin_get_views (Dupin * d)
@@ -849,7 +836,6 @@ gboolean
 dupin_view_delete (DupinView * view, GError ** error)
 {
   Dupin *d;
-  gchar * errmsg;
 
   g_return_val_if_fail (view != NULL, FALSE);
 
@@ -859,26 +845,6 @@ dupin_view_delete (DupinView * view, GError ** error)
   view->todelete = TRUE;
   g_mutex_unlock (d->mutex);
 
-  /* make sure to set the sync status */
-
-  gchar *query = "UPDATE DupinView SET todelete = 'TRUE' ";
-
-  /* TODO - check the right mutex is used here - see just above here */
-
-  g_mutex_lock (view->mutex);
-
-  if (sqlite3_exec (view->db, query, NULL, NULL, &errmsg) != SQLITE_OK)
-    {
-      g_mutex_unlock (view->mutex);
-
-      g_error("dupin_view_delete: %s", errmsg);
-      sqlite3_free (errmsg);
-
-      return FALSE;
-    }
-
-  g_mutex_unlock (view->mutex);
-
   return TRUE;
 }
 
@@ -886,7 +852,6 @@ gboolean
 dupin_view_force_quit (DupinView * view, GError ** error)
 {
   Dupin *d;
-  gchar * errmsg;
 
   g_return_val_if_fail (view != NULL, FALSE);
 
@@ -895,26 +860,6 @@ dupin_view_force_quit (DupinView * view, GError ** error)
   g_mutex_lock (d->mutex);
   view->sync_toquit = TRUE;
   g_mutex_unlock (d->mutex);
-
-  /* make sure to set the sync status */
-
-  gchar *query = "UPDATE DupinView SET sync_toquit = 'TRUE'";
-
-  /* TODO - check the right mutex is used here - see just above here */
-
-  g_mutex_lock (view->mutex);
-
-  if (sqlite3_exec (view->db, query, NULL, NULL, &errmsg) != SQLITE_OK)
-    {
-      g_mutex_unlock (view->mutex);
-
-      g_error("dupin_view_force_quit: %s", errmsg);
-      sqlite3_free (errmsg);
-
-      return FALSE;
-    }
-
-  g_mutex_unlock (view->mutex);
 
   return TRUE;
 }
@@ -991,41 +936,10 @@ dupin_view_get_size (DupinView * view)
 void
 dupin_view_free (DupinView * view)
 {
-  gchar * errmsg;
-
-  /* make sure to reset the sync status */
-
-  struct dupin_view_p_status_t status;
-  memset (&status, 0, sizeof (struct dupin_view_p_status_t));
-
-  gchar * query = "SELECT todelete FROM DupinView";
-
-  g_mutex_lock (view->mutex);
-
-  if (sqlite3_exec (view->db, query, dupin_view_get_status_cb, &status, &errmsg) != SQLITE_OK)
-    {
-      g_error("dupin_view_free: %s", errmsg);
-      sqlite3_free (errmsg);
-    }
-
-  g_mutex_unlock (view->mutex);
-
-  view->todelete = status.todelete;
-
   if (view->todelete == TRUE)
     g_unlink (view->path);
 
-  query = "UPDATE DupinView SET sync_toquit = 'FALSE', todelete = 'FALSE' ";
-
-  g_mutex_lock (view->mutex);
-
-  if (sqlite3_exec (view->db, query, NULL, NULL, &errmsg) != SQLITE_OK)
-    {
-      g_error("dupin_view_free: %s", errmsg);
-      sqlite3_free (errmsg);
-    }
-
-  g_mutex_unlock (view->mutex);
+  g_cond_free(view->sync_map_has_new_work);
 
   if (view->db)
     sqlite3_close (view->db);
@@ -1090,6 +1004,8 @@ dupin_view_create (Dupin * d, gchar * name, gchar * path, GError ** error)
   view->sync_map_processed_count = 0;
   view->sync_reduce_total_records = 0;
   view->sync_reduce_processed_count = 0;
+
+  view->sync_map_has_new_work = g_cond_new();
 
   view->d = d;
 
@@ -1227,7 +1143,9 @@ dupin_view_sync_thread_real_map (DupinView * view, GList * list)
 
 	      dupin_view_record_save_map (view, data->pid, key_node, nobj);
 
+              g_mutex_lock (view->mutex);
               view->sync_map_processed_count++;
+              g_mutex_unlock (view->mutex);
 
               if (key_node != NULL)
                 json_node_free (key_node);
@@ -1505,7 +1423,7 @@ dupin_view_record_update (DupinView * view, gchar * previous_rowid, gint replace
 				(previous_rowid != NULL) ? previous_rowid : "0",
 				replace_rowid_str);
 
-g_message("dupin_view_record_update() delete query=%s\n",query);
+//g_message("dupin_view_record_update() delete query=%s\n",query);
 
   g_mutex_lock (view->mutex);
 
@@ -1531,7 +1449,7 @@ g_message("dupin_view_record_update() delete query=%s\n",query);
 				value,
 				replace_rowid_str);
 
-g_message("dupin_view_record_update() update query=%s\n",query);
+//g_message("dupin_view_record_update() update query=%s\n",query);
 
   g_mutex_lock (view->mutex);
 
@@ -1758,11 +1676,13 @@ g_message("dupin_view_sync_thread_reduce(%p)    g_list_length (results) = %d\n",
       total_processed++;
     }
 
+  g_mutex_lock (view->mutex);
   view->sync_reduce_processed_count = total_processed;
+  g_mutex_unlock (view->mutex);
 
   json_node_take_object (reduce_parameters, reduce_parameters_obj);
 
-dupin_view_debug_print_json_node ("REDUCE parameters:", reduce_parameters);
+//dupin_view_debug_print_json_node ("REDUCE parameters:", reduce_parameters);
 
   nodes = json_object_get_members (reduce_parameters_obj);
   for (n = nodes; n != NULL; n = n->next)
@@ -1877,33 +1797,6 @@ dupin_view_debug_print_json_node ("REDUCE parameters:", reduce_parameters);
 }
 
 static int
-dupin_view_get_status_cb (void *data, int argc, char **argv, char **col)
-{
-  struct dupin_view_p_status_t *status = data;
-
-  if (argc == 4)
-    {
-      status->todelete = strcmp (argv[0], "TRUE") == 0 ? TRUE : FALSE;
-      status->sync_toquit = strcmp (argv[1], "TRUE") == 0 ? TRUE : FALSE;
-
-      status->sync_map_id = g_strdup (argv[2]);
-
-      status->sync_map_processed_count = atoi (argv[3]);
-    }
-  else if (argc == 2)
-    {
-      status->todelete = strcmp (argv[0], "TRUE") == 0 ? TRUE : FALSE;
-      status->sync_toquit = strcmp (argv[1], "TRUE") == 0 ? TRUE : FALSE;
-    }
-  else if (argc == 1)
-    {
-      status->todelete = strcmp (argv[0], "TRUE") == 0 ? TRUE : FALSE;
-    }
-
-  return 0;
-}
-
-static int
 dupin_view_sync_total_rereduce_cb (void *data, int argc, char **argv,
                                   char **col)
 {
@@ -1958,62 +1851,25 @@ dupin_view_sync_map_thread (DupinView * view)
 
 //g_message("dupin_view_sync_map_thread(%p) started with %d total records to MAP\n",g_thread_self (), (gint)view->sync_map_total_records);
 
+  g_mutex_lock (view->mutex);
   view->sync_map_offset = 0;
   view->sync_map_processed_count = 0;
+  g_mutex_unlock (view->mutex);
 
   while (view->sync_toquit == FALSE || view->todelete == FALSE)
     {
-      /* NOTE - we use the main DupinView db to communicate between threads */
-
-      struct dupin_view_p_status_t status;
-      memset (&status, 0, sizeof (struct dupin_view_p_status_t));
-
-      gchar * query = "SELECT todelete, sync_toquit FROM DupinView";
-
-      g_mutex_lock (view->mutex);
-      if (sqlite3_exec (view->db, query, dupin_view_get_status_cb, &status, &errmsg) !=
-          SQLITE_OK)
-        {
-          g_mutex_unlock (view->mutex);
-
-          g_error("dupin_view_sync_map_thread: %s", errmsg);
-          sqlite3_free (errmsg);
-
-          break;
-        }
-      g_mutex_unlock (view->mutex);
-
-      view->todelete = status.todelete;
-      view->sync_toquit = status.sync_toquit;
-
       gboolean map_operation = dupin_view_sync_thread_map (view, VIEW_SYNC_COUNT, view->sync_map_offset);
 
-       /* NOTE - make sure waiting reduce thread is started as soon as the first set of mapped results is ready 
+      /* NOTE - make sure waiting reduce thread is started as soon as the first set of mapped results is ready 
                  the sync_map_processed_count is set to the total of mapped results so far and used for very basic IPC map -> reduce threads */
 
-       if (view->reduce != NULL)
-         {
+      if (view->reduce != NULL)
+        {
 g_message("dupin_view_sync_map_thread(%p) Mapped %d records out of %d in total\n", g_thread_self (), (gint)view->sync_map_processed_count, (gint)view->sync_map_total_records);
 
-           gchar *str1 = g_strdup_printf ("%i", (gint)view->sync_map_processed_count);
-           gchar *str = sqlite3_mprintf ("UPDATE DupinView SET sync_map_processed_count = '%q'",str1 );
-           g_mutex_lock (view->mutex);
-
-           if (sqlite3_exec (view->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
-             {
-               g_mutex_unlock (view->mutex);
-               sqlite3_free (str);
-               g_free (str1);
-
-               g_error("dupin_view_sync_map_thread: %s", errmsg);
-               sqlite3_free (errmsg);
-
-               break;
-             }
-
-           g_mutex_unlock (view->mutex);
-           sqlite3_free (str);
-           g_free (str1);
+          g_mutex_lock (view->mutex);
+	  g_cond_signal(view->sync_map_has_new_work);
+          g_mutex_unlock (view->mutex);
         }
 
       if (map_operation == FALSE)
@@ -2039,12 +1895,16 @@ g_message("dupin_view_sync_map_thread(%p) Mapped TOTAL %d records out of %d in t
           break;
         }
 
+      g_mutex_lock (view->mutex);
       view->sync_map_offset += VIEW_SYNC_COUNT;
+      g_mutex_unlock (view->mutex);
     }
 
 //g_message("dupin_view_sync_map_thread(%p) finished to map %d total records and view map part is in sync\n",g_thread_self (), (gint)view->sync_map_total_records);
 
+  g_mutex_lock (view->mutex);
   view->sync_map_thread = NULL;
+  g_mutex_unlock (view->mutex);
   dupin_view_unref (view);
   g_thread_exit (NULL);
 
@@ -2059,9 +1919,11 @@ dupin_view_sync_reduce_thread (DupinView * view)
 
   dupin_view_ref (view);
 
+  g_mutex_lock (view->mutex);
   view->sync_reduce_offset = 0;
   view->sync_reduce_processed_count = 0;
   view->sync_reduce_total_records = 0;
+  g_mutex_unlock (view->mutex);
 
   gboolean rereduce = FALSE;
   gsize total_rereduce = 0;
@@ -2075,35 +1937,21 @@ g_message("dupin_view_sync_reduce_thread(%p) started", g_thread_self ());
 
   while (view->sync_toquit == FALSE || view->todelete == FALSE)
     {
-      /* NOTE - we use the main DupinView db to communicate between threads */
+g_message("rereduce=%d\n", rereduce);
 
-      struct dupin_view_p_status_t status;
-      memset (&status, 0, sizeof (struct dupin_view_p_status_t));
-
-      query = "SELECT todelete, sync_toquit, sync_map_id, sync_map_processed_count FROM DupinView";
-
-      g_mutex_lock (view->mutex);
-      if (sqlite3_exec (view->db, query, dupin_view_get_status_cb, &status, &errmsg) !=
-          SQLITE_OK)
+      if (rereduce == FALSE)
         {
+          g_mutex_lock (view->mutex);
+          g_cond_wait(view->sync_map_has_new_work, view->mutex);
           g_mutex_unlock (view->mutex);
-
-          g_error("dupin_view_sync_reduce_thread: %s", errmsg);
-          sqlite3_free (errmsg);
-
-          break;
         }
-      g_mutex_unlock (view->mutex);
 
-      view->todelete = status.todelete;
-      view->sync_toquit = status.sync_toquit;
-
-//g_message("dupin_view_sync_reduce_thread(%p) Status:\n\ttodelete=%d\n\tsync_toquit=%d\n\tsync_map_id=%s\n\tsync_map_processed_count=%d\n", g_thread_self (), status.todelete, status.sync_toquit, status.sync_map_id, (gint)status.sync_map_processed_count);
-
-      if (status.sync_map_processed_count > view->sync_reduce_total_records /* got a new bunch to work on */
+      if (view->sync_map_processed_count > view->sync_reduce_total_records /* got a new bunch to work on */
 	  || rereduce)
         {
-          view->sync_reduce_total_records = (rereduce) ? total_rereduce : status.sync_map_processed_count;
+          g_mutex_lock (view->mutex);
+          view->sync_reduce_total_records = (rereduce) ? total_rereduce : view->sync_map_processed_count;
+          g_mutex_unlock (view->mutex);
 
 g_message("dupin_view_sync_reduce_thread(%p) got %d records to REDUCE (rereduce=%d)\n",g_thread_self (), (gint)view->sync_reduce_total_records,(gint)rereduce);
 
@@ -2112,19 +1960,19 @@ g_message("dupin_view_sync_reduce_thread(%p) got %d records to REDUCE (rereduce=
 g_message("dupin_view_sync_reduce_thread(%p) Reduced %d records of %d\n", g_thread_self (), (gint)view->sync_reduce_processed_count, (gint)view->sync_reduce_total_records);
         }
 
-      if (status.sync_map_id == NULL) /* map finished */
+      if (!view->sync_map_thread) /* map finished */
         {
-g_message("Done map status.sync_map_id=%s\n", status.sync_map_id);
+g_message("Map was finished in meantime\n");
 
 	  /* check if there is anything to re-reduce */
           total_rereduce = 0;
           dupin_view_sync_total_rereduce (view, &total_rereduce);
 
-g_message("Done first round of reduce but there are still %d record to re-reduce (status.sync_map_id=%s)\n", (gint)total_rereduce, status.sync_map_id);
+g_message("Done first round of reduce but there are still %d record to re-reduce\n", (gint)total_rereduce);
 
 /* TODO - fix this it causes an infinite loop !!!! */
 
-          gchar *query = "UPDATE DupinView SET sync_reduce_id = NULL";
+          query = "UPDATE DupinView SET sync_reduce_id = NULL";
 
           g_mutex_lock (view->mutex);
 
@@ -2150,21 +1998,19 @@ g_message("Going to re-reduce\n");
             }
           else
             {
-g_message("Done status.sync_map_id=%s rereduce=%d\n", status.sync_map_id, (gint)rereduce);
+g_message("Done rereduce=%d\n", (gint)rereduce);
               rereduce = FALSE;
 
 	      break; /* both terminated, amen */
             }
         }
-
-      g_free (status.sync_map_id);
-
-      g_usleep (500); /* wait for another bunch */
     }
 
 g_message("dupin_view_sync_reduce_thread(%p) finished to reduce %d total records and view reduce part is in sync\n",g_thread_self (), (gint)view->sync_reduce_total_records);
 
+  g_mutex_lock (view->mutex);
   view->sync_reduce_thread = NULL;
+  g_mutex_unlock (view->mutex);
   dupin_view_unref (view);
   g_thread_exit (NULL);
 

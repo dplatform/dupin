@@ -80,6 +80,7 @@ struct dupin_view_t
   gsize		sync_reduce_total_records; /* total records to reduce from view table */
   gsize		sync_reduce_processed_count; /* incremental counter of reduced records */
   gboolean	sync_toquit;
+  GCond *	sync_map_has_new_work; /* for communication between map to reduce threads */
 
   sqlite3 *	db;
 

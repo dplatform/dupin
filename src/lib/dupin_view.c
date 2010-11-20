@@ -158,11 +158,7 @@ dupin_view_get_total_records_db (Dupin * d, gchar * parent, gsize * total)
   if (!(db = dupin_database_open (d, parent, NULL)))
     return FALSE;
 
-  if (dupin_record_get_total_records (db, total) == FALSE)
-    {
-      dupin_database_unref (db);
-      return FALSE;
-    }
+  *total = dupin_database_count (db, DP_COUNT_EXIST);
 
   dupin_database_unref (db);
   return TRUE;
@@ -195,58 +191,6 @@ dupin_view_get_total_records (Dupin * d, gchar * parent, gboolean is_db, gsize *
   return dupin_view_get_total_records_view (d, parent, total);
 }
 
-static gchar *
-dupin_view_new_sync_map_id_db (Dupin * d, gchar * parent)
-{
-  DupinDB *db;
-  GList *list;
-  gchar *id = NULL;
-
-  if (!(db = dupin_database_open (d, parent, NULL)))
-    return NULL;
-
-  if (dupin_record_get_list (db, 1, 0, FALSE, &list, NULL) == TRUE && list)
-    {
-      DupinRecord *record = list->data;
-      id = g_strdup (dupin_record_get_id (record));
-      dupin_record_get_list_close (list);
-    }
-
-  dupin_database_unref (db);
-  return id;
-}
-
-static gchar *
-dupin_view_new_sync_map_id_view (Dupin * d, gchar * parent)
-{
-  DupinView *view;
-  GList *list;
-  gchar *id = NULL;
-
-  if (!(view = dupin_view_open (d, parent, NULL)))
-    return NULL;
-
-  if (dupin_view_record_get_list (view, 1, 0, 0, 0, FALSE, FALSE, FALSE, &list, NULL) == TRUE
-      && list)
-    {
-      DupinViewRecord *record = list->data;
-      id = g_strdup (dupin_view_record_get_id (record));
-      dupin_view_record_get_list_close (list);
-    }
-
-  dupin_view_unref (view);
-  return id;
-}
-
-static gchar *
-dupin_view_new_sync_map_id (Dupin * d, gchar * parent, gboolean is_db)
-{
-  if (is_db)
-    return dupin_view_new_sync_map_id_db (d, parent);
-
-  return dupin_view_new_sync_map_id_view (d, parent);
-}
-
 DupinView *
 dupin_view_new (Dupin * d, gchar * view, gchar * parent, gboolean is_db,
 		gchar * map, DupinMRLang map_language, gchar * reduce,
@@ -255,7 +199,6 @@ dupin_view_new (Dupin * d, gchar * view, gchar * parent, gboolean is_db,
   DupinView *ret;
   gchar *path;
   gchar *name;
-  gchar * sync_map_id = NULL;
 
   gchar *str;
   gchar *errmsg;
@@ -329,31 +272,24 @@ dupin_view_new (Dupin * d, gchar * view, gchar * parent, gboolean is_db,
 
   sqlite3_free (str);
 
-  g_mutex_unlock (d->mutex);
+  /* NOTE - the respective map and reduce threads will add +1 top the these values */
+  str = sqlite3_mprintf ("UPDATE DupinView SET sync_map_id = '0', sync_reduce_id = '0' ");
 
-  if ((sync_map_id = dupin_view_new_sync_map_id (d, parent, is_db)))
+  if (sqlite3_exec (ret->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
     {
-
-      str = sqlite3_mprintf ("UPDATE DupinView SET sync_map_id = '%q'", sync_map_id);
-
-      g_free (sync_map_id);
-
-      g_mutex_lock (d->mutex);
-      if (sqlite3_exec (ret->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
-	{
-          g_mutex_unlock (d->mutex);
-	  g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
+      g_mutex_unlock (d->mutex);
+      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
 		       errmsg);
 
-	  sqlite3_free (errmsg);
-	  sqlite3_free (str);
-	  dupin_view_free (ret);
-	  return NULL;
-	}
+      sqlite3_free (errmsg);
       sqlite3_free (str);
-
-      g_mutex_unlock (d->mutex);
+      dupin_view_free (ret);
+      return NULL;
     }
+
+  sqlite3_free (str);
+
+  g_mutex_unlock (d->mutex);
 
   if (dupin_view_p_update (ret, error) == FALSE)
     {
@@ -1162,9 +1098,10 @@ dupin_view_sync_thread_real_map (DupinView * view, GList * list)
 }
 
 static gboolean
-dupin_view_sync_thread_map_db (DupinView * view, gsize count, gsize offset)
+dupin_view_sync_thread_map_db (DupinView * view, gsize count)
 {
   gchar * sync_map_id = NULL;
+  gsize rowid;
   gchar * errmsg;
   DupinDB *db;
   GList *results, *list;
@@ -1177,26 +1114,45 @@ dupin_view_sync_thread_map_db (DupinView * view, gsize count, gsize offset)
   if (!(db = dupin_database_open (view->d, view->parent, NULL)))
     return FALSE;
 
-  if (dupin_record_get_list (db, count, offset, FALSE, &results, NULL) ==
-      FALSE || !results)
+  /* get last position we reduced and get anything up to count after that */
+  gchar * previous_sync_map_id=NULL;
+  gchar * query = "SELECT sync_map_id as c FROM DupinView";
+  g_mutex_lock (view->mutex);
+
+  if (sqlite3_exec (view->db, query, dupin_view_sync_cb, &previous_sync_map_id, &errmsg) != SQLITE_OK)
     {
+      g_mutex_unlock (view->mutex);
+
+      g_error("dupin_view_sync_thread_map_db: %s", errmsg);
+      sqlite3_free (errmsg);
+
       dupin_database_unref (db);
       return FALSE;
     }
 
-//g_message("dupin_view_sync_thread_map_db()    g_list_length (results) = %d\n", (gint) g_list_length (results) );
+  g_mutex_unlock (view->mutex);
+
+  gsize start_rowid = (previous_sync_map_id != NULL) ? atoi(previous_sync_map_id)+1 : 1;
+
+  if (dupin_record_get_list (db, count, 0, start_rowid, 0, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE, &results, NULL) ==
+      FALSE || !results)
+    {
+      if (previous_sync_map_id != NULL)
+        g_free(previous_sync_map_id);
+      dupin_database_unref (db);
+      return FALSE;
+    }
 
   if (g_list_length (results) != count)
     ret = FALSE;
 
-  gsize total_processed = offset;
+g_message("dupin_view_sync_thread_map_db(%p)    g_list_length (results) = %d\n", g_thread_self (), (gint) g_list_length (results) );
+
+  gsize total_processed = (gint)start_rowid;
 
   for (list = results; list; list = list->next)
     {
-      total_processed++;
-
-      if (dupin_record_is_deleted (list->data, -1) == TRUE)
-        continue;
+      /* NOTE - we do *not* count deleted records are processed */
 
       struct dupin_view_sync_t *data =
 	g_malloc0 (sizeof (struct dupin_view_sync_t));
@@ -1209,14 +1165,18 @@ dupin_view_sync_thread_map_db (DupinView * view, gsize count, gsize offset)
       data->pid = json_node_new (JSON_NODE_ARRAY);
       JsonArray *pid_array=json_array_new ();
 
+      rowid = dupin_record_get_rowid (list->data);
+
 //g_message("dupin_view_sync_thread_map_db()  total_processed=%d\n", (gint)total_processed);
 
       if (sync_map_id != NULL)
         g_free(sync_map_id);
         
-      sync_map_id = g_strdup ( (gchar *) dupin_record_get_id (list->data) );
+      sync_map_id = g_strdup_printf ("%i", (gint)rowid);
 
-      json_array_add_string_element (pid_array, sync_map_id);
+//g_message("dupin_view_sync_thread_map_db(%p) sync_map_id=%s as fetched",g_thread_self (), sync_map_id);
+
+      json_array_add_string_element (pid_array, (gchar *) dupin_record_get_id (list->data));
       json_node_take_array (data->pid, pid_array);
 
       /* NOTE - key not set for dupin_view_sync_thread_map_db() - see dupin_view_sync_thread_map_view() instead */
@@ -1228,6 +1188,8 @@ dupin_view_sync_thread_map_db (DupinView * view, gsize count, gsize offset)
           ret=FALSE;
           break;
         }
+
+      total_processed++;
     }
 
   dupin_view_sync_thread_real_map (view, l);
@@ -1247,12 +1209,13 @@ dupin_view_sync_thread_map_db (DupinView * view, gsize count, gsize offset)
 
 //g_message("dupin_view_sync_thread_map_db() sync_map_id=%s as to be stored",sync_map_id);
 
+  if (previous_sync_map_id != NULL)
+    g_free(previous_sync_map_id);
+
   str = sqlite3_mprintf ("UPDATE DupinView SET sync_map_id = '%q'", sync_map_id);
 
   if (sync_map_id != NULL)
     g_free (sync_map_id);
-
-//g_message("dupin_view_sync_thread_map_db() query=%s\n",str);
 
   g_mutex_lock (view->mutex);
 
@@ -1279,11 +1242,12 @@ dupin_view_sync_thread_map_db (DupinView * view, gsize count, gsize offset)
 
 
 static gboolean
-dupin_view_sync_thread_map_view (DupinView * view, gsize count, gsize offset)
+dupin_view_sync_thread_map_view (DupinView * view, gsize count)
 {
   DupinView *v;
   GList *results, *list;
   gchar * sync_map_id = NULL;
+  gsize rowid;
 
   GList *l = NULL;
   gboolean ret = TRUE;
@@ -1294,9 +1258,31 @@ dupin_view_sync_thread_map_view (DupinView * view, gsize count, gsize offset)
   if (!(v = dupin_view_open (view->d, view->parent, NULL)))
     return FALSE;
 
-  if (dupin_view_record_get_list (v, count, offset, 0, 0, FALSE, FALSE, FALSE, &results, NULL) ==
+  /* get last position we reduced and get anything up to count after that */
+  gchar * previous_sync_map_id=NULL;
+  gchar * query = "SELECT sync_map_id as c FROM DupinView";
+  g_mutex_lock (view->mutex);
+
+  if (sqlite3_exec (view->db, query, dupin_view_sync_cb, &previous_sync_map_id, &errmsg) != SQLITE_OK)
+    {
+      g_mutex_unlock (view->mutex);
+
+      g_error("dupin_view_sync_thread_map_view: %s", errmsg);
+      sqlite3_free (errmsg);
+
+      dupin_view_unref (v);
+      return FALSE;
+    }
+
+  g_mutex_unlock (view->mutex);
+
+  gsize start_rowid = (previous_sync_map_id != NULL) ? atoi(previous_sync_map_id)+1 : 1;
+
+  if (dupin_view_record_get_list (v, count, 0, start_rowid, 0, DP_ORDERBY_ROWID, FALSE, FALSE, &results, NULL) ==
       FALSE || !results)
     {
+      if (previous_sync_map_id != NULL)
+        g_free(previous_sync_map_id);
       dupin_view_unref (v);
       return FALSE;
     }
@@ -1304,12 +1290,12 @@ dupin_view_sync_thread_map_view (DupinView * view, gsize count, gsize offset)
   if (g_list_length (results) != count)
     ret = FALSE;
 
-  gsize total_processed = offset;
+g_message("dupin_view_sync_thread_map_view(%p)    g_list_length (results) = %d\n", g_thread_self (), (gint) g_list_length (results) );
+
+  gsize total_processed = (gint)start_rowid;
 
   for (list = results; list; list = list->next)
     {
-      total_processed++;
-
       /* NOTE - views are read-only we do not have to skip deleted records - see dupin_view_sync_thread_map_db() instead */
 
       struct dupin_view_sync_t *data =
@@ -1326,12 +1312,14 @@ dupin_view_sync_thread_map_view (DupinView * view, gsize count, gsize offset)
 
       /* NOTE - key not set for dupin_view_sync_thread_map_db() - see dupin_view_sync_thread_map_view() instead */
 
+      rowid = dupin_record_get_rowid (list->data);
+
       if (sync_map_id != NULL)
         g_free(sync_map_id);
         
-      sync_map_id = g_strdup ( (gchar *) dupin_view_record_get_id (list->data) );
+      sync_map_id = g_strdup_printf ("%i", (gint)rowid);
 
-      json_array_add_string_element (pid_array, sync_map_id);
+      json_array_add_string_element (pid_array, (gchar *) dupin_view_record_get_id (list->data));
       json_node_take_array (data->pid, pid_array);
 
 //g_message("dupin_view_sync_thread_map_view() sync_map_id=%s as fetched",sync_map_id);
@@ -1348,6 +1336,8 @@ dupin_view_sync_thread_map_view (DupinView * view, gsize count, gsize offset)
           ret=FALSE;
           break;
         }
+
+      total_processed++;
     }
 
   dupin_view_sync_thread_real_map (view, l);
@@ -1368,6 +1358,9 @@ dupin_view_sync_thread_map_view (DupinView * view, gsize count, gsize offset)
   dupin_view_record_get_list_close (results);
 
 //g_message("dupin_view_sync_thread_map_view() sync_map_id=%s as to be stored",sync_map_id);
+
+  if (previous_sync_map_id != NULL)
+    g_free(previous_sync_map_id);
 
   str = sqlite3_mprintf ("UPDATE DupinView SET sync_map_id = '%q'", sync_map_id);
 
@@ -1400,16 +1393,16 @@ dupin_view_sync_thread_map_view (DupinView * view, gsize count, gsize offset)
 }
 
 static gboolean
-dupin_view_sync_thread_map (DupinView * view, gsize count, gsize offset)
+dupin_view_sync_thread_map (DupinView * view, gsize count)
 {
   if (view->parent_is_db == TRUE)
-    return dupin_view_sync_thread_map_db (view, count, offset);
+    return dupin_view_sync_thread_map_db (view, count);
 
-  return dupin_view_sync_thread_map_view (view, count, offset);
+  return dupin_view_sync_thread_map_view (view, count);
 }
 
 void
-dupin_view_record_update (DupinView * view, gchar * previous_rowid, gint replace_rowid,
+dupin_view_sync_record_update (DupinView * view, gchar * previous_rowid, gint replace_rowid,
                           gchar * key, gchar * value, gchar * pid)
 {
   gchar *query, *errmsg;
@@ -1423,7 +1416,7 @@ dupin_view_record_update (DupinView * view, gchar * previous_rowid, gint replace
 				(previous_rowid != NULL) ? previous_rowid : "0",
 				replace_rowid_str);
 
-//g_message("dupin_view_record_update() delete query=%s\n",query);
+//g_message("dupin_view_sync_record_update() delete query=%s\n",query);
 
   g_mutex_lock (view->mutex);
 
@@ -1433,7 +1426,7 @@ dupin_view_record_update (DupinView * view, gchar * previous_rowid, gint replace
       sqlite3_free (query);
       g_free (replace_rowid_str);
 
-      g_error("dupin_view_record_update: %s", errmsg);
+      g_error("dupin_view_sync_record_update: %s", errmsg);
       sqlite3_free (errmsg);
 
       return;
@@ -1449,7 +1442,7 @@ dupin_view_record_update (DupinView * view, gchar * previous_rowid, gint replace
 				value,
 				replace_rowid_str);
 
-//g_message("dupin_view_record_update() update query=%s\n",query);
+//g_message("dupin_view_sync_record_update() update query=%s\n",query);
 
   g_mutex_lock (view->mutex);
 
@@ -1459,7 +1452,7 @@ dupin_view_record_update (DupinView * view, gchar * previous_rowid, gint replace
       sqlite3_free (query);
       g_free (replace_rowid_str);
 
-      g_error("dupin_view_record_update: %s", errmsg);
+      g_error("dupin_view_sync_record_update: %s", errmsg);
       sqlite3_free (errmsg);
 
       return;
@@ -1502,7 +1495,7 @@ g_message("dupin_view_sync_thread_reduce(%p) count=%d\n",g_thread_self (), (gint
   gchar * key_string = NULL;
   gchar * query;
 
-  /* get last position we reduced and get anything up to count after that - ignore offset */
+  /* get last position we reduced and get anything up to count after that */
   gchar * previous_sync_reduce_id=NULL;
   query = "SELECT sync_reduce_id as c FROM DupinView";
   g_mutex_lock (view->mutex);
@@ -1521,9 +1514,12 @@ g_message("dupin_view_sync_thread_reduce(%p) count=%d\n",g_thread_self (), (gint
 
   gsize start_rowid = (previous_sync_reduce_id != NULL) ? atoi(previous_sync_reduce_id)+1 : 1;
 
-  if (dupin_view_record_get_list (view, count, 0, start_rowid, 0, FALSE, rereduce, rereduce, &results, NULL) ==
+  if (dupin_view_record_get_list (view, count, 0, start_rowid, 0, (rereduce) ? DP_ORDERBY_KEY : DP_ORDERBY_ROWID, FALSE, rereduce, &results, NULL) ==
       FALSE || !results)
     {
+      if (previous_sync_reduce_id != NULL)
+        g_free(previous_sync_reduce_id);
+
       return FALSE;
     }
 
@@ -1745,7 +1741,7 @@ g_message("dupin_view_sync_thread_reduce(%p)    g_list_length (results) = %d\n",
           /* TODO - check if we need double to gurantee larger number of rowids and use json_node_get_number () in the below */
 
 	  /* delete all rows but last one and replace last one with result where last one is rowid */
-          dupin_view_record_update (view,
+          dupin_view_sync_record_update (view,
 				    previous_sync_reduce_id,
 				    (gint)json_node_get_int (json_object_get_member ( json_node_get_object(json_object_get_member (reduce_parameters_obj, member_name)), "rowid")),
                                     member_name,
@@ -1849,16 +1845,15 @@ dupin_view_sync_map_thread (DupinView * view)
 
   dupin_view_ref (view);
 
-//g_message("dupin_view_sync_map_thread(%p) started with %d total records to MAP\n",g_thread_self (), (gint)view->sync_map_total_records);
+g_message("dupin_view_sync_map_thread(%p) started with %d total records to MAP\n",g_thread_self (), (gint)view->sync_map_total_records);
 
   g_mutex_lock (view->mutex);
-  view->sync_map_offset = 0;
   view->sync_map_processed_count = 0;
   g_mutex_unlock (view->mutex);
 
   while (view->sync_toquit == FALSE || view->todelete == FALSE)
     {
-      gboolean map_operation = dupin_view_sync_thread_map (view, VIEW_SYNC_COUNT, view->sync_map_offset);
+      gboolean map_operation = dupin_view_sync_thread_map (view, VIEW_SYNC_COUNT);
 
       /* NOTE - make sure waiting reduce thread is started as soon as the first set of mapped results is ready 
                  the sync_map_processed_count is set to the total of mapped results so far and used for very basic IPC map -> reduce threads */
@@ -1894,13 +1889,9 @@ g_message("dupin_view_sync_map_thread(%p) Mapped TOTAL %d records out of %d in t
 
           break;
         }
-
-      g_mutex_lock (view->mutex);
-      view->sync_map_offset += VIEW_SYNC_COUNT;
-      g_mutex_unlock (view->mutex);
     }
 
-//g_message("dupin_view_sync_map_thread(%p) finished to map %d total records and view map part is in sync\n",g_thread_self (), (gint)view->sync_map_total_records);
+g_message("dupin_view_sync_map_thread(%p) finished to map %d total records and view map part is in sync\n",g_thread_self (), (gint)view->sync_map_total_records);
 
   g_mutex_lock (view->mutex);
   view->sync_map_thread = NULL;
@@ -1920,7 +1911,6 @@ dupin_view_sync_reduce_thread (DupinView * view)
   dupin_view_ref (view);
 
   g_mutex_lock (view->mutex);
-  view->sync_reduce_offset = 0;
   view->sync_reduce_processed_count = 0;
   view->sync_reduce_total_records = 0;
   g_mutex_unlock (view->mutex);
@@ -2025,6 +2015,7 @@ void
 dupin_view_sync (DupinView * view)
 {
   gchar *sync_map_id = NULL;
+  gchar *sync_reduce_id = NULL;
   gchar *query;
   gchar *errmsg;
 
@@ -2067,14 +2058,29 @@ dupin_view_sync (DupinView * view)
   if (view->reduce != NULL
       && !view->sync_reduce_thread)
     {
-      /* start and wait for new work from map thread, or exit if no work and map thread is done
-         or need to quit or view is being delete */
+      query = "SELECT sync_reduce_id as c FROM DupinView";
 
       g_mutex_lock (view->mutex);
 
-      view->sync_reduce_thread =
-	    g_thread_create ((GThreadFunc) dupin_view_sync_reduce_thread, view, FALSE,
-			 NULL);
+      if (sqlite3_exec (view->db, query, dupin_view_sync_cb, &sync_reduce_id, &errmsg) !=
+           SQLITE_OK)
+        {
+          g_mutex_unlock (view->mutex);
+
+          g_error("dupin_view_sync: %s", errmsg);
+          sqlite3_free (errmsg);
+
+          return;
+        }
+
+      if (sync_reduce_id != NULL
+          || view->sync_map_thread)
+        {
+          view->sync_reduce_thread =
+	    g_thread_create ((GThreadFunc) dupin_view_sync_reduce_thread, view, FALSE, NULL);
+
+	  g_free (sync_reduce_id);
+        }
 
       g_mutex_unlock (view->mutex);
     }

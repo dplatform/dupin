@@ -238,7 +238,8 @@ dupin_view_record_get_list_cb (void *data, int argc, char **argv, char **col)
 gboolean
 dupin_view_record_get_list (DupinView * view, guint count, guint offset,
 			    gsize rowid_start, gsize rowid_end,
-			    gboolean descending, gboolean order_by_key,
+			    DupinOrderByType orderby_type,
+			    gboolean descending,
 			    gboolean not_distinct_key,
 			    GList ** list, GError ** error)
 {
@@ -279,8 +280,10 @@ dupin_view_record_get_list (DupinView * view, guint count, guint offset,
   else if (not_distinct_key)
     g_string_append_printf (str, " WHERE %s ", inner_count);
 
-  if (order_by_key)
+  if (orderby_type == DP_ORDERBY_KEY)
     str = g_string_append (str, " GROUP BY id ORDER BY d.key"); /* this should never be used for reduce internal operations */
+  else if (orderby_type == DP_ORDERBY_ROWID)
+    str = g_string_append (str, " GROUP BY id ORDER BY d.ROWID");
   else
     str = g_string_append (str, " GROUP BY id ORDER BY d.ROWID");
 

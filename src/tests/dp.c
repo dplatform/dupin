@@ -685,7 +685,7 @@ command_getListRecord (GList * list)
   if (!strcmp (list->next->next->data, "true"))
     descending = TRUE;
 
-  if (dupin_record_get_list (db, count, offset, descending, &results, &error)
+  if (dupin_record_get_list (db, count, offset, 0, 0, DP_COUNT_EXIST, DP_ORDERBY_ROWID, descending, &results, &error)
       == FALSE)
     {
       fprintf (stderr, "Error: %s\n", error->message);
@@ -876,8 +876,7 @@ command_getListViewRecord (GList * list)
   if (!strcmp (list->next->next->data, "true"))
     descending = TRUE;
 
-  if (dupin_view_record_get_list
-      (view, count, offset, 0, 0, descending, TRUE, FALSE, &results, &error) == FALSE)
+  if (dupin_view_record_get_list (view, count, offset, 0, 0, DP_ORDERBY_KEY, descending, FALSE, &results, &error) == FALSE)
     {
       fprintf (stderr, "Error: %s\n", error->message);
       g_error_free (error);

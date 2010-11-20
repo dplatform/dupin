@@ -25,8 +25,8 @@ gboolean	dupin_view_record_get_list
 					 guint			offset,
 					 gsize  		rowid_start,
 					 gsize  		rowid_end,
+					 DupinOrderByType	orderby_type,
 					 gboolean		descending,
-					 gboolean		order_by_key,
 				         gboolean               not_distinct_key,
 					 GList **		list,
 					 GError **		error);

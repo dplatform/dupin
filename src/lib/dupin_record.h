@@ -26,13 +26,14 @@ DupinRecord *	dupin_record_read	(DupinDB *		db,
 					 gchar *		id,
 					 GError **		error);
 
-/* get total of records into DB */
-gboolean        dupin_record_get_total_records (DupinDB * db, gsize * total);
-
 /* List of DupinRecord: */
 gboolean	dupin_record_get_list	(DupinDB *		db,
 					 guint			count,
 					 guint			offset,
+				         gsize			rowid_start,
+					 gsize			rowid_end,
+					 DupinCountType		count_type,
+					 DupinOrderByType	orderby_type,
 					 gboolean		descending,
 					 GList **		list,
 					 GError **		error);

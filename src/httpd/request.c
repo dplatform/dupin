@@ -604,10 +604,9 @@ request_global_get_all_docs (DSHttpdClient * client, GList * path,
 	offset = atoi (kv->value);
     }
 
-  if (dupin_record_get_total_records (db, &total_rows) == FALSE)
-    return HTTP_STATUS_500;
+  total_rows = dupin_database_count (db, DP_COUNT_EXIST);
 
-  if (dupin_record_get_list (db, count, offset, descending, &results, NULL) ==
+  if (dupin_record_get_list (db, count, offset, 0, 0, DP_COUNT_EXIST, DP_ORDERBY_ROWID, descending, &results, NULL) ==
       FALSE)
     return HTTP_STATUS_500;
 
@@ -1117,8 +1116,7 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
   if (dupin_view_record_get_total_records (view, &total_rows) == FALSE)
     return HTTP_STATUS_500;
 
-  if (dupin_view_record_get_list
-      (view, count, offset, 0, 0, descending, TRUE, FALSE, &results, NULL) == FALSE)
+  if (dupin_view_record_get_list (view, count, offset, 0, 0, DP_ORDERBY_KEY, descending, FALSE, &results, NULL) == FALSE)
     return HTTP_STATUS_500;
 
   obj = json_object_new ();
@@ -1306,8 +1304,7 @@ request_global_get_database_query (DSHttpdClient * client, GList * path,
 
   array = json_array_new ();
 
-  while (dupin_record_get_list
-	 (db, QUERY_BLOCK, offset, FALSE, &results, NULL) == TRUE && results)
+  while (dupin_record_get_list (db, QUERY_BLOCK, offset, 0, 0, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE, &results, NULL) == TRUE && results)
     {
       GList *list;
 
@@ -1395,8 +1392,7 @@ request_global_get_view_query (DSHttpdClient * client, GList * path,
 
   array = json_array_new ();
 
-  while (dupin_view_record_get_list
-	 (view, QUERY_BLOCK, offset, 0, 0, FALSE, TRUE, FALSE, &results, NULL) == TRUE
+  while (dupin_view_record_get_list (view, QUERY_BLOCK, offset, 0, 0, DP_ORDERBY_KEY, FALSE, FALSE, &results, NULL) == TRUE
 	 && results)
     {
       GList *list;

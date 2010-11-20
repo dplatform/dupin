@@ -29,6 +29,14 @@ typedef enum
   DP_MR_LANG_JAVASCRIPT = 0
 } DupinMRLang;
 
+/* OrderBy type: */ 
+typedef enum
+{
+  DP_ORDERBY_ROWID,
+  DP_ORDERBY_UPDATED,
+  DP_ORDERBY_KEY
+} DupinOrderByType;
+
 typedef struct dupin_db_t		DupinDB;
 typedef struct dupin_record_t		DupinRecord;
 typedef struct dupin_view_record_t	DupinViewRecord;

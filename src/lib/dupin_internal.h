@@ -76,7 +76,6 @@ struct dupin_view_t
   gsize		sync_map_offset;
   gsize		sync_map_total_records; /* total records to sync from main table */
   gsize		sync_map_processed_count; /* incremental counter of mapped records */
-  gsize		sync_reduce_offset;
   gsize		sync_reduce_total_records; /* total records to reduce from view table */
   gsize		sync_reduce_processed_count; /* incremental counter of reduced records */
   gboolean	sync_toquit;

@@ -15,9 +15,6 @@
 #define DUPIN_DB_SQL_EXISTS \
 	"SELECT count(id) FROM Dupin WHERE id = '%q' "
 
-#define DUPIN_DB_SQL_TOTAL \
-	"SELECT count(*) AS c FROM Dupin "
-
 #define DUPIN_DB_SQL_INSERT \
 	"INSERT INTO Dupin (id, rev, obj) " \
         "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q')"
@@ -102,52 +99,6 @@ dupin_record_exists_real (DupinDB * db, gchar * id, gboolean lock)
   sqlite3_free (tmp);
 
   return numb > 0 ? TRUE : FALSE;
-}
-
-static int
-dupin_record_get_total_records_cb (void *data, int argc, char **argv, char **col)
-{
-  gsize *numb = data;
-
-  if (argv[0])
-    *numb = atoi (argv[0]);
-
-  return 0;
-}
-
-/* NOTE - bear in mind SQLite might be able to store more than gsize total records
-          see also ROWID and http://www.sqlite.org/autoinc.html */
-gboolean
-dupin_record_get_total_records (DupinDB * db, gsize * total)
-{
-  g_return_val_if_fail (db != NULL, FALSE);
-
-  gchar *tmp;
-  gchar * errmsg;
-  *total = 0;
-
-  tmp = sqlite3_mprintf (DUPIN_DB_SQL_TOTAL);
-
-  g_mutex_lock (db->mutex);
-
-  if (sqlite3_exec (db->db, tmp, dupin_record_get_total_records_cb, total, &errmsg) != SQLITE_OK)
-    {
-      g_mutex_unlock (db->mutex);
-
-      sqlite3_free (tmp);
-
-      g_error ("dupin_record_get_total_records: %s", errmsg);
-
-      sqlite3_free (errmsg);
-
-      return FALSE;
-    }
-
-  g_mutex_unlock (db->mutex);
-
-  sqlite3_free (tmp);
-
-  return TRUE;
 }
 
 DupinRecord *
@@ -350,11 +301,15 @@ dupin_record_get_list_cb (void *data, int argc, char **argv, char **col)
 
 gboolean
 dupin_record_get_list (DupinDB * db, guint count, guint offset,
+                       gsize rowid_start, gsize rowid_end,
+		       DupinCountType         count_type,
+		       DupinOrderByType       orderby_type,
 		       gboolean descending, GList ** list, GError ** error)
 {
   GString *str;
   gchar *tmp;
   gchar *errmsg;
+  gchar *check_deleted=NULL;
 
   struct dupin_record_get_list_t s;
 
@@ -364,7 +319,28 @@ dupin_record_get_list (DupinDB * db, guint count, guint offset,
   memset (&s, 0, sizeof (s));
   s.db = db;
 
-  str = g_string_new ("SELECT id FROM Dupin GROUP BY id ORDER BY ROWID");
+  str = g_string_new ("SELECT id FROM Dupin as d");
+
+  if (count_type == DP_COUNT_EXIST)
+    check_deleted = " deleted = 'FALSE' ";
+  else if (count_type == DP_COUNT_DELETE)
+    check_deleted = " deleted = 'TRUE' ";
+
+  if (rowid_start > 0 && rowid_end > 0)
+    g_string_append_printf (str, " WHERE %s %s d.ROWID >= %d AND d.ROWID <= %d ", check_deleted, (count_type != DP_COUNT_ALL) ? "AND" : "", (gint)rowid_start, (gint)rowid_end);
+  else if (rowid_start > 0)
+    g_string_append_printf (str, " WHERE %s %s d.ROWID >= %d ", check_deleted, (count_type != DP_COUNT_ALL) ? "AND" : "", (gint)rowid_start);
+  else if (rowid_end > 0)
+    g_string_append_printf (str, " WHERE %s %s d.ROWID <= %d ", check_deleted, (count_type != DP_COUNT_ALL) ? "AND" : "", (gint)rowid_end);
+  else if (count_type != DP_COUNT_ALL)
+    g_string_append_printf (str, " WHERE %s ", check_deleted);
+
+  if (orderby_type == DP_ORDERBY_UPDATED)
+    str = g_string_append (str, " GROUP BY id ORDER BY d.updated");
+  else if (orderby_type == DP_ORDERBY_ROWID)
+    str = g_string_append (str, " GROUP BY id ORDER BY d.ROWID");
+  else
+    str = g_string_append (str, " GROUP BY id ORDER BY d.ROWID");
 
   if (descending)
     str = g_string_append (str, " DESC");
@@ -385,7 +361,7 @@ dupin_record_get_list (DupinDB * db, guint count, guint offset,
 
   tmp = g_string_free (str, FALSE);
 
-//g_message("dupin_record_get_list() query=%s\n",tmp);
+g_message("dupin_record_get_list() query=%s\n",tmp);
 
   g_mutex_lock (db->mutex);
 

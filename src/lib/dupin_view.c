@@ -1955,7 +1955,8 @@ g_message("dupin_view_sync_reduce_thread(%p) started", g_thread_self ());
     {
 g_message("rereduce=%d\n", rereduce);
 
-      if (rereduce == FALSE)
+      if (rereduce == FALSE
+	  && view->sync_map_thread)
         {
           g_mutex_lock (view->mutex);
           g_cond_wait(view->sync_map_has_new_work, view->mutex);
@@ -1986,36 +1987,48 @@ g_message("Map was finished in meantime\n");
 
 g_message("Done first round of reduce but there are still %d record to re-reduce\n", (gint)total_rereduce);
 
-/* TODO - fix this it causes an infinite loop !!!! */
-
-          query = "UPDATE DupinView SET sync_reduce_id = NULL";
-
-          g_mutex_lock (view->mutex);
-
-          if (sqlite3_exec (view->db, query, NULL, NULL, &errmsg) != SQLITE_OK)
-            {
-              g_mutex_unlock (view->mutex);
-
-              g_error("dupin_view_sync_reduce_thread: %s", errmsg);
-              sqlite3_free (errmsg);
-
-              break;
-            }
-
-          g_mutex_unlock (view->mutex);
-
-	  /* TODO - add re-reduce step and iter till done before terminating reduce thread */
-
           if (total_rereduce > 0)
             {
               /* still work to do */
               rereduce = TRUE;
 g_message("Going to re-reduce\n");
+
+              query = "UPDATE DupinView SET sync_reduce_id = '0'";
+
+              g_mutex_lock (view->mutex);
+
+              if (sqlite3_exec (view->db, query, NULL, NULL, &errmsg) != SQLITE_OK)
+                {
+                  g_mutex_unlock (view->mutex);
+
+                  g_error("dupin_view_sync_reduce_thread: %s", errmsg);
+                  sqlite3_free (errmsg);
+
+                  break;
+                }
+
+              g_mutex_unlock (view->mutex);
             }
           else
             {
 g_message("Done rereduce=%d\n", (gint)rereduce);
               rereduce = FALSE;
+
+              query = "UPDATE DupinView SET sync_reduce_id = NULL";
+
+              g_mutex_lock (view->mutex);
+
+              if (sqlite3_exec (view->db, query, NULL, NULL, &errmsg) != SQLITE_OK)
+                {
+                  g_mutex_unlock (view->mutex);
+
+                  g_error("dupin_view_sync_reduce_thread: %s", errmsg);
+                  sqlite3_free (errmsg);
+
+                  break;
+                }
+
+              g_mutex_unlock (view->mutex);
 
 	      break; /* both terminated, amen */
             }

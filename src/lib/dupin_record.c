@@ -361,7 +361,7 @@ dupin_record_get_list (DupinDB * db, guint count, guint offset,
 
   tmp = g_string_free (str, FALSE);
 
-g_message("dupin_record_get_list() query=%s\n",tmp);
+//g_message("dupin_record_get_list() query=%s\n",tmp);
 
   g_mutex_lock (db->mutex);
 

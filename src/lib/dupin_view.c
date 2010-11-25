@@ -55,6 +55,7 @@ See http://wiki.apache.org/couchdb/Introduction_to_CouchDB_views
 
 #define VIEW_SYNC_COUNT	100
 
+#if 0
 static void
 dupin_view_debug_print_json_node (char * msg, JsonNode * node)
 {
@@ -76,6 +77,7 @@ dupin_view_debug_print_json_node (char * msg, JsonNode * node)
   g_message("%s - Json Node of type %d: %s\n",msg, (gint)json_node_get_node_type (node), buffer);
   g_free (buffer);
 }
+#endif
 
 static gchar *dupin_view_generate_id (DupinView * view);
 
@@ -456,7 +458,7 @@ dupin_view_p_record_insert (DupinViewP * p, gchar * id,
               json_array_add_string_element (pid_array, id);
               json_node_take_array (pid_node, pid_array);
 
-	      dupin_view_record_save_map (view, pid_node, key_node, nobj);
+	      dupin_view_record_save_map (view, pid_node, key_node, element_node);
 
               json_node_free (pid_node);
               if (key_node != NULL)
@@ -485,18 +487,21 @@ dupin_view_p_record_delete (DupinViewP * p, gchar * pid)
 }
 
 void
-dupin_view_record_save_map (DupinView * view, JsonNode * pid, JsonNode * key, JsonObject * obj)
+dupin_view_record_save_map (DupinView * view, JsonNode * pid, JsonNode * key, JsonNode * obj_node)
 {
   GList *nodes, *n;
   JsonNode *node;
+  JsonObject *obj;
   JsonGenerator *gen;
 
   const gchar *id = NULL;
-  gchar *tmp, *errmsg, *obj_serialised, *key_serialised, *pid_serialised;
+  gchar *tmp, *errmsg, *obj_serialised=NULL, *key_serialised=NULL, *pid_serialised=NULL;
   JsonNode *key_node=NULL;
   JsonNode *pid_node=NULL;
 
-  g_return_if_fail (dupin_util_is_valid_obj (obj) != FALSE);
+  g_return_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT);
+
+  obj = json_node_get_object (obj_node);
 
   if (key != NULL)
     key_node = json_node_copy (key);
@@ -523,6 +528,10 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid, JsonNode * key, Js
   if (!id && !(id = dupin_view_generate_id (view)))
     {
       g_mutex_unlock (view->mutex);
+      if (key_node != NULL)
+        json_node_free (key_node);
+      if (pid_node != NULL)
+        json_node_free (pid_node);
       return;
     }
 
@@ -533,6 +542,10 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid, JsonNode * key, Js
     {
       g_mutex_unlock (view->mutex);
       g_free ((gchar *)id);
+      if (key_node != NULL)
+        json_node_free (key_node);
+      if (pid_node != NULL)
+        json_node_free (pid_node);
       return;
     }
 
@@ -546,6 +559,10 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid, JsonNode * key, Js
       g_free ((gchar *)id);
       if (node != NULL)
         json_node_free (node);
+      if (key_node != NULL)
+        json_node_free (key_node);
+      if (pid_node != NULL)
+        json_node_free (pid_node);
       return;
     }
 
@@ -560,6 +577,10 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid, JsonNode * key, Js
         g_object_unref (gen);
       if (node != NULL)
         json_node_free (node);
+      if (key_node != NULL)
+        json_node_free (key_node);
+      if (pid_node != NULL)
+        json_node_free (pid_node);
       return;
     }
 
@@ -597,6 +618,9 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid, JsonNode * key, Js
           {
             key_serialised = g_strdup_printf (json_node_get_boolean (key_node) == TRUE ? "true" : "false");
           }
+
+          if (key_node != NULL)
+            json_node_free (key_node);
         }
       else
         {
@@ -609,6 +633,8 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid, JsonNode * key, Js
               g_free (obj_serialised);
               if (key_node != NULL)
                 json_node_free (key_node);
+              if (pid_node != NULL)
+                json_node_free (pid_node);
               return;
             }
 
@@ -625,6 +651,8 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid, JsonNode * key, Js
               g_free (obj_serialised);
               if (gen != NULL)
                 g_object_unref (gen);
+              if (pid_node != NULL)
+                json_node_free (pid_node);
               return;
             }
 
@@ -644,6 +672,8 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid, JsonNode * key, Js
           g_free (obj_serialised);
           if (key_serialised)
             g_free (key_serialised);
+          if (pid_node != NULL)
+            json_node_free (pid_node);
           return;
         }
 
@@ -1077,7 +1107,7 @@ dupin_view_sync_thread_real_map (DupinView * view, GList * list)
                 }
               g_list_free (nodes);
 
-	      dupin_view_record_save_map (view, data->pid, key_node, nobj);
+	      dupin_view_record_save_map (view, data->pid, key_node, element_node);
 
               g_mutex_lock (view->mutex);
               view->sync_map_processed_count++;
@@ -1707,7 +1737,7 @@ g_message("dupin_view_sync_thread_reduce(%p)    g_list_length (results) = %d\n",
 
 	  JsonParser * parser = json_parser_new ();
 
-          if (json_parser_load_from_data (parser, member_name, strlen(member_name), NULL) == FALSE)
+          if (json_parser_load_from_data (parser, member_name, strlen (member_name), NULL) == FALSE)
             {
               if (parser != NULL)
                 g_object_unref (parser);

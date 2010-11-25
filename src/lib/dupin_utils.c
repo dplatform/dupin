@@ -43,16 +43,6 @@ dupin_util_is_valid_record_id (gchar * id)
   return (strlen(id)<=255) ? TRUE : FALSE;
 }
 
-gboolean
-dupin_util_is_valid_obj (JsonObject * obj)
-{
-  g_return_val_if_fail (obj != NULL, FALSE);
-
-  /* TODO */
-
-  return TRUE;
-}
-
 /* see also http://engineering.twitter.com/2010/06/announcing-snowflake.html */
 
 /* roughly we want an ID which is unique per thread, machine/server and sequential, and sortable */

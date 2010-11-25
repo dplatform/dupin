@@ -136,23 +136,25 @@ dupin_js_new_map (gchar *        js_json_doc,
   /* make map function (doc) { ... passed JS code calling eventually emit(k,v) ... }  */
   buffer = g_string_new (DUPIN_JS_FUNCTION_SUM);
   buffer = g_string_append (buffer, "var __dupin_map_function = ");
-  buffer = g_string_append_len (buffer, js_code, strlen(js_code));
+  buffer = g_string_append_len (buffer, js_code, strlen (js_code));
   buffer = g_string_append (buffer, "\n"); /* no semicolon to avoid checking input js_code for it */
   buffer = g_string_append (buffer, "__dupin_map_function (");
-  buffer = g_string_append_len (buffer, js_json_doc, strlen(js_json_doc));
+  buffer = g_string_append_len (buffer, js_json_doc, strlen (js_json_doc));
   buffer = g_string_append (buffer, ");\n");
   b = g_string_free (buffer, FALSE);
 
-/*
   g_message("MAP:\n");
   g_message("\tscript is: %s\n",js_code);
   g_message("\tjs_json_doc is: %s\n",js_json_doc);
   g_message("\twhole is: %s\n",b);
+/*
 */
 
   str = JSStringCreateWithUTF8CString (b);
   result = JSEvaluateScript (ctx, str, NULL, NULL, 0, &js_exception);
   JSStringRelease (str);
+
+  g_free (b);
 
   if (!result)
     {
@@ -317,16 +319,16 @@ dupin_js_new_reduce (gchar *        js_json_keys,
   /* make map function (keys,values,rereduce) { ... passed JS code returning an object ... } */
   buffer = g_string_new (DUPIN_JS_FUNCTION_SUM);
   buffer = g_string_append (buffer, "var __dupin_reduce_function = ");
-  buffer = g_string_append_len (buffer, js_code, strlen(js_code));
+  buffer = g_string_append_len (buffer, js_code, strlen (js_code));
   buffer = g_string_append (buffer, "\n"); /* no semicolon to avoid checking input js_code for it */
   buffer = g_string_append (buffer, "__dupin_reduce_result = __dupin_reduce_function (");
   /* TODO - check reduce passed function takes three params - or return error */
   if (js_json_keys != NULL)
-    buffer = g_string_append_len (buffer, js_json_keys, strlen(js_json_keys));
+    buffer = g_string_append_len (buffer, js_json_keys, strlen (js_json_keys));
   else
     buffer = g_string_append_len (buffer, "null", 4);
   buffer = g_string_append (buffer, ", ");
-  buffer = g_string_append_len (buffer, js_json_values, strlen(js_json_values));
+  buffer = g_string_append_len (buffer, js_json_values, strlen (js_json_values));
   buffer = g_string_append (buffer, ", ");
   gchar * rereduce_param = (rereduce == TRUE) ? "true" : "false";
   buffer = g_string_append_len (buffer, rereduce_param, strlen(rereduce_param));
@@ -345,6 +347,8 @@ dupin_js_new_reduce (gchar *        js_json_keys,
   str = JSStringCreateWithUTF8CString (b);
   result = JSEvaluateScript (ctx, str, NULL, NULL, 0, &js_exception);
   JSStringRelease (str);
+
+  g_free (b);
 
   if (!result)
     {
@@ -476,7 +480,8 @@ dupin_js_value (JSContextRef ctx, JSValueRef value, JsonNode ** v)
 	gchar *str;
 
 	string = JSValueToStringCopy (ctx, value, NULL);
-	str = dupin_js_string (string);
+	//str = dupin_js_string (string);
+	str = dupin_js_string_utf8 (string);
 	JSStringRelease (string);
 
         *v = json_node_new (JSON_NODE_VALUE);
@@ -517,8 +522,8 @@ dupin_js_obj (JSContextRef ctx, JSValueRef object_value, JsonNode ** obj_node)
   JSStringRelease(array);
   gboolean is_array = JSValueIsInstanceOfConstructor (ctx, object_value, arrayConstructor, NULL);
 
-  JsonObject * obj;
-  JsonArray * arr;
+  JsonObject * obj=NULL;
+  JsonArray * arr=NULL;
   if (is_array == TRUE)
     {
       *obj_node = json_node_new (JSON_NODE_ARRAY);
@@ -538,7 +543,7 @@ dupin_js_obj (JSContextRef ctx, JSValueRef object_value, JsonNode ** obj_node)
       JsonNode *node;
       gchar *p;
 
-      p = dupin_js_string (prop);
+      p = dupin_js_string_utf8 (prop);
 
       value = JSObjectGetProperty (ctx, object, prop, NULL);
       dupin_js_value (ctx, value, &node);

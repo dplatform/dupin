@@ -31,7 +31,7 @@
         "VALUES('%q', '%" G_GSIZE_FORMAT "', 'TRUE')"
 
 static DupinRecord *dupin_record_create_with_id_real (DupinDB * db,
-						      JsonObject * obj,
+						      JsonNode * obj_node,
 						      gchar * id,
 						      GError ** error,
 						      gboolean lock);
@@ -41,7 +41,7 @@ static DupinRecord *dupin_record_read_real (DupinDB * db, gchar * id,
 static void dupin_record_rev_close (DupinRecordRev * rev);
 static DupinRecord *dupin_record_new (DupinDB * db, gchar * id);
 static void dupin_record_add_revision_obj (DupinRecord * record, guint rev,
-					   JsonObject * obj,
+					   JsonNode * obj_node,
 					   gboolean delete);
 static void dupin_record_add_revision_str (DupinRecord * record, guint rev,
 					   gchar * obj, gssize size,
@@ -102,14 +102,14 @@ dupin_record_exists_real (DupinDB * db, gchar * id, gboolean lock)
 }
 
 DupinRecord *
-dupin_record_create (DupinDB * db, JsonObject * obj, GError ** error)
+dupin_record_create (DupinDB * db, JsonNode * obj_node, GError ** error)
 {
   gchar *id;
   DupinRecord *record;
 
   g_return_val_if_fail (db != NULL, NULL);
-  g_return_val_if_fail (obj != NULL, NULL);
-  g_return_val_if_fail (dupin_util_is_valid_obj (obj) != FALSE, NULL);
+  g_return_val_if_fail (obj_node != NULL, NULL);
+  g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, NULL);
 
   g_mutex_lock (db->mutex);
 
@@ -119,7 +119,7 @@ dupin_record_create (DupinDB * db, JsonObject * obj, GError ** error)
       return NULL;
     }
 
-  record = dupin_record_create_with_id_real (db, obj, id, error, FALSE);
+  record = dupin_record_create_with_id_real (db, obj_node, id, error, FALSE);
 
   g_mutex_unlock (db->mutex);
   g_free (id);
@@ -128,20 +128,20 @@ dupin_record_create (DupinDB * db, JsonObject * obj, GError ** error)
 }
 
 DupinRecord *
-dupin_record_create_with_id (DupinDB * db, JsonObject * obj, gchar * id,
+dupin_record_create_with_id (DupinDB * db, JsonNode * obj_node, gchar * id,
 			     GError ** error)
 {
   g_return_val_if_fail (db != NULL, NULL);
-  g_return_val_if_fail (obj != NULL, NULL);
+  g_return_val_if_fail (obj_node != NULL, NULL);
   g_return_val_if_fail (id != NULL, NULL);
   g_return_val_if_fail (dupin_util_is_valid_record_id (id) != FALSE, NULL);
-  g_return_val_if_fail (dupin_util_is_valid_obj (obj) != FALSE, NULL);
+  g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, NULL);
 
-  return dupin_record_create_with_id_real (db, obj, id, error, TRUE);
+  return dupin_record_create_with_id_real (db, obj_node, id, error, TRUE);
 }
 
 static DupinRecord *
-dupin_record_create_with_id_real (DupinDB * db, JsonObject * obj,
+dupin_record_create_with_id_real (DupinDB * db, JsonNode * obj_node,
 				  gchar * id, GError ** error, gboolean lock)
 {
   DupinRecord *record;
@@ -161,7 +161,7 @@ dupin_record_create_with_id_real (DupinDB * db, JsonObject * obj,
     }
 
   record = dupin_record_new (db, id);
-  dupin_record_add_revision_obj (record, 1, obj, FALSE);
+  dupin_record_add_revision_obj (record, 1, obj_node, FALSE);
 
   tmp =
     sqlite3_mprintf (DUPIN_DB_SQL_INSERT, id, 1,
@@ -198,7 +198,7 @@ dupin_record_read_cb (void *data, int argc, char **argv, char **col)
   guint rev = 0;
   gchar *obj = NULL;
   gboolean delete = FALSE;
-  gsize rowid;
+  gsize rowid=0;
   gint i;
 
   for (i = 0; i < argc; i++)
@@ -397,7 +397,7 @@ dupin_record_get_list_close (GList * list)
 }
 
 gboolean
-dupin_record_update (DupinRecord * record, JsonObject * obj,
+dupin_record_update (DupinRecord * record, JsonNode * obj_node,
 		     GError ** error)
 {
   guint rev;
@@ -405,13 +405,13 @@ dupin_record_update (DupinRecord * record, JsonObject * obj,
   gchar *errmsg;
 
   g_return_val_if_fail (record != NULL, FALSE);
-  g_return_val_if_fail (obj != NULL, FALSE);
-  g_return_val_if_fail (dupin_util_is_valid_obj (obj) != FALSE, FALSE);
+  g_return_val_if_fail (obj_node != NULL, FALSE);
+  g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, FALSE);
 
   g_mutex_lock (record->db->mutex);
 
   rev = record->last->revision + 1;
-  dupin_record_add_revision_obj (record, rev, obj, FALSE);
+  dupin_record_add_revision_obj (record, rev, obj_node, FALSE);
 
   tmp =
     sqlite3_mprintf (DUPIN_DB_SQL_INSERT, record->id, rev,
@@ -627,7 +627,7 @@ dupin_record_rev_close (DupinRecordRev * rev)
 
 static void
 dupin_record_add_revision_obj (DupinRecord * record, guint rev,
-			       JsonObject * obj, gboolean delete)
+			       JsonNode * obj_node, gboolean delete)
 {
   DupinRecordRev *r;
   gint *revp;
@@ -635,16 +635,14 @@ dupin_record_add_revision_obj (DupinRecord * record, guint rev,
   r = g_malloc0 (sizeof (DupinRecordRev));
   r->revision = rev;
 
-  if (obj)
+  if (obj_node)
     {
       JsonGenerator * gen = json_generator_new();
 
-      r->obj = json_node_new (JSON_NODE_OBJECT);
-
-      /* or json_node_take_object() ?!? */
-      json_node_set_object (r->obj, obj);
+      r->obj = json_node_copy (obj_node);
 
       json_generator_set_root (gen, r->obj );
+
       r->obj_serialized = json_generator_to_data (gen,&r->obj_serialized_len);
 
       g_object_unref (gen);

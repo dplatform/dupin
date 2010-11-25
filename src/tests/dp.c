@@ -26,7 +26,7 @@ gboolean dp_exit = FALSE;
 static void prompt (void);
 static void parse (GList * list);
 static GList *split (gchar * ar);
-static JsonObject *json (gchar * str);
+static JsonNode *json (gchar * str);
 static void showRecord (DupinRecord * record);
 static void showViewRecord (DupinViewRecord * record);
 
@@ -283,11 +283,11 @@ parse (GList * list)
   printf ("Command unknown. Write 'help' to get the list of commands.\n");
 }
 
-static JsonObject *
+static JsonNode *
 json (gchar * str)
 {
   JsonParser *j;
-  JsonObject *obj;
+  JsonNode *obj_node;
 
   j = json_parser_new ();
 
@@ -314,18 +314,18 @@ json (gchar * str)
       return NULL;
     }
 
-  obj = json_node_get_object (json_node_copy (node));
+  obj_node = json_node_copy (node);
 
   g_object_unref (j);
 
-  return obj;
+  return obj_node;
 }
 
-static JsonObject *
+static JsonNode *
 json_file (gchar * filename)
 {
   JsonParser *j;
-  JsonObject *obj;
+  JsonNode *obj_node;
 
   j = json_parser_new ();
 
@@ -352,11 +352,11 @@ json_file (gchar * filename)
       return NULL;
     }
 
-  obj = json_node_get_object (json_node_copy (node));
+  obj_node = json_node_copy (node);
 
   g_object_unref (j);
 
-  return obj;
+  return obj_node;
 }
 
 /* Commands: */
@@ -584,7 +584,7 @@ command_countView (GList * list)
 static void
 command_createRecord (GList * list)
 {
-  JsonObject *obj;
+  JsonNode *obj_node;
   GError *error = NULL;
 
   if (!db)
@@ -593,7 +593,7 @@ command_createRecord (GList * list)
       return;
     }
 
-  if (!(obj = json (list->data)))
+  if (!(obj_node = json (list->data)))
     {
       fprintf (stderr, "The input is not a json object.\n");
       return;
@@ -602,19 +602,19 @@ command_createRecord (GList * list)
   if (record)
     dupin_record_close (record);
 
-  if (!(record = dupin_record_create (db, obj, &error)))
+  if (!(record = dupin_record_create (db, obj_node, &error)))
     {
       fprintf (stderr, "Error: %s\n", error->message);
       g_error_free (error);
     }
 
-  json_object_unref (obj);
+  json_node_free (obj_node);
 }
 
 static void
 command_createRecordFromFile (GList * list)
 {
-  JsonObject *obj;
+  JsonNode *obj_node;
   GError *error = NULL;
 
   if (!db)
@@ -623,7 +623,7 @@ command_createRecordFromFile (GList * list)
       return;
     }
 
-  if (!(obj = json_file (list->data)))
+  if (!(obj_node = json_file (list->data)))
     {
       fprintf (stderr, "The input is not a file containing a json object.\n");
       return;
@@ -632,13 +632,13 @@ command_createRecordFromFile (GList * list)
   if (record)
     dupin_record_close (record);
 
-  if (!(record = dupin_record_create (db, obj, &error)))
+  if (!(record = dupin_record_create (db, obj_node, &error)))
     {
       fprintf (stderr, "Error: %s\n", error->message);
       g_error_free (error);
     }
 
-  json_object_unref (obj);
+  json_node_free (obj_node);
 }
 
 static void
@@ -705,7 +705,7 @@ static void
 command_updateRecord (GList * list)
 {
   GError *error = NULL;
-  JsonObject *obj;
+  JsonNode *obj_node;
 
   if (!db)
     {
@@ -719,19 +719,19 @@ command_updateRecord (GList * list)
       return;
     }
 
-  if (!(obj = json (list->data)))
+  if (!(obj_node = json (list->data)))
     {
       fprintf (stderr, "The input is not a json object.\n");
       return;
     }
 
-  if (dupin_record_update (record, obj, &error) == FALSE)
+  if (dupin_record_update (record, obj_node, &error) == FALSE)
     {
       fprintf (stderr, "Error: %s\n", error->message);
       g_error_free (error);
     }
 
-  json_object_unref (obj);
+  json_node_free (obj_node);
 }
 
 static void

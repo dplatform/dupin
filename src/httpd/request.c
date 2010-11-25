@@ -29,7 +29,7 @@ static JsonObject *request_view_record_obj (DupinViewRecord * record,
 						  gchar * id);
 
 static gboolean request_record_insert (DSHttpdClient * client,
-				       JsonObject * obj, gchar * db,
+				       JsonNode * obj_node, gchar * db,
 				       gchar * id, DSHttpStatusCode * code,
 				       DupinRecord ** record);
 static gboolean request_record_response_single (DSHttpdClient * client,
@@ -150,13 +150,11 @@ request_www (DSHttpdClient * client, GList * paths, GList * arguments)
 static DSHttpStatusCode
 request_quit (DSHttpdClient * client, GList * paths, GList * arguments)
 {
-  g_warning ("_quit disabled\n");
-  return HTTP_STATUS_503;
+  //g_warning ("_quit disabled\n");
+  //return HTTP_STATUS_503;
 
-  /*
   g_main_loop_quit (client->thread->data->loop);
   return HTTP_STATUS_200;
-  */
 }
 
 /* STATUS FUNCTION *********************************************************/
@@ -1539,7 +1537,7 @@ request_global_post_record (DSHttpdClient * client, GList * path,
     }
 
   if (request_record_insert
-      (client, json_node_get_object (node), path->data, NULL, &code, &record) == TRUE)
+      (client, node, path->data, NULL, &code, &record) == TRUE)
     {
       if (request_record_response_single (client, record) == FALSE)
 	code = HTTP_STATUS_500;
@@ -1710,7 +1708,6 @@ request_global_post_bulk_docs (DSHttpdClient * client, GList * path,
   for (n = nodes; n != NULL; n = n->next)
     {
       DupinRecord *record;
-      JsonObject *obj;
       JsonNode *element_node = (JsonNode*)n->data;
 
       if (json_node_get_node_type (element_node) != JSON_NODE_OBJECT)
@@ -1720,10 +1717,8 @@ request_global_post_bulk_docs (DSHttpdClient * client, GList * path,
           goto request_global_post_bulk_docs_error;
         }
 
-      obj = json_node_get_object (element_node);
-
       if (request_record_insert
-	  (client, obj, path->data, NULL, &code, &record) == FALSE)
+	  (client, element_node, path->data, NULL, &code, &record) == FALSE)
 	{
           g_list_free (nodes);
           code = HTTP_STATUS_400;
@@ -2012,7 +2007,7 @@ request_global_put_record (DSHttpdClient * client, GList * path,
     }
 
   if (request_record_insert
-      (client, json_node_get_object (node), path->data, path->next->data, &code,
+      (client, node, path->data, path->next->data, &code,
        &record) == TRUE)
     {
       if (request_record_response_single (client, record) == FALSE)
@@ -2157,11 +2152,11 @@ RequestType request_types[] = {
 };
 
 /* RECORD *********************************************************************/
-static guint request_record_insert_rev (JsonObject * obj);
-static gchar *request_record_insert_id (JsonObject * obj);
+static guint request_record_insert_rev (JsonNode * obj_node);
+static gchar *request_record_insert_id (JsonNode * obj_node);
 
 static gboolean
-request_record_insert (DSHttpdClient * client, JsonObject * obj,
+request_record_insert (DSHttpdClient * client, JsonNode * obj_node,
 		       gchar * dbname, gchar * id, DSHttpStatusCode * code,
 		       DupinRecord ** ret_record)
 {
@@ -2172,15 +2167,17 @@ request_record_insert (DSHttpdClient * client, JsonObject * obj,
   guint rev;
   gchar *iid;
 
+  g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, FALSE);
+
   if (!(db = dupin_database_open (client->thread->data->dupin, dbname, NULL)))
     {
       *code = HTTP_STATUS_400;
       return FALSE;
     }
 
-  rev = request_record_insert_rev (obj);
+  rev = request_record_insert_rev (obj_node);
 
-  if ((iid = request_record_insert_id (obj)))
+  if ((iid = request_record_insert_id (obj_node)))
     {
       if (id && strcmp (id, iid))
 	{
@@ -2209,7 +2206,7 @@ request_record_insert (DSHttpdClient * client, JsonObject * obj,
       record = dupin_record_read (db, id, NULL);
 
       if (!record || rev != dupin_record_get_last_revision (record)
-	  || dupin_record_update (record, obj, NULL) == FALSE)
+	  || dupin_record_update (record, obj_node, NULL) == FALSE)
 	{
 	  dupin_record_close (record);
 	  record = NULL;
@@ -2220,7 +2217,7 @@ request_record_insert (DSHttpdClient * client, JsonObject * obj,
     {
       retcode = HTTP_STATUS_201;
 
-      record = dupin_record_create (db, obj, NULL);
+      record = dupin_record_create (db, obj_node, NULL);
     }
 
   else
@@ -2228,7 +2225,7 @@ request_record_insert (DSHttpdClient * client, JsonObject * obj,
       retcode = HTTP_STATUS_201;
 
       if (dupin_record_exists (db, id) == FALSE)
-	record = dupin_record_create_with_id (db, obj, id, NULL);
+	record = dupin_record_create_with_id (db, obj_node, id, NULL);
       else
 	record = NULL;
     }
@@ -2251,10 +2248,15 @@ request_record_insert (DSHttpdClient * client, JsonObject * obj,
 }
 
 static guint
-request_record_insert_rev (JsonObject * obj)
+request_record_insert_rev (JsonNode * obj_node)
 {
   guint rev = 0;
   JsonNode *node;
+  JsonObject *obj;
+
+  g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, 0);
+
+  obj = json_node_get_object (obj_node);
 
   if (json_object_has_member (obj, REQUEST_OBJ_REV) == FALSE)
     return 0;
@@ -2275,10 +2277,15 @@ request_record_insert_rev (JsonObject * obj)
 }
 
 static gchar *
-request_record_insert_id (JsonObject * obj)
+request_record_insert_id (JsonNode * obj_node)
 {
   gchar *id = NULL;
   JsonNode *node;
+  JsonObject *obj;
+
+  g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, NULL);
+
+  obj = json_node_get_object (obj_node);
 
   if (json_object_has_member (obj, REQUEST_OBJ_ID) == FALSE)
     return NULL;

@@ -85,7 +85,6 @@ dupin_mr_map (gchar * map, DupinMRLang language, JsonObject * obj,
           }
 
 	/* TODO - we should really make sure escaping from JSON to Javascript structures is transferred right - and returned clean JSON too */
-
 	if (!(js = dupin_js_new_map (buffer,map, NULL)))
 	  {
 	    g_free (buffer);
@@ -100,6 +99,7 @@ dupin_mr_map (gchar * map, DupinMRLang language, JsonObject * obj,
 	  {
             g_object_unref (gen);
             json_node_free (node);
+            dupin_js_destroy (js);
 	    return 0;
 	  }
 
@@ -118,6 +118,7 @@ dupin_mr_map (gchar * map, DupinMRLang language, JsonObject * obj,
                 g_free (nodes);
                 g_object_unref (gen);
                 json_node_free (node);
+                dupin_js_destroy (js);
 	        return 0;
               }
 
@@ -127,6 +128,7 @@ dupin_mr_map (gchar * map, DupinMRLang language, JsonObject * obj,
 
         g_object_unref (gen);
         json_node_free (node);
+        dupin_js_destroy (js);
 	return len;
       }
     }
@@ -244,11 +246,14 @@ dupin_mr_reduce (gchar * reduce,
 
 	if (!(object_node = (JsonNode *) dupin_js_get_reduceResult (js)))
 	  {
+            dupin_js_destroy (js);
 	    return NULL;
 	  }
 
         /* TODO - check if json-glib has a simpler and safe way to copy objects ! */
         ret = json_node_copy ((JsonNode*)object_node);
+
+        dupin_js_destroy (js);
 
 	return ret;
       }

@@ -185,7 +185,7 @@ void		dupin_view_record_save_map
 				(DupinView *	view,
 				 JsonNode     * pid,
 				 JsonNode     * key,
-				 JsonObject * obj);
+				 JsonNode     * obj);
 
 void		dupin_view_record_delete
 				(DupinView *	view,

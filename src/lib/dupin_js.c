@@ -143,11 +143,11 @@ dupin_js_new_map (gchar *        js_json_doc,
   buffer = g_string_append (buffer, ");\n");
   b = g_string_free (buffer, FALSE);
 
+/*
   g_message("MAP:\n");
   g_message("\tscript is: %s\n",js_code);
   g_message("\tjs_json_doc is: %s\n",js_json_doc);
   g_message("\twhole is: %s\n",b);
-/*
 */
 
   str = JSStringCreateWithUTF8CString (b);

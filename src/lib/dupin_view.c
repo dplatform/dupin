@@ -1224,16 +1224,14 @@ g_message("dupin_view_sync_thread_map_db(%p)    g_list_length (results) = %d\n",
 
   dupin_view_sync_thread_real_map (view, l);
 
-  /* g_list_foreach (l, (GFunc) g_free, NULL); */
-  /* NOTE - free each list JSON node properly - the following is not freeing the json_node_copy() above */
-  for (; l; l = l->next)
+  for (list=l; list; list = list->next)
     {
-      struct dupin_view_sync_t *data = l->data;
+      struct dupin_view_sync_t *data = list->data;
       if (data->obj)
         json_node_free (data->obj);
       json_node_free (data->pid);
-      g_free (data);
     }
+  g_list_foreach (l, (GFunc) g_free, NULL);
   g_list_free (l);
   dupin_record_get_list_close (results);
 
@@ -1372,18 +1370,16 @@ g_message("dupin_view_sync_thread_map_view(%p)    g_list_length (results) = %d\n
 
   dupin_view_sync_thread_real_map (view, l);
 
-  /* g_list_foreach (l, (GFunc) g_free, NULL); */
-  /* NOTE - free each list JSON node properly - the following is not freeing the json_node_copy() above */
-  for (; l; l = l->next)
+  for (list=l; list; list = list->next)
     {
-      struct dupin_view_sync_t *data = l->data;
+      struct dupin_view_sync_t *data = list->data;
       if (data->obj)
         json_node_free (data->obj);
       if (data->key)
         json_node_free (data->key);
       json_node_free (data->pid);
-      g_free (data);
     }
+  g_list_foreach (l, (GFunc) g_free, NULL);
   g_list_free (l);
   dupin_view_record_get_list_close (results);
 

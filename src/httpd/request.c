@@ -2461,13 +2461,13 @@ request_record_obj (DupinRecord * record, gchar * id, guint rev)
           return NULL;
         }
 
-      JsonObject * nodeobject = json_node_get_object (json_node_copy (node));
+      JsonObject * nodeobject = json_node_get_object (node);
 
       members = json_object_get_members (nodeobject);
       for ( m = members ; m != NULL ; m = m->next )
         {
           /* TODO - check if this shouldn't be json_object_set_object_member()/json_object_set_array_member() etc instead to make sure GC works */
-          json_object_set_member (obj, m->data, json_object_get_member (nodeobject, m->data));
+          json_object_set_member (obj, m->data, json_node_copy (json_object_get_member (nodeobject, m->data)));
         }
       g_list_free (members);
     }
@@ -2498,20 +2498,20 @@ request_view_record_obj (DupinViewRecord * record, gchar * id)
       return NULL;
     }
 
-  JsonObject * nodeobject = json_node_get_object (json_node_copy (node));
+  JsonObject * nodeobject = json_node_get_object (node);
 
   members = json_object_get_members (nodeobject);
   for ( m = members ; m != NULL ; m = m->next )
     {
       /* TODO - check if this shouldn't be json_object_set_object_member()/json_object_set_array_member() etc instead to make sure GC works */
-      json_object_set_member (obj, m->data, json_object_get_member (nodeobject, m->data));
+      json_object_set_member (obj, m->data, json_node_copy (json_object_get_member (nodeobject, m->data)));
     }
   g_list_free (members);
 
   /* Setting _id and _pid - views do not have _rev yet */
   json_object_set_string_member (obj, REQUEST_OBJ_ID, id);
 
-  json_object_set_array_member (obj, REQUEST_OBJ_PID, json_node_get_array ( json_node_copy (dupin_view_record_get_pid (record))));
+  json_object_set_member (obj, REQUEST_OBJ_PID, json_node_copy (dupin_view_record_get_pid (record)));
 
   return obj;
 }

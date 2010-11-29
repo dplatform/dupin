@@ -59,6 +59,8 @@ gsize		dupin_view_count	(DupinView *	view);
 
 gboolean	dupin_view_is_sync	(DupinView *	view);
 
+gboolean	dupin_view_is_syncing	(DupinView *	view);
+
 G_END_DECLS
 
 #endif

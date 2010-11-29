@@ -43,6 +43,9 @@ DupinView *	dupin_database_get_view	(DupinDB *	db,
 gsize		dupin_database_count	(DupinDB *	db,
 					 DupinCountType	type);
 
+gboolean	dupin_database_get_max_rowid	(DupinDB *	db,
+					         gsize * max_rowid);
+
 G_END_DECLS
 
 #endif

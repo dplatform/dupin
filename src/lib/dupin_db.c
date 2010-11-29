@@ -363,4 +363,46 @@ dupin_database_count (DupinDB * db, DupinCountType type)
   return count.ret;
 }
 
+static int
+dupin_database_get_max_rowid_cb (void *data, int argc, char **argv,
+                                  char **col)
+{
+  gsize *max_rowid = data;
+
+  if (argv[0])
+    *max_rowid = atoi (argv[0]);
+
+  return 0;
+}
+
+gboolean
+dupin_database_get_max_rowid (DupinDB * db, gsize * max_rowid)
+{
+  gchar *query;
+  gchar * errmsg=NULL;
+
+  g_return_val_if_fail (db != NULL, 0);
+
+  *max_rowid=0;
+
+  query = "SELECT max(ROWID) as max_rowid FROM Dupin";
+
+  g_mutex_lock (db->mutex);
+
+  if (sqlite3_exec (db->db, query, dupin_database_get_max_rowid_cb, max_rowid, &errmsg) !=
+      SQLITE_OK)
+    {
+      g_mutex_unlock (db->mutex);
+
+      g_error("dupin_database_get_max_rowid: %s", errmsg);
+      sqlite3_free (errmsg);
+
+      return FALSE;
+    }
+
+  g_mutex_unlock (db->mutex);
+
+  return TRUE;
+}
+
 /* EOF */

@@ -1062,10 +1062,7 @@ request_global_view_sync (DSHttpdClient * client, GList * path,
        dupin_view_open (client->thread->data->dupin, path->next->data, NULL)))
     return HTTP_STATUS_404;
 
-  if (dupin_view_is_sync (view) == TRUE)
-    {
-      dupin_view_sync (view);
-    }
+  dupin_view_sync (view);
 
   dupin_view_unref (view);
 

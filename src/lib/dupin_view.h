@@ -61,6 +61,10 @@ gboolean	dupin_view_is_sync	(DupinView *	view);
 
 gboolean	dupin_view_is_syncing	(DupinView *	view);
 
+void		dupin_view_sync_map_func (gpointer data, gpointer user_data);
+
+void		dupin_view_sync_reduce_func (gpointer data, gpointer user_data);
+
 G_END_DECLS
 
 #endif

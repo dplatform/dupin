@@ -28,6 +28,13 @@ struct dupin_t
   gchar *	path;
   GHashTable *	dbs;
   GHashTable *	views;
+
+  GThread *	sync_master_thread;
+  gboolean	sync_master_thread_toquit;
+  GCond *	sync_master_has_new_work_todo; /* for communication between view insert/update and master sync thread/worker */
+
+  GThreadPool * sync_map_workers_pool;
+  GThreadPool * sync_reduce_workers_pool;
 };
 
 typedef struct dupin_view_p_t DupinViewP;

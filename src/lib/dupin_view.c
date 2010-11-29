@@ -1452,7 +1452,7 @@ dupin_view_sync_thread_reduce (DupinView * view, gsize count, gboolean rereduce)
   if (g_list_length (results) != count)
     ret = FALSE;
 
-g_message("tdupin_view_sync_thread_reduce(%p)    g_list_length (results) = %d start_rowid=%d - reduced %d of total to reduce=%d\n", g_thread_self (), (gint) g_list_length (results), (gint)start_rowid, (gint)view->sync_reduce_processed_count, (gint)view->sync_reduce_total_records );
+g_message("dupin_view_sync_thread_reduce(%p)    g_list_length (results) = %d start_rowid=%d - reduced %d of total to reduce=%d\n", g_thread_self (), (gint) g_list_length (results), (gint)start_rowid, (gint)view->sync_reduce_processed_count, (gint)view->sync_reduce_total_records );
 
   JsonNode * reduce_parameters = json_node_new (JSON_NODE_OBJECT);
   JsonObject * reduce_parameters_obj = json_object_new ();
@@ -1763,12 +1763,18 @@ dupin_view_sync_total_rereduce (DupinView * view, gsize * total)
   return TRUE;
 }
 
-static gpointer
-dupin_view_sync_map_thread (DupinView * view)
+void
+dupin_view_sync_map_func (gpointer data, gpointer user_data)
 {
+  DupinView * view = (DupinView*) data;
+
   dupin_view_ref (view);
 
-g_message("dupin_view_sync_map_thread(%p) started\n",g_thread_self ());
+  g_mutex_lock (view->mutex);
+  view->sync_map_thread = g_thread_self ();
+  g_mutex_unlock (view->mutex);
+
+g_message("dupin_view_sync_map_func(%p) started\n",g_thread_self ());
 
   g_mutex_lock (view->mutex);
   view->sync_map_processed_count = 0;
@@ -1783,7 +1789,7 @@ g_message("dupin_view_sync_map_thread(%p) started\n",g_thread_self ());
 
       if (view->reduce != NULL)
         {
-//g_message("dupin_view_sync_map_thread(%p) Mapped %d records\n", g_thread_self (), (gint)view->sync_map_processed_count);
+//g_message("dupin_view_sync_map_func(%p) Mapped %d records\n", g_thread_self (), (gint)view->sync_map_processed_count);
 
           g_mutex_lock (view->mutex);
 	  g_cond_signal(view->sync_map_has_new_work);
@@ -1792,7 +1798,7 @@ g_message("dupin_view_sync_map_thread(%p) started\n",g_thread_self ());
 
       if (map_operation == FALSE)
         {
-//g_message("dupin_view_sync_map_thread(%p) Mapped TOTAL %d records\n", g_thread_self (), (gint)view->sync_map_processed_count);
+//g_message("dupin_view_sync_map_func(%p) Mapped TOTAL %d records\n", g_thread_self (), (gint)view->sync_map_processed_count);
 
 	  if (view->tosync)
 	    {
@@ -1807,7 +1813,7 @@ g_message("dupin_view_sync_map_thread(%p) started\n",g_thread_self ());
         }
     }
 
-g_message("dupin_view_sync_map_thread(%p) finished and view map part is in sync\n",g_thread_self ());
+g_message("dupin_view_sync_map_func(%p) finished and view map part is in sync\n",g_thread_self ());
 
   /* NOTE - make sure reduce thread can terminate too eventually */
   if (view->reduce != NULL)
@@ -1824,19 +1830,23 @@ g_message("dupin_view_sync_map_thread(%p) finished and view map part is in sync\
   g_mutex_lock (view->mutex);
   view->sync_map_thread = NULL;
   g_mutex_unlock (view->mutex);
-  dupin_view_unref (view);
-  g_thread_exit (NULL);
 
-  return NULL;
+  dupin_view_unref (view);
 }
 
-static gpointer
-dupin_view_sync_reduce_thread (DupinView * view)
+void
+dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
 {
   gchar * query;
   gchar * errmsg;
 
+  DupinView * view = (DupinView*) data;
+
   dupin_view_ref (view);
+
+  g_mutex_lock (view->mutex);
+  view->sync_reduce_thread = g_thread_self ();
+  g_mutex_unlock (view->mutex);
 
   g_mutex_lock (view->mutex);
   view->sync_reduce_processed_count = 0;
@@ -1846,7 +1856,7 @@ dupin_view_sync_reduce_thread (DupinView * view)
   gboolean rereduce = FALSE;
   gsize total_rereduce = 0;
 
-g_message("dupin_view_sync_reduce_thread(%p) started", g_thread_self ());
+g_message("dupin_view_sync_reduce_func(%p) started", g_thread_self ());
 
   /* NOTE - if map hangs, reduce also hangs - for the moment we should make sure a _rest method is allowed on views to avoid disasters */
 
@@ -1860,12 +1870,12 @@ g_message("dupin_view_sync_reduce_thread(%p) started", g_thread_self ());
     {
       g_mutex_unlock (view->mutex);
 
-      g_error("dupin_view_sync_reduce_thread: %s", errmsg);
+      g_error("dupin_view_sync_reduce_func: %s", errmsg);
       sqlite3_free (errmsg);
 
       dupin_view_unref (view);
 
-      return NULL;
+      return;
     }
 
   g_mutex_unlock (view->mutex);
@@ -1889,11 +1899,11 @@ g_message("dupin_view_sync_reduce_thread(%p) started", g_thread_self ());
           view->sync_reduce_total_records = (rereduce) ? total_rereduce : view->sync_map_processed_count;
           g_mutex_unlock (view->mutex);
 
-g_message("dupin_view_sync_reduce_thread(%p) got %d records to REDUCE (rereduce=%d)\n",g_thread_self (), (gint)view->sync_reduce_total_records,(gint)rereduce);
+g_message("dupin_view_sync_reduce_func(%p) got %d records to REDUCE (rereduce=%d)\n",g_thread_self (), (gint)view->sync_reduce_total_records,(gint)rereduce);
 
           while (dupin_view_sync_thread_reduce (view, VIEW_SYNC_COUNT, rereduce) == TRUE);
 
-//g_message("dupin_view_sync_reduce_thread(%p) Reduced %d records of %d\n", g_thread_self (), (gint)view->sync_reduce_processed_count, (gint)view->sync_reduce_total_records);
+//g_message("dupin_view_sync_reduce_func(%p) Reduced %d records of %d\n", g_thread_self (), (gint)view->sync_reduce_processed_count, (gint)view->sync_reduce_total_records);
         }
 
       if (!view->sync_map_thread) /* map finished */
@@ -1920,7 +1930,7 @@ g_message("dupin_view_sync_reduce_thread(%p) got %d records to REDUCE (rereduce=
                 {
                   g_mutex_unlock (view->mutex);
 
-                  g_error("dupin_view_sync_reduce_thread: %s", errmsg);
+                  g_error("dupin_view_sync_reduce_func: %s", errmsg);
                   sqlite3_free (errmsg);
 
                   break;
@@ -1941,7 +1951,7 @@ g_message("dupin_view_sync_reduce_thread(%p) got %d records to REDUCE (rereduce=
                 {
                   g_mutex_unlock (view->mutex);
 
-                  g_error("dupin_view_sync_reduce_thread: %s", errmsg);
+                  g_error("dupin_view_sync_reduce_func: %s", errmsg);
                   sqlite3_free (errmsg);
 
                   break;
@@ -1954,15 +1964,13 @@ g_message("dupin_view_sync_reduce_thread(%p) got %d records to REDUCE (rereduce=
         }
     }
 
-g_message("dupin_view_sync_reduce_thread(%p) finished to reduce %d total records and view reduce part is in sync\n",g_thread_self (), (gint)view->sync_reduce_total_records);
+g_message("dupin_view_sync_reduce_func(%p) finished to reduce %d total records and view reduce part is in sync\n",g_thread_self (), (gint)view->sync_reduce_total_records);
 
   g_mutex_lock (view->mutex);
   view->sync_reduce_thread = NULL;
   g_mutex_unlock (view->mutex);
-  dupin_view_unref (view);
-  g_thread_exit (NULL);
 
-  return NULL;
+  dupin_view_unref (view);
 }
 
 /* NOTE- we try to spawn two threads map, reduce 
@@ -1985,27 +1993,13 @@ dupin_view_sync (DupinView * view)
 
       if (!view->sync_map_thread)
         {
-          g_mutex_lock (view->mutex);
-
-          view->sync_map_thread =
-	        g_thread_create ((GThreadFunc) dupin_view_sync_map_thread, view, FALSE, NULL);
-
-          g_mutex_unlock (view->mutex);
-
-g_message("dupin_view_sync(%p) map thread created(%p)\n",g_thread_self (), view->sync_map_thread);
+	  g_thread_pool_push(view->d->sync_map_workers_pool, view, NULL);
         }
 
       if (view->reduce != NULL
           && !view->sync_reduce_thread)
         {
-          g_mutex_lock (view->mutex);
-
-          view->sync_reduce_thread =
-	    g_thread_create ((GThreadFunc) dupin_view_sync_reduce_thread, view, FALSE, NULL);
-
-          g_mutex_unlock (view->mutex);
-
-g_message("dupin_view_sync(%p) reduce thread created(%p)\n",g_thread_self (), view->sync_reduce_thread);
+	  g_thread_pool_push(view->d->sync_reduce_workers_pool, view, NULL);
         }
     }
 }

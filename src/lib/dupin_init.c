@@ -7,6 +7,8 @@
 
 #include <string.h>
 
+static gpointer dupin_view_sync_master_thread (Dupin * d);
+
 Dupin *
 dupin_init (GError ** error)
 {
@@ -35,6 +37,15 @@ dupin_init (GError ** error)
   d->views =
     g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
 			   (GDestroyNotify) dupin_view_free);
+
+  d->sync_master_thread_toquit = FALSE;
+
+  d->sync_master_has_new_work_todo = g_cond_new();
+
+  d->sync_map_workers_pool = g_thread_pool_new (dupin_view_sync_map_func,
+					        NULL, 4, FALSE, NULL);
+  d->sync_reduce_workers_pool = g_thread_pool_new (dupin_view_sync_reduce_func,
+					           NULL, 4, FALSE, NULL);
 
   while ((filename = g_dir_read_name (dir)))
     {
@@ -95,8 +106,6 @@ dupin_init (GError ** error)
 	  return NULL;
 	}
 
-      dupin_view_sync (view);
-
       g_hash_table_insert (d->views, g_strdup (name), view);
       g_free (path);
       g_free (name);
@@ -104,33 +113,13 @@ dupin_init (GError ** error)
 
   g_dir_close (dir);
 
-  return d;
-}
-
-static void
-dupin_shutdown_sync (Dupin * d)
-{
-  GHashTableIter iter;
-  gpointer p;
+  /* NOTE - start master thread and first thing is to sync each view */
 
   g_mutex_lock (d->mutex);
-
-  g_hash_table_iter_init (&iter, d->views);
-  while (g_hash_table_iter_next (&iter, NULL, &p) == TRUE)
-    {
-      DupinView *view = p;
-      if (view->sync_map_thread
-          || view->sync_reduce_thread)
-        dupin_view_force_quit (view, NULL);
-
-      while (view->sync_map_thread)
-	g_usleep (700);
-
-      while (view->sync_reduce_thread)
-	g_usleep (700);
-    }
-
+  d->sync_master_thread = g_thread_create ((GThreadFunc) dupin_view_sync_master_thread, d, FALSE, NULL);
   g_mutex_unlock (d->mutex);
+
+  return d;
 }
 
 void
@@ -138,7 +127,34 @@ dupin_shutdown (Dupin * d)
 {
   g_return_if_fail (d != NULL);
 
-  dupin_shutdown_sync (d);
+  /* NOTE - stop master thread first */
+
+  g_mutex_lock (d->mutex);
+  d->sync_master_thread_toquit = TRUE;
+  g_mutex_unlock (d->mutex);
+
+  /* make sure the master worker is not waiting for events */
+  g_mutex_lock (d->mutex);
+  g_cond_signal(d->sync_master_has_new_work_todo);
+  g_mutex_unlock (d->mutex);
+
+  g_mutex_lock (d->mutex);
+
+  while (d->sync_master_thread)
+    g_usleep (700);
+
+  g_mutex_unlock (d->mutex);
+
+g_message("dupin_shutdown: master sync thread done\n");
+
+  /* NOTE - wait until all map and reduce threads are done */
+
+  g_thread_pool_free (d->sync_map_workers_pool, TRUE, TRUE);
+  g_thread_pool_free (d->sync_reduce_workers_pool, TRUE, TRUE);
+
+g_message("dupin_shutdown: map and reduce worker pools freed\n");
+
+  g_cond_free(d->sync_master_has_new_work_todo);
 
   if (d->mutex)
     g_mutex_free (d->mutex);
@@ -153,6 +169,54 @@ dupin_shutdown (Dupin * d)
     g_free (d->path);
 
   g_free (d);
+}
+
+static gpointer
+dupin_view_sync_master_thread (Dupin * d)
+{
+  GHashTableIter iter;
+  gpointer p;
+
+g_message("dupin_view_sync_master_thread(%p) started\n",g_thread_self ());
+
+  /*
+        1) sync all views once
+        2) stop and wait for new inserts/updates
+        3) for any update, check which one "called" (i.e. has "tosync" set to TRUE)
+        4) sync the i-esim view spawning a map and a reduce thread as needed - and do not wait (i.e. when have many views we might end up with hundreds of runnig threads?!)
+        5) when each view sync is done go back to sleep
+   */
+
+  g_mutex_lock (d->mutex);
+
+  g_hash_table_iter_init (&iter, d->views);
+  while (g_hash_table_iter_next (&iter, NULL, &p) == TRUE)
+    {
+      DupinView *view = p;
+
+g_message("dupin_view_sync_master_thread(%p) sync view '%s'\n",g_thread_self (), dupin_view_get_name (view));
+
+      dupin_view_sync (view);
+    }
+
+  g_mutex_unlock (d->mutex);
+
+  while (d->sync_master_thread_toquit == FALSE)
+    {
+      g_mutex_lock (d->mutex);
+      g_cond_wait(d->sync_master_has_new_work_todo, d->mutex);
+      g_mutex_unlock (d->mutex);
+    }
+
+g_message("dupin_view_sync_master_thread(%p) terminated\n",g_thread_self ());
+
+  g_mutex_lock (d->mutex);
+  d->sync_master_thread = NULL;
+  g_mutex_unlock (d->mutex);
+
+  g_thread_exit (NULL);
+
+  return NULL;
 }
 
 /* Quark: */

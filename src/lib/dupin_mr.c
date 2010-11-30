@@ -157,7 +157,7 @@ dupin_mr_reduce (gchar * reduce,
 	JsonNode *node_keys=NULL;
 	JsonNode *node_values=NULL;
 
-        /* serialise keys */
+        /* serialize keys */
         if (keys != NULL) /* re-reduce requires this null */
           {
             node_keys = json_node_new (JSON_NODE_ARRAY);
@@ -188,7 +188,7 @@ dupin_mr_reduce (gchar * reduce,
               }
           }
 
-        /* serialise values */
+        /* serialize values */
         node_values = json_node_new (JSON_NODE_ARRAY);
 
 	if (node_values == NULL)

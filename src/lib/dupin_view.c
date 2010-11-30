@@ -52,11 +52,11 @@ See http://wiki.apache.org/couchdb/Introduction_to_CouchDB_views
 	"SELECT count(id) FROM Dupin WHERE id = '%q' "
 
 #define DUPIN_VIEW_SQL_TOTAL_REREDUCE \
-	"SELECT count(id) FROM Dupin as d LEFT OUTER JOIN (select key as inner_key, count(*) as inner_count from Dupin GROUP BY inner_key HAVING inner_count > 1) ON d.key=inner_key  WHERE inner_count!=''; "
+	"SELECT key AS inner_key, count(*) AS inner_count FROM Dupin GROUP BY inner_key HAVING inner_count > 1 "
 
 #define VIEW_SYNC_COUNT	100
 
-#if 0
+#if 1
 static void
 dupin_view_debug_print_json_node (char * msg, JsonNode * node)
 {
@@ -386,9 +386,9 @@ dupin_view_p_record_insert (DupinViewP * p, gchar * id,
     {
       DupinView *view = p->views[i];
 
-      /* TODO - we should do proper async queue command here to master to decide what to do with insert/update operation */
+      /* NOTE - we do not sync any insertion - it is done on deman at first access of view, restart or explicit view/_sync call */
 
-      //dupin_view_sync (view);
+      /* see also http://wiki.apache.org/couchdb/Regenerating_views_on_update */
 
       dupin_view_p_record_insert (&view->views, id, obj);
     }
@@ -416,7 +416,7 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid, JsonNode * key, Js
   JsonGenerator *gen;
 
   const gchar *id = NULL;
-  gchar *tmp, *errmsg, *obj_serialised=NULL, *key_serialised=NULL, *pid_serialised=NULL;
+  gchar *tmp, *errmsg, *obj_serialized=NULL, *key_serialized=NULL, *pid_serialized=NULL;
   JsonNode *key_node=NULL;
   JsonNode *pid_node=NULL;
 
@@ -456,7 +456,7 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid, JsonNode * key, Js
       return;
     }
 
-  /* serialise the obj */
+  /* serialize the obj */
   node = json_node_new (JSON_NODE_OBJECT);
 
   if (node == NULL)
@@ -488,9 +488,9 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid, JsonNode * key, Js
     }
 
   json_generator_set_root (gen, node );
-  obj_serialised = json_generator_to_data (gen,NULL);
+  obj_serialized = json_generator_to_data (gen,NULL);
 
-  if (obj_serialised == NULL)
+  if (obj_serialized == NULL)
     {
       g_mutex_unlock (view->mutex);
       g_free ((gchar *)id);
@@ -510,7 +510,7 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid, JsonNode * key, Js
   if (node != NULL)
     json_node_free (node);
 
-  /* serialise the key */
+  /* serialize the key */
 
   if (key_node != NULL)
     {
@@ -518,14 +518,20 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid, JsonNode * key, Js
         {
           if (json_node_get_value_type (key_node) == G_TYPE_STRING)
           {
-            key_serialised = g_strdup_printf ("\"%s\"", json_node_get_string (key_node));
+	    gchar *tmp;
+
+            tmp = dupin_util_json_strescape (json_node_get_string (key_node));
+
+            key_serialized = g_strdup_printf ("\"%s\"", tmp);
+
+            g_free (tmp);
           }
 
           if (json_node_get_value_type (key_node) == G_TYPE_DOUBLE
                 || json_node_get_value_type (key_node) == G_TYPE_FLOAT)
           {
             gdouble numb = json_node_get_double (key_node);
-            key_serialised = g_strdup_printf ("%f", numb);
+            key_serialized = g_strdup_printf ("%f", numb);
           }
 
           if (json_node_get_value_type (key_node) == G_TYPE_INT
@@ -533,11 +539,11 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid, JsonNode * key, Js
                 || json_node_get_value_type (key_node) == G_TYPE_UINT)
           {
             gint numb = (gint) json_node_get_int (key_node);
-            key_serialised = g_strdup_printf ("%d", numb);
+            key_serialized = g_strdup_printf ("%d", numb);
           }
           if (json_node_get_value_type (key_node) == G_TYPE_BOOLEAN)
           {
-            key_serialised = g_strdup_printf (json_node_get_boolean (key_node) == TRUE ? "true" : "false");
+            key_serialized = g_strdup_printf (json_node_get_boolean (key_node) == TRUE ? "true" : "false");
           }
 
           if (key_node != NULL)
@@ -551,7 +557,7 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid, JsonNode * key, Js
             {
               g_mutex_unlock (view->mutex);
               g_free ((gchar *)id);
-              g_free (obj_serialised);
+              g_free (obj_serialized);
               if (key_node != NULL)
                 json_node_free (key_node);
               if (pid_node != NULL)
@@ -560,16 +566,16 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid, JsonNode * key, Js
             }
 
           json_generator_set_root (gen, key_node );
-          key_serialised = json_generator_to_data (gen,NULL);
+          key_serialized = json_generator_to_data (gen,NULL);
 
           if (key_node != NULL)
             json_node_free (key_node);
 
-          if (key_serialised == NULL)
+          if (key_serialized == NULL)
             {
               g_mutex_unlock (view->mutex);
               g_free ((gchar *)id);
-              g_free (obj_serialised);
+              g_free (obj_serialized);
               if (gen != NULL)
                 g_object_unref (gen);
               if (pid_node != NULL)
@@ -590,27 +596,27 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid, JsonNode * key, Js
         {
           g_mutex_unlock (view->mutex);
           g_free ((gchar *)id);
-          g_free (obj_serialised);
-          if (key_serialised)
-            g_free (key_serialised);
+          g_free (obj_serialized);
+          if (key_serialized)
+            g_free (key_serialized);
           if (pid_node != NULL)
             json_node_free (pid_node);
           return;
         }
 
       json_generator_set_root (gen, pid_node );
-      pid_serialised = json_generator_to_data (gen,NULL);
+      pid_serialized = json_generator_to_data (gen,NULL);
 
       if (pid_node != NULL)
         json_node_free (pid_node);
 
-      if (pid_serialised == NULL)
+      if (pid_serialized == NULL)
         {
           g_mutex_unlock (view->mutex);
           g_free ((gchar *)id);
-          g_free (obj_serialised);
-          if (key_serialised)
-            g_free (key_serialised);
+          g_free (obj_serialized);
+          if (key_serialized)
+            g_free (key_serialized);
           if (gen != NULL)
             g_object_unref (gen);
           return;
@@ -620,7 +626,7 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid, JsonNode * key, Js
         g_object_unref (gen);
     }
 
-  tmp = sqlite3_mprintf (DUPIN_VIEW_SQL_INSERT, id, pid_serialised, key_serialised, obj_serialised);
+  tmp = sqlite3_mprintf (DUPIN_VIEW_SQL_INSERT, id, pid_serialized, key_serialized, obj_serialized);
 
 //g_message("query: %s\n",tmp);
 
@@ -633,11 +639,11 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid, JsonNode * key, Js
   g_mutex_unlock (view->mutex);
 
   sqlite3_free (tmp);
-  g_free (obj_serialised);
-  if (key_serialised)
-    g_free (key_serialised);
-  if (pid_serialised)
-    g_free (pid_serialised);
+  g_free (obj_serialized);
+  if (key_serialized)
+    g_free (key_serialized);
+  if (pid_serialized)
+    g_free (pid_serialized);
   g_free ((gchar *)id);
 }
 
@@ -1216,7 +1222,7 @@ dupin_view_sync_thread_map_view (DupinView * view, gsize count)
 
   gsize start_rowid = (sync_map_id != NULL) ? atoi(sync_map_id)+1 : 1;
 
-  if (dupin_view_record_get_list (v, count, 0, start_rowid, 0, DP_ORDERBY_ROWID, FALSE, FALSE, &results, NULL) ==
+  if (dupin_view_record_get_list (v, count, 0, start_rowid, 0, DP_ORDERBY_ROWID, FALSE, NULL, NULL, &results, NULL) ==
       FALSE || !results)
     {
       if (sync_map_id != NULL)
@@ -1389,7 +1395,7 @@ dupin_view_sync_record_update (DupinView * view, gchar * previous_rowid, gint re
 }
 
 static gboolean
-dupin_view_sync_thread_reduce (DupinView * view, gsize count, gboolean rereduce)
+dupin_view_sync_thread_reduce (DupinView * view, gsize count, gboolean rereduce, gchar * matching_key)
 {
   if (view->reduce == NULL)
     return FALSE;
@@ -1439,7 +1445,7 @@ dupin_view_sync_thread_reduce (DupinView * view, gsize count, gboolean rereduce)
 
   gsize start_rowid = (sync_reduce_id != NULL) ? atoi(sync_reduce_id)+1 : 1;
 
-  if (dupin_view_record_get_list (view, count, 0, start_rowid, 0, (rereduce) ? DP_ORDERBY_KEY : DP_ORDERBY_ROWID, FALSE, rereduce, &results, NULL) ==
+  if (dupin_view_record_get_list (view, count, 0, start_rowid, 0, (rereduce) ? DP_ORDERBY_KEY : DP_ORDERBY_ROWID, FALSE, matching_key, matching_key, &results, NULL) ==
       FALSE || !results)
     {
       if (previous_sync_reduce_id != NULL)
@@ -1454,7 +1460,7 @@ dupin_view_sync_thread_reduce (DupinView * view, gsize count, gboolean rereduce)
   if (g_list_length (results) != count)
     ret = FALSE;
 
-//g_message("dupin_view_sync_thread_reduce(%p)    g_list_length (results) = %d start_rowid=%d - reduced %d of total to reduce=%d\n", g_thread_self (), (gint) g_list_length (results), (gint)start_rowid, (gint)view->sync_reduce_processed_count, (gint)view->sync_reduce_total_records );
+g_message("dupin_view_sync_thread_reduce(%p)    g_list_length (results) = %d start_rowid=%d - reduced %d of total to reduce=%d\n", g_thread_self (), (gint) g_list_length (results), (gint)start_rowid, (gint)view->sync_reduce_processed_count, (gint)view->sync_reduce_total_records );
 
   JsonNode * reduce_parameters = json_node_new (JSON_NODE_OBJECT);
   JsonObject * reduce_parameters_obj = json_object_new ();
@@ -1467,7 +1473,17 @@ dupin_view_sync_thread_reduce (DupinView * view, gsize count, gboolean rereduce)
       rowid = dupin_view_record_get_rowid (list->data);
       pid = dupin_view_record_get_pid (list->data);
 
-      /* NOTE - silently ignore bad records for the moment assuming 'null' is returned as valid JSON_NODE_NULL from above call */
+      if (sync_reduce_id != NULL)
+        g_free(sync_reduce_id);
+        
+      /* NOTE - we assume rowid is always defined even for bad keys or pids - due it is a record returned in the above dupin_view_record_get_list() */
+
+      sync_reduce_id = g_strdup_printf ("%i", (gint)rowid);
+
+//g_message("dupin_view_sync_thread_reduce(%p) sync_reduce_id=%s\n",g_thread_self (), sync_reduce_id);
+
+      /* NOTE - silently ignore bad records for the moment (but count them - see above setting of sync_reduce_id status)
+                assuming 'null' is returned as valid JSON_NODE_NULL from above call */
       if (!key)
         continue;
 
@@ -1487,7 +1503,13 @@ dupin_view_sync_thread_reduce (DupinView * view, gsize count, gboolean rereduce)
         {
           if (json_node_get_value_type (key) == G_TYPE_STRING)
           {
-            key_string = g_strdup_printf ("\"%s\"", json_node_get_string (key));
+	    gchar *tmp;
+
+            tmp = dupin_util_json_strescape (json_node_get_string (key));
+
+            key_string = g_strdup_printf ("\"%s\"", tmp);
+
+            g_free (tmp);
           }
 
           if (json_node_get_value_type (key) == G_TYPE_DOUBLE
@@ -1578,19 +1600,12 @@ dupin_view_sync_thread_reduce (DupinView * view, gsize count, gboolean rereduce)
       json_array_add_element (reduce_parameters_obj_key_values, reduce_parameters_obj_key_values_i);
       json_array_add_element (reduce_parameters_obj_key_pids, json_node_copy (pid));
 
-      if (sync_reduce_id != NULL)
-        g_free(sync_reduce_id);
-        
-      sync_reduce_id = g_strdup_printf ("%i", (gint)rowid);
-
-//g_message("dupin_view_sync_thread_reduce(%p) sync_reduce_id=%s as fetched",g_thread_self (), sync_reduce_id);
-
       g_free (key_string);
     }
 
   json_node_take_object (reduce_parameters, reduce_parameters_obj);
 
-//dupin_view_debug_print_json_node ("REDUCE parameters:", reduce_parameters);
+dupin_view_debug_print_json_node ("REDUCE parameters:", reduce_parameters);
 
   nodes = json_object_get_members (reduce_parameters_obj);
   for (n = nodes; n != NULL; n = n->next)
@@ -1679,7 +1694,7 @@ dupin_view_sync_thread_reduce (DupinView * view, gsize count, gboolean rereduce)
 
   dupin_view_record_get_list_close (results);
 
-//g_message("dupin_view_sync_thread_reduce(%p) finished last_reduce_rowid=%s - reduced %d of total to reduce=%d\n", g_thread_self (), sync_reduce_id, (gint)view->sync_reduce_processed_count, (gint)view->sync_reduce_total_records);
+g_message("dupin_view_sync_thread_reduce(%p) finished last_reduce_rowid=%s - reduced %d of total to reduce=%d\n", g_thread_self (), sync_reduce_id, (gint)view->sync_reduce_processed_count, (gint)view->sync_reduce_total_records);
 
   str = sqlite3_mprintf ("UPDATE DupinView SET sync_reduce_id = '%q'", sync_reduce_id); /* is the ROWID we stopped */
 
@@ -1719,14 +1734,24 @@ dupin_view_rereduce_cb (void *data, int argc, char **argv, char **col)
   return 0;
 }
 
+struct dupin_view_sync_total_rereduce_t
+{
+  gsize total;
+  gchar * first_matching_key;
+};
+
 static int
 dupin_view_sync_total_rereduce_cb (void *data, int argc, char **argv,
                                   char **col)
 {
-  gsize *numb = data;
+  struct dupin_view_sync_total_rereduce_t * rere = data;
+ 
+  if (argv[0] && *argv[0]
+      && rere->first_matching_key==NULL)
+    rere->first_matching_key = g_strdup (argv[0]);
 
-  if (argv[0])
-    *numb = atoi (argv[0]);
+  if (argv[1] && *argv[1])
+    rere->total += atoi (argv[1]);
 
   return 0;
 }
@@ -1735,19 +1760,21 @@ dupin_view_sync_total_rereduce_cb (void *data, int argc, char **argv,
           see also ROWID and http://www.sqlite.org/autoinc.html */
 
 gboolean
-dupin_view_sync_total_rereduce (DupinView * view, gsize * total)
+dupin_view_sync_total_rereduce (DupinView * view, struct dupin_view_sync_total_rereduce_t * rere)
 {
   g_return_val_if_fail (view != NULL, FALSE);
+  g_return_val_if_fail (rere != NULL, FALSE);
 
   gchar *tmp, *errmsg;
 
-  *total = 0;
+  rere->total = 0;
+  rere->first_matching_key = NULL;
 
   tmp = sqlite3_mprintf (DUPIN_VIEW_SQL_TOTAL_REREDUCE);
 
   g_mutex_lock (view->mutex);
 
-  if (sqlite3_exec (view->db, tmp, dupin_view_sync_total_rereduce_cb, total, &errmsg) != SQLITE_OK)
+  if (sqlite3_exec (view->db, tmp, dupin_view_sync_total_rereduce_cb, rere, &errmsg) != SQLITE_OK)
     {
       g_mutex_unlock (view->mutex);
       sqlite3_free (tmp);
@@ -1841,6 +1868,7 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
 {
   gchar * query;
   gchar * errmsg;
+  struct dupin_view_sync_total_rereduce_t rere_matching;
 
   DupinView * view = (DupinView*) data;
 
@@ -1856,7 +1884,10 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
   g_mutex_unlock (view->mutex);
 
   gboolean rereduce = FALSE;
-  gsize total_rereduce = 0;
+  gchar * rereduce_previous_matching_key = NULL;
+
+  rere_matching.total = 0;
+  rere_matching.first_matching_key = NULL;
 
 g_message("dupin_view_sync_reduce_func(%p) started", g_thread_self ());
 
@@ -1898,12 +1929,12 @@ g_message("dupin_view_sync_reduce_func(%p) started", g_thread_self ());
 	  || rereduce)
         {
           g_mutex_lock (view->mutex);
-          view->sync_reduce_total_records = (rereduce) ? total_rereduce : view->sync_map_processed_count;
+          view->sync_reduce_total_records = (rereduce) ? rere_matching.total : view->sync_map_processed_count;
           g_mutex_unlock (view->mutex);
 
 g_message("dupin_view_sync_reduce_func(%p) got %d records to REDUCE (rereduce=%d)\n",g_thread_self (), (gint)view->sync_reduce_total_records,(gint)rereduce);
 
-          while (dupin_view_sync_thread_reduce (view, VIEW_SYNC_COUNT, rereduce) == TRUE);
+          while (dupin_view_sync_thread_reduce (view, VIEW_SYNC_COUNT, rereduce, rere_matching.first_matching_key) == TRUE);
 
 //g_message("dupin_view_sync_reduce_func(%p) Reduced %d records of %d\n", g_thread_self (), (gint)view->sync_reduce_processed_count, (gint)view->sync_reduce_total_records);
         }
@@ -1913,18 +1944,57 @@ g_message("dupin_view_sync_reduce_func(%p) got %d records to REDUCE (rereduce=%d
 //g_message("Map was finished in meantime\n");
 
 	  /* check if there is anything to re-reduce */
-          total_rereduce = 0;
-          dupin_view_sync_total_rereduce (view, &total_rereduce);
+          rere_matching.total = 0;
+          if (rere_matching.first_matching_key != NULL)
+            g_free (rere_matching.first_matching_key);
+          rere_matching.first_matching_key = NULL;
+          dupin_view_sync_total_rereduce (view, &rere_matching);
 
-//g_message("Done first round of reduce but there are still %d record to re-reduce\n", (gint)total_rereduce);
+g_message("Done first round of reduce but there are still %d record to re-reduce and first key to process is '%s'\n", (gint)rere_matching.total, rere_matching.first_matching_key);
 
-          if (total_rereduce > 0)
+          if (rere_matching.total > 0)
             {
               /* still work to do */
               rereduce = TRUE;
-//g_message("Going to re-reduce\n");
 
-              query = "UPDATE DupinView SET sync_reduce_id = '0', sync_rereduce = 'TRUE'";
+g_message("Going to re-reduce\n");
+
+              /* NOTE - the following check allows to skip any possible bad records in re-reduce process dupin_view_sync_thread_reduce()
+		and avoid infinite loop - if nothing has changed  */
+              if (rere_matching.first_matching_key == NULL 
+	          || rereduce_previous_matching_key == NULL
+		  || strcmp(rere_matching.first_matching_key, rereduce_previous_matching_key))
+                {
+                  query = "UPDATE DupinView SET sync_reduce_id = '0', sync_rereduce = 'TRUE'";
+                }
+	      else
+                {
+		  g_warning("dupin_view_sync_reduce_func: rereduce of key %s reported problems - bad records have been deleted\n", rere_matching.first_matching_key);
+
+		  /* NOTE - delete records giving problems */
+                  gchar * str = sqlite3_mprintf ("DELETE FROM Dupin WHERE key='%q' ;", rere_matching.first_matching_key);
+
+                  g_mutex_lock (view->mutex);
+
+                  if (sqlite3_exec (view->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
+                    {
+                      g_mutex_unlock (view->mutex);
+                      sqlite3_free (str);
+
+                      g_error("dupin_view_sync_reduce_func: %s", errmsg);
+                      sqlite3_free (errmsg);
+
+                      break;
+                    }
+
+                  g_mutex_unlock (view->mutex);
+
+                  sqlite3_free (str);
+
+		  /* carry on */
+
+                  query = "UPDATE DupinView SET sync_rereduce = 'TRUE'";
+                }
 
               g_mutex_lock (view->mutex);
 
@@ -1939,10 +2009,15 @@ g_message("dupin_view_sync_reduce_func(%p) got %d records to REDUCE (rereduce=%d
                 }
 
               g_mutex_unlock (view->mutex);
+
+              if (rereduce_previous_matching_key != NULL)
+                g_free (rereduce_previous_matching_key);
+
+              rereduce_previous_matching_key = g_strdup (rere_matching.first_matching_key);
             }
           else
             {
-//g_message("Done rereduce=%d\n", (gint)rereduce);
+g_message("Done rereduce=%d\n", (gint)rereduce);
               rereduce = FALSE;
 
               query = "UPDATE DupinView SET sync_rereduce = 'FALSE'";
@@ -1965,6 +2040,12 @@ g_message("dupin_view_sync_reduce_func(%p) got %d records to REDUCE (rereduce=%d
             }
         }
     }
+
+  if (rereduce_previous_matching_key != NULL)
+    g_free (rereduce_previous_matching_key);
+
+  if (rere_matching.first_matching_key != NULL)
+    g_free (rere_matching.first_matching_key);
 
 g_message("dupin_view_sync_reduce_func(%p) finished to reduce %d total records and view reduce part is in sync\n",g_thread_self (), (gint)view->sync_reduce_total_records);
 

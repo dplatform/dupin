@@ -9,8 +9,6 @@
 
 #include <string.h>
 
-static gpointer dupin_view_sync_master_thread (Dupin * d);
-
 Dupin *
 dupin_init (DSGlobal *data, GError ** error)
 {
@@ -41,8 +39,6 @@ dupin_init (DSGlobal *data, GError ** error)
   d->views =
     g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
 			   (GDestroyNotify) dupin_view_free);
-
-  d->sync_master_thread_toquit = FALSE;
 
   d->sync_map_workers_pool = g_thread_pool_new (dupin_view_sync_map_func,
 					        NULL,
@@ -115,18 +111,14 @@ dupin_init (DSGlobal *data, GError ** error)
 	  return NULL;
 	}
 
+      dupin_view_sync (view);
+
       g_hash_table_insert (d->views, g_strdup (name), view);
       g_free (path);
       g_free (name);
     }
 
   g_dir_close (dir);
-
-  /* NOTE - start master thread and first thing is to sync each view */
-
-  g_mutex_lock (d->mutex);
-  d->sync_master_thread = g_thread_create ((GThreadFunc) dupin_view_sync_master_thread, d, FALSE, NULL);
-  g_mutex_unlock (d->mutex);
 
   return d;
 }
@@ -135,21 +127,6 @@ void
 dupin_shutdown (Dupin * d)
 {
   g_return_if_fail (d != NULL);
-
-  /* NOTE - stop master thread first */
-
-  g_mutex_lock (d->mutex);
-  d->sync_master_thread_toquit = TRUE;
-  g_mutex_unlock (d->mutex);
-
-  g_mutex_lock (d->mutex);
-
-  while (d->sync_master_thread)
-    g_usleep (700);
-
-  g_mutex_unlock (d->mutex);
-
-g_message("dupin_shutdown: master sync thread done\n");
 
   /* NOTE - wait until all map and reduce threads are done */
 
@@ -171,59 +148,6 @@ g_message("dupin_shutdown: map and reduce worker pools freed\n");
     g_free (d->path);
 
   g_free (d);
-}
-
-static gpointer
-dupin_view_sync_master_thread (Dupin * d)
-{
-  GHashTableIter iter;
-  gpointer p;
-
-  gulong timeout= (d->conf != NULL) ? d->conf->limit_sync_interval : 60 ;
-
-g_message("dupin_view_sync_master_thread(%p) started\n",g_thread_self ());
-
-  /*
-	The final workflow should be:
-
-        1) sync all views once
-        2) stop and wait for new inserts/updates
-        3) for any update, check which one "called" (i.e. has "tosync" set to TRUE)
-        4) sync the i-esim view spawning a map and a reduce thread as needed - and do not wait (i.e. when have many views we might end up with hundreds of runnig threads?!)
-        5) when each view sync is done go back to sleep
-
-	At the moment we sync all views every minute
-   */
-
-  do
-    {
-      g_hash_table_iter_init (&iter, d->views);
-      while (g_hash_table_iter_next (&iter, NULL, &p) == TRUE)
-        {
-          DupinView *view = p;
-
-g_message("dupin_view_sync_master_thread(%p) sync view '%s'\n",g_thread_self (), dupin_view_get_name (view));
-
-          dupin_view_sync (view);
-        }
-
-g_message("dupin_view_sync_master_thread(%p) sleep for %d seconds\n",g_thread_self (), (gint)timeout);
-
-    g_usleep (1000000*timeout);
-
-g_message("dupin_view_sync_master_thread(%p) woke up after %d seconds\n",g_thread_self (), (gint)timeout);
-    }
-  while (d->sync_master_thread_toquit == FALSE);
-
-g_message("dupin_view_sync_master_thread(%p) terminated\n",g_thread_self ());
-
-  g_mutex_lock (d->mutex);
-  d->sync_master_thread = NULL;
-  g_mutex_unlock (d->mutex);
-
-  g_thread_exit (NULL);
-
-  return NULL;
 }
 
 /* Quark: */

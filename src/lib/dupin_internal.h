@@ -31,9 +31,6 @@ struct dupin_t
 
   DSGlobal *	conf;
 
-  GThread *	sync_master_thread;
-  gboolean	sync_master_thread_toquit;
-
   GThreadPool * sync_map_workers_pool;
   GThreadPool * sync_reduce_workers_pool;
 };

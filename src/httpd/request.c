@@ -1111,7 +1111,7 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
   if (dupin_view_record_get_total_records (view, &total_rows) == FALSE)
     return HTTP_STATUS_500;
 
-  if (dupin_view_record_get_list (view, count, offset, 0, 0, DP_ORDERBY_KEY, descending, FALSE, &results, NULL) == FALSE)
+  if (dupin_view_record_get_list (view, count, offset, 0, 0, DP_ORDERBY_KEY, descending, NULL, NULL, &results, NULL) == FALSE)
     return HTTP_STATUS_500;
 
   obj = json_object_new ();
@@ -1387,7 +1387,7 @@ request_global_get_view_query (DSHttpdClient * client, GList * path,
 
   array = json_array_new ();
 
-  while (dupin_view_record_get_list (view, QUERY_BLOCK, offset, 0, 0, DP_ORDERBY_KEY, FALSE, FALSE, &results, NULL) == TRUE
+  while (dupin_view_record_get_list (view, QUERY_BLOCK, offset, 0, 0, DP_ORDERBY_KEY, FALSE, NULL, NULL, &results, NULL) == TRUE
 	 && results)
     {
       GList *list;

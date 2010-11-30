@@ -240,14 +240,15 @@ dupin_view_record_get_list (DupinView * view, guint count, guint offset,
 			    gsize rowid_start, gsize rowid_end,
 			    DupinOrderByType orderby_type,
 			    gboolean descending,
-			    gboolean not_distinct_key,
+			    gchar * start_key,
+			    gchar * end_key,
 			    GList ** list, GError ** error)
 {
   GString *str;
   gchar *tmp;
   gchar *errmsg;
 
-  gchar * inner_count="";
+  gchar * key_range=NULL;
 
   struct dupin_view_record_get_list_t s;
 
@@ -259,26 +260,28 @@ dupin_view_record_get_list (DupinView * view, guint count, guint offset,
 
   /* TODO - check if group by key is OK - also when key can be null (I.e. map function returned (null,value) ) */
 
+  /* TODO - double check with http://www.sqlite.org/datatype3.html and http://wiki.apache.org/couchdb/ViewCollation */
+
   str = g_string_new ("SELECT id FROM Dupin as d");
 
-
-  /* used for re-reduce */
-  if (not_distinct_key)
-    {
-      /* TODO - check if we can do this better / more efficient and less no-nosql :) */
-
-      g_string_append_printf (str, " LEFT OUTER JOIN (select key as inner_key, count(*) as inner_count from Dupin GROUP BY inner_key HAVING inner_count > 1) ON d.key=inner_key ");
-      inner_count = "inner_count!=''";
-    }
+  if (start_key!=NULL && end_key!=NULL)
+    if (!strcmp (start_key, end_key))
+      key_range = sqlite3_mprintf (" d.key = '%q' ", start_key);
+    else
+      key_range = sqlite3_mprintf (" d.key >= '%q' AND d.key <= '%q' ", start_key, end_key);
+  else if (start_key!=NULL)
+    key_range = sqlite3_mprintf (" d.key >= '%q' ", start_key);
+  else if (end_key!=NULL)
+    key_range = sqlite3_mprintf (" d.key <= '%q' ", end_key);
 
   if (rowid_start > 0 && rowid_end > 0)
-    g_string_append_printf (str, " WHERE %s %s d.ROWID >= %d AND d.ROWID <= %d ", inner_count, (not_distinct_key) ? "AND" : "", (gint)rowid_start, (gint)rowid_end);
+    g_string_append_printf (str, " WHERE %s %s d.ROWID >= %d AND d.ROWID <= %d ", (key_range!=NULL) ? key_range : "", (key_range!=NULL) ? "AND" : "", (gint)rowid_start, (gint)rowid_end);
   else if (rowid_start > 0)
-    g_string_append_printf (str, " WHERE %s %s d.ROWID >= %d ", inner_count, (not_distinct_key) ? "AND" : "", (gint)rowid_start);
+    g_string_append_printf (str, " WHERE %s %s d.ROWID >= %d ", (key_range!=NULL) ? key_range : "", (key_range!=NULL) ? "AND" : "", (gint)rowid_start);
   else if (rowid_end > 0)
-    g_string_append_printf (str, " WHERE %s %s d.ROWID <= %d ", inner_count, (not_distinct_key) ? "AND" : "", (gint)rowid_end);
-  else if (not_distinct_key)
-    g_string_append_printf (str, " WHERE %s ", inner_count);
+    g_string_append_printf (str, " WHERE %s %s d.ROWID <= %d ", (key_range!=NULL) ? key_range : "", (key_range!=NULL) ? "AND" : "", (gint)rowid_end);
+  else if (key_range!=NULL)
+    g_string_append_printf (str, " WHERE %s ", (key_range!=NULL) ? key_range : "");
 
   if (orderby_type == DP_ORDERBY_KEY)
     str = g_string_append (str, " GROUP BY id ORDER BY d.key"); /* this should never be used for reduce internal operations */
@@ -305,8 +308,11 @@ dupin_view_record_get_list (DupinView * view, guint count, guint offset,
     }
 
   tmp = g_string_free (str, FALSE);
+ 
+  if (key_range!=NULL)
+    sqlite3_free (key_range);
 
-//g_message("dupin_view_record_get_list() query=%s\n",tmp);
+g_message("dupin_view_record_get_list() query=%s\n",tmp);
 
   g_mutex_lock (view->mutex);
 
@@ -412,6 +418,8 @@ dupin_view_record_get_key (DupinViewRecord * record)
 
   JsonParser * parser = json_parser_new ();
 
+//g_message("dupin_view_record_get_key: key_serialized=%s key_serialized_len=%d\n", record->key_serialized, (gint)record->key_serialized_len);
+
   /* we do not check any parsing error due we stored earlier, we assume it is sane */
   if (json_parser_load_from_data (parser, record->key_serialized, record->key_serialized_len, NULL) == FALSE)
     goto dupin_view_record_get_key_error;
@@ -442,6 +450,8 @@ dupin_view_record_get_pid (DupinViewRecord * record)
     return record->pid;
 
   JsonParser * parser = json_parser_new ();
+
+//g_message("dupin_view_record_get_pid: pid_serialized=%s pid_serialized_len=%d\n", record->pid_serialized, (gint)record->pid_serialized_len);
 
   /* we do not check any parsing error due we stored earlier, we assume it is sane */
   if (json_parser_load_from_data (parser, record->pid_serialized, record->pid_serialized_len, NULL) == FALSE)

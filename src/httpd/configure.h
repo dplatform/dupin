@@ -38,10 +38,82 @@
 #define DS_LIMIT_TIMEOUTFORTHREAD_TAG	"TimeoutForThread"
 #define DS_LIMIT_CACHESIZE_TAG		"CacheSize"
 #define DS_LIMIT_CACHEMAXFILE_TAG	"CacheMaxFileSize"
+#define DS_LIMIT_MAP_MAXTHREADS_TAG 	"MapMaxThreads"
+#define DS_LIMIT_REDUCE_MAXTHREADS_TAG 	"ReduceMaxThreads"
+#define DS_LIMIT_SYNC_INTERVAL_TAG	"SyncInterval"
 
 #define DS_LIMIT_TIMEOUT_DEFAULT		5
 #define DS_LIMIT_CLIENTSFORTHREAD_DEFAULT	5
 #define DS_LIMIT_TIMEOUTFORTHREAD_DEFAULT	2
+#define DS_LIMIT_MAP_MAXTHREADS_DEFAULT		4
+#define DS_LIMIT_REDUCE_MAXTHREADS_DEFAULT	4
+#define DS_LIMIT_SYNC_INTERVAL_DEFAULT		60 /* every minute */
+
+typedef enum {
+  LOG_VERBOSE_ERROR,
+  LOG_VERBOSE_WARNING,
+  LOG_VERBOSE_INFO,
+  LOG_VERBOSE_DEBUG
+} LogVerbose;
+
+struct ds_global_t
+{
+  gchar *       configfile;             /* Config File */
+
+  GMutex *      logmutex;               /* Mutex about the log */
+  GIOChannel *  logio;                  /* Log IO Channel */
+  gchar *       logfile;                /* Log File */
+  LogVerbose    logverbose;
+
+  gboolean      background;             /* Demonize or not */
+  gchar *       pidfile;                /* Pid File */
+
+  gchar *       user;                   /* Permissions */
+  gchar *       group;
+
+  GMainLoop *   loop;
+
+  /* Info about the socket: */
+  gchar *       httpd_interface;
+  gint          httpd_port;
+  gint          httpd_listen;
+  gboolean      httpd_ipv6;
+
+  GIOChannel *  httpd_socket;
+  GSource *     httpd_socket_source;
+  gint          httpd_socket_fd;
+
+  GMutex *      httpd_mutex;
+  GList *       httpd_threads;
+
+  guint         httpd_clients_numb;
+  guint         httpd_threads_numb;
+
+  guint         limit_maxheaders;
+  guint         limit_maxclients;
+  guint         limit_maxcontentlength;
+  guint         limit_clientsforthread;
+  guint         limit_threadnumb;
+
+  guint         limit_timeout;
+  guint         limit_timeoutforthread;
+  guint         limit_cachesize;
+  guint         limit_cachemaxfilesize;
+
+  guint         limit_map_max_threads;
+  guint         limit_reduce_max_threads;
+  guint         limit_sync_interval;
+
+  /* TimeVal: */
+  GTimeVal      start_timeval;
+
+  GMutex *      map_mutex;
+  GHashTable *  map_table;
+  GList *       map_unreflist;
+
+  /* Dupin: */
+  Dupin *       dupin;
+};
 
 DSGlobal *	configure_init	(int		argc,
 				 char **	argv,

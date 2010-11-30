@@ -7,7 +7,10 @@ G_BEGIN_DECLS
 
 typedef struct dupin_t	Dupin;
 
-Dupin *		dupin_init		(GError **	error);
+typedef struct ds_global_t DSGlobal;
+
+Dupin *		dupin_init		(DSGlobal *data,
+					 GError **	error);
 
 void		dupin_shutdown		(Dupin *	d);
 

@@ -122,7 +122,7 @@ main (void)
         g_thread_init (NULL);
   g_type_init();
 
-  if (!(d = dupin_init (&error)))
+  if (!(d = dupin_init (NULL, &error)))
     {
       fprintf (stderr, "Error: %s\n", error->message);
       g_error_free (error);

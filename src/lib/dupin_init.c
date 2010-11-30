@@ -5,12 +5,14 @@
 #include "dupin_internal.h"
 #include "dupin_init.h"
 
+#include "../httpd/configure.h"
+
 #include <string.h>
 
 static gpointer dupin_view_sync_master_thread (Dupin * d);
 
 Dupin *
-dupin_init (GError ** error)
+dupin_init (DSGlobal *data, GError ** error)
 {
   Dupin *d;
   GDir *dir;
@@ -28,6 +30,8 @@ dupin_init (GError ** error)
 
   d = g_malloc0 (sizeof (Dupin));
 
+  d->conf = data; /* we just copy point from caller */
+
   d->mutex = g_mutex_new ();
   d->path = g_strdup (DUPIN_DB_PATH);
 
@@ -40,12 +44,17 @@ dupin_init (GError ** error)
 
   d->sync_master_thread_toquit = FALSE;
 
-  d->sync_master_has_new_work_todo = g_cond_new();
-
   d->sync_map_workers_pool = g_thread_pool_new (dupin_view_sync_map_func,
-					        NULL, 4, FALSE, NULL);
+					        NULL,
+						(d->conf != NULL) ? d->conf->limit_map_max_threads : 4,
+						FALSE,
+						NULL);
+
   d->sync_reduce_workers_pool = g_thread_pool_new (dupin_view_sync_reduce_func,
-					           NULL, 4, FALSE, NULL);
+					           NULL,
+						   (d->conf != NULL) ? d->conf->limit_reduce_max_threads : 4,
+						   FALSE,
+						   NULL);
 
   while ((filename = g_dir_read_name (dir)))
     {
@@ -133,11 +142,6 @@ dupin_shutdown (Dupin * d)
   d->sync_master_thread_toquit = TRUE;
   g_mutex_unlock (d->mutex);
 
-  /* make sure the master worker is not waiting for events */
-  g_mutex_lock (d->mutex);
-  g_cond_signal(d->sync_master_has_new_work_todo);
-  g_mutex_unlock (d->mutex);
-
   g_mutex_lock (d->mutex);
 
   while (d->sync_master_thread)
@@ -153,8 +157,6 @@ g_message("dupin_shutdown: master sync thread done\n");
   g_thread_pool_free (d->sync_reduce_workers_pool, TRUE, TRUE);
 
 g_message("dupin_shutdown: map and reduce worker pools freed\n");
-
-  g_cond_free(d->sync_master_has_new_work_todo);
 
   if (d->mutex)
     g_mutex_free (d->mutex);
@@ -177,36 +179,41 @@ dupin_view_sync_master_thread (Dupin * d)
   GHashTableIter iter;
   gpointer p;
 
+  gulong timeout= (d->conf != NULL) ? d->conf->limit_sync_interval : 60 ;
+
 g_message("dupin_view_sync_master_thread(%p) started\n",g_thread_self ());
 
   /*
+	The final workflow should be:
+
         1) sync all views once
         2) stop and wait for new inserts/updates
         3) for any update, check which one "called" (i.e. has "tosync" set to TRUE)
         4) sync the i-esim view spawning a map and a reduce thread as needed - and do not wait (i.e. when have many views we might end up with hundreds of runnig threads?!)
         5) when each view sync is done go back to sleep
+
+	At the moment we sync all views every minute
    */
 
-  g_mutex_lock (d->mutex);
-
-  g_hash_table_iter_init (&iter, d->views);
-  while (g_hash_table_iter_next (&iter, NULL, &p) == TRUE)
+  do
     {
-      DupinView *view = p;
+      g_hash_table_iter_init (&iter, d->views);
+      while (g_hash_table_iter_next (&iter, NULL, &p) == TRUE)
+        {
+          DupinView *view = p;
 
 g_message("dupin_view_sync_master_thread(%p) sync view '%s'\n",g_thread_self (), dupin_view_get_name (view));
 
-      dupin_view_sync (view);
-    }
+          dupin_view_sync (view);
+        }
 
-  g_mutex_unlock (d->mutex);
+g_message("dupin_view_sync_master_thread(%p) sleep for %d seconds\n",g_thread_self (), (gint)timeout);
 
-  while (d->sync_master_thread_toquit == FALSE)
-    {
-      g_mutex_lock (d->mutex);
-      g_cond_wait(d->sync_master_has_new_work_todo, d->mutex);
-      g_mutex_unlock (d->mutex);
+    g_usleep (1000000*timeout);
+
+g_message("dupin_view_sync_master_thread(%p) woke up after %d seconds\n",g_thread_self (), (gint)timeout);
     }
+  while (d->sync_master_thread_toquit == FALSE);
 
 g_message("dupin_view_sync_master_thread(%p) terminated\n",g_thread_self ());
 

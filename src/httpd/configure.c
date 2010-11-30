@@ -455,6 +455,42 @@ configure_limit_parser (xmlDocPtr xml, DSGlobal * data, GError ** error)
 			  xmlFree (tmp);
 			}
 		    }
+
+		  /* MapMaxThreads: */
+		  else
+		    if (!xmlStrcmp
+			(cur->name, (xmlChar *) DS_LIMIT_MAP_MAXTHREADS_TAG))
+		    {
+		      if ((tmp = xmlNodeGetContent (cur)))
+			{
+			  data->limit_map_max_threads = atoi ((char *) tmp);
+			  xmlFree (tmp);
+			}
+		    }
+
+		  /* ReduceMaxThreads: */
+		  else
+		    if (!xmlStrcmp
+			(cur->name, (xmlChar *) DS_LIMIT_REDUCE_MAXTHREADS_TAG))
+		    {
+		      if ((tmp = xmlNodeGetContent (cur)))
+			{
+			  data->limit_reduce_max_threads = atoi ((char *) tmp);
+			  xmlFree (tmp);
+			}
+		    }
+
+		  /* SyncInterval: */
+		  else
+		    if (!xmlStrcmp
+			(cur->name, (xmlChar *) DS_LIMIT_SYNC_INTERVAL_TAG))
+		    {
+		      if ((tmp = xmlNodeGetContent (cur)))
+			{
+			  data->limit_sync_interval = atoi ((char *) tmp);
+			  xmlFree (tmp);
+			}
+		    }
 		}
 	    }
 
@@ -470,6 +506,15 @@ configure_limit_parser (xmlDocPtr xml, DSGlobal * data, GError ** error)
 
   if (!data->limit_timeoutforthread)
     data->limit_timeoutforthread = DS_LIMIT_TIMEOUTFORTHREAD_DEFAULT;
+
+  if (!data->limit_map_max_threads)
+    data->limit_map_max_threads = DS_LIMIT_MAP_MAXTHREADS_DEFAULT;
+
+  if (!data->limit_reduce_max_threads)
+    data->limit_reduce_max_threads = DS_LIMIT_REDUCE_MAXTHREADS_DEFAULT;
+
+  if (!data->limit_sync_interval)
+    data->limit_sync_interval = DS_LIMIT_SYNC_INTERVAL_DEFAULT;
 
   return TRUE;
 }

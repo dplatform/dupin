@@ -3,6 +3,8 @@
 
 #include "dupin.h"
 
+#include "configure.h"
+
 typedef enum {
   LOG_STARTUP,
   LOG_QUIT,

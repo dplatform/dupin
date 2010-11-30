@@ -3,6 +3,8 @@
 
 #include "dupin.h"
 
+#include "configure.h"
+
 #define HTTP_MAX_LINE			2048	/* byte */
 
 #define HTTP_CONTENT_LENGTH		"Content-length"

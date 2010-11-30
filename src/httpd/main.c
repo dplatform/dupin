@@ -95,7 +95,7 @@ main (int argc, char **argv)
 #endif
 
   /* LibDupin: */
-  if (!(data->dupin = dupin_init (&error)))
+  if (!(data->dupin = dupin_init (data, &error)))
     {
       fprintf (stderr, "Error connecting to the database: %s\n",
 	       error->message);

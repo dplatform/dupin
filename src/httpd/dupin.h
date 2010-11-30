@@ -9,69 +9,6 @@
 
 #include "../lib/dupin.h"
 
-typedef enum {
-  LOG_VERBOSE_ERROR,
-  LOG_VERBOSE_WARNING,
-  LOG_VERBOSE_INFO,
-  LOG_VERBOSE_DEBUG
-} LogVerbose;
-
-typedef struct ds_global_t DSGlobal;
-struct ds_global_t
-{
-  gchar *	configfile;		/* Config File */
-
-  GMutex *	logmutex;		/* Mutex about the log */
-  GIOChannel *	logio;			/* Log IO Channel */
-  gchar *	logfile;		/* Log File */
-  LogVerbose	logverbose;
-
-  gboolean	background;		/* Demonize or not */
-  gchar *	pidfile;		/* Pid File */
-
-  gchar *	user;			/* Permissions */
-  gchar *	group;
-
-  GMainLoop *	loop;
-
-  /* Info about the socket: */
-  gchar *	httpd_interface;
-  gint		httpd_port;
-  gint		httpd_listen;
-  gboolean	httpd_ipv6;
-
-  GIOChannel *	httpd_socket;
-  GSource *	httpd_socket_source;
-  gint		httpd_socket_fd;
-
-  GMutex *	httpd_mutex;
-  GList *	httpd_threads;
-
-  guint		httpd_clients_numb;
-  guint		httpd_threads_numb;
-
-  guint		limit_maxheaders;
-  guint		limit_maxclients;
-  guint		limit_maxcontentlength;
-  guint		limit_clientsforthread;
-  guint		limit_threadnumb;
-
-  guint		limit_timeout;
-  guint		limit_timeoutforthread;
-  guint		limit_cachesize;
-  guint		limit_cachemaxfilesize;
-
-  /* TimeVal: */
-  GTimeVal	start_timeval;
-
-  GMutex *	map_mutex;
-  GHashTable *	map_table;
-  GList *	map_unreflist;
-
-  /* Dupin: */
-  Dupin *	dupin;
-};
-
 typedef struct ds_httpd_thread_t DSHttpdThread;
 struct ds_httpd_thread_t
 {

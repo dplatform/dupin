@@ -84,6 +84,7 @@ struct ds_httpd_client_t
   gsize		output_header_size;
   gsize		output_header_done;
 
+  gchar *	input_mime;
   gchar *	output_mime;
 
   gsize		output_size;

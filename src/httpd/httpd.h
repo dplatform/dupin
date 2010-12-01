@@ -10,6 +10,9 @@
 #define HTTP_CONTENT_LENGTH		"Content-Length"
 #define HTTP_CONTENT_LENGTH_LEN		14
 
+#define HTTP_CONTENT_TYPE		"Content-Type"
+#define HTTP_CONTENT_TYPE_LEN		12
+
 #define HTTP_WWW_REDIRECT \
 "<?xml version=\"1.1\"?>\n" \
 "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\"\n" \

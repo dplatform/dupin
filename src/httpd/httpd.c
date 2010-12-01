@@ -713,7 +713,7 @@ httpd_client_header (DSHttpdClient * client, DSHttpStatusCode * error)
 	    line++;
 
 	  if (line[0] != ':')
-	    break;
+	    continue;
 
 	  line++;
 
@@ -722,8 +722,24 @@ httpd_client_header (DSHttpdClient * client, DSHttpStatusCode * error)
 
 	  if (line[0] != 0)
 	    csize = atoi (line);
+	}
 
-	  break;
+      if (!strncasecmp (line, HTTP_CONTENT_TYPE, HTTP_CONTENT_TYPE_LEN))
+	{
+	  line += HTTP_CONTENT_TYPE_LEN;
+
+	  while (line[0] != 0 && (line[0] == ' ' || line[0] == '\t'))
+	    line++;
+
+	  if (line[0] != ':')
+	    continue;
+
+	  line++;
+
+	  while (line[0] != 0 && (line[0] == ' ' || line[0] == '\t'))
+	    line++;
+
+          client->input_mime = g_strdup (line);
 	}
     }
 
@@ -1487,6 +1503,9 @@ httpd_client_free (DSHttpdClient * client)
 
   if (client->output_header)
     g_free (client->output_header);
+
+  if (client->input_mime)
+    g_free (client->input_mime);
 
   if (client->output_mime)
     g_free (client->output_mime);

@@ -16,9 +16,9 @@
 #include <string.h>
 #include <stdlib.h>
 
-#define REQUEST_OBJ_ID	"_id"
-#define REQUEST_OBJ_REV	"_rev"
-#define REQUEST_OBJ_PID	"_pid"
+#define REQUEST_OBJ_ID		"_id"
+#define REQUEST_OBJ_REV		"_rev"
+#define REQUEST_VIEW_OBJ_ID	"id"
 
 #define DUPIN_DB_MAX_DOCS_COUNT     50
 #define DUPIN_VIEW_MAX_DOCS_COUNT   50
@@ -2507,10 +2507,10 @@ request_view_record_obj (DupinViewRecord * record, gchar * id)
     }
   g_list_free (members);
 
-  /* Setting _id and _pid - views do not have _rev yet */
-  json_object_set_string_member (obj, REQUEST_OBJ_ID, id);
+  /* TODO - Setting id and not _id to make sure client knows is a view ? */
 
-  json_object_set_member (obj, REQUEST_OBJ_PID, json_node_copy (dupin_view_record_get_pid (record)));
+  if (record->view->reduce == NULL)
+    json_object_set_string_member (obj, REQUEST_VIEW_OBJ_ID, id);
 
   return obj;
 }

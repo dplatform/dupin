@@ -339,6 +339,8 @@ request_global (DSHttpdClient * client, GList * path, GList * arguments)
 #define REQUEST_ALL_DOCS	"_all_docs"
 #define REQUEST_VIEWS		"_views"
 #define REQUEST_SYNC		"_sync"
+#define REQUEST_UUIDS		"_uuids"
+#define REQUEST_UUIDS_COUNT	"count"
 
 static DSHttpStatusCode request_global_get_all_dbs (DSHttpdClient * client,
 						    GList * paths,
@@ -377,6 +379,10 @@ static DSHttpStatusCode request_global_view_sync (DSHttpdClient * client,
 						  GList * path,
 						  GList * arguments);
 
+static DSHttpStatusCode request_global_get_uuids (DSHttpdClient * client,
+						   GList * path,
+						   GList * arguments);
+
 static DSHttpStatusCode
 request_global_get (DSHttpdClient * client, GList * path, GList * arguments)
 {
@@ -390,6 +396,10 @@ request_global_get (DSHttpdClient * client, GList * path, GList * arguments)
   /* GET /_all_views */
   if (!strcmp (path->data, REQUEST_ALL_VIEWS))
     return request_global_get_all_views (client, path, arguments);
+
+  /* GET /_uuids */
+  if (!strcmp (path->data, REQUEST_UUIDS))
+    return request_global_get_uuids (client, path, arguments);
 
   /* GET /database */
   if (!path->next)
@@ -427,6 +437,82 @@ request_global_get (DSHttpdClient * client, GList * path, GList * arguments)
     return request_global_get_record (client, path, arguments);
 
   return HTTP_STATUS_400;
+}
+
+static DSHttpStatusCode
+request_global_get_uuids (DSHttpdClient * client, GList * path,
+			   GList * arguments)
+{
+  GList *list;
+
+  guint count = 1;
+  guint i;
+
+  JsonArray *array;
+  JsonNode *node=NULL;
+  JsonGenerator *gen=NULL;
+
+  for (list = arguments; list; list = list->next)
+    {
+      dupin_keyvalue_t *kv = list->data;
+
+      if (!strcmp (kv->key, REQUEST_UUIDS_COUNT))
+	count = atoi (kv->value);
+    }
+
+  if (!count)
+    return HTTP_STATUS_400;
+
+  array = json_array_new ();
+
+  if (array == NULL)
+    return HTTP_STATUS_500;
+
+  for (i = 0; i < count; i++)
+    {
+      gchar id[255];
+
+      dupin_util_generate_id (id);
+
+      json_array_add_string_element (array, id);
+    }
+
+  node = json_node_new (JSON_NODE_ARRAY);
+
+  if (node == NULL)
+    goto request_global_get_uuids_error;
+
+  json_node_set_array (node, array);
+
+  gen = json_generator_new();
+
+  if (gen == NULL)
+    goto request_global_get_uuids_error;
+
+  json_generator_set_root (gen, node );
+  client->output.string.string = json_generator_to_data (gen,&client->output_size);
+
+  if (client->output.string.string == NULL)
+    goto request_global_get_uuids_error;
+
+  client->output_mime = g_strdup (HTTP_MIME_JSON);
+  client->output_type = DS_HTTPD_OUTPUT_STRING;
+
+  if (gen != NULL)
+    g_object_unref (gen);
+  if (node != NULL)
+    json_node_free (node);
+  json_array_unref (array);
+  return HTTP_STATUS_200;
+
+request_global_get_uuids_error:
+
+  if (gen != NULL)
+    g_object_unref (gen);
+  if (node != NULL)
+    json_node_free (node);
+  json_array_unref (array);
+  return HTTP_STATUS_500;
 }
 
 static DSHttpStatusCode
@@ -1458,17 +1544,12 @@ request_global_get_view_query_error:
 }
 
 /* POST ********************************************************************/
-#define REQUEST_POST_UUIDS		"_uuids"
-#define REQUEST_POST_UUIDS_COUNT	"count"
 #define REQUEST_POST_BULK_DOCS		"_bulk_docs"
 #define REQUEST_POST_BULK_DOCS_DOCS	"docs"
 
 static DSHttpStatusCode request_global_post_record (DSHttpdClient * client,
 						    GList * path,
 						    GList * arguments);
-static DSHttpStatusCode request_global_post_uuids (DSHttpdClient * client,
-						   GList * path,
-						   GList * arguments);
 static DSHttpStatusCode request_global_post_bulk_docs (DSHttpdClient * client,
 						       GList * path,
 						       GList * arguments);
@@ -1478,9 +1559,6 @@ request_global_post (DSHttpdClient * client, GList * path, GList * arguments)
 {
   if (!path)
     return HTTP_STATUS_400;
-
-  if (!strcmp (path->data, REQUEST_POST_UUIDS) && !path->next)
-    return request_global_post_uuids (client, path, arguments);
 
   if (!path->next)
     return request_global_post_record (client, path, arguments);
@@ -1547,82 +1625,6 @@ request_global_post_record_end:
   if (parser != NULL)
     g_object_unref (parser);
   return code;
-}
-
-static DSHttpStatusCode
-request_global_post_uuids (DSHttpdClient * client, GList * path,
-			   GList * arguments)
-{
-  GList *list;
-
-  guint count = 0;
-  guint i;
-
-  JsonArray *array;
-  JsonNode *node=NULL;
-  JsonGenerator *gen=NULL;
-
-  for (list = arguments; list; list = list->next)
-    {
-      dupin_keyvalue_t *kv = list->data;
-
-      if (!strcmp (kv->key, REQUEST_POST_UUIDS_COUNT))
-	count = atoi (kv->value);
-    }
-
-  if (!count)
-    return HTTP_STATUS_400;
-
-  array = json_array_new ();
-
-  if (array == NULL)
-    return HTTP_STATUS_500;
-
-  for (i = 0; i < count; i++)
-    {
-      gchar id[255];
-
-      dupin_util_generate_id (id);
-
-      json_array_add_string_element (array, id);
-    }
-
-  node = json_node_new (JSON_NODE_ARRAY);
-
-  if (node == NULL)
-    goto request_global_post_uuids_error;
-
-  json_node_set_array (node, array);
-
-  gen = json_generator_new();
-
-  if (gen == NULL)
-    goto request_global_post_uuids_error;
-
-  json_generator_set_root (gen, node );
-  client->output.string.string = json_generator_to_data (gen,&client->output_size);
-
-  if (client->output.string.string == NULL)
-    goto request_global_post_uuids_error;
-
-  client->output_mime = g_strdup (HTTP_MIME_JSON);
-  client->output_type = DS_HTTPD_OUTPUT_STRING;
-
-  if (gen != NULL)
-    g_object_unref (gen);
-  if (node != NULL)
-    json_node_free (node);
-  json_array_unref (array);
-  return HTTP_STATUS_200;
-
-request_global_post_uuids_error:
-
-  if (gen != NULL)
-    g_object_unref (gen);
-  if (node != NULL)
-    json_node_free (node);
-  json_array_unref (array);
-  return HTTP_STATUS_500;
 }
 
 static DSHttpStatusCode

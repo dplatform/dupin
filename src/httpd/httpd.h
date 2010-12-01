@@ -7,7 +7,7 @@
 
 #define HTTP_MAX_LINE			2048	/* byte */
 
-#define HTTP_CONTENT_LENGTH		"Content-length"
+#define HTTP_CONTENT_LENGTH		"Content-Length"
 #define HTTP_CONTENT_LENGTH_LEN		14
 
 #define HTTP_WWW_REDIRECT \

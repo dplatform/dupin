@@ -141,4 +141,65 @@ dupin_util_json_strescape (const gchar *str)
   return g_strescape (str, dupin_util_json_exceptions);
 }
 
+/* NOTE - JsonGenerator does not work for simple JSON value or null, too bad */
+
+gchar *
+dupin_util_json_serialize (JsonNode * node)
+{
+  g_return_val_if_fail (node != NULL, NULL);
+
+  gchar * node_serialized = NULL;
+
+  if (json_node_get_node_type (node) == JSON_NODE_VALUE)
+    {
+      if (json_node_get_value_type (node) == G_TYPE_STRING)
+        {
+          gchar *tmp = dupin_util_json_strescape (json_node_get_string (node));
+
+          node_serialized = g_strdup_printf ("\"%s\"", tmp);
+
+          g_free (tmp);
+        }
+
+      if (json_node_get_value_type (node) == G_TYPE_DOUBLE
+          || json_node_get_value_type (node) == G_TYPE_FLOAT)
+        {
+          gdouble numb = json_node_get_double (node);
+          node_serialized = g_strdup_printf ("%f", numb);
+        }
+
+      if (json_node_get_value_type (node) == G_TYPE_INT
+          || json_node_get_value_type (node) == G_TYPE_INT64
+          || json_node_get_value_type (node) == G_TYPE_UINT)
+        {
+          gint numb = (gint) json_node_get_int (node);
+          node_serialized = g_strdup_printf ("%d", numb);
+        }
+
+      if (json_node_get_value_type (node) == G_TYPE_BOOLEAN)
+        {
+          node_serialized = g_strdup_printf (json_node_get_boolean (node) == TRUE ? "true" : "false");
+        }
+    }
+  else if (json_node_get_node_type (node) == JSON_NODE_NULL)
+    {
+      node_serialized = g_strdup ("null");
+    }
+  else
+    {
+      JsonGenerator * gen = json_generator_new();
+
+      if (gen == NULL)
+        return NULL;
+
+      json_generator_set_root (gen, node);
+
+      node_serialized = json_generator_to_data (gen,NULL);
+
+      g_object_unref (gen);
+    }
+
+  return node_serialized;
+}
+
 /* EOF */

@@ -20,6 +20,7 @@ gboolean        dupin_view_record_get_total_records
 					 gsize * total,
 					 gchar *		start_key,
 					 gchar *		end_key,
+					 gboolean		inclusive_end,
 					 GError **		error);
 
 /* get max rowid for view DB */
@@ -37,6 +38,7 @@ gboolean	dupin_view_record_get_list
 					 gboolean		descending,
 					 gchar *		start_key,
 					 gchar *		end_key,
+					 gboolean		inclusive_end,
 					 GList **		list,
 					 GError **		error);
 

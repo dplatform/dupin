@@ -13,6 +13,8 @@ gboolean	dupin_util_is_valid_record_id	(gchar *	id);
 
 gchar *		dupin_util_json_strescape	(const gchar *	string);
 
+gchar *		dupin_util_json_serialize	(JsonNode * node);
+
 gboolean	dupin_util_is_valid_obj		(JsonObject *obj);
 
 void		dupin_util_generate_id		(gchar		id[255]);

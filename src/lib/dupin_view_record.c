@@ -98,6 +98,7 @@ dupin_view_record_get_total_records (DupinView * view,
 				    gsize * total,
 				    gchar * start_key,
                                     gchar * end_key,
+			    	    gboolean inclusive_end,
                                     GError ** error)
 {
   g_return_val_if_fail (view != NULL, FALSE);
@@ -113,14 +114,23 @@ dupin_view_record_get_total_records (DupinView * view,
   str = g_string_new (DUPIN_VIEW_SQL_TOTAL);
 
   if (start_key!=NULL && end_key!=NULL)
-    if (!strcmp (start_key, end_key))
+    if (!strcmp (start_key, end_key) && inclusive_end == TRUE)
       key_range = sqlite3_mprintf (" d.key = '%q' ", start_key);
-    else
+    else if (inclusive_end == TRUE)
       key_range = sqlite3_mprintf (" d.key >= '%q' AND d.key <= '%q' ", start_key, end_key);
+    else
+      key_range = sqlite3_mprintf (" d.key >= '%q' AND d.key < '%q' ", start_key, end_key);
   else if (start_key!=NULL)
-    key_range = sqlite3_mprintf (" d.key >= '%q' ", start_key);
+    {
+      key_range = sqlite3_mprintf (" d.key >= '%q' ", start_key);
+    }
   else if (end_key!=NULL)
-    key_range = sqlite3_mprintf (" d.key <= '%q' ", end_key);
+    {
+      if (inclusive_end == TRUE)
+        key_range = sqlite3_mprintf (" d.key <= '%q' ", end_key);
+      else
+        key_range = sqlite3_mprintf (" d.key < '%q' ", end_key);
+    }
 
   if (key_range!=NULL)
     g_string_append_printf (str, " WHERE %s ", (key_range!=NULL) ? key_range : "");
@@ -270,6 +280,7 @@ dupin_view_record_get_list (DupinView * view, guint count, guint offset,
 			    gboolean descending,
 			    gchar * start_key,
 			    gchar * end_key,
+			    gboolean inclusive_end,
 			    GList ** list, GError ** error)
 {
   GString *str;
@@ -293,14 +304,23 @@ dupin_view_record_get_list (DupinView * view, guint count, guint offset,
   str = g_string_new ("SELECT id FROM Dupin as d");
 
   if (start_key!=NULL && end_key!=NULL)
-    if (!strcmp (start_key, end_key))
+    if (!strcmp (start_key, end_key) && inclusive_end == TRUE)
       key_range = sqlite3_mprintf (" d.key = '%q' ", start_key);
-    else
+    else if (inclusive_end == TRUE)
       key_range = sqlite3_mprintf (" d.key >= '%q' AND d.key <= '%q' ", start_key, end_key);
+    else
+      key_range = sqlite3_mprintf (" d.key >= '%q' AND d.key < '%q' ", start_key, end_key);
   else if (start_key!=NULL)
-    key_range = sqlite3_mprintf (" d.key >= '%q' ", start_key);
+    {
+      key_range = sqlite3_mprintf (" d.key >= '%q' ", start_key);
+    }
   else if (end_key!=NULL)
-    key_range = sqlite3_mprintf (" d.key <= '%q' ", end_key);
+    {
+      if (inclusive_end == TRUE)
+        key_range = sqlite3_mprintf (" d.key <= '%q' ", end_key);
+      else
+        key_range = sqlite3_mprintf (" d.key < '%q' ", end_key);
+    }
 
   if (rowid_start > 0 && rowid_end > 0)
     g_string_append_printf (str, " WHERE %s %s d.ROWID >= %d AND d.ROWID <= %d ", (key_range!=NULL) ? key_range : "", (key_range!=NULL) ? "AND" : "", (gint)rowid_start, (gint)rowid_end);

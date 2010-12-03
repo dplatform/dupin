@@ -650,12 +650,13 @@ request_global_get_all_views:
   return HTTP_STATUS_500;
 }
 
-#define REQUEST_GET_ALL_DOCS_DESCENDING	"descending"
-#define REQUEST_GET_ALL_DOCS_COUNT	"count"
-#define REQUEST_GET_ALL_DOCS_OFFSET	"offset"
-#define REQUEST_GET_ALL_DOCS_KEY	"key"
-#define REQUEST_GET_ALL_DOCS_STARTKEY	"startkey"
-#define REQUEST_GET_ALL_DOCS_ENDKEY	"endkey"
+#define REQUEST_GET_ALL_DOCS_DESCENDING	   "descending"
+#define REQUEST_GET_ALL_DOCS_COUNT	   "count"
+#define REQUEST_GET_ALL_DOCS_OFFSET	   "offset"
+#define REQUEST_GET_ALL_DOCS_KEY	   "key"
+#define REQUEST_GET_ALL_DOCS_STARTKEY	   "startkey"
+#define REQUEST_GET_ALL_DOCS_ENDKEY	   "endkey"
+#define REQUEST_GET_ALL_DOCS_INCLUSIVEEND  "inclusive_end"
 
 static DSHttpStatusCode
 request_global_get_all_docs (DSHttpdClient * client, GList * path,
@@ -1180,6 +1181,7 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
   guint offset = 0;
   gchar * startkey = NULL;
   gchar * endkey = NULL;
+  gboolean inclusive_end = TRUE;
 
   JsonObject *obj;
   JsonNode *node=NULL;
@@ -1205,6 +1207,23 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
       else if (!strcmp (kv->key, REQUEST_GET_ALL_DOCS_OFFSET))
 	offset = atoi (kv->value);
 
+      else if (!strcmp (kv->key, REQUEST_GET_ALL_DOCS_INCLUSIVEEND))
+        {
+          if (strcmp (kv->value,"false") && strcmp (kv->value,"FALSE") &&
+              strcmp (kv->value,"true") && strcmp (kv->value,"TRUE"))
+            {
+              if (startkey != NULL)
+                g_free (startkey);
+
+              if (endkey != NULL)
+                g_free (endkey);
+
+              return HTTP_STATUS_400;
+            }
+
+          inclusive_end = (!strcmp (kv->value,"false") || !strcmp (kv->value,"FALSE")) ? FALSE : TRUE;
+        }
+
       else if (!strcmp (kv->key, REQUEST_GET_ALL_DOCS_KEY))
         {
 	  startkey = g_strdup (kv->value);
@@ -1222,10 +1241,64 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
         }
     }
 
-  /* TODO - parse start/endkey as JSON and reserialise to make sure is matching what we stored
+  /* TODO - parse start/endkey as JSON and reserialize to make sure is matching what we stored
             E.g. string { 'foo': 1 }' is different from { "foo" : 1 } */
 
-  if (dupin_view_record_get_total_records (view, &total_rows, startkey, endkey, NULL) == FALSE)
+  /* NOTE - validate start and end keys */
+
+  if (startkey != NULL || endkey != NULL)
+    {
+      JsonParser *parser = json_parser_new ();
+      GError *error = NULL;
+      gchar * sn = NULL;
+
+      if (startkey != NULL)
+        {
+          json_parser_load_from_data (parser, startkey, -1, &error);
+
+          if (error != NULL
+              || (!(sn = dupin_util_json_serialize (json_parser_get_root (parser)))) )
+            {
+              g_free (startkey);
+
+              if (endkey != NULL)
+                g_free (endkey);
+
+              return HTTP_STATUS_400;
+            }
+
+          g_free (startkey);
+
+          startkey = sn;
+        }
+
+      error = NULL;
+      sn = NULL;
+
+      if (endkey != NULL)
+        {
+          json_parser_load_from_data (parser, endkey, -1, &error);
+
+          if (error != NULL
+              || (!(sn = dupin_util_json_serialize (json_parser_get_root (parser)))) )
+            {
+              if (startkey != NULL)
+                g_free (startkey);
+
+              g_free (endkey);
+
+              return HTTP_STATUS_400;
+            }
+
+          g_free (endkey);
+
+          endkey = sn;
+        }
+
+      g_object_unref (parser);
+    }
+
+  if (dupin_view_record_get_total_records (view, &total_rows, startkey, endkey, inclusive_end, NULL) == FALSE)
     {
       if (startkey != NULL)
         g_free (startkey);
@@ -1237,7 +1310,8 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
     }
 
   if (dupin_view_record_get_list (view, count, offset, 0, 0, DP_ORDERBY_KEY, descending,
-				  startkey, endkey, &results, NULL) == FALSE)
+				  startkey, endkey, inclusive_end,
+				  &results, NULL) == FALSE)
     {
       if (startkey != NULL)
         g_free (startkey);
@@ -1537,7 +1611,7 @@ request_global_get_view_query (DSHttpdClient * client, GList * path,
 
   array = json_array_new ();
 
-  while (dupin_view_record_get_list (view, QUERY_BLOCK, offset, 0, 0, DP_ORDERBY_KEY, FALSE, NULL, NULL, &results, NULL) == TRUE
+  while (dupin_view_record_get_list (view, QUERY_BLOCK, offset, 0, 0, DP_ORDERBY_KEY, FALSE, NULL, NULL, TRUE, &results, NULL) == TRUE
 	 && results)
     {
       GList *list;

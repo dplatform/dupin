@@ -408,33 +408,26 @@ dupin_view_p_record_delete (DupinViewP * p, gchar * pid)
 }
 
 void
-dupin_view_record_save_map (DupinView * view, JsonNode * pid, JsonNode * key, JsonNode * obj_node)
+dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * key_node, JsonNode * obj_node)
 {
   g_return_if_fail (view != NULL);
-  g_return_if_fail (pid != NULL);
-  g_return_if_fail (json_node_get_node_type (pid) == JSON_NODE_ARRAY);
-  g_return_if_fail (key != NULL);
+  g_return_if_fail (pid_node != NULL);
+  g_return_if_fail (json_node_get_node_type (pid_node) == JSON_NODE_ARRAY);
+  g_return_if_fail (key_node != NULL);
+  g_return_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT);
 
-  GList *nodes, *n;
-  JsonNode *node;
   JsonObject *obj;
-  JsonGenerator *gen;
 
   const gchar *id = NULL;
   gchar *tmp, *errmsg, *obj_serialized=NULL, *key_serialized=NULL, *pid_serialized=NULL;
-  JsonNode *key_node=NULL;
-  JsonNode *pid_node=NULL;
-
-  g_return_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT);
 
   obj = json_node_get_object (obj_node);
 
-  key_node = json_node_copy (key);
-
-  pid_node = json_node_copy (pid);
-
   if (view->reduce == NULL)
     {
+      /* NOTE - we always force a new _id - due records must be sorted by a controlled ID in a view for mp/r/rr purposes */
+      json_object_remove_member (obj, "_id");
+
       json_object_remove_member (obj, "_pid");
 
       id = g_strdup ( (gchar *)json_node_get_string ( json_array_get_element ( json_node_get_array (pid_node), 0) ) );
@@ -445,183 +438,41 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid, JsonNode * key, Js
 
   g_mutex_lock (view->mutex);
 
-  nodes = json_object_get_members (obj);
-
-  for (n = nodes; n != NULL; n = n->next)
-    {
-      gchar *member_name = (gchar *) n->data;
-
-      if (!strcmp (member_name, "_id"))
-        {
-          /* NOTE - we always force a new _id - due records must be sorted by a controlled ID in a view for mp/r/rr purposes */
-          json_object_remove_member (obj, member_name);
-	}
-    }
-  g_list_free (nodes);
-
   if (!id && !(id = dupin_view_generate_id (view)))
     {
       g_mutex_unlock (view->mutex);
-      if (key_node != NULL)
-        json_node_free (key_node);
-      if (pid_node != NULL)
-        json_node_free (pid_node);
       return;
     }
 
   /* serialize the obj */
-  node = json_node_new (JSON_NODE_OBJECT);
 
-  if (node == NULL)
-    {
-      g_mutex_unlock (view->mutex);
-      g_free ((gchar *)id);
-      if (key_node != NULL)
-        json_node_free (key_node);
-      if (pid_node != NULL)
-        json_node_free (pid_node);
-      return;
-    }
-
-  json_node_set_object (node, obj);
-
-  gen = json_generator_new();
-
-  if (gen == NULL)
-    {
-      g_mutex_unlock (view->mutex);
-      g_free ((gchar *)id);
-      if (node != NULL)
-        json_node_free (node);
-      if (key_node != NULL)
-        json_node_free (key_node);
-      if (pid_node != NULL)
-        json_node_free (pid_node);
-      return;
-    }
-
-  json_generator_set_root (gen, node );
-  obj_serialized = json_generator_to_data (gen,NULL);
+  obj_serialized = dupin_util_json_serialize (obj_node);
 
   if (obj_serialized == NULL)
     {
       g_mutex_unlock (view->mutex);
       g_free ((gchar *)id);
-      if (gen != NULL)
-        g_object_unref (gen);
-      if (node != NULL)
-        json_node_free (node);
-      if (key_node != NULL)
-        json_node_free (key_node);
-      if (pid_node != NULL)
-        json_node_free (pid_node);
       return;
     }
-
-  if (gen != NULL)
-    g_object_unref (gen);
-  if (node != NULL)
-    json_node_free (node);
 
   /* serialize the key */
 
   if (key_node != NULL)
     {
-      if (json_node_get_node_type (key_node) == JSON_NODE_VALUE)
+      key_serialized = dupin_util_json_serialize (key_node);
+
+      if (key_serialized == NULL)
         {
-          if (json_node_get_value_type (key_node) == G_TYPE_STRING)
-          {
-	    gchar *tmp;
-
-            tmp = dupin_util_json_strescape (json_node_get_string (key_node));
-
-            key_serialized = g_strdup_printf ("\"%s\"", tmp);
-
-            g_free (tmp);
-          }
-
-          if (json_node_get_value_type (key_node) == G_TYPE_DOUBLE
-                || json_node_get_value_type (key_node) == G_TYPE_FLOAT)
-          {
-            gdouble numb = json_node_get_double (key_node);
-            key_serialized = g_strdup_printf ("%f", numb);
-          }
-
-          if (json_node_get_value_type (key_node) == G_TYPE_INT
-                || json_node_get_value_type (key_node) == G_TYPE_INT64
-                || json_node_get_value_type (key_node) == G_TYPE_UINT)
-          {
-            gint numb = (gint) json_node_get_int (key_node);
-            key_serialized = g_strdup_printf ("%d", numb);
-          }
-          if (json_node_get_value_type (key_node) == G_TYPE_BOOLEAN)
-          {
-            key_serialized = g_strdup_printf (json_node_get_boolean (key_node) == TRUE ? "true" : "false");
-          }
-
-          if (key_node != NULL)
-            json_node_free (key_node);
-        }
-      else
-        {
-          gen = json_generator_new();
-
-          if (gen == NULL)
-            {
-              g_mutex_unlock (view->mutex);
-              g_free ((gchar *)id);
-              g_free (obj_serialized);
-              if (key_node != NULL)
-                json_node_free (key_node);
-              if (pid_node != NULL)
-                json_node_free (pid_node);
-              return;
-            }
-
-          json_generator_set_root (gen, key_node );
-          key_serialized = json_generator_to_data (gen,NULL);
-
-          if (key_node != NULL)
-            json_node_free (key_node);
-
-          if (key_serialized == NULL)
-            {
-              g_mutex_unlock (view->mutex);
-              g_free ((gchar *)id);
-              g_free (obj_serialized);
-              if (gen != NULL)
-                g_object_unref (gen);
-              if (pid_node != NULL)
-                json_node_free (pid_node);
-              return;
-            }
-
-          if (gen != NULL)
-            g_object_unref (gen);
+          g_mutex_unlock (view->mutex);
+          g_free ((gchar *)id);
+          g_free (obj_serialized);
+          return;
         }
     }
 
   if (pid_node != NULL)
     {
-      gen = json_generator_new();
-
-      if (gen == NULL)
-        {
-          g_mutex_unlock (view->mutex);
-          g_free ((gchar *)id);
-          g_free (obj_serialized);
-          if (key_serialized)
-            g_free (key_serialized);
-          if (pid_node != NULL)
-            json_node_free (pid_node);
-          return;
-        }
-
-      json_generator_set_root (gen, pid_node );
-      pid_serialized = json_generator_to_data (gen,NULL);
-
-      if (pid_node != NULL)
-        json_node_free (pid_node);
+      pid_serialized = dupin_util_json_serialize (pid_node);
 
       if (pid_serialized == NULL)
         {
@@ -630,13 +481,8 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid, JsonNode * key, Js
           g_free (obj_serialized);
           if (key_serialized)
             g_free (key_serialized);
-          if (gen != NULL)
-            g_object_unref (gen);
           return;
         }
-
-      if (gen != NULL)
-        g_object_unref (gen);
     }
 
   tmp = sqlite3_mprintf (DUPIN_VIEW_SQL_INSERT, id, pid_serialized, key_serialized, obj_serialized);
@@ -1235,7 +1081,7 @@ dupin_view_sync_thread_map_view (DupinView * view, gsize count)
 
   gsize start_rowid = (sync_map_id != NULL) ? atoi(sync_map_id)+1 : 1;
 
-  if (dupin_view_record_get_list (v, count, 0, start_rowid, 0, DP_ORDERBY_ROWID, FALSE, NULL, NULL, &results, NULL) ==
+  if (dupin_view_record_get_list (v, count, 0, start_rowid, 0, DP_ORDERBY_ROWID, FALSE, NULL, NULL, TRUE, &results, NULL) ==
       FALSE || !results)
     {
       if (sync_map_id != NULL)
@@ -1458,7 +1304,7 @@ dupin_view_sync_thread_reduce (DupinView * view, gsize count, gboolean rereduce,
 
   gsize start_rowid = (sync_reduce_id != NULL) ? atoi(sync_reduce_id)+1 : 1;
 
-  if (dupin_view_record_get_list (view, count, 0, start_rowid, 0, (rereduce) ? DP_ORDERBY_KEY : DP_ORDERBY_ROWID, FALSE, matching_key, matching_key, &results, NULL) ==
+  if (dupin_view_record_get_list (view, count, 0, start_rowid, 0, (rereduce) ? DP_ORDERBY_KEY : DP_ORDERBY_ROWID, FALSE, matching_key, matching_key, TRUE, &results, NULL) ==
       FALSE || !results)
     {
       if (previous_sync_reduce_id != NULL)

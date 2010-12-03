@@ -1624,7 +1624,7 @@ request_global_get_view_query (DSHttpdClient * client, GList * path,
 	  /* TODO - check if we need to json_node_copy ( dupin_view_record_get() ) or not */
 	  if (tb_jsonpath_exec
 	      (query, -1, json_node_get_object (dupin_view_record_get (record)), &ret, NULL,
-	       NULL) == TRUE)
+	       NULL) == TRUE && ret)
 	    {
 	      JsonNode *value;
 
@@ -1632,9 +1632,9 @@ request_global_get_view_query (DSHttpdClient * client, GList * path,
 		{
 		  json_array_add_element (array, json_node_copy (value));
 		}
-	    }
 
-	  tb_jsonpath_result_free (ret);
+	      tb_jsonpath_result_free (ret);
+	    }
 	}
 
       offset += g_list_length (results);

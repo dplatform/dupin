@@ -653,6 +653,9 @@ request_global_get_all_views:
 #define REQUEST_GET_ALL_DOCS_DESCENDING	"descending"
 #define REQUEST_GET_ALL_DOCS_COUNT	"count"
 #define REQUEST_GET_ALL_DOCS_OFFSET	"offset"
+#define REQUEST_GET_ALL_DOCS_KEY	"key"
+#define REQUEST_GET_ALL_DOCS_STARTKEY	"startkey"
+#define REQUEST_GET_ALL_DOCS_ENDKEY	"endkey"
 
 static DSHttpStatusCode
 request_global_get_all_docs (DSHttpdClient * client, GList * path,
@@ -1175,6 +1178,8 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
   gboolean descending = FALSE;
   guint count = DUPIN_VIEW_MAX_DOCS_COUNT;
   guint offset = 0;
+  gchar * startkey = NULL;
+  gchar * endkey = NULL;
 
   JsonObject *obj;
   JsonNode *node=NULL;
@@ -1199,13 +1204,49 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
 
       else if (!strcmp (kv->key, REQUEST_GET_ALL_DOCS_OFFSET))
 	offset = atoi (kv->value);
+
+      else if (!strcmp (kv->key, REQUEST_GET_ALL_DOCS_KEY))
+        {
+	  startkey = g_strdup (kv->value);
+	  endkey = g_strdup (kv->value);
+        }
+
+      else if (!strcmp (kv->key, REQUEST_GET_ALL_DOCS_STARTKEY))
+        {
+	  startkey = g_strdup (kv->value);
+        }
+
+      else if (!strcmp (kv->key, REQUEST_GET_ALL_DOCS_ENDKEY))
+        {
+	  endkey = g_strdup (kv->value);
+        }
     }
 
-  if (dupin_view_record_get_total_records (view, &total_rows) == FALSE)
-    return HTTP_STATUS_500;
+  /* TODO - parse start/endkey as JSON and reserialise to make sure is matching what we stored
+            E.g. string { 'foo': 1 }' is different from { "foo" : 1 } */
 
-  if (dupin_view_record_get_list (view, count, offset, 0, 0, DP_ORDERBY_KEY, descending, NULL, NULL, &results, NULL) == FALSE)
-    return HTTP_STATUS_500;
+  if (dupin_view_record_get_total_records (view, &total_rows, startkey, endkey, NULL) == FALSE)
+    {
+      if (startkey != NULL)
+        g_free (startkey);
+
+      if (endkey != NULL)
+        g_free (endkey);
+
+      return HTTP_STATUS_500;
+    }
+
+  if (dupin_view_record_get_list (view, count, offset, 0, 0, DP_ORDERBY_KEY, descending,
+				  startkey, endkey, &results, NULL) == FALSE)
+    {
+      if (startkey != NULL)
+        g_free (startkey);
+
+      if (endkey != NULL)
+        g_free (endkey);
+
+      return HTTP_STATUS_500;
+    }
 
   obj = json_object_new ();
 
@@ -1215,6 +1256,13 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
         dupin_view_record_get_list_close(results);
       else
         dupin_view_unref (view);
+
+      if (startkey != NULL)
+        g_free (startkey);
+
+      if (endkey != NULL)
+        g_free (endkey);
+
       return HTTP_STATUS_500;
     }
 
@@ -1274,10 +1322,18 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
   if (node != NULL)
     json_node_free (node);
   json_object_unref (obj);
+
+  if (startkey != NULL)
+    g_free (startkey);
+
+  if (endkey != NULL)
+    g_free (endkey);
+
   if( results )
      dupin_view_record_get_list_close(results);
   else
      dupin_view_unref (view);
+
   return HTTP_STATUS_200;
 
 request_global_get_all_docs_view_error:
@@ -1288,11 +1344,18 @@ request_global_get_all_docs_view_error:
     json_node_free (node);
   json_object_unref (obj);
 
+  if (startkey != NULL)
+    g_free (startkey);
+
+  if (endkey != NULL)
+    g_free (endkey);
+
   /* by AR 2010-05-24 - CHECK corrected/changed the below to dupin_view_record_get_list_close() - it was dupin_record_get_list_close() - see above for matching statement ! */
   if( results )
      dupin_view_record_get_list_close(results);
   else
      dupin_view_unref (view);
+
   return HTTP_STATUS_500;
 }
 
@@ -2063,13 +2126,6 @@ request_global_put_record_attachment (DSHttpdClient * client, GList * path,
     }
 
   return code;
-
-/*
-request_global_put_record_attachment_error:
-
-  return code;
-*/
-
 }
 
 /* DELETE*******************************************************************/

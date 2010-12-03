@@ -15,8 +15,12 @@ DupinViewRecord *
 					 GError **		error);
 
 /* get total of records into view */
-gboolean        dupin_view_record_get_total_records (DupinView * view,
-							gsize * total);
+gboolean        dupin_view_record_get_total_records
+    					(DupinView * view,
+					 gsize * total,
+					 gchar *		start_key,
+					 gchar *		end_key,
+					 GError **		error);
 
 /* get max rowid for view DB */
 gboolean        dupin_view_record_get_max_rowid (DupinView * view,

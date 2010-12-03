@@ -12,7 +12,7 @@
 	"SELECT count(id) FROM Dupin WHERE id = '%q' "
 
 #define DUPIN_VIEW_SQL_TOTAL \
-	"SELECT count(*) AS c FROM Dupin "
+	"SELECT count(*) AS c FROM Dupin AS d"
 
 #define DUPIN_VIEW_SQL_READ \
 	"SELECT pid, key, obj, ROWID AS rowid FROM Dupin WHERE id='%q'"
@@ -94,16 +94,43 @@ dupin_view_record_get_total_records_cb (void *data, int argc, char **argv,
           see also ROWID and http://www.sqlite.org/autoinc.html */
 
 gboolean
-dupin_view_record_get_total_records (DupinView * view, gsize * total)
+dupin_view_record_get_total_records (DupinView * view,
+				    gsize * total,
+				    gchar * start_key,
+                                    gchar * end_key,
+                                    GError ** error)
 {
   g_return_val_if_fail (view != NULL, FALSE);
 
   gchar *errmsg;
   gchar *tmp;
+  GString *str;
 
   *total = 0;
 
-  tmp = sqlite3_mprintf (DUPIN_VIEW_SQL_TOTAL);
+  gchar * key_range=NULL;
+
+  str = g_string_new (DUPIN_VIEW_SQL_TOTAL);
+
+  if (start_key!=NULL && end_key!=NULL)
+    if (!strcmp (start_key, end_key))
+      key_range = sqlite3_mprintf (" d.key = '%q' ", start_key);
+    else
+      key_range = sqlite3_mprintf (" d.key >= '%q' AND d.key <= '%q' ", start_key, end_key);
+  else if (start_key!=NULL)
+    key_range = sqlite3_mprintf (" d.key >= '%q' ", start_key);
+  else if (end_key!=NULL)
+    key_range = sqlite3_mprintf (" d.key <= '%q' ", end_key);
+
+  if (key_range!=NULL)
+    g_string_append_printf (str, " WHERE %s ", (key_range!=NULL) ? key_range : "");
+
+  tmp = g_string_free (str, FALSE);
+ 
+//g_message("dupin_view_record_get_total_records() query=%s\n",tmp);
+
+  if (key_range!=NULL)
+    sqlite3_free (key_range);
 
   g_mutex_lock (view->mutex);
 
@@ -111,9 +138,10 @@ dupin_view_record_get_total_records (DupinView * view, gsize * total)
     {
       g_mutex_unlock (view->mutex);
 
-      sqlite3_free (tmp);
+      g_free (tmp);
 
-      g_error ("dupin_view_record_get_total_records: %s", errmsg);
+      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
+                   errmsg);
 
       sqlite3_free (errmsg);
 
@@ -122,7 +150,7 @@ dupin_view_record_get_total_records (DupinView * view, gsize * total)
 
   g_mutex_unlock (view->mutex);
 
-  sqlite3_free (tmp);
+  g_free (tmp);
 
   return TRUE;
 }

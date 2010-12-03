@@ -635,7 +635,6 @@ httpd_client_read_header_timeout (DSHttpdClient * client)
 static gboolean httpd_client_header_parse (DSHttpdClient * client,
 					   gchar * request, GList ** parts,
 					   GList ** keyvalue);
-static gchar *httpd_client_header_escape (gchar * string);
 
 /* Header parser: */
 static gboolean
@@ -821,7 +820,7 @@ httpd_client_header_parse (DSHttpdClient * client, gchar * request,
   for (i = 0; paths[i]; i++)
     if (paths[i][0])
       *ret_paths =
-	g_list_append (*ret_paths, httpd_client_header_escape (paths[i]));
+	g_list_append (*ret_paths, g_uri_unescape_string (paths[i], NULL));
 
   g_strfreev (paths);
 
@@ -845,8 +844,8 @@ httpd_client_header_parse (DSHttpdClient * client, gchar * request,
 	  continue;
 	}
 
-      key = httpd_client_header_escape (attribute[0]);
-      value = httpd_client_header_escape (attribute[1]);
+      key = g_uri_unescape_string (attribute[0], NULL);
+      value = g_uri_unescape_string (attribute[1], NULL);
 
       ret = g_list_prepend (ret, tb_keyvalue_new (key, value));
 
@@ -860,36 +859,6 @@ httpd_client_header_parse (DSHttpdClient * client, gchar * request,
 
   *keyvalue = ret;
   return TRUE;
-}
-
-/* URL decode: */
-static gchar *
-httpd_client_header_escape (gchar * string)
-{
-  gint i, j, len;
-  gchar *ret;
-
-  len = strlen (string);
-
-  ret = g_malloc (sizeof (gchar) * (len + 1));
-
-  for (i = j = 0; i < len; i++)
-    {
-      if (string[i] == '%' && i < len - 2)
-	{
-	  gchar byte;
-
-	  byte = string[i + 1] * 16 + string[i + 2];
-	  ret[j++] = byte;
-	  i += 2;
-	}
-
-      else
-	ret[j++] = string[i];
-    }
-
-  ret[j] = 0;
-  return ret;
 }
 
 /* CLIENT READ BODY *******************************************************/

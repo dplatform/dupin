@@ -34,22 +34,27 @@ typedef enum
 {
   DP_ORDERBY_ROWID,
   DP_ORDERBY_UPDATED,
-  DP_ORDERBY_KEY
+  DP_ORDERBY_KEY,
+  DP_ORDERBY_TITLE
 } DupinOrderByType;
 
 typedef struct dupin_db_t		DupinDB;
 typedef struct dupin_record_t		DupinRecord;
 typedef struct dupin_view_record_t	DupinViewRecord;
 typedef struct dupin_view_t		DupinView;
+typedef struct dupin_attachment_db_t		DupinAttachmentDB;
+typedef struct dupin_attachment_record_t	DupinAttachmentRecord;
 typedef struct dupin_js_t		DupinJs;
 
 #include <dupin_init.h>
 
 #include <dupin_record.h>
 #include <dupin_view_record.h>
+#include <dupin_attachment_record.h>
 
 #include <dupin_db.h>
 #include <dupin_view.h>
+#include <dupin_attachment_db.h>
 #include <dupin_mr.h>
 #include <dupin_js.h>
 

@@ -40,6 +40,10 @@ dupin_init (DSGlobal *data, GError ** error)
     g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
 			   (GDestroyNotify) dupin_view_free);
 
+  d->attachment_dbs =
+    g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
+			   (GDestroyNotify) dupin_attachment_db_free);
+
   d->sync_map_workers_pool = g_thread_pool_new (dupin_view_sync_map_func,
 					        NULL,
 						(d->conf != NULL) ? d->conf->limit_map_max_threads : 4,
@@ -75,6 +79,43 @@ dupin_init (DSGlobal *data, GError ** error)
 	}
 
       g_hash_table_insert (d->dbs, g_strdup (name), db);
+      g_free (path);
+      g_free (name);
+    }
+
+  g_dir_rewind (dir);
+
+  while ((filename = g_dir_read_name (dir)))
+    {
+      DupinAttachmentDB *attachment_db;
+      gchar *path;
+      gchar *name;
+
+      if (g_str_has_suffix (filename, DUPIN_ATTACHMENT_DB_SUFFIX) == FALSE)
+	continue;
+
+      path = g_build_path (G_DIR_SEPARATOR_S, d->path, filename, NULL);
+
+      name = g_strdup (filename);
+      name[strlen (filename) - DUPIN_ATTACHMENT_DB_SUFFIX_LEN] = 0;
+
+      if (!(attachment_db = dupin_attachment_db_create (d, name, path, error)))
+	{
+	  dupin_shutdown (d);
+	  g_free (path);
+	  g_free (name);
+	  return NULL;
+	}
+
+      if (dupin_attachment_db_p_update (attachment_db, error) == FALSE)
+	{
+	  dupin_shutdown (d);
+	  g_free (path);
+	  g_free (name);
+	  return NULL;
+	}
+
+      g_hash_table_insert (d->attachment_dbs, g_strdup (name), attachment_db);
       g_free (path);
       g_free (name);
     }
@@ -140,6 +181,9 @@ g_message("dupin_shutdown: map and reduce worker pools freed\n");
 
   if (d->views)
     g_hash_table_destroy (d->views);
+
+  if (d->attachment_dbs)
+    g_hash_table_destroy (d->attachment_dbs);
 
   if (d->dbs)
     g_hash_table_destroy (d->dbs);

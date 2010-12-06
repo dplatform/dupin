@@ -22,7 +22,11 @@ libdupin_la_SOURCES = \
 	dupin_view.c \
 	dupin_view.h \
 	dupin_view_record.c \
-	dupin_view_record.h
+	dupin_view_record.h \
+	dupin_attachment_db.c \
+	dupin_attachment_db.h \
+	dupin_attachment_record.c \
+	dupin_attachment_record.h
 
 libdupin_la_LIBADD = \
 	../tbjson/libtbjson.la

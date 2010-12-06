@@ -21,6 +21,9 @@
 #define DUPIN_VIEW_SUFFIX	".view.dupin"
 #define DUPIN_VIEW_SUFFIX_LEN	11
 
+#define DUPIN_ATTACHMENT_DB_SUFFIX	".attachments.dupin"
+#define DUPIN_ATTACHMENT_DB_SUFFIX_LEN	18
+
 struct dupin_t
 {
   GMutex *	mutex;
@@ -28,11 +31,21 @@ struct dupin_t
   gchar *	path;
   GHashTable *	dbs;
   GHashTable *	views;
+  GHashTable *	attachment_dbs;
 
   DSGlobal *	conf;
 
   GThreadPool * sync_map_workers_pool;
   GThreadPool * sync_reduce_workers_pool;
+};
+
+typedef struct dupin_attachment_db_p_t DupinAttachmentDBP;
+struct dupin_attachment_db_p_t
+{
+  DupinAttachmentDB **	attachment_dbs;
+
+  gsize		numb;
+  gsize		size;
 };
 
 typedef struct dupin_view_p_t DupinViewP;
@@ -59,6 +72,7 @@ struct dupin_db_t
   sqlite3 *	db;
 
   DupinViewP	views;
+  DupinAttachmentDBP	attachment_dbs;
 };
 
 struct dupin_view_t
@@ -95,6 +109,42 @@ struct dupin_view_t
   DupinMRLang	reduce_lang;
 
   DupinViewP	views;
+};
+
+struct dupin_attachment_db_t
+{
+  Dupin *	d;
+  GMutex *	mutex;
+
+  gchar *	name;
+  gchar *	path;
+
+  gchar *	parent;
+
+  guint		ref;
+
+  gboolean	todelete;
+
+  sqlite3 *	db;
+};
+
+struct dupin_attachment_record_t
+{
+  DupinAttachmentDB * attachment_db;
+
+  gchar	*	id;
+  gsize		id_len;
+  guint		revision;
+  gchar *	title;
+  gsize		title_len;
+
+  gsize		length;
+  gchar *	type;
+  gsize		type_len;
+  gchar *	hash;
+  gsize		hash_len;
+
+  gsize		rowid;
 };
 
 typedef struct dupin_record_rev_t DupinRecordRev;
@@ -163,6 +213,15 @@ DupinView *	dupin_view_create
 
 void		dupin_view_free	(DupinView *	view);
 
+DupinAttachmentDB *	dupin_attachment_db_create
+				(Dupin *	d,
+				 gchar *	name,
+				 gchar *	path,
+				 GError **	error);
+
+void		dupin_attachment_db_free
+				(DupinAttachmentDB *	attachment_db);
+
 gchar *		dupin_database_generate_id_real
 				(DupinDB *	db,
 				 GError **	error,
@@ -202,6 +261,26 @@ gboolean	dupin_view_record_exists_real
 				 gboolean	lock);
 
 void		dupin_view_sync	(DupinView *	view);
+
+gboolean	dupin_attachment_db_p_update
+				(DupinAttachmentDB *	attachment_db,
+				 GError **	error);
+
+void		dupin_attachment_db_p_record_insert
+			 	(DupinAttachmentDBP * p,
+                                     gchar *       id,
+                                     guint         revision,
+                                     gchar *       title,
+                                     gsize         length,
+                                     gchar *       type,
+                                     gchar *       hash,
+                                     const void *  content);	
+
+void		dupin_attachment_db_p_record_delete
+				(DupinAttachmentDBP * p,
+                                     gchar *       id,
+                                     guint         revision,
+                                     gchar *       title);
 
 #endif
 

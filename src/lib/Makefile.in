@@ -46,7 +46,8 @@ LTLIBRARIES = $(noinst_LTLIBRARIES)
 libdupin_la_DEPENDENCIES = ../tbjson/libtbjson.la
 am_libdupin_la_OBJECTS = dupin_db.lo dupin_init.lo dupin_js.lo \
 	dupin_mr.lo dupin_record.lo dupin_utils.lo dupin_view.lo \
-	dupin_view_record.lo
+	dupin_view_record.lo dupin_attachment_db.lo \
+	dupin_attachment_record.lo
 libdupin_la_OBJECTS = $(am_libdupin_la_OBJECTS)
 DEFAULT_INCLUDES = -I. -I$(top_builddir)@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/depcomp
@@ -214,7 +215,11 @@ libdupin_la_SOURCES = \
 	dupin_view.c \
 	dupin_view.h \
 	dupin_view_record.c \
-	dupin_view_record.h
+	dupin_view_record.h \
+	dupin_attachment_db.c \
+	dupin_attachment_db.h \
+	dupin_attachment_record.c \
+	dupin_attachment_record.h
 
 libdupin_la_LIBADD = \
 	../tbjson/libtbjson.la
@@ -270,6 +275,8 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dupin_attachment_db.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dupin_attachment_record.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dupin_db.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dupin_init.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dupin_js.Plo@am__quote@

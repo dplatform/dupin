@@ -18,28 +18,9 @@
   "  PRIMARY KEY(id, rev)\n" \
   ");"
 
-#define DUPIN_DB_SQL_ATTACHMENTS_CREATE \
-  "CREATE TABLE IF NOT EXISTS DupinAttachments (\n" \
-  "  id        CHAR(255) NOT NULL,\n" \
-  "  rev       INTEGER NOT NULL DEFAULT 1,\n" \
-  "  title     CHAR(255) NOT NULL,\n" \
-  "  content   BLOB NOT NULL DEFAULT '',\n" \
-  "  type      CHAR(255) NOT NULL DEFAULT 'application/octect-stream',\n" \
-  "  length    INTEGER NOT NULL DEFAULT 0,\n" \
-  "  width     INTEGER,\n" \
-  "  height    INTEGER,\n" \
-  "  duration  INTEGER,\n" \
-  "  href      CHAR(2048),\n" \
-  "  href_lang CHAR(10),\n" \
-  "  PRIMARY KEY(id, rev, title)\n" \
-  ");"
-
 #define DUPIN_DB_SQL_CREATE_INDEX \
   "CREATE INDEX IF NOT EXISTS DupinId ON Dupin (id);\n" \
-  "CREATE INDEX IF NOT EXISTS DupinRev ON Dupin (rev);\n" \
-  "CREATE INDEX IF NOT EXISTS DupinAttachmentsId ON DupinAttachments (id);\n" \
-  "CREATE INDEX IF NOT EXISTS DupinAttachmentsRev ON DupinAttachments (rev);\n" \
-  "CREATE INDEX IF NOT EXISTS DupinAttachmentsTitle ON DupinAttachments (title);"
+  "CREATE INDEX IF NOT EXISTS DupinRev ON Dupin (rev);"
 
 gchar **
 dupin_get_databases (Dupin * d)
@@ -307,7 +288,6 @@ dupin_db_create (Dupin * d, gchar * name, gchar * path, GError ** error)
     }
 
   if (sqlite3_exec (db->db, DUPIN_DB_SQL_MAIN_CREATE, NULL, NULL, &errmsg) != SQLITE_OK
-      || sqlite3_exec (db->db, DUPIN_DB_SQL_ATTACHMENTS_CREATE, NULL, NULL, &errmsg) != SQLITE_OK
       || sqlite3_exec (db->db, DUPIN_DB_SQL_CREATE_INDEX, NULL, NULL, &errmsg) != SQLITE_OK)
     {
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",

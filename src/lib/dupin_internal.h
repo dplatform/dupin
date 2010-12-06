@@ -134,7 +134,6 @@ struct dupin_attachment_record_t
 
   gchar	*	id;
   gsize		id_len;
-  guint		revision;
   gchar *	title;
   gsize		title_len;
 
@@ -145,6 +144,8 @@ struct dupin_attachment_record_t
   gsize		hash_len;
 
   gsize		rowid;
+
+  sqlite3_blob * blob;
 };
 
 typedef struct dupin_record_rev_t DupinRecordRev;
@@ -269,7 +270,6 @@ gboolean	dupin_attachment_db_p_update
 void		dupin_attachment_db_p_record_insert
 			 	(DupinAttachmentDBP * p,
                                      gchar *       id,
-                                     guint         revision,
                                      gchar *       title,
                                      gsize         length,
                                      gchar *       type,
@@ -279,7 +279,6 @@ void		dupin_attachment_db_p_record_insert
 void		dupin_attachment_db_p_record_delete
 				(DupinAttachmentDBP * p,
                                      gchar *       id,
-                                     guint         revision,
                                      gchar *       title);
 
 #endif

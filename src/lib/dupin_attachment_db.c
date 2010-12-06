@@ -12,18 +12,16 @@
 #define DUPIN_ATTACHMENT_DB_SQL_MAIN_CREATE \
   "CREATE TABLE IF NOT EXISTS Dupin (\n" \
   "  id        CHAR(255) NOT NULL,\n" \
-  "  rev       INTEGER NOT NULL DEFAULT 1,\n" \
   "  title     CHAR(255) NOT NULL,\n" \
   "  type      CHAR(255) DEFAULT 'application/octect-stream',\n" \
   "  length    INTEGER DEFAULT 0,\n" \
   "  hash      CHAR(255),\n" \
   "  content   BLOB NOT NULL DEFAULT '',\n" \
-  "  PRIMARY KEY(id, rev, title)\n" \
+  "  PRIMARY KEY(id, title)\n" \
   ");"
 
 #define DUPIN_ATTACHMENT_DB_SQL_CREATE_INDEX \
   "CREATE INDEX IF NOT EXISTS DupinId ON Dupin (id);\n" \
-  "CREATE INDEX IF NOT EXISTS DupinRev ON Dupin (rev);\n" \
   "CREATE INDEX IF NOT EXISTS DupinTitle ON Dupin (title);"
 
 #define DUPIN_ATTACHMENT_DB_SQL_DESC_CREATE \
@@ -271,7 +269,6 @@ dupin_attachment_db_p_update (DupinAttachmentDB * attachment_db, GError ** error
 void
 dupin_attachment_db_p_record_insert (DupinAttachmentDBP * p,
 				     gchar *       id,
-  				     guint         revision,
 				     gchar *       title,
   				     gsize         length,
   				     gchar *       type,
@@ -280,7 +277,6 @@ dupin_attachment_db_p_record_insert (DupinAttachmentDBP * p,
 {
   g_return_if_fail (p != NULL);
   g_return_if_fail (id != NULL);
-  g_return_if_fail (revision > 0);
   g_return_if_fail (title != NULL);
   g_return_if_fail (length >= 0);
   g_return_if_fail (type != NULL);
@@ -292,7 +288,7 @@ dupin_attachment_db_p_record_insert (DupinAttachmentDBP * p,
     {
       DupinAttachmentDB *attachment_db = p->attachment_dbs[i];
 
-      if (dupin_attachment_record_insert (attachment_db, id, revision, title, length, type, hash, content) == FALSE)
+      if (dupin_attachment_record_insert (attachment_db, id, title, length, type, hash, content) == FALSE)
         {
 	  return;
         }
@@ -302,12 +298,10 @@ dupin_attachment_db_p_record_insert (DupinAttachmentDBP * p,
 void
 dupin_attachment_db_p_record_delete (DupinAttachmentDBP * p,
 				     gchar *       id,
-  				     guint         revision,
 				     gchar *       title)
 {
   g_return_if_fail (p != NULL);
   g_return_if_fail (id != NULL);
-  g_return_if_fail (revision > 0);
   g_return_if_fail (title != NULL);
 
   gsize i;
@@ -316,7 +310,7 @@ dupin_attachment_db_p_record_delete (DupinAttachmentDBP * p,
     {
       DupinAttachmentDB *attachment_db = p->attachment_dbs[i];
 
-      if (dupin_attachment_record_delete (attachment_db, id, revision, title) == FALSE)
+      if (dupin_attachment_record_delete (attachment_db, id, title) == FALSE)
         {
           return;
         }

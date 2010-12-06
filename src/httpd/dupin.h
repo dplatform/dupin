@@ -52,7 +52,8 @@ typedef enum
   DS_HTTPD_OUTPUT_NONE = 0,
   DS_HTTPD_OUTPUT_STRING,
   DS_HTTPD_OUTPUT_IO,
-  DS_HTTPD_OUTPUT_MAP
+  DS_HTTPD_OUTPUT_MAP,
+  DS_HTTPD_OUTPUT_BLOB
 } DSHttpdOutputType;
 
 typedef struct ds_httpd_client_t DSHttpdClient;
@@ -111,6 +112,16 @@ struct ds_httpd_client_t
       gsize	done;
       DSMap *	map;
     } map;
+
+    struct
+    {
+      DupinAttachmentRecord * record;
+
+      gchar 		string[4096];
+      gsize		size;
+      gsize		done;
+      gsize		offset;
+    } blob;
 
   } output;
 };

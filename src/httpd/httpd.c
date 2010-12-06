@@ -1062,6 +1062,9 @@ static gboolean httpd_client_write_body_io (GIOChannel * source,
 static gboolean httpd_client_write_body_map (GIOChannel * source,
 					     GIOCondition cond,
 					     DSHttpdClient * client);
+static gboolean httpd_client_write_body_blob (GIOChannel * source,
+					            GIOCondition cond,
+					            DSHttpdClient * client);
 
 /* This function writes something to the client: */
 static gboolean
@@ -1081,6 +1084,9 @@ httpd_client_write_body (GIOChannel * source, GIOCondition cond,
 
     case DS_HTTPD_OUTPUT_MAP:
       return httpd_client_write_body_map (source, cond, client);
+
+    case DS_HTTPD_OUTPUT_BLOB:
+      return httpd_client_write_body_blob (source, cond, client);
     }
 
   return TRUE;
@@ -1294,6 +1300,89 @@ httpd_client_write_body_map (GIOChannel * source, GIOCondition cond,
   return TRUE;
 }
 
+static gboolean httpd_client_write_body_blob_read (DSHttpdClient * client);
+
+static gboolean
+httpd_client_write_body_blob (GIOChannel * source, GIOCondition cond,
+			    DSHttpdClient * client)
+{
+  gsize done;
+  GIOStatus status;
+
+  if (client->output.blob.size == 0)
+    {
+      if (httpd_client_write_body_blob_read (client) == FALSE)
+	{
+	  httpd_client_close (client);
+	  return FALSE;
+	}
+    }
+
+  if ((status =
+       g_io_channel_write_chars (source,
+				 client->output.blob.string +
+				 client->output.blob.done,
+				 client->output.blob.size -
+				 client->output.blob.done, &done,
+				 NULL)) == G_IO_STATUS_NORMAL)
+    status = g_io_channel_flush (client->channel, NULL);
+
+  /* The status of the read: */
+  switch (status)
+    {
+    case G_IO_STATUS_NORMAL:
+      client->output.blob.done += done;
+
+      if (client->output.blob.done >= client->output.blob.size)
+        client->output.blob.size = client->output.blob.done = 0;
+
+      break;
+
+      /* Setting a delay: */
+    case G_IO_STATUS_AGAIN:
+      g_source_destroy (client->channel_source);
+      g_source_unref (client->channel_source);
+
+      client->channel_source = g_timeout_source_new (200);
+      g_source_set_callback (client->channel_source,
+			     (GSourceFunc) httpd_client_write_body_timeout,
+			     client, NULL);
+      g_source_attach (client->channel_source, g_main_context_default ());
+      return FALSE;
+
+      /* Close the socket: */
+    case G_IO_STATUS_ERROR:
+    case G_IO_STATUS_EOF:
+      httpd_client_close (client);
+      return FALSE;
+    }
+
+  /* Removing the timeout: */
+  httpd_client_timeout_refresh (client);
+
+  return TRUE;
+}
+
+static gboolean
+httpd_client_write_body_blob_read (DSHttpdClient * client)
+{
+  gboolean status = dupin_attachment_record_blob_read
+				(client->output.blob.record,
+				 client->output.blob.string,
+				 sizeof (client->output.blob.string),
+				 client->output.blob.offset,
+				 &client->output.blob.size, NULL);
+
+//g_message("httpd_client_write_body_blob_read: count=%d offset=%d bytes_read=%d\n", (gint)sizeof (client->output.blob.string), (gint)client->output.blob.offset, (gint)client->output.blob.size);
+
+  if (status == TRUE)
+    client->output.blob.offset += client->output.blob.size;
+
+//g_message("httpd_client_write_body_blob_read: offset=%d\n", (gint)client->output.blob.offset);
+
+  return status;
+}
+
 static gboolean
 httpd_client_write_body_timeout (DSHttpdClient * client)
 {
@@ -1500,6 +1589,14 @@ httpd_client_free (DSHttpdClient * client)
     case DS_HTTPD_OUTPUT_MAP:
       if (client->output.map.map)
 	map_unref (client->thread->data, client->output.map.map);
+      break;
+
+    case DS_HTTPD_OUTPUT_BLOB:
+      if (client->output.blob.record)
+        {
+          dupin_attachment_record_blob_close (client->output.blob.record);
+          dupin_attachment_record_close (client->output.blob.record); 
+        }
       break;
     }
 

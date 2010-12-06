@@ -8,7 +8,6 @@ G_BEGIN_DECLS
 gboolean	dupin_attachment_record_insert
 					(DupinAttachmentDB * attachment_db,
 					 gchar *       id,
-                                         guint         revision,
                                          gchar *       title,
                                          gsize         length,
                                          gchar *       type,
@@ -18,20 +17,17 @@ gboolean	dupin_attachment_record_insert
 gboolean	dupin_attachment_record_delete
 					(DupinAttachmentDB * attachment_db,
                                 	 gchar *        id,
-                                 	 guint          revision,
                                 	 gchar *        title);
 
 gboolean	dupin_attachment_record_exists
 					(DupinAttachmentDB * attachment_db,
                                 	 gchar *        id,
-                                 	 guint          revision,
                                 	 gchar *        title);
 
 DupinAttachmentRecord *
 		dupin_attachment_record_read
 					(DupinAttachmentDB *		attachment_db,
                                 	 gchar *        id,
-                                 	 guint          revision,
                                 	 gchar *        title,
 					 GError **		error);
 
@@ -40,7 +36,6 @@ gboolean        dupin_attachment_record_get_total_records
 					(DupinAttachmentDB * attachment_db,
                                          gsize * total,
                                          gchar * id,
-                                         guint   revision,
                                          gchar * start_title,
                                          gchar * end_title,
                                          gboolean inclusive_end,
@@ -61,7 +56,6 @@ gboolean	dupin_attachment_record_get_list
                             		 DupinOrderByType orderby_type,
                             		 gboolean descending,
                             		 gchar * id,
-                            		 guint   revision,
                             		 gchar * start_title,
                             		 gchar * end_title,
                             		 gboolean inclusive_end,
@@ -95,6 +89,28 @@ gsize 	        dupin_attachment_record_get_rowid
 JsonNode *
 		dupin_attachment_record_get
 					(DupinAttachmentRecord *	record);
+
+gboolean	dupin_attachment_record_blob_open
+					(DupinAttachmentRecord * record);
+
+gboolean	dupin_attachment_record_blob_close
+					(DupinAttachmentRecord * record);
+
+gboolean	dupin_attachment_record_blob_read
+					(DupinAttachmentRecord * record,
+					 gchar *buf,
+                                         gsize count,
+                                         gsize offset,
+                                         gsize *bytes_read,
+                                         GError **error);
+
+gboolean	dupin_attachment_record_blob_write
+					(DupinAttachmentRecord * record,
+					 const gchar *buf,
+				         gsize count,
+                                         gsize offset,
+                                         gsize *bytes_written,
+                                         GError **error);
 
 G_END_DECLS
 

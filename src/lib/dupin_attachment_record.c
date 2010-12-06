@@ -9,25 +9,24 @@
 #include <string.h>
 
 #define DUPIN_ATTACHMENT_DB_SQL_EXISTS \
-	"SELECT count(*) FROM Dupin WHERE id = '%q' AND rev = '%" G_GSIZE_FORMAT "' AND title = '%q' "
+	"SELECT count(*) FROM Dupin WHERE id = '%q' AND title = '%q' "
 
 #define DUPIN_ATTACHMENT_DB_SQL_TOTAL \
 	"SELECT count(*) AS c FROM Dupin AS d"
 
 #define DUPIN_ATTACHMENT_DB_SQL_READ \
-	"SELECT id, rev, title, type, hash, length, ROWID AS rowid FROM Dupin WHERE id = '%q' AND rev = '%" G_GSIZE_FORMAT "' AND title = '%q' "
+	"SELECT id, title, type, hash, length, ROWID AS rowid FROM Dupin WHERE id = '%q' AND title = '%q' "
 
 #define DUPIN_ATTACHMENT_DB_SQL_INSERT \
-        "INSERT INTO Dupin (id, rev, title, type, length, content) " \
-        "VALUES(?, ?, ?, ?, ?, ?)"
+        "INSERT INTO Dupin (id, title, type, length, content) " \
+        "VALUES(?, ?, ?, ?, ?)"
 
 #define DUPIN_ATTACHMENT_DB_SQL_DELETE \
-        "DELETE FROM Dupin WHERE id = '%q' AND rev = '%" G_GSIZE_FORMAT "' AND title = '%q' "
+        "DELETE FROM Dupin WHERE id = '%q' AND title = '%q' "
 
 static DupinAttachmentRecord *dupin_attachment_record_read_real
 							(DupinAttachmentDB * attachment_db,
                                 		     	 gchar *        id,
-                                		     	 guint          revision,
                                 		     	 gchar *        title,
 						     	 GError ** error,
 						     	 gboolean lock);
@@ -35,19 +34,16 @@ static DupinAttachmentRecord *dupin_attachment_record_read_real
 static DupinAttachmentRecord *dupin_attachment_record_new
 							(DupinAttachmentDB * attachment_db,
                                 		     	 gchar *        id,
-                                		     	 guint          revision,
                                 		     	 gchar *        title);
 
 gboolean dupin_attachment_record_exists_real (DupinAttachmentDB *    attachment_db,
                                      	      gchar *        id,
-                                     	      guint          revision,
                                      	      gchar *        title,
                                      	      gboolean       lock);
 
 gboolean
 dupin_attachment_record_insert (DupinAttachmentDB * attachment_db,
                                 gchar *       id,
-                                guint         revision,
                                 gchar *       title,
                                 gsize         length,
                                 gchar *       type,
@@ -56,13 +52,12 @@ dupin_attachment_record_insert (DupinAttachmentDB * attachment_db,
 {
   g_return_val_if_fail (attachment_db != NULL, FALSE);
   g_return_val_if_fail (id != NULL, FALSE);
-  g_return_val_if_fail (revision > 0, FALSE);
   g_return_val_if_fail (title != NULL, FALSE);
   g_return_val_if_fail (length >= 0, FALSE);
   g_return_val_if_fail (type != NULL, FALSE);
   g_return_val_if_fail (content != NULL, FALSE);
 
-g_message("dupin_attachment_record_insert:\n\tid=%s\n\trevision=%d\n\ttitle=%s\n\tlength=%d\n\ttype=%s\n\thash=%s",id, (gint)revision, title, (gint)length, type, hash);
+//g_message("dupin_attachment_record_insert:\n\tid=%s\n\ttitle=%s\n\tlength=%d\n\ttype=%s\n\thash=%s",id, title, (gint)length, type, hash);
 
   gchar *query;
   sqlite3_stmt *insertstmt;
@@ -80,11 +75,10 @@ g_message("dupin_attachment_record_insert:\n\tid=%s\n\trevision=%d\n\ttitle=%s\n
     }
 
   sqlite3_bind_text (insertstmt, 1, id, strlen(id), SQLITE_STATIC);
-  sqlite3_bind_int  (insertstmt, 2, revision);
-  sqlite3_bind_text (insertstmt, 3, title, strlen(title), SQLITE_STATIC);
-  sqlite3_bind_text (insertstmt, 4, type, strlen(type), SQLITE_STATIC);
-  sqlite3_bind_int  (insertstmt, 5, length);
-  sqlite3_bind_blob (insertstmt, 6, (const void*)content, length, SQLITE_STATIC);
+  sqlite3_bind_text (insertstmt, 2, title, strlen(title), SQLITE_STATIC);
+  sqlite3_bind_text (insertstmt, 3, type, strlen(type), SQLITE_STATIC);
+  sqlite3_bind_int  (insertstmt, 4, length);
+  sqlite3_bind_blob (insertstmt, 5, (const void*)content, length, SQLITE_STATIC);
 
   if (sqlite3_step (insertstmt) != SQLITE_DONE)
     {
@@ -106,19 +100,17 @@ g_message("dupin_attachment_record_insert:\n\tid=%s\n\trevision=%d\n\ttitle=%s\n
 gboolean
 dupin_attachment_record_delete (DupinAttachmentDB * attachment_db,
                                 gchar *        id,
-                                guint          revision,
                                 gchar *        title)
 {
   g_return_val_if_fail (attachment_db != NULL, FALSE);
   g_return_val_if_fail (id != NULL, FALSE);
-  g_return_val_if_fail (revision > 0, FALSE);
   g_return_val_if_fail (title != NULL, FALSE);
 
   gchar *query, *errmsg;
 
-  query = sqlite3_mprintf (DUPIN_ATTACHMENT_DB_SQL_DELETE, id, revision, title);
+  query = sqlite3_mprintf (DUPIN_ATTACHMENT_DB_SQL_DELETE, id, title);
 
-g_message("dupin_attachment_record_delete: query=%s\n",query);
+//g_message("dupin_attachment_record_delete: query=%s\n",query);
 
   g_mutex_lock (attachment_db->mutex);
 
@@ -141,15 +133,13 @@ g_message("dupin_attachment_record_delete: query=%s\n",query);
 gboolean
 dupin_attachment_record_exists (DupinAttachmentDB * attachment_db,
                                 gchar *        id,
-                                guint          revision,
                                 gchar *        title)
 {
   g_return_val_if_fail (attachment_db != NULL, FALSE);
   g_return_val_if_fail (id != NULL, FALSE);
-  g_return_val_if_fail (revision > 0, FALSE);
   g_return_val_if_fail (title != NULL, FALSE);
 
-  return dupin_attachment_record_exists_real (attachment_db, id, revision, title, TRUE);
+  return dupin_attachment_record_exists_real (attachment_db, id, title, TRUE);
 }
 
 static int
@@ -167,7 +157,6 @@ dupin_attachment_record_exists_real_cb (void *data, int argc, char **argv,
 gboolean
 dupin_attachment_record_exists_real (DupinAttachmentDB *    attachment_db,
                                      gchar *        id,
-                                     guint          revision,
                                      gchar *        title,
                                      gboolean       lock)
 {
@@ -175,7 +164,7 @@ dupin_attachment_record_exists_real (DupinAttachmentDB *    attachment_db,
   gchar *tmp;
   gint numb = 0;
 
-  tmp = sqlite3_mprintf (DUPIN_ATTACHMENT_DB_SQL_EXISTS, id, revision, title);
+  tmp = sqlite3_mprintf (DUPIN_ATTACHMENT_DB_SQL_EXISTS, id, title);
 
   if (lock == TRUE)
     g_mutex_lock (attachment_db->mutex);
@@ -221,7 +210,6 @@ gboolean
 dupin_attachment_record_get_total_records (DupinAttachmentDB * attachment_db,
 				    gsize * total,
                                     gchar * id,
-                                    guint   revision,
 				    gchar * start_title,
                                     gchar * end_title,
 			    	    gboolean inclusive_end,
@@ -229,7 +217,6 @@ dupin_attachment_record_get_total_records (DupinAttachmentDB * attachment_db,
 {
   g_return_val_if_fail (attachment_db != NULL, FALSE);
   g_return_val_if_fail (id != NULL, FALSE);
-  g_return_val_if_fail (revision > 0, FALSE);
 
   gchar *errmsg;
   gchar *tmp;
@@ -306,10 +293,6 @@ dupin_attachment_record_read_cb (void *data, int argc, char **argv, char **col)
 	  record->id = g_strdup (argv[i]);
 	  record->id_len = strlen (argv[i]);
 	}
-      else if (!strcmp (col[i], "rev") && argv[i])
-	{
-	  record->revision = atoi(argv[i]);
-        }
       else if (!strcmp (col[i], "title") && argv[i])
 	{
 	  record->title = g_strdup (argv[i]);
@@ -341,23 +324,20 @@ dupin_attachment_record_read_cb (void *data, int argc, char **argv, char **col)
 DupinAttachmentRecord *
 dupin_attachment_record_read (DupinAttachmentDB *            attachment_db,
                               gchar *        id,
-                              guint          revision,
                               gchar *        title,
                               GError **              error) 
 {
   g_return_val_if_fail (attachment_db != NULL, NULL);
   g_return_val_if_fail (id != NULL, FALSE);
-  g_return_val_if_fail (revision > 0, FALSE);
   g_return_val_if_fail (title != NULL, FALSE);
   g_return_val_if_fail (dupin_util_is_valid_record_id (id) != FALSE, NULL);
 
-  return dupin_attachment_record_read_real (attachment_db, id, revision, title, error, TRUE);
+  return dupin_attachment_record_read_real (attachment_db, id, title, error, TRUE);
 }
 
 static DupinAttachmentRecord *
 dupin_attachment_record_read_real (DupinAttachmentDB * attachment_db,
                                    gchar *        id,
-                                   guint          revision,
                                    gchar *        title,
 				   GError ** error,
 				   gboolean lock)
@@ -368,9 +348,9 @@ dupin_attachment_record_read_real (DupinAttachmentDB * attachment_db,
 
   dupin_attachment_db_ref (attachment_db);
 
-  record = dupin_attachment_record_new (attachment_db, id, revision, title);
+  record = dupin_attachment_record_new (attachment_db, id, title);
 
-  tmp = sqlite3_mprintf (DUPIN_ATTACHMENT_DB_SQL_READ, id, revision, title);
+  tmp = sqlite3_mprintf (DUPIN_ATTACHMENT_DB_SQL_READ, id, title);
 
   if (lock == TRUE)
     g_mutex_lock (attachment_db->mutex);
@@ -418,7 +398,7 @@ dupin_attachment_record_get_list_cb (void *data, int argc, char **argv, char **c
   struct dupin_attachment_record_get_list_t *s = data;
   DupinAttachmentRecord *record;
 
-  if ((record = dupin_attachment_record_read_real (s->attachment_db, argv[0], atoi(argv[1]), argv[2], NULL, FALSE)))
+  if ((record = dupin_attachment_record_read_real (s->attachment_db, argv[0], argv[1], NULL, FALSE)))
     s->list = g_list_append (s->list, record);
 
   return 0;
@@ -430,7 +410,6 @@ dupin_attachment_record_get_list (DupinAttachmentDB * attachment_db, guint count
 			    DupinOrderByType orderby_type,
 			    gboolean descending,
                             gchar * id,
-                            guint   revision,
 			    gchar * start_title,
 			    gchar * end_title,
 			    gboolean inclusive_end,
@@ -440,22 +419,21 @@ dupin_attachment_record_get_list (DupinAttachmentDB * attachment_db, guint count
   gchar *tmp;
   gchar *errmsg;
 
-  gchar * id_rev_range=NULL;
+  gchar * id_range=NULL;
   gchar * title_range=NULL;
 
   struct dupin_attachment_record_get_list_t s;
 
   g_return_val_if_fail (attachment_db != NULL, FALSE);
   g_return_val_if_fail (id != NULL, FALSE);
-  g_return_val_if_fail (revision > 0, FALSE);
   g_return_val_if_fail (list != NULL, FALSE);
 
   memset (&s, 0, sizeof (s));
   s.attachment_db = attachment_db;
 
-  str = g_string_new ("SELECT id, rev, title FROM Dupin as d");
+  str = g_string_new ("SELECT id, title FROM Dupin as d");
 
-  id_rev_range = sqlite3_mprintf (" d.id = '%q' AND d.rev = '%d' ", id, (gint)revision);
+  id_range = sqlite3_mprintf (" d.id = '%q' ", id);
 
   if (start_title!=NULL && end_title!=NULL)
     if (!strcmp (start_title, end_title) && inclusive_end == TRUE)
@@ -476,7 +454,7 @@ dupin_attachment_record_get_list (DupinAttachmentDB * attachment_db, guint count
         title_range = sqlite3_mprintf (" d.title < '%q' ", end_title);
     }
 
-  g_string_append_printf (str, " WHERE %s ", id_rev_range);
+  g_string_append_printf (str, " WHERE %s ", id_range);
 
   if (rowid_start > 0 && rowid_end > 0)
     g_string_append_printf (str, " %s %s AND d.ROWID >= %d AND d.ROWID <= %d ",
@@ -519,11 +497,11 @@ dupin_attachment_record_get_list (DupinAttachmentDB * attachment_db, guint count
 
   tmp = g_string_free (str, FALSE);
  
-  sqlite3_free (id_rev_range);
+  sqlite3_free (id_range);
   if (title_range!=NULL)
     sqlite3_free (title_range);
 
-g_message("dupin_attachment_record_get_list() query=%s\n",tmp);
+//g_message("dupin_attachment_record_get_list() query=%s\n",tmp);
 
   g_mutex_lock (attachment_db->mutex);
 
@@ -561,11 +539,9 @@ dupin_attachment_record_get_list_close (GList * list)
 static DupinAttachmentRecord *
 dupin_attachment_record_new (DupinAttachmentDB * attachment_db,
                              gchar *        id,
-                             guint          revision,
                              gchar *        title)
 {
   g_return_val_if_fail (id != NULL, FALSE);
-  g_return_val_if_fail (revision > 0, FALSE);
   g_return_val_if_fail (title != NULL, FALSE);
 
   DupinAttachmentRecord *record;
@@ -576,7 +552,8 @@ dupin_attachment_record_new (DupinAttachmentDB * attachment_db,
   record->id_len = strlen (id);
   record->title = g_strdup (title);
   record->title_len = strlen (title);
-  record->revision = revision;
+
+  record->blob = NULL;
 
   return record;
 }
@@ -585,6 +562,9 @@ void
 dupin_attachment_record_close (DupinAttachmentRecord * record)
 {
   g_return_if_fail (record != NULL);
+
+  if (record->blob)
+    dupin_attachment_record_blob_close (record);
 
   if (record->attachment_db)
     dupin_attachment_db_unref (record->attachment_db);
@@ -634,14 +614,6 @@ dupin_attachment_record_get_hash (DupinAttachmentRecord * record)
   g_return_val_if_fail (record != NULL, 0);
 
   return record->hash;
-}
-
-guint
-dupin_attachment_record_get_revision (DupinAttachmentRecord * record)
-{
-  g_return_val_if_fail (record != NULL, 0);
-
-  return record->revision;
 }
 
 gsize
@@ -727,6 +699,104 @@ dupin_attachment_record_get_max_rowid (DupinAttachmentDB * attachment_db, gsize 
     }
 
   g_mutex_unlock (attachment_db->mutex);
+
+  return TRUE;
+}
+
+gboolean
+dupin_attachment_record_blob_open (DupinAttachmentRecord * record)
+{
+  g_return_val_if_fail (record != NULL, FALSE);
+  g_return_val_if_fail (record->blob == NULL, FALSE);
+
+  g_mutex_lock (record->attachment_db->mutex);
+
+  if (sqlite3_blob_open(record->attachment_db->db, "main", "Dupin", "content",
+			dupin_attachment_record_get_rowid (record), 0, &record->blob) != SQLITE_OK)
+    {
+      g_mutex_unlock (record->attachment_db->mutex);
+      g_error("dupin_attachment_record_blob_open: %s", sqlite3_errmsg (record->attachment_db->db));
+      return FALSE;
+    }
+
+  g_mutex_unlock (record->attachment_db->mutex);
+
+  return TRUE;
+}
+
+gboolean
+dupin_attachment_record_blob_close (DupinAttachmentRecord * record)
+{
+  g_return_val_if_fail (record != NULL, FALSE);
+  g_return_val_if_fail (record->blob != NULL, FALSE);
+
+  g_mutex_lock (record->attachment_db->mutex);
+
+  if (sqlite3_blob_close(record->blob) != SQLITE_OK)
+    {
+      g_mutex_unlock (record->attachment_db->mutex);
+      g_error("dupin_attachment_record_blob_close: %s", sqlite3_errmsg (record->attachment_db->db));
+      return FALSE;
+    }
+
+  g_mutex_unlock (record->attachment_db->mutex);
+
+  record->blob = NULL;
+
+  return TRUE;
+}
+
+gboolean
+dupin_attachment_record_blob_read (DupinAttachmentRecord * record,
+                                   gchar *buf,
+                                   gsize count,    
+                                   gsize offset,
+                                   gsize *bytes_read,
+                                   GError **error)
+{
+  g_return_val_if_fail (record != NULL, FALSE);
+
+  gint left = sqlite3_blob_bytes (record->blob) - offset;
+
+  if (left > 0 && left < count)
+    count = left;
+
+  g_mutex_lock (record->attachment_db->mutex);
+
+  if (sqlite3_blob_read (record->blob, buf, count, offset) != SQLITE_OK)
+    {
+      g_mutex_unlock (record->attachment_db->mutex);
+      *bytes_read = 0;
+      return FALSE;
+    }
+
+  g_mutex_unlock (record->attachment_db->mutex);
+
+  *bytes_read = count;
+
+  return TRUE;
+}
+
+gboolean
+dupin_attachment_record_blob_write (DupinAttachmentRecord * record,
+                                    const gchar *buf,
+                                    gsize count,
+                                    gsize offset,
+                                    gsize *bytes_written, 
+                                    GError **error)
+{
+  g_return_val_if_fail (record != NULL, FALSE);
+  g_return_val_if_fail (buf != NULL, FALSE);
+
+  g_mutex_lock (record->attachment_db->mutex);
+
+  if (sqlite3_blob_write(record->blob, buf, count, offset) != SQLITE_OK)
+    {
+      g_mutex_unlock (record->attachment_db->mutex);
+      return FALSE;
+    }
+
+  g_mutex_unlock (record->attachment_db->mutex);
 
   return TRUE;
 }

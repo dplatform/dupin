@@ -13323,8 +13323,8 @@ else
 	sqlite_LIBS=$pkg_cv_sqlite_LIBS
         { echo "$as_me:$LINENO: result: yes" >&5
 echo "${ECHO_T}yes" >&6; }
-		sqlite_LIBS=`$PKG_CONFIG --libs "sqlite" 2>/dev/null`
-			sqlite_CFLAGS=`$PKG_CONFIG --cflags "sqlite" 2>/dev/null`
+		sqlite_LIBS=`$PKG_CONFIG --libs "sqlite3" 2>/dev/null`
+			sqlite_CFLAGS=`$PKG_CONFIG --cflags "sqlite3" 2>/dev/null`
 
 fi
 

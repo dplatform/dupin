@@ -32,8 +32,8 @@
 
 #define HTTP_INDEX_HTML		"index.html"
 
-#define HTTP_MIME_TEXTHTML	"text/html"
-#define HTTP_MIME_JSON		"application/json"
+#define HTTP_MIME_TEXTHTML	"text/html; charset=UTF-8"
+#define HTTP_MIME_JSON		"application/json; charset=UTF-8"
 
 typedef enum
 {

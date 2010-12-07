@@ -1451,7 +1451,7 @@ httpd_client_send (DSHttpdClient * client, DSHttpStatusCode code)
 			  client->output_size);
 
   /* Body type: */
-  g_string_append_printf (str, "Content-Type: %s; charset=UTF-8\r\n",
+  g_string_append_printf (str, "Content-Type: %s\r\n",
 			  client->output_mime ? client->output_mime :
 			  DSHttpStatusList[i].mime);
 

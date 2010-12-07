@@ -9,7 +9,8 @@ gboolean	dupin_util_is_valid_db_name	(gchar *	db);
 
 gboolean	dupin_util_is_valid_view_name	(gchar *	view);
 
-gboolean	dupin_util_is_valid_attachment_db_name (gchar * attachment_db);
+gboolean	dupin_util_is_valid_attachment_db_name
+						(gchar * attachment_db);
 
 gboolean	dupin_util_is_valid_record_id	(gchar *	id);
 
@@ -26,6 +27,29 @@ gboolean	dupin_util_is_valid_mr_lang	(gchar *	lang);
 DupinMRLang	dupin_util_mr_lang_to_enum	(gchar *	lang);
 
 const gchar *	dupin_util_mr_lang_to_string	(DupinMRLang	lang);
+
+gchar *		dupin_util_utf8_normalize	(const gchar *text);
+
+gchar *		dupin_util_utf8_casefold_normalize
+						(const gchar *text);
+
+gint		dupin_util_utf8_compare
+						(const gchar *t1, const gchar *t2);
+
+gint		dupin_util_utf8_ncompare
+						(const gchar *t1, const gchar *t2);
+
+gint		dupin_util_utf8_casecmp		(const gchar *t1, const gchar *t2);
+
+gint		dupin_util_utf8_ncasecmp	(const gchar *t1, const gchar *t2);
+
+gchar *		dupin_util_utf8_create_key_gen 	(const gchar *text, gint case_sen,
+						 gchar * (*keygen) (const gchar * text, gssize size));
+
+gchar *		dupin_util_utf8_create_key	(const gchar *text, gint case_sen);
+
+gchar *		dupin_util_utf8_create_key_for_filename
+						(const gchar *text, gint case_sen);
 
 G_END_DECLS
 

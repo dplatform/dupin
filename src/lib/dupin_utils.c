@@ -215,4 +215,249 @@ dupin_util_json_serialize (JsonNode * node)
   return node_serialized;
 }
 
+/* UTF-8 utility functions from http://midnight-commander.org/
+   updated to include glib gint/gchar and dupin_util namespace */
+
+gchar *
+dupin_util_utf8_normalize (const gchar *text)
+{
+  GString *fixed = g_string_new ("");
+  gchar *tmp;
+  gchar *result;
+  const gchar *start;
+  const gchar *end;
+
+  start = text;
+  while (!g_utf8_validate (start, -1, &end) && start[0] != '\0')
+  {
+    if (start != end)
+    {
+      tmp = g_utf8_normalize (start, end - start, G_NORMALIZE_ALL);
+      g_string_append (fixed, tmp);
+      g_free (tmp);
+    }
+    g_string_append_c (fixed, end[0]);
+    start = end + 1;
+  }
+
+  if (start == text)
+  {
+    result = g_utf8_normalize (text, -1, G_NORMALIZE_ALL);
+  }
+  else
+  {
+    if (start[0] != '\0' && start != end)
+    {
+      tmp = g_utf8_normalize (start, end - start, G_NORMALIZE_ALL);
+      g_string_append (fixed, tmp);
+      g_free (tmp);
+    }
+    result = g_strdup (fixed->str);
+  }
+  g_string_free (fixed, TRUE);
+
+  return result;
+}
+
+gchar *
+dupin_util_utf8_casefold_normalize (const gchar *text)
+{
+  GString *fixed = g_string_new ("");
+  gchar *tmp, *fold;
+  gchar *result;
+  const gchar *start;
+  const gchar *end;
+
+  start = text;
+  while (!g_utf8_validate (start, -1, &end) && start[0] != '\0')
+  {
+    if (start != end)
+    {
+      fold = g_utf8_casefold (start, end - start);
+      tmp = g_utf8_normalize (fold, -1, G_NORMALIZE_ALL);
+      g_string_append (fixed, tmp);
+      g_free (tmp);
+      g_free (fold);
+    }
+    g_string_append_c (fixed, end[0]);
+    start = end + 1;
+  }
+
+  if (start == text)
+  {
+    fold = g_utf8_casefold (text, -1);
+    result = g_utf8_normalize (fold, -1, G_NORMALIZE_ALL);
+    g_free (fold);
+  }
+  else
+  {
+    if (start[0] != '\0' && start != end)
+    {
+      fold = g_utf8_casefold (start, end - start);
+      tmp = g_utf8_normalize (fold, -1, G_NORMALIZE_ALL);
+      g_string_append (fixed, tmp);
+      g_free (tmp);
+      g_free (fold);
+    }
+    result = g_strdup (fixed->str);
+  }
+  g_string_free (fixed, TRUE);
+
+  return result;
+}
+
+gint
+dupin_util_utf8_compare (const gchar *t1, const gchar *t2)
+{
+  gchar *n1, *n2;
+  gint result;
+
+  n1 = dupin_util_utf8_normalize (t1);
+  n2 = dupin_util_utf8_normalize (t2);
+
+  result = strcmp (n1, n2);
+
+  g_free (n1);
+  g_free (n2);
+
+  return result;
+}
+
+gint
+dupin_util_utf8_ncompare (const gchar *t1, const gchar *t2)
+{
+  gchar *n1, *n2;
+  gint result;
+
+  n1 = dupin_util_utf8_normalize (t1);
+  n2 = dupin_util_utf8_normalize (t2);
+
+  result = strncmp (n1, n2, MIN (strlen (n1), strlen (n2)));
+
+  g_free (n1);
+  g_free (n2);
+
+  return result;
+}
+
+gint
+dupin_util_utf8_casecmp (const gchar *t1, const gchar *t2)
+{
+  gchar *n1, *n2;
+  gint result;
+
+  n1 = dupin_util_utf8_casefold_normalize (t1);
+  n2 = dupin_util_utf8_casefold_normalize (t2);
+
+  result = strcmp (n1, n2);
+
+  g_free (n1);
+  g_free (n2);
+
+  return result;
+}
+
+gint
+dupin_util_utf8_ncasecmp (const gchar *t1, const gchar *t2)
+{
+  gchar *n1, *n2;
+  gint result;
+
+  n1 = dupin_util_utf8_casefold_normalize (t1);
+  n2 = dupin_util_utf8_casefold_normalize (t2);
+
+  result = strncmp (n1, n2, MIN (strlen (n1), strlen (n2)));
+
+  g_free (n1);
+  g_free (n2);
+
+  return result;
+}
+
+gchar *
+dupin_util_utf8_create_key_gen (const gchar *text, gint case_sen,
+             gchar * (*keygen) (const gchar * text, gssize size))
+{
+  gchar *result;
+
+  if (case_sen)
+  {
+    result = dupin_util_utf8_normalize (text);
+  }
+  else
+  {
+    gboolean dot;
+    GString *fixed;
+    const gchar *start, *end;
+    gchar *fold, *key;
+
+    dot = text[0] == '.';
+    fixed = g_string_sized_new (16);
+
+    if (!dot)
+      start = text;
+    else
+    {
+      start = text + 1;
+      g_string_append_c (fixed, '.');
+    }
+
+    while (!g_utf8_validate (start, -1, &end) && start[0] != '\0')
+    {
+      if (start != end)
+      {
+        fold = g_utf8_casefold (start, end - start);
+        key = keygen (fold, -1);
+        g_string_append (fixed, key);
+        g_free (key);
+        g_free (fold);
+      }
+      g_string_append_c (fixed, end[0]);
+      start = end + 1;
+    }
+
+    if (start == text)
+    {
+      fold = g_utf8_casefold (start, -1);
+      result = keygen (fold, -1);
+      g_free (fold);
+      g_string_free (fixed, TRUE);
+    }
+    else if (dot && (start == text + 1))
+    {
+      fold = g_utf8_casefold (start, -1);
+      key = keygen (fold, -1);
+      g_string_append (fixed, key);
+      g_free (key);
+      g_free (fold);
+      result = g_string_free (fixed, FALSE);
+    }
+    else
+    {
+      if (start[0] != '\0' && start != end)
+      {
+        fold = g_utf8_casefold (start, end - start);
+        key = keygen (fold, -1);
+        g_string_append (fixed, key);
+        g_free (key);
+        g_free (fold);
+      }
+      result = g_string_free (fixed, FALSE);
+    }
+  }
+  return result;
+}
+
+gchar *
+dupin_util_utf8_create_key (const gchar *text, gint case_sen)
+{
+  return dupin_util_utf8_create_key_gen (text, case_sen, g_utf8_collate_key);
+}
+
+gchar *
+dupin_util_utf8_create_key_for_filename (const gchar *text, gint case_sen)
+{
+  return dupin_util_utf8_create_key_gen (text, case_sen, g_utf8_collate_key_for_filename);
+}
+
 /* EOF */

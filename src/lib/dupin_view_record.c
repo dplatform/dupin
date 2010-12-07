@@ -329,7 +329,7 @@ dupin_view_record_get_list (DupinView * view, guint count, guint offset,
   else if (rowid_end > 0)
     g_string_append_printf (str, " WHERE %s %s d.ROWID <= %d ", (key_range!=NULL) ? key_range : "", (key_range!=NULL) ? "AND" : "", (gint)rowid_end);
   else if (key_range!=NULL)
-    g_string_append_printf (str, " WHERE %s ", (key_range!=NULL) ? key_range : "");
+    g_string_append_printf (str, " WHERE %s ", key_range);
 
   if (orderby_type == DP_ORDERBY_KEY)
     str = g_string_append (str, " GROUP BY id ORDER BY d.key"); /* this should never be used for reduce internal operations */

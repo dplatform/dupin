@@ -97,8 +97,8 @@ if test -n "$PKG_CONFIG"; then
 
 	# SQLite
 	PKG_CHECK_MODULES(sqlite, [ sqlite3 >= 3.4.0 ],
-		[	[sqlite_LIBS=`$PKG_CONFIG --libs "sqlite" 2>/dev/null`]
-			[sqlite_CFLAGS=`$PKG_CONFIG --cflags "sqlite" 2>/dev/null`]
+		[	[sqlite_LIBS=`$PKG_CONFIG --libs "sqlite3" 2>/dev/null`]
+			[sqlite_CFLAGS=`$PKG_CONFIG --cflags "sqlite3" 2>/dev/null`]
 		],
 		[	AC_CHECK_HEADER(sqlite3.h,,AC_MSG_ERROR(SQLite3 is required to build Dupin))
 			AC_CHECK_LIB(sqlite3,sqlite3_exec,, AC_MSG_ERROR(SQLite3 is required to build Dupin))

@@ -229,7 +229,7 @@ dupin_attachment_record_get_total_records (DupinAttachmentDB * attachment_db,
   str = g_string_new (DUPIN_ATTACHMENT_DB_SQL_TOTAL);
 
   if (start_title!=NULL && end_title!=NULL)
-    if (!strcmp (start_title, end_title) && inclusive_end == TRUE)
+    if (!g_utf8_collate (start_title, end_title) && inclusive_end == TRUE)
       title_range = sqlite3_mprintf (" d.title = '%q' ", start_title);
     else if (inclusive_end == TRUE)
       title_range = sqlite3_mprintf (" d.title >= '%q' AND d.title <= '%q' ", start_title, end_title);
@@ -436,7 +436,7 @@ dupin_attachment_record_get_list (DupinAttachmentDB * attachment_db, guint count
   id_range = sqlite3_mprintf (" d.id = '%q' ", id);
 
   if (start_title!=NULL && end_title!=NULL)
-    if (!strcmp (start_title, end_title) && inclusive_end == TRUE)
+    if (!g_utf8_collate (start_title, end_title) && inclusive_end == TRUE)
       title_range = sqlite3_mprintf (" d.title = '%q' ", start_title);
     else if (inclusive_end == TRUE)
       title_range = sqlite3_mprintf (" d.title >= '%q' AND d.title <= '%q' ", start_title, end_title);

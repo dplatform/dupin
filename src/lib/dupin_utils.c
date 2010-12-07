@@ -223,7 +223,7 @@ dupin_util_utf8_normalize (const gchar *text)
 {
   GString *fixed = g_string_new ("");
   gchar *tmp;
-  gchar *result;
+  gchar *result=NULL;
   const gchar *start;
   const gchar *end;
 
@@ -233,8 +233,11 @@ dupin_util_utf8_normalize (const gchar *text)
     if (start != end)
     {
       tmp = g_utf8_normalize (start, end - start, G_NORMALIZE_ALL);
-      g_string_append (fixed, tmp);
-      g_free (tmp);
+      if (tmp != NULL)
+        {
+          g_string_append (fixed, tmp);
+          g_free (tmp);
+        }
     }
     g_string_append_c (fixed, end[0]);
     start = end + 1;
@@ -249,8 +252,11 @@ dupin_util_utf8_normalize (const gchar *text)
     if (start[0] != '\0' && start != end)
     {
       tmp = g_utf8_normalize (start, end - start, G_NORMALIZE_ALL);
-      g_string_append (fixed, tmp);
-      g_free (tmp);
+      if (tmp != NULL)
+        {
+          g_string_append (fixed, tmp);
+          g_free (tmp);
+        }
     }
     result = g_strdup (fixed->str);
   }
@@ -264,7 +270,7 @@ dupin_util_utf8_casefold_normalize (const gchar *text)
 {
   GString *fixed = g_string_new ("");
   gchar *tmp, *fold;
-  gchar *result;
+  gchar *result=NULL;
   const gchar *start;
   const gchar *end;
 
@@ -274,10 +280,16 @@ dupin_util_utf8_casefold_normalize (const gchar *text)
     if (start != end)
     {
       fold = g_utf8_casefold (start, end - start);
-      tmp = g_utf8_normalize (fold, -1, G_NORMALIZE_ALL);
-      g_string_append (fixed, tmp);
-      g_free (tmp);
-      g_free (fold);
+      if (fold != NULL)
+        {
+          tmp = g_utf8_normalize (fold, -1, G_NORMALIZE_ALL);
+          if (tmp != NULL)
+            {
+              g_string_append (fixed, tmp);
+              g_free (tmp);
+            }
+          g_free (fold);
+        }
     }
     g_string_append_c (fixed, end[0]);
     start = end + 1;
@@ -286,18 +298,27 @@ dupin_util_utf8_casefold_normalize (const gchar *text)
   if (start == text)
   {
     fold = g_utf8_casefold (text, -1);
-    result = g_utf8_normalize (fold, -1, G_NORMALIZE_ALL);
-    g_free (fold);
+    if (fold != NULL)
+      {
+        result = g_utf8_normalize (fold, -1, G_NORMALIZE_ALL);
+        g_free (fold);
+      }
   }
   else
   {
     if (start[0] != '\0' && start != end)
     {
       fold = g_utf8_casefold (start, end - start);
-      tmp = g_utf8_normalize (fold, -1, G_NORMALIZE_ALL);
-      g_string_append (fixed, tmp);
-      g_free (tmp);
-      g_free (fold);
+      if (fold != NULL)
+        {
+          tmp = g_utf8_normalize (fold, -1, G_NORMALIZE_ALL);
+          if (tmp != NULL)
+            {
+              g_string_append (fixed, tmp);
+              g_free (tmp);
+            }
+          g_free (fold);
+        }
     }
     result = g_strdup (fixed->str);
   }
@@ -317,8 +338,10 @@ dupin_util_utf8_compare (const gchar *t1, const gchar *t2)
 
   result = strcmp (n1, n2);
 
-  g_free (n1);
-  g_free (n2);
+  if (n1 != NULL)
+    g_free (n1);
+  if (n2 != NULL)
+    g_free (n2);
 
   return result;
 }
@@ -328,14 +351,20 @@ dupin_util_utf8_ncompare (const gchar *t1, const gchar *t2)
 {
   gchar *n1, *n2;
   gint result;
+  gint min_len=0;
 
   n1 = dupin_util_utf8_normalize (t1);
   n2 = dupin_util_utf8_normalize (t2);
 
-  result = strncmp (n1, n2, MIN (strlen (n1), strlen (n2)));
+  if (n1 != NULL && n2 != NULL)
+    min_len = MIN (strlen (n1), strlen (n2));
 
-  g_free (n1);
-  g_free (n2);
+  result = strncmp (n1, n2, min_len);
+
+  if (n1 != NULL)
+    g_free (n1);
+  if (n2 != NULL)
+    g_free (n2);
 
   return result;
 }
@@ -351,8 +380,10 @@ dupin_util_utf8_casecmp (const gchar *t1, const gchar *t2)
 
   result = strcmp (n1, n2);
 
-  g_free (n1);
-  g_free (n2);
+  if (n1 != NULL)
+    g_free (n1);
+  if (n2 != NULL)
+    g_free (n2);
 
   return result;
 }
@@ -362,14 +393,20 @@ dupin_util_utf8_ncasecmp (const gchar *t1, const gchar *t2)
 {
   gchar *n1, *n2;
   gint result;
+  gint min_len=0;
 
   n1 = dupin_util_utf8_casefold_normalize (t1);
   n2 = dupin_util_utf8_casefold_normalize (t2);
 
-  result = strncmp (n1, n2, MIN (strlen (n1), strlen (n2)));
+  if (n1 != NULL && n2 != NULL)
+    min_len = MIN (strlen (n1), strlen (n2));
 
-  g_free (n1);
-  g_free (n2);
+  result = strncmp (n1, n2, min_len);
+
+  if (n1 != NULL)
+    g_free (n1);
+  if (n2 != NULL)
+    g_free (n2);
 
   return result;
 }
@@ -378,7 +415,7 @@ gchar *
 dupin_util_utf8_create_key_gen (const gchar *text, gint case_sen,
              gchar * (*keygen) (const gchar * text, gssize size))
 {
-  gchar *result;
+  gchar *result=NULL;
 
   if (case_sen)
   {
@@ -407,10 +444,16 @@ dupin_util_utf8_create_key_gen (const gchar *text, gint case_sen,
       if (start != end)
       {
         fold = g_utf8_casefold (start, end - start);
-        key = keygen (fold, -1);
-        g_string_append (fixed, key);
-        g_free (key);
-        g_free (fold);
+        if (fold != NULL)
+          {
+            key = keygen (fold, -1);
+            if (key != NULL)
+              {
+                g_string_append (fixed, key);
+                g_free (key);
+              }
+            g_free (fold);
+          }
       }
       g_string_append_c (fixed, end[0]);
       start = end + 1;
@@ -419,17 +462,27 @@ dupin_util_utf8_create_key_gen (const gchar *text, gint case_sen,
     if (start == text)
     {
       fold = g_utf8_casefold (start, -1);
-      result = keygen (fold, -1);
-      g_free (fold);
+      if (fold != NULL)
+        {
+          result = keygen (fold, -1);
+          if (result != NULL)
+            g_free (fold);
+        }
       g_string_free (fixed, TRUE);
     }
     else if (dot && (start == text + 1))
     {
       fold = g_utf8_casefold (start, -1);
-      key = keygen (fold, -1);
-      g_string_append (fixed, key);
-      g_free (key);
-      g_free (fold);
+      if (fold != NULL)
+        {
+          key = keygen (fold, -1);
+          if (key != NULL)
+            {
+              g_string_append (fixed, key);
+              g_free (key);
+            }
+          g_free (fold);
+        }
       result = g_string_free (fixed, FALSE);
     }
     else
@@ -437,10 +490,16 @@ dupin_util_utf8_create_key_gen (const gchar *text, gint case_sen,
       if (start[0] != '\0' && start != end)
       {
         fold = g_utf8_casefold (start, end - start);
-        key = keygen (fold, -1);
-        g_string_append (fixed, key);
-        g_free (key);
-        g_free (fold);
+        if (fold != NULL)
+          {
+            key = keygen (fold, -1);
+            if (key != NULL)
+              {
+                g_string_append (fixed, key);
+                g_free (key);
+              }
+            g_free (fold);
+          }
       }
       result = g_string_free (fixed, FALSE);
     }

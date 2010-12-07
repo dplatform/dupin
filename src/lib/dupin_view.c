@@ -19,11 +19,12 @@ See http://wiki.apache.org/couchdb/Introduction_to_CouchDB_views
 
 #define DUPIN_VIEW_SQL_MAIN_CREATE \
   "CREATE TABLE IF NOT EXISTS Dupin (\n" \
+  "  vid         CHAR(255) NOT NULL,\n" \
   "  id          CHAR(255),\n" \
   "  pid         TEXT NOT NULL,\n" \
   "  key         TEXT NOT NULL,\n" \
   "  obj         TEXT,\n" \
-  "  PRIMARY KEY(key, pid)\n" \
+  "  PRIMARY KEY(vid)\n" \
   ");"
 
 #define DUPIN_VIEW_SQL_CREATE_INDEX \
@@ -45,8 +46,8 @@ See http://wiki.apache.org/couchdb/Introduction_to_CouchDB_views
   ");"
 
 #define DUPIN_VIEW_SQL_INSERT \
-	"INSERT INTO Dupin (id, pid, key, obj) " \
-        "VALUES('%q', '%q', '%q', '%q')"
+	"INSERT INTO Dupin (vid, id, pid, key, obj) " \
+        "VALUES('%q', '%q', '%q', '%q', '%q')"
 
 #define DUPIN_VIEW_SQL_EXISTS \
 	"SELECT count(id) FROM Dupin WHERE id = '%q' "
@@ -418,8 +419,14 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
 
   JsonObject *obj;
 
+  const gchar *vid = NULL;
   const gchar *id = NULL;
   gchar *tmp, *errmsg, *obj_serialized=NULL, *key_serialized=NULL, *pid_serialized=NULL;
+
+  if (!(vid = dupin_view_generate_id (view)))
+    {
+      return;
+    }
 
   obj = json_node_get_object (obj_node);
 
@@ -432,17 +439,15 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
 
       id = g_strdup ( (gchar *)json_node_get_string ( json_array_get_element ( json_node_get_array (pid_node), 0) ) );
     }
+  else
+    {
+      id = g_strdup (vid);
+    }
 
 //dupin_view_debug_print_json_node ("dupin_view_record_save_map: KEY", key_node);
 //dupin_view_debug_print_json_node ("dupin_view_record_save_map: PID", pid_node);
 
   g_mutex_lock (view->mutex);
-
-  if (!id && !(id = dupin_view_generate_id (view)))
-    {
-      g_mutex_unlock (view->mutex);
-      return;
-    }
 
   /* serialize the obj */
 
@@ -451,7 +456,9 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
   if (obj_serialized == NULL)
     {
       g_mutex_unlock (view->mutex);
-      g_free ((gchar *)id);
+      g_free ((gchar *)vid);
+      if (id != NULL)
+        g_free ((gchar *)id);
       return;
     }
 
@@ -464,7 +471,9 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
       if (key_serialized == NULL)
         {
           g_mutex_unlock (view->mutex);
-          g_free ((gchar *)id);
+          g_free ((gchar *)vid);
+          if (id != NULL)
+            g_free ((gchar *)id);
           g_free (obj_serialized);
           return;
         }
@@ -477,7 +486,9 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
       if (pid_serialized == NULL)
         {
           g_mutex_unlock (view->mutex);
-          g_free ((gchar *)id);
+          g_free ((gchar *)vid);
+          if (id != NULL)
+            g_free ((gchar *)id);
           g_free (obj_serialized);
           if (key_serialized)
             g_free (key_serialized);
@@ -485,9 +496,9 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
         }
     }
 
-  tmp = sqlite3_mprintf (DUPIN_VIEW_SQL_INSERT, id, pid_serialized, key_serialized, obj_serialized);
+  tmp = sqlite3_mprintf (DUPIN_VIEW_SQL_INSERT, vid, id, pid_serialized, key_serialized, obj_serialized);
 
-//g_message("query: %s\n",tmp);
+g_message("query: %s\n",tmp);
 
   if (sqlite3_exec (view->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
     {
@@ -503,7 +514,9 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
     g_free (key_serialized);
   if (pid_serialized)
     g_free (pid_serialized);
-  g_free ((gchar *)id);
+  g_free ((gchar *)vid);
+  if (id != NULL)
+    g_free ((gchar *)id);
 }
 
 static void
@@ -746,6 +759,67 @@ dupin_view_create_cb (void *data, int argc, char **argv, char **col)
   return 0;
 }
 
+/* see also http://wiki.apache.org/couchdb/View_collation */
+
+int
+dupin_view_collation (void        * view,
+		      int         left_len,
+		      const void  *left_void,
+		      int         right_len,
+		      const void  *right_void)
+{
+
+  int ret = 0;  // return value
+  int min_len;
+
+  gchar * left  = g_string_free (g_string_new_len ((gchar*)left_void, (gint) left_len), FALSE);
+  gchar * right = g_string_free (g_string_new_len ((gchar*)right_void, (gint) right_len), FALSE);
+
+  min_len = MIN(left_len, right_len);
+
+  if (min_len == 0)
+    {
+      // empty string sorts at end of list
+      if (left_len == right_len)
+        {
+          ret = 0;
+        }
+      else if (left_len == 0)
+        {
+          ret = 1;
+        }
+      else
+        {
+          ret = -1;
+        }
+    }
+  else
+    {
+g_message("dupin_view_collation:\n\tleft=%s (left_len=%d)\n\tright=%s (right_len=%d)\n", (gchar*)left, (gint) left_len, (gchar*)right, (gint)right_len);
+
+      // special values sort before all other types
+
+      // string compare no more than min_len
+      ret = dupin_util_utf8_ncompare ((gchar*)left, (gchar*)right);
+      if (ret == 0)
+        {
+          if (left_len < right_len)
+            {
+              ret = -1;
+            }
+          else
+            {
+              ret = 1;
+            }
+        }
+    }
+
+  g_free (left);
+  g_free (right);
+
+  return ret;
+}
+
 DupinView *
 dupin_view_create (Dupin * d, gchar * name, gchar * path, GError ** error)
 {
@@ -772,6 +846,15 @@ dupin_view_create (Dupin * d, gchar * name, gchar * path, GError ** error)
     {
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
 		   "View error.");
+      dupin_view_free (view);
+      return NULL;
+    }
+
+  /* TODO - create collation functions for views - see http://wiki.apache.org/couchdb/View_collation */
+  if (sqlite3_create_collation (view->db, "dupincmp", SQLITE_UTF8,  view, dupin_view_collation) != SQLITE_OK)
+    {
+      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
+		   "View error. Cannot create collation function 'dupincmp'");
       dupin_view_free (view);
       return NULL;
     }

@@ -114,7 +114,7 @@ dupin_view_record_get_total_records (DupinView * view,
   str = g_string_new (DUPIN_VIEW_SQL_TOTAL);
 
   if (start_key!=NULL && end_key!=NULL)
-    if (!strcmp (start_key, end_key) && inclusive_end == TRUE)
+    if (!g_utf8_collate (start_key, end_key) && inclusive_end == TRUE)
       key_range = sqlite3_mprintf (" d.key = '%q' ", start_key);
     else if (inclusive_end == TRUE)
       key_range = sqlite3_mprintf (" d.key >= '%q' AND d.key <= '%q' ", start_key, end_key);
@@ -304,7 +304,7 @@ dupin_view_record_get_list (DupinView * view, guint count, guint offset,
   str = g_string_new ("SELECT id FROM Dupin as d");
 
   if (start_key!=NULL && end_key!=NULL)
-    if (!strcmp (start_key, end_key) && inclusive_end == TRUE)
+    if (!g_utf8_collate (start_key, end_key) && inclusive_end == TRUE)
       key_range = sqlite3_mprintf (" d.key = '%q' ", start_key);
     else if (inclusive_end == TRUE)
       key_range = sqlite3_mprintf (" d.key >= '%q' AND d.key <= '%q' ", start_key, end_key);
@@ -332,11 +332,13 @@ dupin_view_record_get_list (DupinView * view, guint count, guint offset,
     g_string_append_printf (str, " WHERE %s ", key_range);
 
   if (orderby_type == DP_ORDERBY_KEY)
-    str = g_string_append (str, " GROUP BY id ORDER BY d.key"); /* this should never be used for reduce internal operations */
+    {
+      str = g_string_append (str, " GROUP BY vid ORDER BY d.key COLLATE dupincmp"); /* this should never be used for reduce internal operations */
+    }
   else if (orderby_type == DP_ORDERBY_ROWID)
-    str = g_string_append (str, " GROUP BY id ORDER BY d.ROWID");
+    str = g_string_append (str, " GROUP BY vid ORDER BY d.ROWID");
   else
-    str = g_string_append (str, " GROUP BY id ORDER BY d.ROWID");
+    str = g_string_append (str, " GROUP BY vid ORDER BY d.ROWID");
 
   if (descending)
     str = g_string_append (str, " DESC");

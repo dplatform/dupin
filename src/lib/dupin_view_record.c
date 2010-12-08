@@ -17,6 +17,9 @@
 #define DUPIN_VIEW_SQL_READ \
 	"SELECT pid, key, obj, ROWID AS rowid FROM Dupin WHERE id='%q'"
 
+#define DUPIN_VIEW_SQL_EXISTS \
+        "SELECT count(id) FROM Dupin WHERE id = '%q' "
+
 static DupinViewRecord *dupin_view_record_read_real (DupinView * view,
 						     gchar * id,
 						     GError ** error,
@@ -333,12 +336,12 @@ dupin_view_record_get_list (DupinView * view, guint count, guint offset,
 
   if (orderby_type == DP_ORDERBY_KEY)
     {
-      str = g_string_append (str, " GROUP BY vid ORDER BY d.key COLLATE dupincmp"); /* this should never be used for reduce internal operations */
+      str = g_string_append (str, " GROUP BY id ORDER BY d.key"); /* this should never be used for reduce internal operations */
     }
   else if (orderby_type == DP_ORDERBY_ROWID)
-    str = g_string_append (str, " GROUP BY vid ORDER BY d.ROWID");
+    str = g_string_append (str, " GROUP BY id ORDER BY d.ROWID");
   else
-    str = g_string_append (str, " GROUP BY vid ORDER BY d.ROWID");
+    str = g_string_append (str, " GROUP BY id ORDER BY d.ROWID");
 
   if (descending)
     str = g_string_append (str, " DESC");
@@ -362,7 +365,7 @@ dupin_view_record_get_list (DupinView * view, guint count, guint offset,
   if (key_range!=NULL)
     sqlite3_free (key_range);
 
-//g_message("dupin_view_record_get_list() query=%s\n",tmp);
+g_message("dupin_view_record_get_list() query=%s\n",tmp);
 
   g_mutex_lock (view->mutex);
 

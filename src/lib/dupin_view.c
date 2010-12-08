@@ -19,18 +19,15 @@ See http://wiki.apache.org/couchdb/Introduction_to_CouchDB_views
 
 #define DUPIN_VIEW_SQL_MAIN_CREATE \
   "CREATE TABLE IF NOT EXISTS Dupin (\n" \
-  "  vid         CHAR(255) NOT NULL,\n" \
-  "  id          CHAR(255),\n" \
+  "  id          CHAR(255) NOT NULL,\n" \
   "  pid         TEXT NOT NULL,\n" \
-  "  key         TEXT NOT NULL,\n" \
+  "  key         TEXT NOT NULL COLLATE dupincmp,\n" \
   "  obj         TEXT,\n" \
-  "  PRIMARY KEY(vid)\n" \
+  "  PRIMARY KEY(id)\n" \
   ");"
 
 #define DUPIN_VIEW_SQL_CREATE_INDEX \
-  "CREATE INDEX IF NOT EXISTS DupinKey ON Dupin (key);\n" \
-  "CREATE INDEX IF NOT EXISTS DupinPid ON Dupin (pid);\n" \
-  "CREATE INDEX IF NOT EXISTS DupinId ON Dupin (id);"
+  "CREATE INDEX IF NOT EXISTS DupinKey ON Dupin (key);"
 
 #define DUPIN_VIEW_SQL_DESC_CREATE \
   "CREATE TABLE IF NOT EXISTS DupinView (\n" \
@@ -46,14 +43,14 @@ See http://wiki.apache.org/couchdb/Introduction_to_CouchDB_views
   ");"
 
 #define DUPIN_VIEW_SQL_INSERT \
-	"INSERT INTO Dupin (vid, id, pid, key, obj) " \
-        "VALUES('%q', '%q', '%q', '%q', '%q')"
-
-#define DUPIN_VIEW_SQL_EXISTS \
-	"SELECT count(id) FROM Dupin WHERE id = '%q' "
+	"INSERT INTO Dupin (id, pid, key, obj) " \
+        "VALUES('%q', '%q', '%q', '%q')"
 
 #define DUPIN_VIEW_SQL_TOTAL_REREDUCE \
 	"SELECT key AS inner_key, count(*) AS inner_count FROM Dupin GROUP BY inner_key HAVING inner_count > 1 "
+
+#define DUPIN_VIEW_SQL_COUNT \
+	"SELECT count(id) as c FROM Dupin"
 
 #define VIEW_SYNC_COUNT	100
 
@@ -419,11 +416,10 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
 
   JsonObject *obj;
 
-  const gchar *vid = NULL;
   const gchar *id = NULL;
   gchar *tmp, *errmsg, *obj_serialized=NULL, *key_serialized=NULL, *pid_serialized=NULL;
 
-  if (!(vid = dupin_view_generate_id (view)))
+  if (!(id = dupin_view_generate_id (view)))
     {
       return;
     }
@@ -432,16 +428,12 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
 
   if (view->reduce == NULL)
     {
-      /* NOTE - we always force a new _id - due records must be sorted by a controlled ID in a view for mp/r/rr purposes */
       json_object_remove_member (obj, "_id");
-
       json_object_remove_member (obj, "_pid");
 
-      id = g_strdup ( (gchar *)json_node_get_string ( json_array_get_element ( json_node_get_array (pid_node), 0) ) );
-    }
-  else
-    {
-      id = g_strdup (vid);
+      //id = g_strdup ( (gchar *)json_node_get_string ( json_array_get_element ( json_node_get_array (pid_node), 0) ) );
+
+      json_object_set_string_member (obj, "id", (gchar *)json_node_get_string ( json_array_get_element ( json_node_get_array (pid_node), 0) ) );
     }
 
 //dupin_view_debug_print_json_node ("dupin_view_record_save_map: KEY", key_node);
@@ -456,9 +448,7 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
   if (obj_serialized == NULL)
     {
       g_mutex_unlock (view->mutex);
-      g_free ((gchar *)vid);
-      if (id != NULL)
-        g_free ((gchar *)id);
+      g_free ((gchar *)id);
       return;
     }
 
@@ -471,9 +461,7 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
       if (key_serialized == NULL)
         {
           g_mutex_unlock (view->mutex);
-          g_free ((gchar *)vid);
-          if (id != NULL)
-            g_free ((gchar *)id);
+          g_free ((gchar *)id);
           g_free (obj_serialized);
           return;
         }
@@ -486,9 +474,7 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
       if (pid_serialized == NULL)
         {
           g_mutex_unlock (view->mutex);
-          g_free ((gchar *)vid);
-          if (id != NULL)
-            g_free ((gchar *)id);
+          g_free ((gchar *)id);
           g_free (obj_serialized);
           if (key_serialized)
             g_free (key_serialized);
@@ -496,7 +482,7 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
         }
     }
 
-  tmp = sqlite3_mprintf (DUPIN_VIEW_SQL_INSERT, vid, id, pid_serialized, key_serialized, obj_serialized);
+  tmp = sqlite3_mprintf (DUPIN_VIEW_SQL_INSERT, id, pid_serialized, key_serialized, obj_serialized);
 
 g_message("query: %s\n",tmp);
 
@@ -514,9 +500,7 @@ g_message("query: %s\n",tmp);
     g_free (key_serialized);
   if (pid_serialized)
     g_free (pid_serialized);
-  g_free ((gchar *)vid);
-  if (id != NULL)
-    g_free ((gchar *)id);
+  g_free ((gchar *)id);
 }
 
 static void
@@ -801,17 +785,6 @@ g_message("dupin_view_collation:\n\tleft=%s (left_len=%d)\n\tright=%s (right_len
 
       // string compare no more than min_len
       ret = dupin_util_utf8_ncompare ((gchar*)left, (gchar*)right);
-      if (ret == 0)
-        {
-          if (left_len < right_len)
-            {
-              ret = -1;
-            }
-          else
-            {
-              ret = 1;
-            }
-        }
     }
 
   g_free (left);
@@ -905,15 +878,12 @@ gsize
 dupin_view_count (DupinView * view)
 {
   gsize size;
-  gchar *query;
 
   g_return_val_if_fail (view != NULL, 0);
 
-  query = "SELECT count(id) as c FROM Dupin";
-
   g_mutex_lock (view->mutex);
 
-  if (sqlite3_exec (view->db, query, dupin_view_count_cb, &size, NULL) !=
+  if (sqlite3_exec (view->db, DUPIN_VIEW_SQL_COUNT, dupin_view_count_cb, &size, NULL) !=
       SQLITE_OK)
     {
       g_mutex_unlock (view->mutex);

@@ -18,7 +18,6 @@
 
 #define REQUEST_OBJ_ID		"_id"
 #define REQUEST_OBJ_REV		"_rev"
-#define REQUEST_VIEW_OBJ_ID	"id"
 #define REQUEST_OBJ_ATTACHMENTS	"_attachments"
 
 #define DUPIN_DB_MAX_DOCS_COUNT     50
@@ -3080,9 +3079,6 @@ request_view_record_obj (DupinViewRecord * record, gchar * id)
   node = json_node_copy (node);
 
   obj = json_node_get_object (node);
-
-  if (record->view->reduce == NULL)
-    json_object_set_string_member (obj, REQUEST_VIEW_OBJ_ID, id);
 
   return node;
 }

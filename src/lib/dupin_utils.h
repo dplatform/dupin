@@ -22,6 +22,8 @@ gboolean	dupin_util_is_valid_obj		(JsonObject *obj);
 
 void		dupin_util_generate_id		(gchar		id[255]);
 
+gsize		dupin_util_timestamp_now	();
+
 gboolean	dupin_util_is_valid_mr_lang	(gchar *	lang);
 
 DupinMRLang	dupin_util_mr_lang_to_enum	(gchar *	lang);
@@ -50,6 +52,19 @@ gchar *		dupin_util_utf8_create_key	(const gchar *text, gint case_sen);
 
 gchar *		dupin_util_utf8_create_key_for_filename
 						(const gchar *text, gint case_sen);
+
+gboolean        dupin_util_mvcc_new   		(guint revision,
+                                       		 gchar * hash,
+                                         	 gchar mvcc[255]);
+
+gboolean        dupin_util_is_valid_mvcc	(gchar * mvcc);
+
+gboolean        dupin_util_mvcc_get_revision	(gchar * mvcc,
+                                         	 guint * revision);
+
+gboolean        dupin_util_mvcc_get_hash	(gchar * mvcc,
+                                         	 gchar hash[255]);
+
 
 G_END_DECLS
 

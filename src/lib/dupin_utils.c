@@ -58,35 +58,44 @@ dupin_util_is_valid_record_id (gchar * id)
 
 /* see also http://engineering.twitter.com/2010/06/announcing-snowflake.html */
 
+/* TODO - rework this function to be network portable (indep. of NTP) and sequential etc */
 /* roughly we want an ID which is unique per thread, machine/server and sequential, and sortable */
 void
 dupin_util_generate_id (gchar id[255])
 {
+  gchar guid[32];
+
   static const unsigned char rchars[] =
 	"abcdefghijklmnopqrstuvwxyz"
 	"0123456789";
    gint i;
 
-   sqlite3_randomness(32, id);
+   sqlite3_randomness(sizeof(guid), id);
 
-   for (i=0; i<32; i++)
+   for (i=0; i<sizeof(guid); i++)
      {
        id[i] = rchars[ id[i] % (sizeof(rchars)-1) ];
      }
-   id[32] = '\0';
+   id[sizeof(guid)] = '\0';
 
-#if 0
-  /*gsize ttime=0;
-  GTimeVal tnow;*/
+   gchar *md5 = g_compute_checksum_for_string (G_CHECKSUM_MD5, id, 32);
 
-  /* TODO - rework this function to be network portable (indep. of NTP) and sequential etc */
+   snprintf (id, 255, "%s", md5);   
+
+   g_free (md5);
+}
+
+gsize
+dupin_util_timestamp_now ()
+{
+  gsize ttime=0;
+  GTimeVal tnow;
 
   /* time in nanoseconds */
-  /*
   g_get_current_time(&tnow); 
   ttime= tnow.tv_sec * 1000000 + tnow.tv_usec;
-  */
-#endif
+
+  return ttime;
 }
 
 gboolean
@@ -522,6 +531,100 @@ gchar *
 dupin_util_utf8_create_key_for_filename (const gchar *text, gint case_sen)
 {
   return dupin_util_utf8_create_key_gen (text, case_sen, g_utf8_collate_key_for_filename);
+}
+
+/* MVCC stuff */
+
+gboolean
+dupin_util_mvcc_new (guint revision,
+                     gchar * hash,
+                     gchar mvcc[255])
+{
+  g_return_val_if_fail (revision > 0, FALSE);
+  g_return_val_if_fail (hash != NULL, FALSE);
+
+  snprintf (mvcc, 255, "%d-%s", revision, hash);
+
+g_message("dupin_util_mvcc_new: revision=%d hash=%s -> mvcc=%s\n", (gint)revision, hash, mvcc);
+
+  return TRUE;
+}
+
+gboolean
+dupin_util_is_valid_mvcc (gchar * mvcc)
+{
+  g_return_val_if_fail (mvcc != NULL, FALSE);
+
+  gchar **parts;
+
+  parts = g_strsplit (mvcc, "-", -1);
+
+  if (!parts || !parts[0] || !parts[1] || parts[3])
+    {
+      if (parts)
+        g_strfreev (parts);
+
+      return FALSE;
+    }
+
+  g_strfreev (parts);
+
+  return TRUE;
+}
+
+gboolean
+dupin_util_mvcc_get_revision (gchar * mvcc,
+                              guint * revision)
+{
+  g_return_val_if_fail (mvcc != NULL, FALSE);
+
+  gchar **parts;
+  *revision = 0;
+
+  parts = g_strsplit (mvcc, "-", -1);
+
+  if (!parts || !parts[0] || !parts[1] || parts[3])
+    {
+      if (parts)
+        g_strfreev (parts);
+
+      return FALSE;
+    }
+
+  *revision = atoi (parts[0]);
+
+g_message("dupin_util_mvcc_get_rev: mvcc=%s -> revision=%d\n", mvcc, (gint)*revision);
+
+  g_strfreev (parts);
+
+  return TRUE;
+}
+
+gboolean
+dupin_util_mvcc_get_hash (gchar * mvcc,
+                          gchar hash[255])
+{
+  g_return_val_if_fail (mvcc != NULL, FALSE);
+
+  gchar **parts;
+
+  parts = g_strsplit (mvcc, "-", -1);
+
+  if (!parts || !parts[0] || !parts[1] || parts[3])
+    {
+      if (parts)
+        g_strfreev (parts);
+
+      return FALSE;
+    }
+
+  g_stpcpy (hash, parts[1]);
+
+g_message("dupin_util_mvcc_get_hash: mvcc=%s -> hash=%s\n", mvcc, hash);
+
+  g_strfreev (parts);
+
+  return TRUE;
 }
 
 /* EOF */

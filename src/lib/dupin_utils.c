@@ -62,8 +62,20 @@ dupin_util_is_valid_record_id (gchar * id)
 void
 dupin_util_generate_id (gchar id[255])
 {
-  GRand *rand;
-  gint32 i;
+  static const unsigned char rchars[] =
+	"abcdefghijklmnopqrstuvwxyz"
+	"0123456789";
+   gint i;
+
+   sqlite3_randomness(32, id);
+
+   for (i=0; i<32; i++)
+     {
+       id[i] = rchars[ id[i] % (sizeof(rchars)-1) ];
+     }
+   id[32] = '\0';
+
+#if 0
   /*gsize ttime=0;
   GTimeVal tnow;*/
 
@@ -74,14 +86,7 @@ dupin_util_generate_id (gchar id[255])
   g_get_current_time(&tnow); 
   ttime= tnow.tv_sec * 1000000 + tnow.tv_usec;
   */
-
-  rand = g_rand_new ();
-
-  i = g_rand_int_range (rand, 1, G_MAXINT32);
-  /*snprintf (id, 255, "%X-%X", i, ttime);*/
-  snprintf (id, 255, "%X", i);
-
-  g_rand_free (rand);
+#endif
 }
 
 gboolean

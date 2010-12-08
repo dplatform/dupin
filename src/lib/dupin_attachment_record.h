@@ -112,6 +112,10 @@ gboolean	dupin_attachment_record_blob_write
                                          gsize *bytes_written,
                                          GError **error);
 
+gchar *		dupin_attachment_record_get_aggregated_hash
+					(DupinAttachmentDB * attachment_db,
+                                         gchar *        id);
+
 G_END_DECLS
 
 #endif

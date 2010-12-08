@@ -18,11 +18,14 @@
 	"SELECT id, title, type, hash, length, ROWID AS rowid FROM Dupin WHERE id = '%q' AND title = '%q' "
 
 #define DUPIN_ATTACHMENT_DB_SQL_INSERT \
-        "INSERT INTO Dupin (id, title, type, length, content) " \
-        "VALUES(?, ?, ?, ?, ?)"
+        "INSERT INTO Dupin (id, title, type, length, hash, content) " \
+        "VALUES(?, ?, ?, ?, ?, ?)"
 
 #define DUPIN_ATTACHMENT_DB_SQL_DELETE \
         "DELETE FROM Dupin WHERE id = '%q' AND title = '%q' "
+
+#define DUPIN_ATTACHMENT_DB_SQL_HASHES \
+	"select group_concat(hash,'') AS h from Dupin where id = '%q' "
 
 static DupinAttachmentRecord *dupin_attachment_record_read_real
 							(DupinAttachmentDB * attachment_db,
@@ -41,6 +44,12 @@ gboolean dupin_attachment_record_exists_real (DupinAttachmentDB *    attachment_
                                      	      gchar *        title,
                                      	      gboolean       lock);
 
+gboolean dupin_attachment_record_get_aggregated_hash_real (DupinAttachmentDB * attachment_db,
+                                                  	   gchar *        id,
+                                                  	   gchar **       hash,
+                                                  	   gboolean       lock);
+
+/* NOTE - this is completely inefficient due we pass the whole BLOB in RAM and on the stack */
 gboolean
 dupin_attachment_record_insert (DupinAttachmentDB * attachment_db,
                                 gchar *       id,
@@ -61,6 +70,7 @@ dupin_attachment_record_insert (DupinAttachmentDB * attachment_db,
 
   gchar *query;
   sqlite3_stmt *insertstmt;
+  gchar * md5=NULL;
 
   g_mutex_lock (attachment_db->mutex);
 
@@ -78,13 +88,16 @@ dupin_attachment_record_insert (DupinAttachmentDB * attachment_db,
   sqlite3_bind_text (insertstmt, 2, title, strlen(title), SQLITE_STATIC);
   sqlite3_bind_text (insertstmt, 3, type, strlen(type), SQLITE_STATIC);
   sqlite3_bind_int  (insertstmt, 4, length);
-  sqlite3_bind_blob (insertstmt, 5, (const void*)content, length, SQLITE_STATIC);
+  md5 = g_compute_checksum_for_string (G_CHECKSUM_MD5, content, length); // inefficient of course
+  sqlite3_bind_text (insertstmt, 5, md5, strlen(md5), SQLITE_STATIC);
+  sqlite3_bind_blob (insertstmt, 6, (const void*)content, length, SQLITE_STATIC);
 
   if (sqlite3_step (insertstmt) != SQLITE_DONE)
     {
       g_mutex_unlock (attachment_db->mutex);
       g_error("dupin_attachment_db_p_record_insert: %s", sqlite3_errmsg (attachment_db->db));
       sqlite3_free (query);
+      g_free (md5);
       return FALSE;
     }
 
@@ -93,6 +106,7 @@ dupin_attachment_record_insert (DupinAttachmentDB * attachment_db,
   g_mutex_unlock (attachment_db->mutex);
 
   sqlite3_free (query);
+  g_free (md5);
 
   return TRUE;
 }
@@ -189,6 +203,90 @@ dupin_attachment_record_exists_real (DupinAttachmentDB *    attachment_db,
   sqlite3_free (tmp);
 
   return numb > 0 ? TRUE : FALSE;
+}
+
+gchar *
+dupin_attachment_record_get_aggregated_hash (DupinAttachmentDB * attachment_db,
+                                             gchar *        id)
+{
+  g_return_val_if_fail (attachment_db != NULL, NULL);
+  g_return_val_if_fail (id != NULL, NULL);
+
+  gchar * hash=NULL;
+
+  if (dupin_attachment_record_get_aggregated_hash_real (attachment_db, id, &hash, TRUE) == FALSE)
+    return NULL;
+
+g_message("dupin_attachment_record_get_aggregated_hash: whole attachments aggregated hash=%s\n", hash); 
+
+  return hash;
+}
+
+static int
+dupin_attachment_record_get_aggregated_hash_real_cb (void *data, int argc, char **argv,
+				  char **col)
+{
+  gchar ** concatenated_hash = data;
+
+  if (argv[0] && *argv[0])
+    *concatenated_hash = g_strdup (argv[0]);
+
+  return 0;
+}
+
+gboolean
+dupin_attachment_record_get_aggregated_hash_real (DupinAttachmentDB * attachment_db,
+                                                  gchar *        id,
+                                                  gchar **       hash,
+                                                  gboolean       lock)
+{
+  gchar *errmsg;
+  gchar *tmp;
+  gchar * concatenated_hash = NULL;
+
+  tmp = sqlite3_mprintf (DUPIN_ATTACHMENT_DB_SQL_HASHES, id);
+
+//g_message("dupin_attachment_record_get_aggregated_hash_real() query=%s\n",tmp);
+
+  if (lock == TRUE)
+    g_mutex_lock (attachment_db->mutex);
+
+  if (sqlite3_exec (attachment_db->db, tmp, dupin_attachment_record_get_aggregated_hash_real_cb, &concatenated_hash, &errmsg) != SQLITE_OK)
+    {
+      if (lock == TRUE)
+        g_mutex_unlock (attachment_db->mutex);
+
+      sqlite3_free (tmp);
+
+      g_error ("dupin_attachment_record_get_hashes_real: %s", errmsg);
+
+      if (concatenated_hash != NULL)
+        g_free (concatenated_hash);
+
+      sqlite3_free (errmsg);
+
+      return FALSE;
+    }
+
+  if (lock == TRUE)
+    g_mutex_unlock (attachment_db->mutex);
+
+  sqlite3_free (tmp);
+
+//g_message("dupin_attachment_record_get_aggregated_hash_real() concatenated_hash=%s for id=%s\n",concatenated_hash, id);
+
+  if (concatenated_hash != NULL)
+    {
+      *hash = g_compute_checksum_for_string (G_CHECKSUM_MD5, concatenated_hash, strlen(concatenated_hash));
+
+      g_free (concatenated_hash);
+
+      return TRUE;
+    }
+  else
+    {
+      return FALSE;
+    }
 }
 
 static int

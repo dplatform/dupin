@@ -657,4 +657,46 @@ dupin_util_mvcc_get_hash (gchar * mvcc,
   return TRUE;
 }
 
+DupinCollateType
+dupin_util_get_collate_type (gchar * json_raw_string)
+{
+  if (json_raw_string == NULL)
+    {
+      return DP_COLLATE_TYPE_EMPTY;
+    }
+  else
+    {
+      gunichar ch = g_utf8_get_char (json_raw_string);
+
+      if (ch == 'n')
+        {
+          return DP_COLLATE_TYPE_NULL;
+        }
+      else if (ch == 't' || ch == 'f')
+        {
+          return DP_COLLATE_TYPE_BOOLEAN;
+        }
+      else if (g_unichar_isdigit (ch))
+        {
+          return DP_COLLATE_TYPE_NUMBER;
+        }
+      else if (ch == '"')
+        {
+          return DP_COLLATE_TYPE_TEXT;
+        }
+      else if (ch == '[')
+        {
+          return DP_COLLATE_TYPE_ARRAY;
+        }
+      else if (ch == '{')
+        {
+          return DP_COLLATE_TYPE_OBJECT;
+        }
+      else
+        {
+          return DP_COLLATE_TYPE_ANY;
+        }
+    }
+}
+
 /* EOF */

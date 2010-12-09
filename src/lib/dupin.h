@@ -40,6 +40,19 @@ typedef enum
   DP_ORDERBY_HASH
 } DupinOrderByType;
 
+/* SQLite key collation */
+typedef enum
+{
+  DP_COLLATE_TYPE_NULL,
+  DP_COLLATE_TYPE_BOOLEAN,
+  DP_COLLATE_TYPE_NUMBER,
+  DP_COLLATE_TYPE_TEXT,
+  DP_COLLATE_TYPE_ARRAY,
+  DP_COLLATE_TYPE_OBJECT,
+  DP_COLLATE_TYPE_EMPTY,
+  DP_COLLATE_TYPE_ANY
+} DupinCollateType;
+
 typedef struct dupin_db_t		DupinDB;
 typedef struct dupin_record_t		DupinRecord;
 typedef struct dupin_view_record_t	DupinViewRecord;

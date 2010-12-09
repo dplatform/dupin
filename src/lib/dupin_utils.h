@@ -65,6 +65,8 @@ gboolean        dupin_util_mvcc_get_revision	(gchar * mvcc,
 gboolean        dupin_util_mvcc_get_hash	(gchar * mvcc,
                                          	 gchar hash[DUPIN_ID_HASH_ALGO_LEN]);
 
+DupinCollateType
+		dupin_util_get_collate_type	(gchar * json_raw_string);
 
 G_END_DECLS
 

@@ -365,7 +365,7 @@ dupin_view_record_get_list (DupinView * view, guint count, guint offset,
   if (key_range!=NULL)
     sqlite3_free (key_range);
 
-g_message("dupin_view_record_get_list() query=%s\n",tmp);
+//g_message("dupin_view_record_get_list() query=%s\n",tmp);
 
   g_mutex_lock (view->mutex);
 

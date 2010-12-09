@@ -484,7 +484,7 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
 
   tmp = sqlite3_mprintf (DUPIN_VIEW_SQL_INSERT, id, pid_serialized, key_serialized, obj_serialized);
 
-g_message("query: %s\n",tmp);
+//g_message("query: %s\n",tmp);
 
   if (sqlite3_exec (view->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
     {
@@ -752,14 +752,18 @@ dupin_view_collation (void        * view,
 		      int         right_len,
 		      const void  *right_void)
 {
-
-  int ret = 0;  // return value
-  int min_len;
+  int ret = 0;
 
   gchar * left  = g_string_free (g_string_new_len ((gchar*)left_void, (gint) left_len), FALSE);
   gchar * right = g_string_free (g_string_new_len ((gchar*)right_void, (gint) right_len), FALSE);
 
-  min_len = MIN(left_len, right_len);
+  DupinCollateType left_type;
+  DupinCollateType right_type;
+
+  left_type = dupin_util_get_collate_type (left);
+  right_type = dupin_util_get_collate_type (right);
+
+  int min_len = MIN(left_len, right_len);
 
   if (min_len == 0)
     {
@@ -777,14 +781,23 @@ dupin_view_collation (void        * view,
           ret = -1;
         }
     }
-  else
+  else if (left_type == right_type)
     {
-g_message("dupin_view_collation:\n\tleft=%s (left_len=%d)\n\tright=%s (right_len=%d)\n", (gchar*)left, (gint) left_len, (gchar*)right, (gint)right_len);
+      gchar * left_key  = g_utf8_collate_key ((gchar*)left, min_len);
+      gchar * right_key  = g_utf8_collate_key ((gchar*)right, min_len);
 
-      // special values sort before all other types
+      ret = g_strcmp0 (left_key, right_key);
 
-      // string compare no more than min_len
-      ret = dupin_util_utf8_ncompare ((gchar*)left, (gchar*)right);
+      g_free (left_key);
+      g_free (right_key);
+    }
+  else if (left_type < right_type)
+    {
+      ret = -1;
+    }
+  else if (left_type > right_type)
+    {
+      ret = 1;
     }
 
   g_free (left);

@@ -197,7 +197,7 @@ dupin_view_new (Dupin * d, gchar * view, gchar * parent, gboolean is_db,
   ret->map = g_strdup (map);
   ret->map_lang = map_language;
 
-  if (reduce != NULL && strcmp(reduce,"(NULL)") && strcmp(reduce,"null") )
+  if (reduce != NULL && g_strcmp0(reduce,"(NULL)") && g_strcmp0(reduce,"null") )
     {
       ret->reduce = g_strdup (reduce);
       ret->reduce_lang = reduce_language;
@@ -280,7 +280,7 @@ dupin_view_p_update_cb (void *data, int argc, char **argv, char **col)
     update->parent = g_strdup (argv[0]);
 
   if (argv[1] && *argv[1])
-    update->isdb = !strcmp (argv[1], "TRUE") ? TRUE : FALSE;
+    update->isdb = !g_strcmp0 (argv[1], "TRUE") ? TRUE : FALSE;
 
   return 0;
 }
@@ -504,7 +504,7 @@ g_message("query: %s\n",tmp);
 }
 
 static void
-dupin_view_generate_id_create (DupinView * view, gchar id[255])
+dupin_view_generate_id_create (DupinView * view, gchar id[DUPIN_ID_MAX_LEN])
 {
   do
     {
@@ -516,7 +516,7 @@ dupin_view_generate_id_create (DupinView * view, gchar id[255])
 static gchar *
 dupin_view_generate_id (DupinView * view)
 {
-  gchar id[255];
+  gchar id[DUPIN_ID_MAX_LEN];
 
   dupin_view_generate_id_create (view, id);
   return g_strdup (id);
@@ -730,14 +730,14 @@ dupin_view_create_cb (void *data, int argc, char **argv, char **col)
       view->map = g_strdup (argv[0]);
       view->map_lang = dupin_util_mr_lang_to_enum (argv[1]);
 
-      if (argv[2] != NULL && strcmp(argv[2],"(NULL)") && strcmp(argv[2],"null") )
+      if (argv[2] != NULL && g_strcmp0(argv[2],"(NULL)") && g_strcmp0(argv[2],"null") )
         {
           view->reduce = g_strdup (argv[2]);
           view->reduce_lang = dupin_util_mr_lang_to_enum (argv[3]);
         }
 
       view->parent = g_strdup (argv[4]);
-      view->parent_is_db = strcmp (argv[5], "TRUE") == 0 ? TRUE : FALSE;
+      view->parent_is_db = g_strcmp0 (argv[5], "TRUE") == 0 ? TRUE : FALSE;
     }
 
   return 0;
@@ -942,7 +942,7 @@ dupin_view_sync_thread_real_map (DupinView * view, GList * list)
               for (n = nodes; n != NULL; n = n->next)
                 {
                   gchar *member_name = (gchar *) n->data;
-                  if (!strcmp (member_name, "key"))
+                  if (!g_strcmp0 (member_name, "key"))
                     {
 		      /* we extract this for SQLite table indexing */
                       key_node = json_node_copy ( json_object_get_member (nobj, member_name));
@@ -1027,7 +1027,7 @@ dupin_view_sync_thread_map_db (DupinView * view, gsize count)
       struct dupin_view_sync_t *data =
 	g_malloc0 (sizeof (struct dupin_view_sync_t));
 
-      JsonNode * obj = dupin_record_get_revision (list->data, -1);
+      JsonNode * obj = dupin_record_get_revision_node (list->data, NULL);
 
       if (obj)
         data->obj = json_node_copy (obj);
@@ -1641,7 +1641,7 @@ dupin_view_rereduce_cb (void *data, int argc, char **argv, char **col)
   gboolean *rereduce = data;
 
   if (argv[0] && *argv[0])
-    *rereduce = !strcmp (argv[0], "TRUE") ? TRUE : FALSE;
+    *rereduce = !g_strcmp0 (argv[0], "TRUE") ? TRUE : FALSE;
 
   return 0;
 }
@@ -1875,7 +1875,7 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
 		and avoid infinite loop - if nothing has changed  */
               if (rere_matching.first_matching_key == NULL 
 	          || rereduce_previous_matching_key == NULL
-		  || strcmp(rere_matching.first_matching_key, rereduce_previous_matching_key))
+		  || g_strcmp0(rere_matching.first_matching_key, rereduce_previous_matching_key))
                 {
                   query = "UPDATE DupinView SET sync_reduce_id = '0', sync_rereduce = 'TRUE'";
                 }

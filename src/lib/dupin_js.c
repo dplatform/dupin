@@ -2,8 +2,9 @@
 #  include <config.h>
 #endif
 
-#include "dupin_js.h"
 #include "dupin_internal.h"
+#include "dupin_utils.h"
+#include "dupin_js.h"
 
 #include <string.h>
 

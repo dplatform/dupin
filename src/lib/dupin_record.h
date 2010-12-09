@@ -54,19 +54,33 @@ const gchar *	dupin_record_get_id	(DupinRecord *		record);
 
 gsize 	        dupin_record_get_rowid	(DupinRecord *		record);
 
-guint		dupin_record_get_last_revision
+/* Public Revision API of DupinRecord: */
+
+gchar *		dupin_record_get_last_revision
 					(DupinRecord *		record);
 
 JsonNode *
-		dupin_record_get_revision
+		dupin_record_get_revision_node
 					(DupinRecord *		record,
-					 gint			revision);
+					 gchar *		mvcc);
 
-#define dupin_record_get( record ) \
-		dupin_record_get_revision (record, -1)
+gboolean	dupin_record_get_revisions_list
+					(DupinRecord *		record,
+					 guint			count,
+					 guint			offset,
+				         gsize			rowid_start,
+					 gsize			rowid_end,
+					 DupinCountType		count_type,
+					 DupinOrderByType	orderby_type,
+					 gboolean		descending,
+					 GList **		list,
+					 GError **		error);
+
+void		dupin_record_get_revisions_list_close
+					(GList *		list);
 
 gboolean	dupin_record_is_deleted	(DupinRecord *		record,
-					 gint			revision);
+					 gchar *		mvcc);
 
 G_END_DECLS
 

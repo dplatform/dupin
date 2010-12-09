@@ -88,7 +88,7 @@ dupin_attachment_record_insert (DupinAttachmentDB * attachment_db,
   sqlite3_bind_text (insertstmt, 2, title, strlen(title), SQLITE_STATIC);
   sqlite3_bind_text (insertstmt, 3, type, strlen(type), SQLITE_STATIC);
   sqlite3_bind_int  (insertstmt, 4, length);
-  md5 = g_compute_checksum_for_string (G_CHECKSUM_MD5, content, length); // inefficient of course
+  md5 = g_compute_checksum_for_string (DUPIN_ID_HASH_ALGO, content, length); // inefficient of course
   sqlite3_bind_text (insertstmt, 5, md5, strlen(md5), SQLITE_STATIC);
   sqlite3_bind_blob (insertstmt, 6, (const void*)content, length, SQLITE_STATIC);
 
@@ -277,7 +277,7 @@ dupin_attachment_record_get_aggregated_hash_real (DupinAttachmentDB * attachment
 
   if (concatenated_hash != NULL)
     {
-      *hash = g_compute_checksum_for_string (G_CHECKSUM_MD5, concatenated_hash, strlen(concatenated_hash));
+      *hash = g_compute_checksum_for_string (DUPIN_ID_HASH_ALGO, concatenated_hash, strlen(concatenated_hash));
 
       g_free (concatenated_hash);
 
@@ -386,31 +386,31 @@ dupin_attachment_record_read_cb (void *data, int argc, char **argv, char **col)
 
   for (i = 0; i < argc; i++)
     {
-      if (!strcmp (col[i], "id") && argv[i])
+      if (!g_strcmp0 (col[i], "id") && argv[i])
 	{
 	  record->id = g_strdup (argv[i]);
 	  record->id_len = strlen (argv[i]);
 	}
-      else if (!strcmp (col[i], "title") && argv[i])
+      else if (!g_strcmp0 (col[i], "title") && argv[i])
 	{
 	  record->title = g_strdup (argv[i]);
 	  record->title_len = strlen (argv[i]);
 	}
-      else if (!strcmp (col[i], "type") && argv[i])
+      else if (!g_strcmp0 (col[i], "type") && argv[i])
 	{
 	  record->type = g_strdup (argv[i]);
 	  record->type_len = strlen (argv[i]);
 	}
-      else if (!strcmp (col[i], "hash") && argv[i])
+      else if (!g_strcmp0 (col[i], "hash") && argv[i])
 	{
 	  record->hash = g_strdup (argv[i]);
 	  record->hash_len = strlen (argv[i]);
 	}
-      else if (!strcmp (col[i], "length") && argv[i])
+      else if (!g_strcmp0 (col[i], "length") && argv[i])
 	{
 	  record->length = atoi(argv[i]);
         }
-      else if (!strcmp (col[i], "rowid") && argv[i])
+      else if (!g_strcmp0 (col[i], "rowid") && argv[i])
 	{
 	  record->rowid = atoi(argv[i]);
         }

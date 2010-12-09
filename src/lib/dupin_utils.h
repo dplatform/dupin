@@ -20,7 +20,7 @@ gchar *		dupin_util_json_serialize	(JsonNode * node);
 
 gboolean	dupin_util_is_valid_obj		(JsonObject *obj);
 
-void		dupin_util_generate_id		(gchar		id[255]);
+void		dupin_util_generate_id		(gchar		id[DUPIN_ID_MAX_LEN]);
 
 gsize		dupin_util_timestamp_now	();
 
@@ -55,7 +55,7 @@ gchar *		dupin_util_utf8_create_key_for_filename
 
 gboolean        dupin_util_mvcc_new   		(guint revision,
                                        		 gchar * hash,
-                                         	 gchar mvcc[255]);
+                                         	 gchar mvcc[DUPIN_ID_MAX_LEN]);
 
 gboolean        dupin_util_is_valid_mvcc	(gchar * mvcc);
 
@@ -63,7 +63,7 @@ gboolean        dupin_util_mvcc_get_revision	(gchar * mvcc,
                                          	 guint * revision);
 
 gboolean        dupin_util_mvcc_get_hash	(gchar * mvcc,
-                                         	 gchar hash[255]);
+                                         	 gchar hash[DUPIN_ID_HASH_ALGO_LEN]);
 
 
 G_END_DECLS

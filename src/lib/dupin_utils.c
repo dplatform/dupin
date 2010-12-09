@@ -2,8 +2,8 @@
 #  include <config.h>
 #endif
 
-#include "dupin_utils.h"
 #include "dupin_internal.h"
+#include "dupin_utils.h"
 
 #include <string.h>
 
@@ -53,7 +53,7 @@ dupin_util_is_valid_record_id (gchar * id)
 
   /* FIXME: something else? */
 
-  return (strlen(id)<=255) ? TRUE : FALSE;
+  return (strlen(id)<=DUPIN_ID_MAX_LEN) ? TRUE : FALSE;
 }
 
 /* see also http://engineering.twitter.com/2010/06/announcing-snowflake.html */
@@ -61,7 +61,7 @@ dupin_util_is_valid_record_id (gchar * id)
 /* TODO - rework this function to be network portable (indep. of NTP) and sequential etc */
 /* roughly we want an ID which is unique per thread, machine/server and sequential, and sortable */
 void
-dupin_util_generate_id (gchar id[255])
+dupin_util_generate_id (gchar id[DUPIN_ID_MAX_LEN])
 {
   gchar guid[32];
 
@@ -78,9 +78,9 @@ dupin_util_generate_id (gchar id[255])
      }
    id[sizeof(guid)] = '\0';
 
-   gchar *md5 = g_compute_checksum_for_string (G_CHECKSUM_MD5, id, 32);
+   gchar *md5 = g_compute_checksum_for_string (DUPIN_ID_HASH_ALGO, id, 32);
 
-   snprintf (id, 255, "%s", md5);   
+   snprintf (id, DUPIN_ID_MAX_LEN, "%s", md5);   
 
    g_free (md5);
 }
@@ -103,7 +103,7 @@ dupin_util_is_valid_mr_lang (gchar * lang)
 {
   g_return_val_if_fail (lang != NULL, FALSE);
 
-  if (!strcmp (lang, "javascript"))
+  if (!g_strcmp0 (lang, "javascript"))
     return TRUE;
 
   return FALSE;
@@ -115,7 +115,7 @@ dupin_util_mr_lang_to_enum (gchar * lang)
 {
   g_return_val_if_fail (lang != NULL, 0);
 
-  if (!strcmp (lang, "javascript"))
+  if (!g_strcmp0 (lang, "javascript"))
     return DP_MR_LANG_JAVASCRIPT;
 
   g_return_val_if_fail (dupin_util_is_valid_mr_lang (lang) == TRUE, 0);
@@ -350,7 +350,7 @@ dupin_util_utf8_compare (const gchar *t1, const gchar *t2)
   n1 = dupin_util_utf8_normalize (t1);
   n2 = dupin_util_utf8_normalize (t2);
 
-  result = strcmp (n1, n2);
+  result = g_strcmp0 (n1, n2);
 
   if (n1 != NULL)
     g_free (n1);
@@ -392,7 +392,7 @@ dupin_util_utf8_casecmp (const gchar *t1, const gchar *t2)
   n1 = dupin_util_utf8_casefold_normalize (t1);
   n2 = dupin_util_utf8_casefold_normalize (t2);
 
-  result = strcmp (n1, n2);
+  result = g_strcmp0 (n1, n2);
 
   if (n1 != NULL)
     g_free (n1);
@@ -538,14 +538,14 @@ dupin_util_utf8_create_key_for_filename (const gchar *text, gint case_sen)
 gboolean
 dupin_util_mvcc_new (guint revision,
                      gchar * hash,
-                     gchar mvcc[255])
+                     gchar mvcc[DUPIN_ID_MAX_LEN])
 {
   g_return_val_if_fail (revision > 0, FALSE);
   g_return_val_if_fail (hash != NULL, FALSE);
 
-  snprintf (mvcc, 255, "%d-%s", revision, hash);
+  snprintf (mvcc, DUPIN_ID_MAX_LEN, "%d-%s", revision, hash);
 
-g_message("dupin_util_mvcc_new: revision=%d hash=%s -> mvcc=%s\n", (gint)revision, hash, mvcc);
+//g_message("dupin_util_mvcc_new: revision=%d hash=%s -> mvcc=%s\n", (gint)revision, hash, mvcc);
 
   return TRUE;
 }
@@ -559,13 +559,43 @@ dupin_util_is_valid_mvcc (gchar * mvcc)
 
   parts = g_strsplit (mvcc, "-", -1);
 
-  if (!parts || !parts[0] || !parts[1] || parts[3])
+//g_message("dupin_util_is_valid_mvcc: parts[0]='%s'\n", parts[0]);
+//g_message("dupin_util_is_valid_mvcc: parts[1]='%s'\n", parts[1]);
+//g_message("dupin_util_is_valid_mvcc: parts[2]='%s'\n", parts[2]);
+
+  if (!parts || !parts[0] || !parts[1] || parts[2])
     {
       if (parts)
         g_strfreev (parts);
 
       return FALSE;
     }
+
+//g_message("dupin_util_is_valid_mvcc: checking ID syntax for '%s'\n", parts[0]);
+
+  /* basic validation of id part - see also http://stackoverflow.com/posts/1640804/revisions */
+  errno=0;
+  gchar *end;
+  strtol(parts[0], &end, 10); 
+  if (end == parts[0] || *end != '\0' || errno == ERANGE)
+    {
+      if (parts)
+        g_strfreev (parts);
+
+      return FALSE;
+    }
+
+//g_message("dupin_util_is_valid_mvcc: ID syntax for '%s' is OK\n", parts[0]);
+
+  if (strlen (parts[1]) != DUPIN_ID_HASH_ALGO_LEN)
+    {
+      if (parts)
+        g_strfreev (parts);
+
+      return FALSE;
+    }
+
+//g_message("dupin_util_is_valid_mvcc: HASH syntax for '%s' is OK\n", parts[1]);
 
   g_strfreev (parts);
 
@@ -583,7 +613,7 @@ dupin_util_mvcc_get_revision (gchar * mvcc,
 
   parts = g_strsplit (mvcc, "-", -1);
 
-  if (!parts || !parts[0] || !parts[1] || parts[3])
+  if (!parts || !parts[0] || !parts[1] || parts[2])
     {
       if (parts)
         g_strfreev (parts);
@@ -593,7 +623,7 @@ dupin_util_mvcc_get_revision (gchar * mvcc,
 
   *revision = atoi (parts[0]);
 
-g_message("dupin_util_mvcc_get_rev: mvcc=%s -> revision=%d\n", mvcc, (gint)*revision);
+//g_message("dupin_util_mvcc_get_rev: mvcc=%s -> revision=%d\n", mvcc, (gint)*revision);
 
   g_strfreev (parts);
 
@@ -602,7 +632,7 @@ g_message("dupin_util_mvcc_get_rev: mvcc=%s -> revision=%d\n", mvcc, (gint)*revi
 
 gboolean
 dupin_util_mvcc_get_hash (gchar * mvcc,
-                          gchar hash[255])
+                          gchar hash[DUPIN_ID_HASH_ALGO_LEN])
 {
   g_return_val_if_fail (mvcc != NULL, FALSE);
 
@@ -610,7 +640,7 @@ dupin_util_mvcc_get_hash (gchar * mvcc,
 
   parts = g_strsplit (mvcc, "-", -1);
 
-  if (!parts || !parts[0] || !parts[1] || parts[3])
+  if (!parts || !parts[0] || !parts[1] || parts[2])
     {
       if (parts)
         g_strfreev (parts);
@@ -620,7 +650,7 @@ dupin_util_mvcc_get_hash (gchar * mvcc,
 
   g_stpcpy (hash, parts[1]);
 
-g_message("dupin_util_mvcc_get_hash: mvcc=%s -> hash=%s\n", mvcc, hash);
+//g_message("dupin_util_mvcc_get_hash: mvcc=%s -> hash=%s\n", mvcc, hash);
 
   g_strfreev (parts);
 

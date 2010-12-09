@@ -663,16 +663,16 @@ httpd_client_header (DSHttpdClient * client, DSHttpStatusCode * error)
       return FALSE;
     }
 
-  if (!strcmp (parts[0], "GET"))
+  if (!g_strcmp0 (parts[0], "GET"))
     client->request = DS_HTTPD_REQUEST_GET;
 
-  else if (!strcmp (parts[0], "POST"))
+  else if (!g_strcmp0 (parts[0], "POST"))
     client->request = DS_HTTPD_REQUEST_POST;
 
-  else if (!strcmp (parts[0], "PUT"))
+  else if (!g_strcmp0 (parts[0], "PUT"))
     client->request = DS_HTTPD_REQUEST_PUT;
 
-  else if (!strcmp (parts[0], "DELETE"))
+  else if (!g_strcmp0 (parts[0], "DELETE"))
     client->request = DS_HTTPD_REQUEST_DELETE;
 
   else
@@ -682,7 +682,7 @@ httpd_client_header (DSHttpdClient * client, DSHttpStatusCode * error)
       return FALSE;
     }
 
-  if (strcmp (parts[2], "HTTP/1.1") && strcmp (parts[2], "HTTP/1.0"))
+  if (g_strcmp0 (parts[2], "HTTP/1.1") && g_strcmp0 (parts[2], "HTTP/1.0"))
     {
       *error = HTTP_STATUS_400;
       g_strfreev (parts);
@@ -955,7 +955,7 @@ httpd_client_request (DSHttpdClient * client)
   for (i = 0; request_types[i].request; i++)
     {
       if (client->request == request_types[i].request_type
-	  && !strcmp (client->request_path->data, request_types[i].request))
+	  && !g_strcmp0 (client->request_path->data, request_types[i].request))
 	{
 	  status =
 	    request_types[i].func (client, client->request_path->next,

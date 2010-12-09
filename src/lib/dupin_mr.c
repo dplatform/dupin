@@ -2,8 +2,9 @@
 #  include <config.h>
 #endif
 
-#include "dupin_mr.h"
 #include "dupin_internal.h"
+#include "dupin_utils.h"
+#include "dupin_mr.h"
 
 static gsize dupin_mr_map (gchar * map,
 		           DupinMRLang language,

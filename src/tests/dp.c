@@ -536,7 +536,7 @@ command_newView (GList * list)
   if (!
       (view =
        dupin_view_new (d, name, parent,
-		       !strcmp (is_db, "true") ? TRUE : FALSE, map,
+		       !g_strcmp0 (is_db, "true") ? TRUE : FALSE, map,
 		       dupin_util_mr_lang_to_enum (map_lang), reduce,
 		       dupin_util_mr_lang_to_enum (reduce_lang), &error)))
     {
@@ -682,7 +682,7 @@ command_getListRecord (GList * list)
   count = atoi (list->data);
   offset = atoi (list->next->data);
 
-  if (!strcmp (list->next->next->data, "true"))
+  if (!g_strcmp0 (list->next->next->data, "true"))
     descending = TRUE;
 
   if (dupin_record_get_list (db, count, offset, 0, 0, DP_COUNT_EXIST, DP_ORDERBY_ROWID, descending, &results, &error)
@@ -779,12 +779,23 @@ command_showRecord (GList * list)
 static void
 showRecord (DupinRecord * record)
 {
-  gint i;
-
-  for (i = 1; i <= dupin_record_get_last_revision (record); i++)
+  GList * revisions=NULL;
+  GList * list=NULL;
+  
+  if (dupin_record_get_revisions_list (record,
+                                       100,
+                                       0, 1, 0, DP_COUNT_ALL, DP_ORDERBY_REV, FALSE,
+                                       &revisions, NULL) == FALSE)
     {
-      if (dupin_record_is_deleted (record, i) == TRUE)
-	fprintf (stdout, "Rev: %d - Deleted\n", i);
+      fprintf (stdout, "Error: cannot generate JSON output for record with id=%s\n", dupin_record_get_id (record));
+      return;
+    }
+
+  for (list = revisions; list; list = list->next)
+    {
+
+      if (dupin_record_is_deleted (record, (gchar *)list->data) == TRUE)
+	fprintf (stdout, "Rev: %s - Deleted\n", (gchar *)list->data);
 
       else
 	{
@@ -792,7 +803,7 @@ showRecord (DupinRecord * record)
 	  gchar *buffer;
 	  gsize size;
 
-	  obj = json_node_get_object (json_node_copy (dupin_record_get_revision (record, i)));
+	  obj = json_node_get_object (json_node_copy (dupin_record_get_revision_node (record, (gchar *)list->data)));
 
 	  JsonNode *node = json_node_new (JSON_NODE_OBJECT);
 
@@ -816,20 +827,21 @@ showRecord (DupinRecord * record)
 
 	  if (buffer == NULL )
 	    {
-	      fprintf (stdout, "Rev: %d - Error: cannot generate JSON output of size %d\n", i,(gint)size);
+  	      fprintf (stdout, "Rev %s - Error: cannot generate JSON output for record with id=%s\n", (gchar *)list->data, dupin_record_get_id (record));
 	      json_node_free (node);
 	      g_object_unref (gen);
 	    }
 
 	  else
 	    {
-	      fprintf (stdout, "Rev: %d - %s\n", i, buffer);
+	      fprintf (stdout, "Rev: %s - Id %s - %s\n", (gchar *)list->data, dupin_record_get_id (record), buffer);
 	      g_free (buffer);
 	      json_node_free (node);
 	      g_object_unref (gen);
 	    }
 	}
     }
+  dupin_record_get_revisions_list_close (revisions);
 }
 
 static void
@@ -873,7 +885,7 @@ command_getListViewRecord (GList * list)
   count = atoi (list->data);
   offset = atoi (list->next->data);
 
-  if (!strcmp (list->next->next->data, "true"))
+  if (!g_strcmp0 (list->next->next->data, "true"))
     descending = TRUE;
 
   if (dupin_view_record_get_list (view, count, offset, 0, 0, DP_ORDERBY_KEY, descending, NULL, NULL, TRUE, &results, &error) == FALSE)

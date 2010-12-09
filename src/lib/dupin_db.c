@@ -13,14 +13,14 @@
   "CREATE TABLE IF NOT EXISTS Dupin (\n" \
   "  id      CHAR(255) NOT NULL,\n" \
   "  rev     INTEGER NOT NULL DEFAULT 1,\n" \
+  "  hash    CHAR(255) NOT NULL,\n" \
   "  obj     TEXT,\n" \
   "  deleted BOOL DEFAULT FALSE,\n" \
-  "  PRIMARY KEY(id, rev)\n" \
+  "  PRIMARY KEY(id, rev, hash)\n" \
   ");"
 
 #define DUPIN_DB_SQL_CREATE_INDEX \
-  "CREATE INDEX IF NOT EXISTS DupinId ON Dupin (id);\n" \
-  "CREATE INDEX IF NOT EXISTS DupinRev ON Dupin (rev);"
+  "CREATE INDEX IF NOT EXISTS DupinId ON Dupin (id);"
 
 gchar **
 dupin_get_databases (Dupin * d)
@@ -208,7 +208,7 @@ dupin_database_get_size (DupinDB * db)
 }
 
 static void
-dupin_database_generate_id_create (DupinDB * db, gchar id[255])
+dupin_database_generate_id_create (DupinDB * db, gchar id[DUPIN_ID_MAX_LEN])
 {
   do
     {
@@ -220,7 +220,7 @@ dupin_database_generate_id_create (DupinDB * db, gchar id[255])
 gchar *
 dupin_database_generate_id_real (DupinDB * db, GError ** error, gboolean lock)
 {
-  gchar id[255];
+  gchar id[DUPIN_ID_MAX_LEN];
 
   if (lock == TRUE)
     g_mutex_lock (db->mutex);
@@ -318,12 +318,12 @@ dupin_database_count_cb (void *data, int argc, char **argv, char **col)
       switch (count->type)
 	{
 	case DP_COUNT_EXIST:
-	  if (!strcmp (argv[0], "FALSE"))
+	  if (!g_strcmp0 (argv[0], "FALSE"))
 	    count->ret++;
 	  break;
 
 	case DP_COUNT_DELETE:
-	  if (!strcmp (argv[0], "TRUE"))
+	  if (!g_strcmp0 (argv[0], "TRUE"))
 	    count->ret++;
 	  break;
 

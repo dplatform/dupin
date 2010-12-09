@@ -176,22 +176,22 @@ dupin_view_record_read_cb (void *data, int argc, char **argv, char **col)
 
   for (i = 0; i < argc; i++)
     {
-      if (!strcmp (col[i], "pid"))
+      if (!g_strcmp0 (col[i], "pid"))
 	{
 	  record->pid_serialized = g_strdup (argv[i]);
 	  record->pid_serialized_len = strlen (argv[i]);
 	}
-      else if (!strcmp (col[i], "key"))
+      else if (!g_strcmp0 (col[i], "key"))
 	{
 	  record->key_serialized = g_strdup (argv[i]);
 	  record->key_serialized_len = strlen (argv[i]);
 	}
-      else if (!strcmp (col[i], "obj"))
+      else if (!g_strcmp0 (col[i], "obj"))
 	{
 	  record->obj_serialized = g_strdup (argv[i]);
 	  record->obj_serialized_len = strlen (argv[i]);
 	}
-      else if (!strcmp (col[i], "rowid"))
+      else if (!g_strcmp0 (col[i], "rowid"))
 	{
 	  record->rowid = atoi(argv[i]);
         }

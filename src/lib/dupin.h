@@ -35,7 +35,9 @@ typedef enum
   DP_ORDERBY_ROWID,
   DP_ORDERBY_UPDATED,
   DP_ORDERBY_KEY,
-  DP_ORDERBY_TITLE
+  DP_ORDERBY_TITLE,
+  DP_ORDERBY_REV,
+  DP_ORDERBY_HASH
 } DupinOrderByType;
 
 typedef struct dupin_db_t		DupinDB;
@@ -58,6 +60,7 @@ typedef struct dupin_js_t		DupinJs;
 #include <dupin_mr.h>
 #include <dupin_js.h>
 
+#include <dupin_internal.h>
 #include <dupin_utils.h>
 
 #endif

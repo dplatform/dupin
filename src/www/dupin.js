@@ -296,7 +296,7 @@ function dupin_record_update(record, rev) {
 
   try {
     var o = eval('(' + obj + ')');
-    o["_rev"] = parseInt(rev);
+    o["_rev"] = rev;
     o["_id"] = record;
     obj = toJsonString(o);
   } catch(e) {

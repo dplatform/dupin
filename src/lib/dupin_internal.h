@@ -1,6 +1,11 @@
 #ifndef _DUPIN_INTERNAL_H_
 #define _DUPIN_INTERNAL_H_
 
+/* see GChecksumType */
+#define DUPIN_ID_MAX_LEN	255
+#define DUPIN_ID_HASH_ALGO	G_CHECKSUM_MD5
+#define DUPIN_ID_HASH_ALGO_LEN	32
+
 #include "dupin.h"
 
 #include <glib/gstdio.h>
@@ -163,6 +168,10 @@ struct dupin_record_t
 struct dupin_record_rev_t
 {
   guint		revision;
+  gchar *	hash;
+  gsize		hash_len;
+  gchar *	mvcc;
+  gsize		mvcc_len;
 
   gboolean	deleted;
 

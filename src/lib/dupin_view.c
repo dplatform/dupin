@@ -783,13 +783,9 @@ dupin_view_collation (void        * view,
     }
   else if (left_type == right_type)
     {
-      gchar * left_key  = g_utf8_collate_key ((gchar*)left, min_len);
-      gchar * right_key  = g_utf8_collate_key ((gchar*)right, min_len);
-
-      ret = g_strcmp0 (left_key, right_key);
-
-      g_free (left_key);
-      g_free (right_key);
+      /* TODO - study how to get g_utf8_collate_key() to work - if we use it on left/right
+                strings glib returns random values and sort order on strcmp() ?! */
+      ret = g_utf8_collate (left, right);
     }
   else if (left_type < right_type)
     {

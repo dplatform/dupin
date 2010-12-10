@@ -1912,9 +1912,11 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
 
                   sqlite3_free (str);
 
-		  /* carry on */
+		  /* flag to carry on (for any future request to sync) but exit */
 
                   query = "UPDATE DupinView SET sync_rereduce = 'TRUE'";
+
+		  break;
                 }
 
               g_mutex_lock (view->mutex);

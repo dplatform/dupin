@@ -344,6 +344,7 @@ request_global (DSHttpdClient * client, GList * path, GList * arguments)
 /* GET *********************************************************************/
 #define REQUEST_ALL_DBS		"_all_dbs"
 #define REQUEST_ALL_VIEWS	"_all_views"
+#define REQUEST_ALL_CHANGES	"_changes"
 #define REQUEST_ALL_DOCS	"_all_docs"
 #define REQUEST_VIEWS		"_views"
 #define REQUEST_SYNC		"_sync"
@@ -368,6 +369,10 @@ static DSHttpStatusCode request_global_get_record (DSHttpdClient * client,
 static DSHttpStatusCode request_global_get_view (DSHttpdClient * client,
 						 GList * path,
 						 GList * arguments);
+static DSHttpStatusCode request_global_get_changes (DSHttpdClient *
+						    client,
+						    GList * paths,
+						    GList * arguments);
 static DSHttpStatusCode request_global_get_all_docs_view (DSHttpdClient *
 							  client,
 							  GList * paths,
@@ -412,6 +417,10 @@ request_global_get (DSHttpdClient * client, GList * path, GList * arguments)
   /* GET /database */
   if (!path->next)
     return request_global_get_database (client, path, arguments);
+
+  /* GET /database/_changes */
+  if (!path->next->next && !g_strcmp0 (path->next->data, REQUEST_ALL_CHANGES))
+    return request_global_get_changes (client, path, arguments);
 
   /* GET /database/_all_docs */
   if (!path->next->next && !g_strcmp0 (path->next->data, REQUEST_ALL_DOCS))
@@ -661,6 +670,138 @@ request_global_get_all_views:
 #define REQUEST_GET_ALL_DOCS_INCLUSIVEEND  "inclusive_end"
 
 static DSHttpStatusCode
+request_global_get_changes (DSHttpdClient * client, GList * path,
+			    GList * arguments)
+{
+  DupinDB *db;
+
+  GList *list;
+  GList *results;
+
+  gboolean descending = FALSE;
+  guint count = DUPIN_DB_MAX_DOCS_COUNT;
+  guint offset = 0;
+  gsize total_rows = 0;
+
+  JsonObject *obj;
+  JsonNode *node=NULL;
+  JsonArray *array;
+  JsonGenerator *gen=NULL;
+
+  if (!
+      (db =
+       dupin_database_open (client->thread->data->dupin, path->data, NULL)))
+    return HTTP_STATUS_404;
+
+  for (list = arguments; list; list = list->next)
+    {
+      dupin_keyvalue_t *kv = list->data;
+
+      if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_DESCENDING)
+	  && !g_strcmp0 (kv->value, "true"))
+	descending = TRUE;
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_COUNT))
+	count = atoi (kv->value);
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_OFFSET))
+	offset = atoi (kv->value);
+    }
+
+  total_rows = dupin_database_count (db, DP_COUNT_EXIST);
+
+  if (dupin_record_get_list (db, count, offset, 0, 0, DP_COUNT_EXIST, DP_ORDERBY_ROWID, descending, &results, NULL) ==
+      FALSE)
+    return HTTP_STATUS_500;
+
+  obj = json_object_new ();
+
+  if (obj == NULL)
+    {
+      if( results )
+        dupin_record_get_list_close (results);
+      else
+        dupin_database_unref (db);
+      return HTTP_STATUS_500;
+    }
+
+  json_object_set_int_member (obj, "total_rows", total_rows);
+  json_object_set_int_member (obj, "offset", offset);
+  json_object_set_int_member (obj, "rows_per_page", count);
+
+  array = json_array_new ();
+
+  if (array == NULL)
+    goto request_global_get_all_docs_error;
+
+  for (list = results; list; list = list->next)
+    {
+      DupinRecord *record = list->data;
+      JsonNode *on;
+
+      if (!
+	  (on =
+	   request_record_obj (record, (gchar *) dupin_record_get_id (record),
+			       dupin_record_get_last_revision (record))))
+        {
+	  json_array_unref (array); /* if here, array is not under obj responsability yet */
+	  goto request_global_get_all_docs_error;
+        }
+
+      json_array_add_element( array, on);
+    }
+
+  json_object_set_array_member (obj, "rows", array );
+
+  client->output_mime = g_strdup (HTTP_MIME_JSON);
+  client->output_type = DS_HTTPD_OUTPUT_STRING;
+
+  node = json_node_new (JSON_NODE_OBJECT);
+
+  if (node == NULL)
+    goto request_global_get_all_docs_error;
+
+  json_node_set_object (node, obj);
+
+  gen = json_generator_new();
+
+  if (gen == NULL)
+    goto request_global_get_all_docs_error;
+
+  json_generator_set_root (gen, node );
+  client->output.string.string = json_generator_to_data (gen,&client->output_size);
+
+  if (client->output.string.string == NULL)
+    goto request_global_get_all_docs_error;
+
+  if( results )
+     dupin_record_get_list_close (results);
+  else
+     dupin_database_unref (db);
+
+  if (gen != NULL)
+    g_object_unref (gen);
+  if (node != NULL)
+    json_node_free (node);
+  json_object_unref (obj);
+  return HTTP_STATUS_200;
+
+request_global_get_all_docs_error:
+
+  if( results )
+     dupin_record_get_list_close (results);
+  else
+     dupin_database_unref (db);
+
+  if (gen != NULL)
+    g_object_unref (gen);
+  if (node != NULL)
+    json_node_free (node);
+  json_object_unref (obj);
+  return HTTP_STATUS_500;
+}
+
+static DSHttpStatusCode
 request_global_get_all_docs (DSHttpdClient * client, GList * path,
 			     GList * arguments)
 {
@@ -898,6 +1039,10 @@ request_global_get_record (DSHttpdClient * client, GList * path,
   DupinAttachmentDB *attachment_db;
   DupinRecord *record;
 
+  gboolean descending = FALSE;
+  guint count = DUPIN_REVISIONS_COUNT;
+  guint offset = 0;
+
   JsonNode *node=NULL;
   JsonGenerator *gen=NULL;
 
@@ -993,6 +1138,16 @@ request_global_get_record (DSHttpdClient * client, GList * path,
       else if (!g_strcmp0 (kv->key, REQUEST_RECORD_ARG_REVS)
 	       && !g_strcmp0 (kv->value, "true"))
 	allrevs = TRUE;
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_DESCENDING)
+	  && !g_strcmp0 (kv->value, "true"))
+	descending = TRUE;
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_COUNT))
+	count = atoi (kv->value);
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_OFFSET))
+	offset = atoi (kv->value);
     }
 
   /* Show all revisions: */
@@ -1026,8 +1181,8 @@ request_global_get_record (DSHttpdClient * client, GList * path,
         goto request_global_get_record_error;
 
       if (dupin_record_get_revisions_list (record,
-				           DUPIN_REVISIONS_COUNT,
-					   0, 1, 0, DP_COUNT_ALL, DP_ORDERBY_REV, FALSE,
+				           count,
+					   offset, 1, 0, DP_COUNT_ALL, DP_ORDERBY_REV, descending,
 					   &revisions, NULL) == FALSE)
 	{
 	  dupin_record_close (record);

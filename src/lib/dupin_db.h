@@ -46,6 +46,31 @@ gsize		dupin_database_count	(DupinDB *	db,
 gboolean	dupin_database_get_max_rowid	(DupinDB *	db,
 					         gsize * max_rowid);
 
+gboolean        dupin_database_get_total_changes
+                                        (DupinDB *              db,
+                                         gsize *                total,
+                                         gsize                  since,
+                                         gsize                  to,
+					 DupinCountType         count_type,
+                                         gboolean               inclusive_end,
+                                         GError **              error);
+
+gboolean        dupin_database_get_changes_list
+					(DupinDB *              db,
+                                         guint                  count,
+                                         guint                  offset,
+                                         gsize                  since,
+                                         gsize                  to,
+					 DupinChangesType       changes_type,
+					 DupinCountType         count_type,
+                                         DupinOrderByType       orderby_type,
+                                         gboolean               descending,
+                                         GList **               list,
+                                         GError **              error);
+
+void            dupin_database_get_changes_list_close
+                                        (GList *                list);
+
 G_END_DECLS
 
 #endif

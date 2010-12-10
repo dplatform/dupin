@@ -20,8 +20,16 @@ typedef enum
 {
   DP_COUNT_EXIST,
   DP_COUNT_DELETE,
+  DP_COUNT_CHANGES,
   DP_COUNT_ALL
 } DupinCountType;
+
+/* Changes type: */
+typedef enum
+{
+  DP_CHANGES_MAIN_ONLY,
+  DP_CHANGES_ALL_DOCS
+} DupinChangesType;
 
 /* Languages: */
 typedef enum
@@ -33,7 +41,6 @@ typedef enum
 typedef enum
 {
   DP_ORDERBY_ROWID,
-  DP_ORDERBY_UPDATED,
   DP_ORDERBY_KEY,
   DP_ORDERBY_TITLE,
   DP_ORDERBY_REV,

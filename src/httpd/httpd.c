@@ -47,6 +47,9 @@ DSHttpStatus DSHttpStatusList[] = {
   {HTTP_STATUS_500, "HTTP/1.1 500 Internal Server Error",
    "Internal Server Error", 21, HTTP_MIME_TEXTHTML, TRUE}
   ,
+  {HTTP_STATUS_501, "HTTP/1.1 501 Not Implemented",
+   "Method or parameter not implemented", 35, HTTP_MIME_TEXTHTML, TRUE}
+  ,
   {HTTP_STATUS_END, NULL, NULL, 0, NULL, TRUE}
 };
 

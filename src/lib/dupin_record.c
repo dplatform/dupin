@@ -161,12 +161,14 @@ dupin_record_create_with_id_real (DupinDB * db, JsonNode * obj_node,
   if (lock == TRUE)
     g_mutex_lock (db->mutex);
 
+/*
   if (dupin_record_exists_real (db, id, FALSE) == TRUE)
     {
       g_mutex_unlock (db->mutex);
       g_return_val_if_fail (dupin_record_exists (db, id) == FALSE, NULL);
       return NULL;
     }
+*/
 
   record = dupin_record_new (db, id);
 
@@ -340,17 +342,15 @@ dupin_record_get_list (DupinDB * db, guint count, guint offset,
     check_deleted = " d.deleted = 'TRUE' ";
 
   if (rowid_start > 0 && rowid_end > 0)
-    g_string_append_printf (str, " WHERE %s %s d.ROWID >= %d AND d.ROWID <= %d ", check_deleted, (count_type != DP_COUNT_ALL) ? "AND" : "", (gint)rowid_start, (gint)rowid_end);
+    g_string_append_printf (str, " WHERE %s %s d.ROWID >= %d AND d.ROWID <= %d ", check_deleted, (g_strcmp0 (check_deleted, "")) ? "AND" : "", (gint)rowid_start, (gint)rowid_end);
   else if (rowid_start > 0)
-    g_string_append_printf (str, " WHERE %s %s d.ROWID >= %d ", check_deleted, (count_type != DP_COUNT_ALL) ? "AND" : "", (gint)rowid_start);
+    g_string_append_printf (str, " WHERE %s %s d.ROWID >= %d ", check_deleted, (g_strcmp0 (check_deleted, "")) ? "AND" : "", (gint)rowid_start);
   else if (rowid_end > 0)
-    g_string_append_printf (str, " WHERE %s %s d.ROWID <= %d ", check_deleted, (count_type != DP_COUNT_ALL) ? "AND" : "", (gint)rowid_end);
-  else if (count_type != DP_COUNT_ALL)
+    g_string_append_printf (str, " WHERE %s %s d.ROWID <= %d ", check_deleted, (g_strcmp0 (check_deleted, "")) ? "AND" : "", (gint)rowid_end);
+  else if (g_strcmp0 (check_deleted, ""))
     g_string_append_printf (str, " WHERE %s ", check_deleted);
 
-  if (orderby_type == DP_ORDERBY_UPDATED)
-    str = g_string_append (str, " GROUP BY id ORDER BY d.updated");
-  else if (orderby_type == DP_ORDERBY_ROWID)
+  if (orderby_type == DP_ORDERBY_ROWID)
     str = g_string_append (str, " GROUP BY id ORDER BY d.ROWID");
   else
     str = g_string_append (str, " GROUP BY id ORDER BY d.ROWID");
@@ -470,12 +470,10 @@ dupin_record_get_revisions_list (DupinRecord * record,
     g_string_append_printf (str, " %s AND d.ROWID >= %d ", check_deleted, (gint)rowid_start);
   else if (rowid_end > 0)
     g_string_append_printf (str, " %s AND d.ROWID <= %d ", check_deleted, (gint)rowid_end);
-  else if (count_type != DP_COUNT_ALL)
+  else if (g_strcmp0 (check_deleted, ""))
     g_string_append_printf (str, " %s ", check_deleted);
 
-  if (orderby_type == DP_ORDERBY_UPDATED)
-    str = g_string_append (str, " ORDER BY d.updated");
-  else if (orderby_type == DP_ORDERBY_REV)
+  if (orderby_type == DP_ORDERBY_REV)
     str = g_string_append (str, " ORDER BY d.rev");
   else if (orderby_type == DP_ORDERBY_HASH)
     str = g_string_append (str, " ORDER BY d.hash");

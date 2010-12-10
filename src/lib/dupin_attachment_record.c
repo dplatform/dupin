@@ -217,7 +217,7 @@ dupin_attachment_record_get_aggregated_hash (DupinAttachmentDB * attachment_db,
   if (dupin_attachment_record_get_aggregated_hash_real (attachment_db, id, &hash, TRUE) == FALSE)
     return NULL;
 
-g_message("dupin_attachment_record_get_aggregated_hash: whole attachments aggregated hash=%s\n", hash); 
+//g_message("dupin_attachment_record_get_aggregated_hash: whole attachments aggregated hash=%s\n", hash); 
 
   return hash;
 }

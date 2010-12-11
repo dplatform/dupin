@@ -497,12 +497,19 @@ request_global_get_uuids (DSHttpdClient * client, GList * path,
       json_array_add_string_element (array, id);
     }
 
-  node = json_node_new (JSON_NODE_ARRAY);
+  node = json_node_new (JSON_NODE_OBJECT);
 
   if (node == NULL)
-    goto request_global_get_uuids_error;
+    {
+      json_array_unref (array);
+      goto request_global_get_uuids_error;
+    }
 
-  json_node_set_array (node, array);
+  JsonObject * node_obj = json_object_new ();
+
+  json_node_take_object (node, node_obj);
+ 
+  json_object_set_array_member (node_obj, "uuids", array);
 
   gen = json_generator_new();
 
@@ -522,7 +529,6 @@ request_global_get_uuids (DSHttpdClient * client, GList * path,
     g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
-  json_array_unref (array);
   return HTTP_STATUS_200;
 
 request_global_get_uuids_error:
@@ -531,7 +537,6 @@ request_global_get_uuids_error:
     g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
-  json_array_unref (array);
   return HTTP_STATUS_500;
 }
 

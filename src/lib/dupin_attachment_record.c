@@ -15,7 +15,7 @@
 	"SELECT count(*) AS c FROM Dupin AS d"
 
 #define DUPIN_ATTACHMENT_DB_SQL_READ \
-	"SELECT id, title, type, hash, length, ROWID AS rowid FROM Dupin WHERE id = '%q' AND title = '%q' "
+	"SELECT type, hash, length, ROWID AS rowid FROM Dupin WHERE id = '%q' AND title = '%q' "
 
 #define DUPIN_ATTACHMENT_DB_SQL_INSERT \
         "INSERT INTO Dupin (id, title, type, length, hash, content) " \
@@ -386,17 +386,7 @@ dupin_attachment_record_read_cb (void *data, int argc, char **argv, char **col)
 
   for (i = 0; i < argc; i++)
     {
-      if (!g_strcmp0 (col[i], "id") && argv[i])
-	{
-	  record->id = g_strdup (argv[i]);
-	  record->id_len = strlen (argv[i]);
-	}
-      else if (!g_strcmp0 (col[i], "title") && argv[i])
-	{
-	  record->title = g_strdup (argv[i]);
-	  record->title_len = strlen (argv[i]);
-	}
-      else if (!g_strcmp0 (col[i], "type") && argv[i])
+      if (!g_strcmp0 (col[i], "type") && argv[i])
 	{
 	  record->type = g_strdup (argv[i]);
 	  record->type_len = strlen (argv[i]);

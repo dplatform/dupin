@@ -20,6 +20,9 @@
 #define REQUEST_OBJ_REV		"_rev"
 #define REQUEST_OBJ_ATTACHMENTS	"_attachments"
 
+#define RESPONSE_OBJ_ID		"id"
+#define RESPONSE_OBJ_REV	"rev"
+
 #define DUPIN_DB_MAX_DOCS_COUNT     50
 #define DUPIN_VIEW_MAX_DOCS_COUNT   50
 #define DUPIN_ATTACHMENTS_COUNT	    100
@@ -2981,8 +2984,8 @@ request_record_response_single (DSHttpdClient * client, DupinRecord * record)
 
   /* TODO - do we ever set this to false? no... ! */
   json_object_set_boolean_member (obj, "ok", TRUE);
-  json_object_set_string_member (obj, REQUEST_OBJ_ID, (gchar *) dupin_record_get_id (record));
-  json_object_set_string_member (obj, REQUEST_OBJ_REV, dupin_record_get_last_revision (record));
+  json_object_set_string_member (obj, RESPONSE_OBJ_ID, (gchar *) dupin_record_get_id (record));
+  json_object_set_string_member (obj, RESPONSE_OBJ_REV, dupin_record_get_last_revision (record));
 
   node = json_node_new (JSON_NODE_OBJECT);
 
@@ -3053,8 +3056,8 @@ request_record_response_multi (DSHttpdClient * client, GList * list)
       if (o == NULL)
         goto request_record_response_multi_error; 
 
-      json_object_set_string_member (o, REQUEST_OBJ_ID, (gchar *) dupin_record_get_id (record));
-      json_object_set_string_member (o, REQUEST_OBJ_REV, dupin_record_get_last_revision (record));
+      json_object_set_string_member (o, RESPONSE_OBJ_ID, (gchar *) dupin_record_get_id (record));
+      json_object_set_string_member (o, RESPONSE_OBJ_REV, dupin_record_get_last_revision (record));
 
       json_array_add_object_element( array, o);
     }

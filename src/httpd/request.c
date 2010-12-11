@@ -1335,6 +1335,10 @@ request_global_get_record (DSHttpdClient * client, GList * path,
           || (allrevs == FALSE && (!g_strcmp0 (mvcc, dupin_record_get_last_revision (record)))))
         json_object_set_object_member (json_node_get_object (node), REQUEST_OBJ_ATTACHMENTS, attachments_obj);
     }
+  else
+    {
+      json_object_unref (attachments_obj);
+    }
 
   /* Writing: */
   gen = json_generator_new();

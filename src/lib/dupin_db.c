@@ -266,6 +266,9 @@ dupin_db_free (DupinDB * db)
   if (db->views.views)
     g_free (db->views.views);
 
+  if (db->attachment_dbs.attachment_dbs)
+    g_free (db->attachment_dbs.attachment_dbs);
+
   g_free (db);
 }
 

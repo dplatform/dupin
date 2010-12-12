@@ -541,6 +541,9 @@ dupin_view_record_get (DupinViewRecord * record)
   if (json_parser_load_from_data (parser, record->obj_serialized, record->obj_serialized_len, NULL) == FALSE)
     goto dupin_view_record_get_error;
 
+  /* NOTE - we do not set any view record _id here - in future if needed to use views of views we might want
+            to set it to be able to output it on map/reduce functions */
+
   record->obj = json_node_copy (json_parser_get_root (parser));
 
   if (parser != NULL)

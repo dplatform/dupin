@@ -53,6 +53,8 @@ dupin_util_is_valid_record_id (gchar * id)
 
   /* FIXME: something else? */
 
+ /* TODO - consider '/' as valid document id sub-parts I.e. _design/foo/bar-attachment */
+
   return (strlen(id)<=DUPIN_ID_MAX_LEN) ? TRUE : FALSE;
 }
 

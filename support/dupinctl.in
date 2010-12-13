@@ -1,0 +1,82 @@
+#!/bin/sh
+#
+# @configure_input@
+#
+# Dupin control script designed to allow an easy command line interface
+# to controlling the Dupin server.
+# 
+
+DCMD="$1"
+ARGV="$@"
+
+DUPINSERVER='@bindir@/dupin_server'
+
+STATUSURL="http://localhost:@DUPINCTL_PORT@/_status"
+QUITURL="http://localhost:@DUPINCTL_PORT@/_quit"
+
+CURL=`which curl`
+
+#
+# Set this variable to a command that increases the maximum
+# number of file descriptors allowed per child process. This is
+# critical for configurations that use many file descriptors,
+# such as mass vhosting, or a multithreaded server.
+
+if TMP_ULIMIT=`ulimit -H -n` && ulimit -S -n $TMP_ULIMIT >/dev/null 2>&1; then
+    ULIMIT_MAX_FILES="ulimit -S -n \`ulimit -H -n\`"
+else
+    if TMP_ULIMIT=`sysctl kern.maxfiles | awk '{ print $2 }'` && ulimit -S -n $TMP_ULIMIT >/dev/null 2>&1; then
+        ULIMIT_MAX_FILES="ulimit -S -n $TMP_ULIMIT"
+    else
+        ULIMIT_MAX_FILES=""
+    fi
+fi
+
+# Set the maximum number of file descriptors allowed per child process.
+if [ "x$ULIMIT_MAX_FILES" != "x" ] ; then
+    $ULIMIT_MAX_FILES
+fi
+
+ERROR=0
+if [ "x$ARGV" = "x" ] ; then 
+    ARGV="-h"
+fi
+
+case $DCMD in
+start)
+    if [ $2 ]; then
+        $DUPINSERVER $2
+    else
+        $DUPINSERVER '@DUPINCTL_CONFIGURATION@'
+    fi
+
+    ERROR=$?
+    ;;
+stop)
+    if [ -f '@DUPINCTL_PIDFILE@' ] ; then
+        PID=`cat '@DUPINCTL_PIDFILE@'`
+        if [ "x$PID" != "x" ] && kill -0 $PID 2>/dev/null ; then
+                kill -15 $PID;
+        else
+                echo not a valid PID=$PID in @DUPINCTL_PIDFILE@
+                rm -f $PID;
+        fi
+    else
+	$CURL -s $QUITURL
+    fi
+
+    ERROR=$?
+    ;;
+status)
+    $CURL -s $STATUSURL
+    ;;
+*)
+    echo "Usage:"
+    echo "   "
+    echo "   " $DUPINSERVER "(start | stop | status)"
+    echo "   "
+    ERROR=$?
+esac
+
+exit $ERROR
+

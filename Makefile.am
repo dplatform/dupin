@@ -1,4 +1,6 @@
-SUBDIRS = src
+SUBDIRS = \
+	src \
+	support
 
 EXTRA_DIST = \
 	dupinserver.cfg_example

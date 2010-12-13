@@ -177,5 +177,7 @@ src/lib/Makefile
 src/httpd/Makefile
 src/www/Makefile
 src/tests/Makefile
+
+support/Makefile
 ])
 

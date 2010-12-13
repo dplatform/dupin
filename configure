@@ -14569,7 +14569,7 @@ fi
 CFLAGS="-g $CFLAGS -Wall -Werror"
 #CFLAGS="-g $CFLAGS -Wall -O0 -DSQLITE_MEMDEBUG"
 
-ac_config_files="$ac_config_files Makefile src/Makefile src/tbjson/Makefile src/tbjsonpath/Makefile src/lib/Makefile src/httpd/Makefile src/www/Makefile src/tests/Makefile"
+ac_config_files="$ac_config_files Makefile src/Makefile src/tbjson/Makefile src/tbjsonpath/Makefile src/lib/Makefile src/httpd/Makefile src/www/Makefile src/tests/Makefile support/Makefile"
 
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure
@@ -15426,6 +15426,7 @@ do
     "src/httpd/Makefile") CONFIG_FILES="$CONFIG_FILES src/httpd/Makefile" ;;
     "src/www/Makefile") CONFIG_FILES="$CONFIG_FILES src/www/Makefile" ;;
     "src/tests/Makefile") CONFIG_FILES="$CONFIG_FILES src/tests/Makefile" ;;
+    "support/Makefile") CONFIG_FILES="$CONFIG_FILES support/Makefile" ;;
 
   *) { { echo "$as_me:$LINENO: error: invalid argument: $ac_config_target" >&5
 echo "$as_me: error: invalid argument: $ac_config_target" >&2;}

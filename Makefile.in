@@ -208,7 +208,10 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 webkit_CFLAGS = @webkit_CFLAGS@
 webkit_LIBS = @webkit_LIBS@
-SUBDIRS = src
+SUBDIRS = \
+	src \
+	support
+
 EXTRA_DIST = \
 	dupinserver.cfg_example
 

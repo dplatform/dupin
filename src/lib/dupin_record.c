@@ -30,9 +30,6 @@
 	"INSERT OR REPLACE INTO Dupin (id, rev, deleted, hash) " \
         "VALUES('%q', '%" G_GSIZE_FORMAT "', 'TRUE', '%q')"
 
-#define DUPIN_DB_OBJ_ID          "_id"
-#define DUPIN_DB_OBJ_REV         "_rev"
-
 static DupinRecord *dupin_record_create_with_id_real (DupinDB * db,
 						      JsonNode * obj_node,
 						      gchar * id,
@@ -676,8 +673,6 @@ JsonNode *
 dupin_record_get_revision_node (DupinRecord * record, gchar * mvcc)
 {
   DupinRecordRev *r;
-  JsonNode * obj_node=NULL;
-  JsonObject * obj=NULL;
 
   g_return_val_if_fail (record != NULL, NULL);
 
@@ -709,13 +704,7 @@ dupin_record_get_revision_node (DupinRecord * record, gchar * mvcc)
   if (json_parser_load_from_data (parser, r->obj_serialized, r->obj_serialized_len, NULL) == FALSE)
     goto dupin_record_get_revision_error;
 
-  /* Setting _id and _rev fields - we do not store them into serialized object */
-  obj_node = json_node_copy (json_parser_get_root (parser));
-  obj = json_node_get_object (obj_node);
-  json_object_set_string_member (obj, DUPIN_DB_OBJ_ID, record->id);
-  json_object_set_string_member (obj, DUPIN_DB_OBJ_REV, dupin_record_get_last_revision (record));
-
-  r->obj = obj_node;
+  r->obj = json_node_copy (json_parser_get_root (parser));
 
   if (parser != NULL)
     g_object_unref (parser);

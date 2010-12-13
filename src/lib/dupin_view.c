@@ -1036,10 +1036,17 @@ dupin_view_sync_thread_map_db (DupinView * view, gsize count)
       struct dupin_view_sync_t *data =
 	g_malloc0 (sizeof (struct dupin_view_sync_t));
 
-      JsonNode * obj = dupin_record_get_revision_node (list->data, NULL);
+      JsonNode * obj_node = dupin_record_get_revision_node (list->data, NULL);
 
-      if (obj)
-        data->obj = json_node_copy (obj);
+      if (obj_node)
+        {
+          /* Setting _id and _rev fields - we do not store them into serialized object */
+          JsonObject * obj = json_node_get_object (obj_node);
+          json_object_set_string_member (obj, "_id", (gchar *) dupin_record_get_id (list->data));
+          json_object_set_string_member (obj, "_rev", dupin_record_get_last_revision (list->data));
+
+          data->obj = json_node_copy (obj_node);
+        }
 
       data->pid = json_node_new (JSON_NODE_ARRAY);
       JsonArray *pid_array=json_array_new ();
@@ -1164,10 +1171,16 @@ dupin_view_sync_thread_map_view (DupinView * view, gsize count)
       struct dupin_view_sync_t *data =
 	g_malloc0 (sizeof (struct dupin_view_sync_t));
 
-      JsonNode * obj = dupin_view_record_get (list->data);
+      JsonNode * obj_node = dupin_view_record_get (list->data);
 
-      if (obj)
-        data->obj = json_node_copy (obj);
+      if (obj_node)
+        {
+          /* Setting _id field */
+          JsonObject * obj = json_node_get_object (obj_node);
+          json_object_set_string_member (obj, "_id", (gchar *) dupin_view_record_get_id (list->data));
+
+          data->obj = json_node_copy (obj_node);
+        }
 
       /* TODO - check shouldn't this be more simply json_node_copy (dupin_view_record_get_pid (list->data))  or not ?! */
       data->pid = json_node_new (JSON_NODE_ARRAY);

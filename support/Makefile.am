@@ -16,11 +16,11 @@ uninstall-hook:
 ## substitutions in our text.
 do_subst = sed \
   -e 's,[@]DUPINCTL_PORT[@],8088,g' \
-  -e 's,[@]DUPINCTL_CONFIGURATION[@],$(etcdir)/dupinserver.cfg,g' \
   -e 's,[@]DUPINCTL_PIDFILE[@],/var/run/dupin.pid,g' \
   -e 's,[@]configure_input[@],Generated from $@.in; do not edit by hand.,g' \
   -e 's,[@]bindir[@],$(bindir),g' \
-  -e 's,[@]datadir[@],$(datadir),g'
+  -e 's,[@]datadir[@],$(datadir),g' \
+  -e 's,[@]sysconfdir[@],$(sysconfdir),g'
 
 dupinctl: dupinctl.in
 

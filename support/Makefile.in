@@ -181,11 +181,11 @@ EXTRA_DIST = $(DUPINSUPPORTSOURCES)
 TARGETS = $(DUPINSUPPORTSOURCES)
 do_subst = sed \
   -e 's,[@]DUPINCTL_PORT[@],8088,g' \
-  -e 's,[@]DUPINCTL_CONFIGURATION[@],/usr/local/dupin/etc/dupinserver.cfg,g' \
   -e 's,[@]DUPINCTL_PIDFILE[@],/var/run/dupin.pid,g' \
   -e 's,[@]configure_input[@],Generated from $@.in; do not edit by hand.,g' \
   -e 's,[@]bindir[@],$(bindir),g' \
-  -e 's,[@]datadir[@],$(datadir),g'
+  -e 's,[@]datadir[@],$(datadir),g' \
+  -e 's,[@]sysconfdir[@],$(sysconfdir),g'
 
 all: all-am
 

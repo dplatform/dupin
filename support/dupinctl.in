@@ -11,6 +11,8 @@ ARGV="$@"
 
 DUPINSERVER='@bindir@/dupin_server'
 
+DUPINSERVER_CONFIGURATION='@sysconfdir@/dupinserver.cfg'
+
 STATUSURL="http://localhost:@DUPINCTL_PORT@/_status"
 QUITURL="http://localhost:@DUPINCTL_PORT@/_quit"
 
@@ -47,7 +49,7 @@ start)
     if [ $2 ]; then
         $DUPINSERVER $2
     else
-        $DUPINSERVER '@DUPINCTL_CONFIGURATION@'
+        $DUPINSERVER $DUPINSERVER_CONFIGURATION
     fi
 
     ERROR=$?

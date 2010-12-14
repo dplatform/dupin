@@ -705,6 +705,7 @@ request_global_get_changes (DSHttpdClient * client, GList * path,
   gsize since = 0;
   DupinChangesType style = DP_CHANGES_MAIN_ONLY;
   gchar * feed = REQUEST_GET_ALL_CHANGES_FEED_DEFAULT;
+  gboolean include_docs = FALSE;
 
   JsonObject *obj;
   JsonNode *node=NULL;
@@ -762,6 +763,17 @@ request_global_get_changes (DSHttpdClient * client, GList * path,
               return HTTP_STATUS_400;
             }
         }
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_DOCS))
+        {
+          if (g_strcmp0 (kv->value,"false") && g_strcmp0 (kv->value,"FALSE") &&
+              g_strcmp0 (kv->value,"true") && g_strcmp0 (kv->value,"TRUE"))
+            {
+              dupin_database_unref (db);
+              return HTTP_STATUS_400;
+            }
+
+          include_docs = (!g_strcmp0 (kv->value,"false") || !g_strcmp0 (kv->value,"FALSE")) ? FALSE : TRUE;
+        }
     }
 
   if (dupin_database_get_total_changes (db, &total_rows, since, 0, DP_COUNT_CHANGES, TRUE, NULL) == FALSE)
@@ -798,7 +810,32 @@ request_global_get_changes (DSHttpdClient * client, GList * path,
 
   for (list = results; list; list = list->next)
     {
-      json_array_add_element (array, json_node_copy (list->data));
+      JsonNode * change = json_node_copy (list->data);
+
+      if (include_docs == TRUE)
+        {
+          JsonObject * on_obj = json_node_get_object (change);
+
+          gchar * record_id = (gchar *) json_object_get_string_member (on_obj, RESPONSE_OBJ_ID);
+
+          JsonNode * doc = NULL;
+
+          DupinRecord * db_record=NULL;
+          if (!(db_record = dupin_record_read (db, record_id, NULL)))
+            {
+              json_node_free (change);
+              json_array_unref (array);
+              goto request_global_get_changes_error;
+            }
+
+          doc = json_node_copy (dupin_record_get_revision_node (db_record, NULL));
+
+          dupin_record_close (db_record);
+
+          json_object_set_member (on_obj, "doc", doc);
+        }
+
+      json_array_add_element (array, change);
     }
 
   json_object_set_array_member (obj, "results", array );
@@ -1854,6 +1891,7 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
 	      DupinRecord * db_record=NULL;
               if (!(db_record = dupin_record_read (parent_db, record_id, NULL)))
                 {
+                  json_node_free (on);
                   json_array_unref (array);
 	          goto request_global_get_all_docs_view_error;
                 }
@@ -1867,6 +1905,7 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
               DupinViewRecord * view_record=NULL;
               if (!(view_record = dupin_view_record_read (parent_view, record_id, NULL)))
                 {
+                  json_node_free (on);
                   json_array_unref (array);
 	          goto request_global_get_all_docs_view_error;
                 }
@@ -3595,17 +3634,12 @@ request_record_obj (DupinRecord * record, gchar * id, gchar * mvcc)
 static JsonNode *
 request_view_record_obj (DupinViewRecord * record, gchar * id)
 {
-  JsonObject * obj=NULL;
   JsonNode * node = dupin_view_record_get (record);
 
   if (node == NULL)
     return NULL;
 
-  node = json_node_copy (node);
-
-  obj = json_node_get_object (node);
-
-  return node;
+  return json_node_copy (node);
 }
 
 dupin_keyvalue_t *

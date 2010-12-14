@@ -776,13 +776,13 @@ request_global_get_changes (DSHttpdClient * client, GList * path,
         }
     }
 
-  if (dupin_database_get_total_changes (db, &total_rows, since, 0, DP_COUNT_CHANGES, TRUE, NULL) == FALSE)
+  if (dupin_database_get_total_changes (db, &total_rows, since+1, 0, DP_COUNT_CHANGES, TRUE, NULL) == FALSE)
     {
       dupin_database_unref (db);
       return HTTP_STATUS_500;
     }
 
-  if (dupin_database_get_changes_list (db, count, offset, since, 0, style, DP_COUNT_CHANGES, DP_ORDERBY_ROWID, descending, &results, NULL) ==
+  if (dupin_database_get_changes_list (db, count, offset, since+1, 0, style, DP_COUNT_CHANGES, DP_ORDERBY_ROWID, descending, &results, NULL) ==
       FALSE)
     {
       dupin_database_unref (db);

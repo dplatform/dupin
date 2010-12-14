@@ -54,6 +54,9 @@ const gchar *	dupin_record_get_id	(DupinRecord *		record);
 
 gsize 	        dupin_record_get_rowid	(DupinRecord *		record);
 
+gsize		dupin_record_get_created
+					(DupinRecord * record);
+
 /* Public Revision API of DupinRecord: */
 
 gchar *		dupin_record_get_last_revision

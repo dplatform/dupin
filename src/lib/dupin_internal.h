@@ -175,6 +175,8 @@ struct dupin_record_rev_t
 
   gboolean	deleted;
 
+  gsize		created;
+
   gsize		rowid;
 
   gchar *	obj_serialized;

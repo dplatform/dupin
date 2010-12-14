@@ -16,19 +16,19 @@
 	"SELECT count(id) FROM Dupin WHERE id = '%q' "
 
 #define DUPIN_DB_SQL_INSERT \
-	"INSERT INTO Dupin (id, rev, hash, obj) " \
-        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', '%q')"
+	"INSERT INTO Dupin (id, rev, hash, obj, tm) " \
+        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%" G_GSIZE_FORMAT "')"
 
 #define DUPIN_DB_SQL_UPDATE \
-	"INSERT OR REPLACE INTO Dupin (id, rev, hash, obj) " \
-        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', '%q')"
+	"INSERT OR REPLACE INTO Dupin (id, rev, hash, obj, tm) " \
+        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%" G_GSIZE_FORMAT "')"
 
 #define DUPIN_DB_SQL_READ \
-	"SELECT rev, hash, obj, deleted, ROWID AS rowid FROM Dupin WHERE id='%q'"
+	"SELECT rev, hash, obj, deleted, tm, ROWID AS rowid FROM Dupin WHERE id='%q'"
 
 #define DUPIN_DB_SQL_DELETE \
-	"INSERT OR REPLACE INTO Dupin (id, rev, deleted, hash) " \
-        "VALUES('%q', '%" G_GSIZE_FORMAT "', 'TRUE', '%q')"
+	"INSERT OR REPLACE INTO Dupin (id, rev, deleted, hash, tm) " \
+        "VALUES('%q', '%" G_GSIZE_FORMAT "', 'TRUE', '%q', '%" G_GSIZE_FORMAT "')"
 
 static DupinRecord *dupin_record_create_with_id_real (DupinDB * db,
 						      JsonNode * obj_node,
@@ -43,11 +43,12 @@ static DupinRecord *dupin_record_new (DupinDB * db, gchar * id);
 static void dupin_record_add_revision_obj (DupinRecord * record, guint rev,
 					   gchar ** hash,
 					   JsonNode * obj_node,
-					   gboolean delete);
+					   gboolean delete,
+					   gsize created);
 static void dupin_record_add_revision_str (DupinRecord * record, guint rev,
 					   gchar * hash, gssize hash_size,
 					   gchar * obj, gssize size,
-					   gboolean delete, gsize rowid);
+					   gboolean delete, gsize created, gsize rowid);
 static gboolean
 	   dupin_record_generate_hash	(DupinRecord * record,
                             		 gchar * obj_serialized, gssize obj_serialized_len,
@@ -172,11 +173,15 @@ dupin_record_create_with_id_real (DupinDB * db, JsonNode * obj_node,
 
   record = dupin_record_new (db, id);
 
-  dupin_record_add_revision_obj (record, 1, &md5, obj_node, FALSE);
+  gsize created = dupin_util_timestamp_now ();
+
+  dupin_record_add_revision_obj (record, 1, &md5, obj_node, FALSE, created);
 
   tmp =
     sqlite3_mprintf (DUPIN_DB_SQL_INSERT, id, 1, md5,
-		     record->last->obj_serialized);
+		     record->last->obj_serialized, created);
+
+//g_message("dupin_record_create_with_id_real: query=%s\n", tmp);
 
   if (sqlite3_exec (db->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
     {
@@ -207,6 +212,7 @@ static int
 dupin_record_read_cb (void *data, int argc, char **argv, char **col)
 {
   guint rev = 0;
+  gsize tm = 0;
   gchar *hash = NULL;
   gchar *obj = NULL;
   gboolean delete = FALSE;
@@ -219,6 +225,9 @@ dupin_record_read_cb (void *data, int argc, char **argv, char **col)
       if (!g_strcmp0 (col[i], "rev"))
 	rev = atoi (argv[i]);
 
+      else if (!g_strcmp0 (col[i], "tm"))
+	tm = (gsize)atof (argv[i]);
+
       else if (!g_strcmp0 (col[i], "hash"))
 	hash = argv[i];
 
@@ -229,11 +238,11 @@ dupin_record_read_cb (void *data, int argc, char **argv, char **col)
 	delete = !g_strcmp0 (argv[i], "TRUE") ? TRUE : FALSE;
 
       else if (!g_strcmp0 (col[i], "rowid"))
-	rowid = atoi(argv[i]);
+	rowid = (gsize)atof(argv[i]);
     }
 
   if (rev && hash !=NULL)
-    dupin_record_add_revision_str (data, rev, hash, -1, obj, -1, delete, rowid);
+    dupin_record_add_revision_str (data, rev, hash, -1, obj, -1, delete, tm, rowid);
 
   return 0;
 }
@@ -554,11 +563,13 @@ dupin_record_update (DupinRecord * record, JsonNode * obj_node,
 
   rev = record->last->revision + 1;
 
-  dupin_record_add_revision_obj (record, rev, &md5, obj_node, FALSE);
+  gsize created = dupin_util_timestamp_now ();
+
+  dupin_record_add_revision_obj (record, rev, &md5, obj_node, FALSE, created);
 
   tmp =
     sqlite3_mprintf (DUPIN_DB_SQL_INSERT, record->id, rev, md5,
-		     record->last->obj_serialized);
+		     record->last->obj_serialized, created);
 
   if (sqlite3_exec (record->db->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
     {
@@ -606,9 +617,11 @@ dupin_record_delete (DupinRecord * record, GError ** error)
 
   rev = record->last->revision + 1;
 
-  dupin_record_add_revision_obj (record, rev, &md5, NULL, TRUE);
+  gsize created = dupin_util_timestamp_now ();
 
-  tmp = sqlite3_mprintf (DUPIN_DB_SQL_DELETE, record->id, rev, md5);
+  dupin_record_add_revision_obj (record, rev, &md5, NULL, TRUE, created);
+
+  tmp = sqlite3_mprintf (DUPIN_DB_SQL_DELETE, record->id, rev, md5, created);
 
   if (sqlite3_exec (record->db->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
     {
@@ -659,6 +672,14 @@ dupin_record_get_rowid (DupinRecord * record)
   g_return_val_if_fail (record != NULL, 0);
 
   return record->last->rowid;
+}
+
+gsize
+dupin_record_get_created (DupinRecord * record)
+{
+  g_return_val_if_fail (record != NULL, 0);
+
+  return record->last->created;
 }
 
 gchar *
@@ -782,7 +803,8 @@ dupin_record_rev_close (DupinRecordRev * rev)
 static void
 dupin_record_add_revision_obj (DupinRecord * record, guint rev,
 			       gchar ** hash,
-			       JsonNode * obj_node, gboolean delete)
+			       JsonNode * obj_node, gboolean delete,
+			       gsize created)
 {
   DupinRecordRev *r;
   gchar mvcc[DUPIN_ID_MAX_LEN];
@@ -804,6 +826,7 @@ dupin_record_add_revision_obj (DupinRecord * record, guint rev,
     }
 
   r->deleted = delete;
+  r->created = created;
 
   dupin_record_generate_hash (record,
 			      r->obj_serialized, r->obj_serialized_len,
@@ -829,7 +852,7 @@ dupin_record_add_revision_obj (DupinRecord * record, guint rev,
 
 static void
 dupin_record_add_revision_str (DupinRecord * record, guint rev, gchar * hash, gssize hash_size,
- 			       gchar * str, gssize size, gboolean delete, gsize rowid)
+ 			       gchar * str, gssize size, gboolean delete, gsize created, gsize rowid)
 {
   DupinRecordRev *r;
   gchar mvcc[DUPIN_ID_MAX_LEN];
@@ -856,6 +879,7 @@ dupin_record_add_revision_str (DupinRecord * record, guint rev, gchar * hash, gs
     }
 
   r->deleted = delete;
+  r->created = created;
   r->rowid = rowid;
 
   dupin_util_mvcc_new (rev, r->hash, mvcc);

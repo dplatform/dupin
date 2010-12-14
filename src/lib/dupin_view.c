@@ -1040,10 +1040,11 @@ dupin_view_sync_thread_map_db (DupinView * view, gsize count)
 
       if (obj_node)
         {
-          /* Setting _id and _rev fields - we do not store them into serialized object */
+          /* Setting _id, _rev and _created fields - we do not store them into serialized object */
           JsonObject * obj = json_node_get_object (obj_node);
           json_object_set_string_member (obj, "_id", (gchar *) dupin_record_get_id (list->data));
           json_object_set_string_member (obj, "_rev", dupin_record_get_last_revision (list->data));
+          json_object_set_int_member (obj, "_created", dupin_record_get_created (list->data));
 
           data->obj = json_node_copy (obj_node);
         }

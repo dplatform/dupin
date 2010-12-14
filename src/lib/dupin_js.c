@@ -10,28 +10,6 @@
 
 #define DUPIN_JS_FUNCTION_SUM "function sum(values) { var rv = 0; for (var i in values) { rv += values[i]; } return rv; };\n"
 
-static void
-debug_print_json_node (char * msg, JsonNode * node)
-{
-  g_assert (node != NULL);
- 
-  gchar * buffer;
-  if (json_node_get_node_type (node) == JSON_NODE_VALUE)
-    {
-     buffer = g_strdup ( json_node_get_string (node) ); /* we should check number, boolean too */
-    }
-  else
-   {
-     JsonGenerator *gen = json_generator_new();
-     json_generator_set_root (gen, node);
-     g_object_set (gen, "pretty", TRUE, NULL);
-     buffer = json_generator_to_data (gen,NULL);
-     g_object_unref (gen);
-   }
-  g_message("%s - Json Node of type %d: %s\n",msg, (gint)json_node_get_node_type (node), buffer);
-  g_free (buffer);
-}
-
 static JSValueRef dupin_js_emit (JSContextRef ctx,
 					     JSObjectRef object,
 					     JSObjectRef thisObject,
@@ -225,7 +203,7 @@ dupin_js_new_map (gchar *        js_json_doc,
 /*
 	  JsonNode *node = json_node_new (JSON_NODE_ARRAY);
           json_node_set_array (node, js->mapResults);
-          debug_print_json_node ("mapResults: ",node);
+	  g_message("mapResults: %s\n", dupin_util_json_serialize (node));
           json_node_free (node);
 */
 
@@ -381,7 +359,7 @@ dupin_js_new_reduce (gchar *        js_json_keys,
 
       /* debug print what's there */
 /*
-      debug_print_json_node ("reduceResult: ",js->reduceResult);
+      g_message("reduceResult: %s\n", dupin_util_json_serialize (js->reduceResult));
 */
     }
 
@@ -640,7 +618,7 @@ dupin_js_log(JSContextRef ctx, JSObjectRef object,
 
   JsonNode * node = NULL;
   dupin_js_value (ctx, arguments[0], &node);
-  debug_print_json_node ("dupin_js_log(): ",node);
+  g_message("dupin_js_log: %s\n", dupin_util_json_serialize (node));
   json_node_free (node);
 
   return NULL;

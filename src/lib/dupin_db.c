@@ -16,6 +16,7 @@
   "  hash    CHAR(255) NOT NULL,\n" \
   "  obj     TEXT,\n" \
   "  deleted BOOL DEFAULT FALSE,\n" \
+  "  tm      INTEGER NOT NULL,\n" \
   "  PRIMARY KEY(id, rev, hash)\n" \
   ");"
 
@@ -423,6 +424,7 @@ dupin_database_get_changes_list_cb (void *data, int argc, char **argv, char **co
   struct dupin_database_get_changes_list_t *s = data;
 
   guint rev = 0;
+  gsize tm = 0;
   gchar *id = NULL;
   gchar *hash = NULL;
   gchar *obj = NULL;
@@ -435,6 +437,9 @@ dupin_database_get_changes_list_cb (void *data, int argc, char **argv, char **co
       /* shouldn't this be double and use atof() ?!? */
       if (!g_strcmp0 (col[i], "rev"))
         rev = atoi (argv[i]);
+
+      else if (!g_strcmp0 (col[i], "tm"))
+        tm = (gsize)atof(argv[i]);
 
       else if (!g_strcmp0 (col[i], "hash"))
         hash = argv[i];
@@ -478,6 +483,8 @@ dupin_database_get_changes_list_cb (void *data, int argc, char **argv, char **co
         {
           if (delete == TRUE)
             json_object_set_boolean_member (node_obj, "deleted", delete);
+
+          json_object_set_int_member (node_obj, "created", tm);
         }
 
       json_array_add_object_element (change_details, node_obj);
@@ -514,7 +521,7 @@ dupin_database_get_changes_list (DupinDB *              db,
   memset (&s, 0, sizeof (s));
   s.style = changes_type;
 
-  str = g_string_new ("SELECT id, rev, hash, obj, deleted, ROWID AS rowid FROM Dupin as d");
+  str = g_string_new ("SELECT id, rev, hash, obj, deleted, tm, ROWID AS rowid FROM Dupin as d");
 
   if (count_type == DP_COUNT_EXIST)
     check_deleted = " d.deleted = 'FALSE' ";

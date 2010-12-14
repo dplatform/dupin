@@ -202,7 +202,7 @@ dupin_util_json_serialize (JsonNode * node)
           || json_node_get_value_type (node) == G_TYPE_UINT)
         {
           gint numb = (gint) json_node_get_int (node);
-          node_serialized = g_strdup_printf ("%d", numb);
+          node_serialized = g_strdup_printf ("%" G_GUINT64_FORMAT, (long unsigned int)numb);
         }
 
       if (json_node_get_value_type (node) == G_TYPE_BOOLEAN)

@@ -684,6 +684,7 @@ request_global_get_all_views:
 #define REQUEST_GET_ALL_CHANGES_SINCE	   "since"
 #define REQUEST_GET_ALL_CHANGES_STYLE	   "style"
 #define REQUEST_GET_ALL_CHANGES_FEED	   "feed"
+#define REQUEST_GET_ALL_CHANGES_INCLUDE_DOCS  "include_docs"
 
 #define REQUEST_GET_ALL_CHANGES_STYLE_DEFAULT	"main_only"
 #define REQUEST_GET_ALL_CHANGES_FEED_DEFAULT	"poll"
@@ -734,7 +735,7 @@ request_global_get_changes (DSHttpdClient * client, GList * path,
 	offset = atoi (kv->value);
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_SINCE))
-	since = atoi (kv->value);
+	since = (gsize)atof (kv->value);
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_STYLE)
 	       && !g_strcmp0 (kv->value, "all_docs"))
@@ -765,7 +766,7 @@ request_global_get_changes (DSHttpdClient * client, GList * path,
               return HTTP_STATUS_400;
             }
         }
-      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_DOCS))
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_INCLUDE_DOCS))
         {
           if (g_strcmp0 (kv->value,"false") && g_strcmp0 (kv->value,"FALSE") &&
               g_strcmp0 (kv->value,"true") && g_strcmp0 (kv->value,"TRUE"))
@@ -818,9 +819,10 @@ request_global_get_changes (DSHttpdClient * client, GList * path,
         {
           JsonObject * on_obj = json_node_get_object (change);
 
-          gchar * record_id = (gchar *) json_object_get_string_member (on_obj, RESPONSE_OBJ_ID);
-
-          JsonNode * doc = NULL;
+          gchar * record_id   = (gchar *) json_object_get_string_member (on_obj, RESPONSE_OBJ_ID);
+	  gchar * record_mvcc = (gchar *) json_object_get_string_member (
+						json_array_get_object_element (json_object_get_array_member (on_obj, "changes"), 0)
+						, RESPONSE_OBJ_REV);
 
           DupinRecord * db_record=NULL;
           if (!(db_record = dupin_record_read (db, record_id, NULL)))
@@ -830,7 +832,14 @@ request_global_get_changes (DSHttpdClient * client, GList * path,
               goto request_global_get_changes_error;
             }
 
-          doc = json_node_copy (dupin_record_get_revision_node (db_record, NULL));
+          JsonNode * doc = NULL;
+
+          if (! (doc = request_record_obj (db_record, record_id, record_mvcc)))
+            {
+              json_node_free (change);
+              json_array_unref (array);
+              goto request_global_get_changes_error;
+            }
 
           dupin_record_close (db_record);
 

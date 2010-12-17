@@ -31,6 +31,14 @@ typedef enum
   DP_CHANGES_ALL_DOCS
 } DupinChangesType;
 
+/* Changes feed type: */
+typedef enum
+{
+  DP_CHANGES_FEED_POLL,
+  DP_CHANGES_FEED_LONGPOLL,
+  DP_CHANGES_FEED_CONTINUOUS
+} DupinChangesFeedType;
+
 /* Languages: */
 typedef enum
 {

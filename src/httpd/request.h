@@ -23,6 +23,15 @@ DSHttpStatusCode
 				 GList *		path,
 				 GList *		arguments);
 
+gboolean
+		request_get_changes_comet
+				(DSHttpdClient * client,
+                           	 gchar *buf,
+                           	 gsize count,
+                           	 gsize offset, 
+                           	 gsize *bytes_read, 
+                           	 GError **       error);
+
 G_BEGIN_DECLS
 
 typedef struct dupin_keyvalue_t    dupin_keyvalue_t;

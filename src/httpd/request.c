@@ -681,13 +681,20 @@ request_global_get_all_views:
 #define REQUEST_GET_ALL_DOCS_INCLUSIVEEND  "inclusive_end"
 #define REQUEST_GET_ALL_DOCS_INCLUDE_DOCS  "include_docs"
 
-#define REQUEST_GET_ALL_CHANGES_SINCE	   "since"
-#define REQUEST_GET_ALL_CHANGES_STYLE	   "style"
-#define REQUEST_GET_ALL_CHANGES_FEED	   "feed"
+#define REQUEST_GET_ALL_CHANGES_SINCE	      "since"
+#define REQUEST_GET_ALL_CHANGES_STYLE	      "style"
+#define REQUEST_GET_ALL_CHANGES_FEED	      "feed"
 #define REQUEST_GET_ALL_CHANGES_INCLUDE_DOCS  "include_docs"
+#define REQUEST_GET_ALL_CHANGES_HEARTBEAT     "heartbeat"
+#define REQUEST_GET_ALL_CHANGES_TIMEOUT       "timeout"
 
-#define REQUEST_GET_ALL_CHANGES_STYLE_DEFAULT	"main_only"
-#define REQUEST_GET_ALL_CHANGES_FEED_DEFAULT	"poll"
+#define REQUEST_GET_ALL_CHANGES_HEARTBEAT_DEFAULT  60000
+#define REQUEST_GET_ALL_CHANGES_TIMEOUT_DEFAULT    60000
+#define REQUEST_GET_ALL_CHANGES_STYLE_DEFAULT	   "main_only"
+
+#define REQUEST_GET_ALL_CHANGES_FEED_POLL	"poll"
+#define REQUEST_GET_ALL_CHANGES_FEED_LONGPOLL	"longpoll"
+#define REQUEST_GET_ALL_CHANGES_FEED_CONTINUOUS	"continuous"
 
 static DSHttpStatusCode
 request_global_get_changes (DSHttpdClient * client, GList * path,
@@ -700,25 +707,22 @@ request_global_get_changes (DSHttpdClient * client, GList * path,
 
   gboolean descending = FALSE;
   guint count = DUPIN_DB_MAX_CHANGES_COUNT;
-  guint offset = 0;
+
+  guint heartbeat=REQUEST_GET_ALL_CHANGES_HEARTBEAT_DEFAULT;
+  guint timeout=REQUEST_GET_ALL_CHANGES_TIMEOUT_DEFAULT;
 
   gsize total_rows = 0;
 
   gsize last_seq=0;
   gsize since = 0;
   DupinChangesType style = DP_CHANGES_MAIN_ONLY;
-  gchar * feed = REQUEST_GET_ALL_CHANGES_FEED_DEFAULT;
+  DupinChangesFeedType feed = DP_CHANGES_FEED_POLL;
   gboolean include_docs = FALSE;
 
   JsonObject *obj;
   JsonNode *node=NULL;
   JsonArray *array;
   JsonGenerator *gen=NULL;
-
-  if (!
-      (db =
-       dupin_database_open (client->thread->data->dupin, path->data, NULL)))
-    return HTTP_STATUS_404;
 
   for (list = arguments; list; list = list->next)
     {
@@ -731,11 +735,14 @@ request_global_get_changes (DSHttpdClient * client, GList * path,
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_COUNT))
 	count = atoi (kv->value);
 
-      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_OFFSET))
-	offset = atoi (kv->value);
-
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_SINCE))
 	since = (gsize)atof (kv->value);
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_HEARTBEAT))
+	heartbeat = atoi (kv->value);
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_TIMEOUT))
+	timeout = atoi (kv->value);
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_STYLE)
 	       && !g_strcmp0 (kv->value, "all_docs"))
@@ -744,25 +751,20 @@ request_global_get_changes (DSHttpdClient * client, GList * path,
         }
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_FEED))
         {
-	  if (!g_strcmp0 (kv->value, "longpoll"))
+	  if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_CHANGES_FEED_LONGPOLL))
             {
-	      feed = "longpoll";
-              dupin_database_unref (db);
-              return HTTP_STATUS_501;
+	      feed = DP_CHANGES_FEED_LONGPOLL;
             }
-	  else if (!g_strcmp0 (kv->value, "continuous"))
+	  else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_CHANGES_FEED_CONTINUOUS))
             {
-	      feed = "continuous";
-              dupin_database_unref (db);
-              return HTTP_STATUS_501;
+	      feed = DP_CHANGES_FEED_CONTINUOUS;
             }
-	  else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_CHANGES_FEED_DEFAULT))
+	  else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_CHANGES_FEED_POLL))
             {
-	      feed = REQUEST_GET_ALL_CHANGES_FEED_DEFAULT;
+	      feed = DP_CHANGES_FEED_POLL;
             }
           else
             {
-              dupin_database_unref (db);
               return HTTP_STATUS_400;
             }
         }
@@ -771,7 +773,6 @@ request_global_get_changes (DSHttpdClient * client, GList * path,
           if (g_strcmp0 (kv->value,"false") && g_strcmp0 (kv->value,"FALSE") &&
               g_strcmp0 (kv->value,"true") && g_strcmp0 (kv->value,"TRUE"))
             {
-              dupin_database_unref (db);
               return HTTP_STATUS_400;
             }
 
@@ -779,13 +780,58 @@ request_global_get_changes (DSHttpdClient * client, GList * path,
         }
     }
 
+  if (feed == DP_CHANGES_FEED_LONGPOLL
+      || feed == DP_CHANGES_FEED_CONTINUOUS)
+    {
+      if (!  (client->output.changes_comet.db =
+			dupin_database_open (client->thread->data->dupin, path->data, NULL)))
+        return HTTP_STATUS_404;
+
+      if (dupin_database_get_max_rowid (client->output.changes_comet.db, &client->output.changes_comet.change_total_changes) == FALSE)
+        {
+          dupin_database_unref (client->output.changes_comet.db);
+          return HTTP_STATUS_500;
+        }
+
+      client->output.changes_comet.change_size = 0;
+      client->output.changes_comet.change_string = NULL;
+      client->output.changes_comet.change_errors = 0;
+      client->output.changes_comet.param_heartbeat = heartbeat;
+      client->output.changes_comet.param_timeout = timeout;
+      client->output.changes_comet.param_descending = descending;
+      client->output.changes_comet.param_style = style;
+      client->output.changes_comet.param_since = since;
+      client->output.changes_comet.param_feed = feed;
+      client->output.changes_comet.param_include_docs = include_docs;
+      client->output.changes_comet.change_generated = FALSE;
+      client->output.changes_comet.change_last_seq = 0;
+
+      client->output_type = DS_HTTPD_OUTPUT_CHANGES_COMET;
+
+      if (feed == DP_CHANGES_FEED_LONGPOLL)
+        client->output_mime = g_strdup (HTTP_MIME_JSON);
+      else
+        client->output_mime = g_strdup (HTTP_MIME_TEXTPLAIN); /* this will not be valid JSON { ...} { ... } ... */
+
+      // we can not set output size and we use Transfer-Encoding: chunked instead - see httpd.c
+
+      return HTTP_STATUS_200;
+    }
+
+  /* feed type poll */
+
+  if (!
+      (db =
+       dupin_database_open (client->thread->data->dupin, path->data, NULL)))
+    return HTTP_STATUS_404;
+
   if (dupin_database_get_total_changes (db, &total_rows, since+1, 0, DP_COUNT_CHANGES, TRUE, NULL) == FALSE)
     {
       dupin_database_unref (db);
       return HTTP_STATUS_500;
     }
 
-  if (dupin_database_get_changes_list (db, count, offset, since+1, 0, style, DP_COUNT_CHANGES, DP_ORDERBY_ROWID, descending, &results, NULL) ==
+  if (dupin_database_get_changes_list (db, count, 0, since+1, 0, style, DP_COUNT_CHANGES, DP_ORDERBY_ROWID, descending, &results, NULL) ==
       FALSE)
     {
       dupin_database_unref (db);
@@ -803,7 +849,6 @@ request_global_get_changes (DSHttpdClient * client, GList * path,
     }
 
   json_object_set_int_member (obj, "total_rows", total_rows);
-  json_object_set_int_member (obj, "offset", offset);
   json_object_set_int_member (obj, "rows_per_page", count);
 
   array = json_array_new ();
@@ -888,7 +933,9 @@ request_global_get_changes (DSHttpdClient * client, GList * path,
     g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
+
   json_object_unref (obj);
+
   return HTTP_STATUS_200;
 
 request_global_get_changes_error:
@@ -3681,6 +3728,195 @@ dupin_keyvalue_destroy (dupin_keyvalue_t * data)
     g_free (data->value);
 
   g_free (data);
+}
+
+#define DUPIN_DB_MAX_CHANGES_COMET_COUNT  1
+
+gboolean
+request_get_changes_comet (DSHttpdClient * client,
+			   gchar *buf,
+			   gsize count,
+                           gsize offset,
+                           gsize *bytes_read, 
+			   GError **       error)
+{
+  g_return_val_if_fail (client->output.changes_comet.db != NULL, FALSE);
+  g_return_val_if_fail (client != NULL, FALSE);
+  g_return_val_if_fail (   client->output.changes_comet.param_feed == DP_CHANGES_FEED_LONGPOLL
+                        || client->output.changes_comet.param_feed == DP_CHANGES_FEED_CONTINUOUS , FALSE);
+
+  GList * results=NULL;
+  GList * list=NULL;
+  JsonNode * change=NULL;
+  JsonObject * on_obj=NULL;
+  gboolean ret = TRUE;
+  GString * str = NULL;
+
+request_get_changes_comet_next:
+
+//g_message("request_get_changes_comet: count=%d offset=%d\n", (gint)count, (gint)offset);
+
+  if (client->output.changes_comet.change_generated == FALSE)
+    {
+      if (dupin_database_get_changes_list (client->output.changes_comet.db,
+                                       DUPIN_DB_MAX_CHANGES_COMET_COUNT,
+                                       0,
+                                       client->output.changes_comet.param_since+1,
+                                       0,
+                                       client->output.changes_comet.param_style,
+                                       DP_COUNT_CHANGES, DP_ORDERBY_ROWID,
+                                       client->output.changes_comet.param_descending, &results, NULL) == FALSE)
+        {
+          goto request_get_changes_comet_error;
+        }
+
+//g_message("request_get_changes_comet: param_since=%d results_count=%d\n", (gint)client->output.changes_comet.param_since, (gint)g_list_length (results));
+
+      str = g_string_new (NULL);
+
+      if (client->output.changes_comet.change_size == 0
+          && client->output.changes_comet.param_feed == DP_CHANGES_FEED_LONGPOLL)
+        {
+          g_string_append (str,"{ \"results\": [\n");
+        }
+      else if (g_list_length (results) == 0)
+        {
+          /* heartbeat */
+//g_message("request_get_changes_comet: heat beat\n");
+
+          g_string_append (str,"\n");
+        }
+      else
+        {
+          for (list = results; list; list = list->next)
+            {
+              change = list->data;
+              on_obj = json_node_get_object (change);
+
+              if (client->output.changes_comet.param_include_docs == TRUE)
+                {
+                  gchar * record_id   = (gchar *) json_object_get_string_member (on_obj, "id");
+                  gchar * record_mvcc = (gchar *) json_object_get_string_member (
+                                                json_array_get_object_element (json_object_get_array_member (on_obj, "changes"), 0)
+                                                , "rev");
+
+//g_message("request_get_changes_comet: record_id=%s record_mvcc=%s\n", record_id, record_mvcc);
+
+                  DupinRecord * db_record=NULL;
+                  if (!(db_record = dupin_record_read (client->output.changes_comet.db, record_id, NULL)))
+                    {
+                      json_node_free (change);
+                      goto request_get_changes_comet_error;
+                    }
+
+                  JsonNode * doc = NULL;
+
+                  if (! (doc = request_record_obj (db_record, record_id, record_mvcc)))
+                    {
+                      json_node_free (change);
+                      goto request_get_changes_comet_error;
+                    }
+
+                  dupin_record_close (db_record);
+
+                  json_object_set_member (on_obj, "doc", doc);
+                }
+
+                client->output.changes_comet.change_last_seq = (gsize)json_object_get_int_member (on_obj, "seq");
+
+                gchar * change_str = dupin_util_json_serialize (change);
+                g_string_append (str, change_str);
+		g_free (change_str);
+
+                if ((client->output.changes_comet.param_feed == DP_CHANGES_FEED_LONGPOLL)
+                    && ((client->output.changes_comet.change_last_seq < client->output.changes_comet.change_total_changes)
+                         || (client->output.changes_comet.change_last_seq > client->output.changes_comet.change_total_changes
+                             && client->output.changes_comet.change_last_seq < (client->output.changes_comet.param_since+DUPIN_DB_MAX_CHANGES_COMET_COUNT))))
+                  g_string_append (str, ",");
+
+                g_string_append (str, "\n");
+            }
+
+//g_message("request_get_changes_comet: last_seq=%d total_changes=%d\n", (gint)client->output.changes_comet.change_last_seq , (gint) client->output.changes_comet.change_total_changes);
+
+            if ((client->output.changes_comet.param_feed == DP_CHANGES_FEED_LONGPOLL)
+                && ((client->output.changes_comet.change_last_seq == client->output.changes_comet.change_total_changes)
+                     || (client->output.changes_comet.change_last_seq > client->output.changes_comet.change_total_changes
+                         && client->output.changes_comet.change_last_seq == (client->output.changes_comet.param_since+1))))
+              g_string_append_printf (str,"], \"last_seq\": %" G_GSIZE_FORMAT " }", client->output.changes_comet.change_last_seq);
+
+            client->output.changes_comet.change_generated = TRUE;
+        }
+
+      if (results)
+        dupin_database_get_changes_list_close (results);
+
+      if (client->output.changes_comet.change_string != NULL)
+        g_free (client->output.changes_comet.change_string);
+
+      client->output.changes_comet.change_string = g_string_free (str, FALSE);
+      client->output.changes_comet.change_size = strlen (client->output.changes_comet.change_string);
+
+//g_message("request_get_changes_comet: generated string=%s of len=%d\n",client->output.changes_comet.change_string, (gint)client->output.changes_comet.change_size);
+//g_message("request_get_changes_comet: generated string of len=%d\n",(gint)client->output.changes_comet.change_size);
+    }
+
+  /* NOTE - cursors stuff - we have got one bunch of results/changes from longpoll or continous
+            in client->output.changes_comet.changes_string of client->output.changes_comet.changes_size
+	    now need to slice it as count requested by the caller - once finished if longpoll terminates,
+	    otherwise read next bunch for continous */
+
+  gint left = client->output.changes_comet.change_size - offset;
+
+//g_message("request_get_changes_comet: left=%d count=%d\n", (gint)left, (gint)count);
+
+  if (left <= 0)
+    {
+      client->output.changes_comet.change_generated = FALSE;
+      *bytes_read = 0;
+
+      if (client->output.changes_comet.change_last_seq < client->output.changes_comet.change_total_changes
+          || client->output.changes_comet.param_feed == DP_CHANGES_FEED_CONTINUOUS)
+        {
+	  offset = 0;
+          client->output.changes_comet.offset = 0;
+	  client->output.changes_comet.param_since+= DUPIN_DB_MAX_CHANGES_COMET_COUNT;
+
+//g_message("request_get_changes_comet: NEXT -> last_seq=%d < total_changes=%d\n", (gint)client->output.changes_comet.change_last_seq, (gint)client->output.changes_comet.change_total_changes);
+
+          goto request_get_changes_comet_next;
+        }
+      else if (client->output.changes_comet.param_feed == DP_CHANGES_FEED_LONGPOLL)
+        {
+          return FALSE; /* done */
+        }
+    }
+
+  if (left > 0 && left < count)
+    count = left;
+
+  /* copy count bytes to buf from change_string starting from offset */
+
+//g_message("request_get_changes_comet: memcpy %d bytes from change_string of len %d to buf starting at %d\n",(gint)count, (gint)client->output.changes_comet.change_size, (gint)offset);
+
+/* TODO - we get garbage copied over !! probably when string is bigger than buffer and need to chunk it up I.e. cursoring */
+
+  memcpy (buf, client->output.changes_comet.change_string+offset, count);
+
+  *bytes_read = count;
+
+//g_message("request_get_changes_comet: bytes_read=%d (=count)\n", (gint)*bytes_read);
+
+  return ret;
+
+request_get_changes_comet_error:
+
+  if (results)
+    dupin_database_get_changes_list_close (results);
+
+  client->output.changes_comet.change_errors++;
+
+  return FALSE;
 }
 
 /* EOF */

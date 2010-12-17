@@ -523,8 +523,18 @@ httpd_client_timeout_refresh (DSHttpdClient * client)
     }
 
   /* A new timeout: */
-  client->timeout_source =
-    g_timeout_source_new (client->thread->data->limit_timeout * 1000);
+  if (client->output_type == DS_HTTPD_OUTPUT_CHANGES_COMET)
+    {
+      client->timeout_source =
+      	g_timeout_source_new (client->output.changes_comet.param_timeout);
+
+//g_message("httpd_client_timeout_refresh: forced timeout for thread = %d\n", (gint)client->output.changes_comet.param_timeout);
+    }
+  else
+    {
+      client->timeout_source =
+      	g_timeout_source_new (client->thread->data->limit_timeout * 1000);
+    }
   g_source_set_callback (client->timeout_source,
 			 (GSourceFunc) httpd_client_timeout, client, NULL);
   g_source_attach (client->timeout_source, client->thread->context);
@@ -1066,8 +1076,11 @@ static gboolean httpd_client_write_body_map (GIOChannel * source,
 					     GIOCondition cond,
 					     DSHttpdClient * client);
 static gboolean httpd_client_write_body_blob (GIOChannel * source,
-					            GIOCondition cond,
-					            DSHttpdClient * client);
+					      GIOCondition cond,
+					      DSHttpdClient * client);
+static gboolean httpd_client_write_body_changes_comet (GIOChannel * source,
+					               GIOCondition cond,
+					               DSHttpdClient * client);
 
 /* This function writes something to the client: */
 static gboolean
@@ -1090,6 +1103,9 @@ httpd_client_write_body (GIOChannel * source, GIOCondition cond,
 
     case DS_HTTPD_OUTPUT_BLOB:
       return httpd_client_write_body_blob (source, cond, client);
+
+    case DS_HTTPD_OUTPUT_CHANGES_COMET:
+      return httpd_client_write_body_changes_comet (source, cond, client);
     }
 
   return TRUE;
@@ -1131,6 +1147,7 @@ httpd_client_write_body_string (GIOChannel * source, GIOCondition cond,
       g_source_unref (client->channel_source);
 
       client->channel_source = g_timeout_source_new (200);
+
       g_source_set_callback (client->channel_source,
 			     (GSourceFunc) httpd_client_write_body_timeout,
 			     client, NULL);
@@ -1386,6 +1403,133 @@ httpd_client_write_body_blob_read (DSHttpdClient * client)
   return status;
 }
 
+/* NOTE - simple implementation of RFC 2616 Chunked Transfer Coding
+          see http://tools.ietf.org/html/rfc2616#section-3.6.1 */
+
+static gboolean httpd_client_write_body_changes_comet_read (DSHttpdClient * client);
+
+static gboolean
+httpd_client_write_body_changes_comet (GIOChannel * source, GIOCondition cond,
+			    	       DSHttpdClient * client)
+{
+  gsize done;
+  GIOStatus status;
+
+  if (client->output.changes_comet.size == 0)
+    {
+      if (httpd_client_write_body_changes_comet_read (client) == FALSE)
+        {
+          if ((status = g_io_channel_write_chars (source, "0\r\n\r\n", -1, NULL, NULL)) == G_IO_STATUS_NORMAL)
+            status = g_io_channel_flush (client->channel, NULL);
+
+//g_message("httpd_client_write_body_changes_comet: written footer chunk\n");
+
+          httpd_client_close (client);
+          return FALSE;
+        }
+    }
+
+  GString * hex_chunk_size_str = g_string_new (NULL);
+  g_string_append_printf (hex_chunk_size_str, "%X\r\n", (guint)(client->output.changes_comet.size - client->output.changes_comet.done) );
+  gchar * hex_chunk_size = g_string_free (hex_chunk_size_str, FALSE); 
+
+//g_message("httpd_client_write_body_changes_comet: written chunk length=%s (=hex=%X)\n", hex_chunk_size, (guint)(client->output.changes_comet.size - client->output.changes_comet.done) );
+
+  if (((status = g_io_channel_write_chars (source,
+  			hex_chunk_size, -1, NULL, NULL)) == G_IO_STATUS_NORMAL)
+      && ((status = g_io_channel_write_chars (source,
+                                 client->output.changes_comet.string +
+                                 client->output.changes_comet.done,
+                                 client->output.changes_comet.size -
+                                 client->output.changes_comet.done, &done,
+                                 NULL)) == G_IO_STATUS_NORMAL)
+      && ((status = g_io_channel_write_chars (source,
+				 "\r\n", -1, NULL, NULL)) == G_IO_STATUS_NORMAL))
+    status = g_io_channel_flush (client->channel, NULL);
+
+  g_free (hex_chunk_size);
+
+  gsize bytes_read = client->output.changes_comet.size;
+  gunichar ch = g_utf8_get_char (client->output.changes_comet.string);
+
+  /* The status of the read: */
+  switch (status)
+    {
+    case G_IO_STATUS_NORMAL:
+      client->output.changes_comet.done += done;
+
+//g_message("httpd_client_write_body_changes_comet: written %d (=%X=hex) chars of data to source/channel (of total %d)\n", (gint)done, (gint)done, (gint)client->output.changes_comet.done);
+
+      if (client->output.changes_comet.done >= client->output.changes_comet.size)
+        {
+//g_message("httpd_client_write_body_changes_comet: %d >= %d - reset size and done to zero\n", (gint)client->output.changes_comet.done, (gint)client->output.changes_comet.size);
+
+          client->output.changes_comet.size = client->output.changes_comet.done = 0;
+
+          if (bytes_read == 1 && ch == '\n')
+            {
+//g_message("httpd_client_write_body_changes_comet: -----------------> heart beat (%d)\n", (gint)client->output.changes_comet.param_heartbeat);
+	       if (client->channel_source)
+                 {
+                   g_source_destroy (client->channel_source);
+                   g_source_unref (client->channel_source);
+                 }
+
+               client->channel_source = g_timeout_source_new (client->output.changes_comet.param_heartbeat);
+               g_source_set_callback (client->channel_source,
+                             (GSourceFunc) httpd_client_write_body_timeout,
+                             client, NULL);
+               g_source_attach (client->channel_source, g_main_context_default ());
+             }
+        }
+
+      break;
+
+      /* Setting a delay: */
+    case G_IO_STATUS_AGAIN:
+      g_source_destroy (client->channel_source);
+      g_source_unref (client->channel_source);
+
+      client->channel_source = g_timeout_source_new (200);
+      g_source_set_callback (client->channel_source,
+                             (GSourceFunc) httpd_client_write_body_timeout,
+                             client, NULL);
+      g_source_attach (client->channel_source, g_main_context_default ());
+      return FALSE;
+
+      /* Close the socket: */
+    case G_IO_STATUS_ERROR:
+    case G_IO_STATUS_EOF:
+      httpd_client_close (client);
+      return FALSE;
+    }
+
+  /* Removing the timeout: */
+  httpd_client_timeout_refresh (client);
+
+  return TRUE;
+}
+
+static gboolean
+httpd_client_write_body_changes_comet_read (DSHttpdClient * client)
+{
+  gboolean status = request_get_changes_comet
+                                (client,
+                                 client->output.changes_comet.string,
+                                 sizeof (client->output.changes_comet.string),
+                                 client->output.changes_comet.offset,
+                                 &client->output.changes_comet.size, NULL);
+
+//g_message("httpd_client_write_body_changes_comet_read: count=%d offset=%d bytes_read=%d\n", (gint)sizeof (client->output.changes_comet.string), (gint)client->output.changes_comet.offset, (gint)client->output.changes_comet.size);
+
+  if (status == TRUE && client->output.changes_comet.change_generated == TRUE)
+    client->output.changes_comet.offset += client->output.changes_comet.size;
+
+//g_message("httpd_client_write_body_changes_comet_read: offset=%d\n", (gint)client->output.changes_comet.offset);
+
+  return status;
+}
+
 static gboolean
 httpd_client_write_body_timeout (DSHttpdClient * client)
 {
@@ -1434,6 +1578,12 @@ httpd_client_send (DSHttpdClient * client, DSHttpStatusCode code)
   /* End of the string: */
   str = g_string_append (str, "\r\n");
 
+  /* Chunky transfer: */
+  if (client->output_type == DS_HTTPD_OUTPUT_CHANGES_COMET)
+    {
+      g_string_append (str, "Transfer-Encoding: chunked\r\n");
+    }
+
   /* the server: */
   str = g_string_append (str, "Server: " PACKAGE " " VERSION "\r\n");
 
@@ -1450,8 +1600,11 @@ httpd_client_send (DSHttpdClient * client, DSHttpStatusCode code)
   g_string_append_printf (str, "Date: %s\r\n", buf);
 
   /* Body length: */
-  g_string_append_printf (str, "Content-Length: %" G_GSIZE_FORMAT "\r\n",
+  if (client->output_type != DS_HTTPD_OUTPUT_CHANGES_COMET)
+    {
+      g_string_append_printf (str, "Content-Length: %" G_GSIZE_FORMAT "\r\n",
 			  client->output_size);
+    }
 
   /* Body type: */
   g_string_append_printf (str, "Content-Type: %s\r\n",
@@ -1459,7 +1612,8 @@ httpd_client_send (DSHttpdClient * client, DSHttpStatusCode code)
 			  DSHttpStatusList[i].mime);
 
   /* Connection Close: */
-  g_string_append (str, "Connection: close\r\n");
+  if (client->output_type != DS_HTTPD_OUTPUT_CHANGES_COMET)
+    g_string_append (str, "Connection: close\r\n");
 
   /* Empty line: */
   str = g_string_append (str, "\r\n");
@@ -1599,6 +1753,16 @@ httpd_client_free (DSHttpdClient * client)
         {
           dupin_attachment_record_blob_close (client->output.blob.record);
           dupin_attachment_record_close (client->output.blob.record); 
+        }
+      break;
+
+    case DS_HTTPD_OUTPUT_CHANGES_COMET:
+      if (client->output.changes_comet.change_string != NULL)
+        g_free (client->output.changes_comet.change_string);
+
+      if (client->output.changes_comet.db)
+        {
+          dupin_database_unref (client->output.changes_comet.db); 
         }
       break;
     }

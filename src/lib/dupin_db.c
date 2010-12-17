@@ -466,6 +466,11 @@ dupin_database_get_changes_list_cb (void *data, int argc, char **argv, char **co
       json_object_set_int_member (change,"seq", rowid);
       json_object_set_string_member (change,"id", id);
 
+      if (delete == TRUE)
+        json_object_set_boolean_member (change, "deleted", delete);
+
+      json_object_set_int_member (change, "created", tm);
+
       JsonArray *change_details=json_array_new();
       json_object_set_array_member (change, "changes", change_details);
 
@@ -481,10 +486,6 @@ dupin_database_get_changes_list_cb (void *data, int argc, char **argv, char **co
         }
       else if (s->style == DP_CHANGES_ALL_DOCS)
         {
-          if (delete == TRUE)
-            json_object_set_boolean_member (node_obj, "deleted", delete);
-
-          json_object_set_int_member (node_obj, "created", tm);
         }
 
       json_array_add_object_element (change_details, node_obj);

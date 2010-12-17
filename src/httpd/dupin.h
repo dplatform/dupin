@@ -53,7 +53,8 @@ typedef enum
   DS_HTTPD_OUTPUT_STRING,
   DS_HTTPD_OUTPUT_IO,
   DS_HTTPD_OUTPUT_MAP,
-  DS_HTTPD_OUTPUT_BLOB
+  DS_HTTPD_OUTPUT_BLOB,
+  DS_HTTPD_OUTPUT_CHANGES_COMET
 } DSHttpdOutputType;
 
 typedef struct ds_httpd_client_t DSHttpdClient;
@@ -122,6 +123,31 @@ struct ds_httpd_client_t
       gsize		done;
       gsize		offset;
     } blob;
+
+    struct
+    {
+      DupinDB *		   db;
+
+      gchar 		   string[4096];
+      gsize		   size;
+      gsize		   done;
+      gsize		   offset;
+
+      gchar * 		   change_string;
+      gsize		   change_size;
+      gboolean 		   change_generated;
+      guint		   change_errors;
+      gsize		   change_last_seq;
+      gsize		   change_total_changes;
+
+      guint		   param_heartbeat;
+      guint		   param_timeout;
+      gboolean 		   param_descending;
+      gsize		   param_since;
+      DupinChangesFeedType param_feed;
+      DupinChangesType	   param_style;
+      gboolean		   param_include_docs;
+    } changes_comet;
 
   } output;
 };

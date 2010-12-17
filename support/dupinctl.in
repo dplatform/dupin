@@ -25,7 +25,7 @@ CURL=`which curl`
 # such as mass vhosting, or a multithreaded server.
 
 if TMP_ULIMIT=`ulimit -H -n` && ulimit -S -n $TMP_ULIMIT >/dev/null 2>&1; then
-    ULIMIT_MAX_FILES="ulimit -S -n \`ulimit -H -n\`"
+    ULIMIT_MAX_FILES="ulimit -S -n $TMP_ULIMIT"
 else
     if TMP_ULIMIT=`sysctl kern.maxfiles | awk '{ print $2 }'` && ulimit -S -n $TMP_ULIMIT >/dev/null 2>&1; then
         ULIMIT_MAX_FILES="ulimit -S -n $TMP_ULIMIT"

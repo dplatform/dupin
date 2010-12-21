@@ -357,6 +357,9 @@ request_global (DSHttpdClient * client, GList * path, GList * arguments)
 #define REQUEST_UUIDS		"_uuids"
 #define REQUEST_UUIDS_COUNT	"count"
 
+static DSHttpStatusCode request_global_get_server_info (DSHttpdClient * client,
+							GList * path,
+                             				GList * arguments);
 static DSHttpStatusCode request_global_get_all_dbs (DSHttpdClient * client,
 						    GList * paths,
 						    GList * arguments);
@@ -406,7 +409,7 @@ static DSHttpStatusCode
 request_global_get (DSHttpdClient * client, GList * path, GList * arguments)
 {
   if (!path)
-    return HTTP_STATUS_400;
+    return request_global_get_server_info (client, path, arguments);
 
   /* GET /_all_dbs */
   if (!g_strcmp0 (path->data, REQUEST_ALL_DBS))
@@ -1092,6 +1095,62 @@ request_global_get_all_docs_error:
 }
 
 #define REQUEST_QUERY		"_query"
+
+static DSHttpStatusCode
+request_global_get_server_info (DSHttpdClient * client, GList * path,
+			     GList * arguments)
+{
+  JsonObject *obj;
+  JsonNode *node=NULL;
+  JsonGenerator *gen=NULL;
+
+  obj = json_object_new ();
+
+  if (obj == NULL)
+    {
+      return HTTP_STATUS_500;
+    }
+
+  json_object_set_string_member (obj, "couchdb", "Welcome to Dupin");
+  json_object_set_string_member (obj, "version", PACKAGE " " VERSION);
+
+  node = json_node_new (JSON_NODE_OBJECT);
+
+  if (node == NULL)
+    goto request_global_get_server_info_error;
+
+  json_node_set_object (node, obj);
+
+  gen = json_generator_new();
+
+  if (gen == NULL)
+    goto request_global_get_server_info_error;
+
+  json_generator_set_root (gen, node );
+  client->output.string.string = json_generator_to_data (gen,&client->output_size);
+
+  if (client->output.string.string == NULL)
+    goto request_global_get_server_info_error;
+
+  client->output_mime = g_strdup (HTTP_MIME_JSON);
+  client->output_type = DS_HTTPD_OUTPUT_STRING;
+
+  if (gen != NULL)
+    g_object_unref (gen);
+  if (node != NULL)
+    json_node_free (node);
+  json_object_unref (obj);
+  return HTTP_STATUS_200;
+
+request_global_get_server_info_error:
+
+  if (gen != NULL)
+    g_object_unref (gen);
+  if (node != NULL)
+    json_node_free (node);
+  json_object_unref (obj);
+  return HTTP_STATUS_500;
+}
 
 static DSHttpStatusCode
 request_global_get_database (DSHttpdClient * client, GList * path,

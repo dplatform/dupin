@@ -956,12 +956,10 @@ httpd_client_request (DSHttpdClient * client)
 
   if (!client->request_path)
     {
-      client->output_type = DS_HTTPD_OUTPUT_STRING;
-      client->output.string.string = g_strdup (HTTP_WWW_REDIRECT);
-      client->output_size = HTTP_WWW_REDIRECT_LEN;
-      client->output_mime = g_strdup (HTTP_MIME_TEXTHTML);
+      status = request_global (client, client->request_path,
+		      client->request_arguments);
 
-      httpd_client_send (client, HTTP_STATUS_200);
+      httpd_client_send (client, status);
       return;
     }
 

@@ -5,4 +5,10 @@
 	cat test-data/unicode-problem.json | curl -D - -d @- -H POST http://localhost:8088/freebase/testID1234567890
 - Extend JSONPath implementation using jsawk https://github.com/micha/jsawk
 	-> see also http://www.sitepen.com/blog/2008/07/16/jsonquery-data-querying-beyond-jsonpath/
-
+- Add filter functions using JSONPath with AND, OR, XOR, NOT combinations of path - kinda biz rules
+	-> _view/<view>/_all_docs
+	-> _changes
+	-> _all_docs
+- Compaction
+- Links creation (association, aggregation, composition)
+- ID aliases via ?id=http://somethingelse.org/id

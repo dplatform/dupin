@@ -415,7 +415,6 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
   g_return_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT);
 
   JsonObject *obj;
-  JsonObject *obj2;
 
   const gchar *id = NULL;
   gchar *tmp, *errmsg, *obj_serialized=NULL, *key_serialized=NULL, *pid_serialized=NULL;
@@ -430,24 +429,9 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
   if (obj == NULL)
     return;
 
-  obj2 = json_object_get_object_member (obj, "value");
-
-  if (obj2 == NULL)
-    return;
-
   if (view->reduce == NULL)
     {
-      if (json_object_has_member (obj, "id") == FALSE)
-        {
-          if (json_object_has_member (obj2, "_id") == TRUE)
-            {
-              json_object_set_string_member (obj, "id", (gchar *)json_object_get_string_member ( obj2, "_id"));
-            }
-          else
-            {
-              json_object_set_string_member (obj, "id", (gchar *)json_node_get_string ( json_array_get_element ( json_node_get_array (pid_node), 0) ) );
-            }
-        }
+      json_object_set_string_member (obj, "id", (gchar *)json_node_get_string ( json_array_get_element ( json_node_get_array (pid_node), 0) ) );
     }
 
 //dupin_view_debug_print_json_node ("dupin_view_record_save_map: KEY", key_node);

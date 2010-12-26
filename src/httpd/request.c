@@ -1776,7 +1776,8 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
               return HTTP_STATUS_400;
             }
 
-          include_docs = (!g_strcmp0 (kv->value,"false") || !g_strcmp0 (kv->value,"FALSE")) ? FALSE : TRUE;
+          if (view->reduce == NULL)
+            include_docs = (!g_strcmp0 (kv->value,"false") || !g_strcmp0 (kv->value,"FALSE")) ? FALSE : TRUE;
         }
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUSIVEEND))
@@ -1997,11 +1998,16 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
 
       if (include_docs == TRUE)
         {
-	  JsonObject * on_obj = json_node_get_object (on);
-
-          gchar * record_id = (gchar *) json_object_get_string_member (on_obj, RESPONSE_OBJ_ID);
-
+          gchar * record_id;
 	  JsonNode * doc = NULL;
+	  JsonObject * on_obj = json_node_get_object (on);
+	  JsonObject * on_obj2 = json_object_get_object_member (on_obj, "value");
+
+          if (on_obj2 != NULL
+              && json_object_has_member (on_obj2, REQUEST_OBJ_ID))
+            record_id = (gchar *) json_object_get_string_member (on_obj2, REQUEST_OBJ_ID);
+          else
+            record_id = (gchar *) json_object_get_string_member (on_obj, RESPONSE_OBJ_ID);
 
           if (dupin_view_get_parent_is_db (view) == TRUE)
             {

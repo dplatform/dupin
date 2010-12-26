@@ -2008,28 +2008,28 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
 	      DupinRecord * db_record=NULL;
               if (!(db_record = dupin_record_read (parent_db, record_id, NULL)))
                 {
-                  json_node_free (on);
-                  json_array_unref (array);
-	          goto request_global_get_all_docs_view_error;
+                  doc = json_node_new (JSON_NODE_NULL);
                 }
+              else
+                {
+                  doc = json_node_copy (dupin_record_get_revision_node (db_record, NULL));
 
-              doc = json_node_copy (dupin_record_get_revision_node (db_record, NULL));
-
-	      dupin_record_close (db_record);
+	          dupin_record_close (db_record);
+                }
             }
           else
             {
               DupinViewRecord * view_record=NULL;
               if (!(view_record = dupin_view_record_read (parent_view, record_id, NULL)))
                 {
-                  json_node_free (on);
-                  json_array_unref (array);
-	          goto request_global_get_all_docs_view_error;
+                  doc = json_node_new (JSON_NODE_NULL);
                 }
+              else
+                {
+                  doc = json_node_copy (dupin_view_record_get (view_record));
 
-              doc = json_node_copy (dupin_view_record_get (view_record));
-
-	      dupin_view_record_close (view_record);
+	          dupin_view_record_close (view_record);
+                }
             }
 
           json_object_set_member (on_obj, "doc", doc);

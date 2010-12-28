@@ -12,3 +12,4 @@
 - Compaction
 - ID aliases via ?id=http://somethingelse.org/id
 - Add links / relationships creation (association, aggregation, composition)
+

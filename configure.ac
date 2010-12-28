@@ -163,7 +163,7 @@ else
 fi
 
 #CFLAGS="-g $CFLAGS -Wall"
-CFLAGS="-g $CFLAGS -Wall -Werror"
+CFLAGS="-g $CFLAGS -Wall -Werror -O0"
 #CFLAGS="-g $CFLAGS -Wall -O0 -DSQLITE_MEMDEBUG"
 
 AC_OUTPUT([

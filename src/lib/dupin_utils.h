@@ -18,6 +18,8 @@ gchar *		dupin_util_json_strescape	(const gchar *	string);
 
 gchar *		dupin_util_json_serialize	(JsonNode * node);
 
+JsonNode *	dupin_util_json_node_clone	(JsonNode * node);
+
 gboolean	dupin_util_is_valid_obj		(JsonObject *obj);
 
 void		dupin_util_generate_id		(gchar		id[DUPIN_ID_MAX_LEN]);

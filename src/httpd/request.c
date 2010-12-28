@@ -2578,6 +2578,8 @@ request_global_post_bulk_docs_error:
 }
 
 /* PUT *********************************************************************/
+#define REQUEST_FIELDS		"_fields"
+
 static DSHttpStatusCode request_global_put_database (DSHttpdClient * client,
 						     GList * path,
 						     GList * arguments);
@@ -2816,6 +2818,7 @@ request_global_put_record (DSHttpdClient * client, GList * path,
   DupinRecord *record;
   DSHttpStatusCode code;
   gchar * doc_id=NULL; 
+  gboolean request_fields=FALSE;
  
   if (!client->body
       || !path->next->data)
@@ -2837,13 +2840,27 @@ request_global_put_record (DSHttpdClient * client, GList * path,
         /* PUT /_special_document/document_ID */
         doc_id = g_strdup_printf ("%s/%s", (gchar *)path->next->data, (gchar *)path->next->next->data);
     }
-  else if (path->next->next)
-    {
-      /* PUT /document_ID/attachment */
-      return request_global_put_record_attachment (client, path, arguments);
-    }
   else
     {
+      if (path->next->next)
+        {
+          if (!g_strcmp0 (path->next->next->data, REQUEST_FIELDS))
+            {
+	      if (!path->next->next->next
+                  || !g_strcmp0 (path->next->next->next->data, REQUEST_OBJ_ID)
+                  || !g_strcmp0 (path->next->next->next->data, REQUEST_OBJ_REV)
+                  || !g_strcmp0 (path->next->next->next->data, REQUEST_OBJ_ATTACHMENTS))
+                return HTTP_STATUS_400;
+
+              request_fields=TRUE;
+            }
+          else
+            {
+              /* PUT /document_ID/attachment */
+              return request_global_put_record_attachment (client, path, arguments);
+            }
+        }
+
       /* PUT /document_ID */
       doc_id = g_strdup_printf ("%s", (gchar *)path->next->data);
     }
@@ -2873,29 +2890,89 @@ request_global_put_record (DSHttpdClient * client, GList * path,
       goto request_global_put_record_error;
     }
 
-  if (json_node_get_node_type (node) != JSON_NODE_OBJECT)
+  if (request_fields == TRUE)
     {
-      code = HTTP_STATUS_400;
-      goto request_global_put_record_error;
+      gchar * mvcc=NULL;
+      DupinDB *db;
+      JsonNode * node1=NULL;
+      JsonObject * node1_obj=NULL;
+
+      /* fetch last revision */
+      if (!  (db =
+       		dupin_database_open (client->thread->data->dupin, path->data, NULL)))
+        {
+          code = HTTP_STATUS_404;
+          goto request_global_put_record_error;
+        }
+
+      if (!(record = dupin_record_read (db, doc_id, NULL)))
+        {
+          dupin_database_unref (db);
+          code = HTTP_STATUS_404;
+          goto request_global_put_record_error;
+        }
+
+      mvcc = dupin_record_get_last_revision (record);
+
+      if (dupin_record_is_deleted (record, mvcc) == TRUE)
+        {
+          dupin_database_unref (db);
+          code = HTTP_STATUS_404;
+          goto request_global_put_record_error;
+        }
+
+      node1 = dupin_record_get_revision_node (record, mvcc);
+
+      if (node1 == NULL)
+        {
+          dupin_record_close (record);
+          dupin_database_unref (db);
+          code = HTTP_STATUS_404;
+          goto request_global_put_record_error;
+        }
+
+      node1 = json_node_copy (node1);
+
+      node1_obj = json_node_get_object (node1);
+
+      /* Setting _id and _rev: */
+      json_object_set_string_member (node1_obj, REQUEST_OBJ_ID, doc_id);
+      json_object_set_string_member (node1_obj, REQUEST_OBJ_REV, mvcc);
+
+      /* set field */
+      /* NOTE - we must remove the member first to make sure the correct node type is set internally */
+      json_object_remove_member (node1_obj, (const gchar *)path->next->next->next->data);
+      json_object_set_member (node1_obj, (const gchar *)path->next->next->next->data, json_node_copy (node));
+
+      dupin_record_close (record);
+      record = NULL;
+      dupin_database_unref (db);
+
+      node = node1;
+    }
+  else
+    {
+      if (json_node_get_node_type (node) != JSON_NODE_OBJECT)
+        {
+          code = HTTP_STATUS_400;
+          goto request_global_put_record_error;
+        }
     }
 
   if (request_record_insert
       (client, node, path->data, doc_id, &code,
-       &record) == TRUE)
+            &record) == TRUE)
     {
       if (request_record_response_single (client, record) == FALSE)
-	code = HTTP_STATUS_500;
-      dupin_record_close (record);
+	    code = HTTP_STATUS_500;
+        dupin_record_close (record);
     }
 
-  if (parser != NULL)
-    g_object_unref (parser);
-
-  g_free (doc_id);
-
-  return code;
-
 request_global_put_record_error:
+
+  if (request_fields == TRUE
+      && node)
+    json_node_free (node);
 
   if (parser != NULL)
     g_object_unref (parser);
@@ -3704,47 +3781,36 @@ request_record_obj (DupinRecord * record, gchar * id, gchar * mvcc)
   JsonNode *obj_node;
   JsonObject *obj;
 
-  obj_node = json_node_new (JSON_NODE_OBJECT);
-
-  if (obj_node == NULL)
-    return NULL;
-
-  obj = json_object_new ();
-
-  if (obj == NULL)
-    {
-      json_node_free (obj_node);
-      return NULL;
-    }
-
-  json_node_take_object (obj_node, obj);
-
   if (dupin_record_is_deleted (record, mvcc) == TRUE)
     {
+      obj_node = json_node_new (JSON_NODE_OBJECT);
+
+      if (obj_node == NULL)
+        return NULL;
+
+      obj = json_object_new ();
+
+      if (obj == NULL)
+        {
+          json_node_free (obj_node);
+          return NULL;
+        }
+
+      json_node_take_object (obj_node, obj);
+
       json_object_set_boolean_member (obj, "_deleted", TRUE);
     }
 
   else
     {
-      GList *members, *m;
+      obj_node = dupin_record_get_revision_node (record, mvcc);
 
-      JsonNode * node = dupin_record_get_revision_node (record, mvcc);
+      if (obj_node == NULL)
+        return NULL;
 
-      if (node == NULL)
-        {
-          json_object_unref (obj);
-          return NULL;
-        }
+      obj_node = json_node_copy (obj_node);
 
-      JsonObject * nodeobject = json_node_get_object (node);
-
-      members = json_object_get_members (nodeobject);
-      for ( m = members ; m != NULL ; m = m->next )
-        {
-          /* TODO - check if this shouldn't be json_object_set_object_member()/json_object_set_array_member() etc instead to make sure GC works */
-          json_object_set_member (obj, m->data, json_node_copy (json_object_get_member (nodeobject, m->data)));
-        }
-      g_list_free (members);
+      obj = json_node_get_object (obj_node);
     }
 
   /* Setting _id and _rev: */

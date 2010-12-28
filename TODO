@@ -10,5 +10,5 @@
 	-> _changes
 	-> _all_docs
 - Compaction
-- Links creation (association, aggregation, composition)
 - ID aliases via ?id=http://somethingelse.org/id
+- Add links / relationships creation (association, aggregation, composition)

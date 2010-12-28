@@ -231,6 +231,75 @@ dupin_util_json_serialize (JsonNode * node)
   return node_serialized;
 }
 
+/* NOTE - proper deep copy/clone of given JsonNode */
+
+JsonNode *
+dupin_util_json_node_clone (JsonNode * node)
+{
+  g_return_val_if_fail (node != NULL, NULL);
+
+  JsonNode * clone = NULL;
+
+  if (json_node_get_node_type (node) == JSON_NODE_OBJECT)
+    {
+      clone = json_node_new (JSON_NODE_OBJECT);
+      JsonObject *obj = json_object_new();
+      GList *nodes, *n;
+      nodes = json_object_get_members (json_node_get_object (node));
+      for (n = nodes; n != NULL; n = n->next)
+        json_object_set_member (obj,
+				(const gchar *) n->data,
+				dupin_util_json_node_clone (
+					json_object_get_member (json_node_get_object (node), (const gchar *)n->data)));
+      g_list_free (nodes);
+      json_node_take_object(clone, obj);
+    }
+  else if (json_node_get_node_type (node) == JSON_NODE_ARRAY)
+    {
+      clone = json_node_new (JSON_NODE_ARRAY);
+      JsonArray *array = json_array_new();
+      GList *nodes, *n;
+      nodes = json_array_get_elements (json_node_get_array (node));
+      for (n = nodes; n != NULL; n = n->next)
+        json_array_add_element(array, dupin_util_json_node_clone (n->data));
+      g_list_free (nodes);
+      json_node_take_array(clone, array);
+    }
+  else if (json_node_get_node_type (node) == JSON_NODE_VALUE)
+    {
+      clone = json_node_new (JSON_NODE_VALUE); 
+
+      if (json_node_get_value_type (node) == G_TYPE_STRING)
+        {
+          json_node_set_string (clone, json_node_get_string (node));
+        }
+
+      if (json_node_get_value_type (node) == G_TYPE_DOUBLE
+          || json_node_get_value_type (node) == G_TYPE_FLOAT)
+        {
+          json_node_set_double (clone, json_node_get_double (node));
+        }
+
+      if (json_node_get_value_type (node) == G_TYPE_INT
+          || json_node_get_value_type (node) == G_TYPE_INT64
+          || json_node_get_value_type (node) == G_TYPE_UINT)
+        {
+          json_node_set_int (clone, json_node_get_int (node));
+        }
+
+      if (json_node_get_value_type (node) == G_TYPE_BOOLEAN)
+        {
+          json_node_set_boolean (clone, json_node_get_boolean (node));
+        }
+    }
+  else if (json_node_get_node_type (node) == JSON_NODE_NULL)
+    {
+      clone = json_node_new (JSON_NODE_NULL); 
+    }
+
+  return clone;
+}
+
 /* UTF-8 utility functions from http://midnight-commander.org/
    updated to include glib gint/gchar and dupin_util namespace */
 

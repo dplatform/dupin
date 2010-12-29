@@ -12,3 +12,5 @@
 - Compaction
 - ID aliases via ?id=http://somethingelse.org/id
 - Add links / relationships creation (association, aggregation, composition)
+- Add GET /doc/_fields/field and /doc/_fields?query=json-path ...
+- Add view helper function json_path() and jpaths(node)

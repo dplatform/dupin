@@ -6,12 +6,12 @@
 G_BEGIN_DECLS
 
 JsonArray *	dupin_mr_record_map	(DupinView *	view,
-		 	 	 		 JsonObject * obj);
+		 	 	 	 JsonObject * obj);
 
 JsonNode *	dupin_mr_record_reduce	(DupinView *	view,
-		 	 	 		 JsonArray * keys,
-		 	 	 		 JsonArray * values,
-						 gboolean rereduce);
+		 	 	  	 JsonArray * keys,
+		 	 	 	 JsonArray * values,
+					 gboolean rereduce);
 
 G_END_DECLS
 

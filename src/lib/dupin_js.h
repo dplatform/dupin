@@ -5,11 +5,13 @@
 
 G_BEGIN_DECLS
 
-DupinJs *	dupin_js_new_map	(gchar *	js_json_doc,
+DupinJs *	dupin_js_new_map	(Dupin *	d,
+					 gchar *	js_json_doc,
                                          gchar *        js_code,
               				 gchar**        exception_string);
 
-DupinJs *	dupin_js_new_reduce	(gchar *	js_json_keys,
+DupinJs *	dupin_js_new_reduce	(Dupin *	d,
+					 gchar *	js_json_keys,
 					 gchar *	js_json_values,
                                          gboolean       rereduce,
                                          gchar *        js_code,

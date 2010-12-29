@@ -17,13 +17,6 @@ static JSValueRef dupin_js_emit (JSContextRef ctx,
 					     const JSValueRef arguments[],
 					     JSValueRef * exception);
 
-static JSValueRef dupin_js_log (JSContextRef ctx,
-					     JSObjectRef object,
-					     JSObjectRef thisObject,
-					     size_t argumentCount,
-					     const JSValueRef arguments[],
-					     JSValueRef * exception);
-
 static gchar* dupin_js_string_utf8 (JSStringRef js_string);
 
 static void dupin_js_obj (JSContextRef ctx, JSValueRef object_value,
@@ -32,6 +25,31 @@ static void dupin_js_obj (JSContextRef ctx, JSValueRef object_value,
 static void dupin_js_value (JSContextRef ctx, JSValueRef value,
                           JsonNode ** v);
 
+static JSValueRef dupin_js_dupin_class_log (JSContextRef ctx,
+					    JSObjectRef object,
+					    JSObjectRef thisObject,
+					    size_t argumentCount,
+					    const JSValueRef arguments[],
+					    JSValueRef * exception);
+
+static JSValueRef dupin_js_dupin_class_view_lookup
+					   (JSContextRef ctx,
+					    JSObjectRef object,
+					    JSObjectRef thisObject,
+					    size_t argumentCount,
+					    const JSValueRef arguments[],
+					    JSValueRef * exception);
+
+static JSStaticFunction dupin_js_dupin_class_static_functions[] = {
+    { "log", dupin_js_dupin_class_log, kJSPropertyAttributeNone },
+    { "view_lookup", dupin_js_dupin_class_view_lookup, kJSPropertyAttributeNone },
+    { 0, 0, 0 }
+};
+
+/* TODO */
+static JSStaticValue dupin_js_dupin_class_static_values[] = {
+    { 0, 0, 0, 0 }
+};
 
 /*
  See http://wiki.apache.org/couchdb/Introduction_to_CouchDB_views#Concept
@@ -43,7 +61,8 @@ static void dupin_js_value (JSContextRef ctx, JSValueRef value,
  */
 
 DupinJs *
-dupin_js_new_map (gchar *        js_json_doc,
+dupin_js_new_map (Dupin *    	 d,
+		  gchar *        js_json_doc,
                   gchar *        js_code,
                   gchar**        exception_string)
 {
@@ -76,12 +95,16 @@ dupin_js_new_map (gchar *        js_json_doc,
            global state in context kept per view (E.g. an object or array of states)
   */
 
-  /* register call back for debugging / logging purposes */
-  str = JSStringCreateWithUTF8CString ("dupin_log");
-  func = JSObjectMakeFunctionWithCallback (ctx, str, dupin_js_log);
-  JSObjectSetProperty (ctx, globalObject, str, func,
-                            kJSPropertyAttributeNone, NULL);
-  JSStringRelease (str);
+  static JSClassRef jsDupinClass;
+  JSClassDefinition dupin_class_def = kJSClassDefinitionEmpty;
+  dupin_class_def.className = "Dupin";
+  dupin_class_def.staticFunctions = dupin_js_dupin_class_static_functions;
+  dupin_class_def.staticValues = dupin_js_dupin_class_static_values;
+  jsDupinClass = JSClassCreate (&dupin_class_def);
+  JSObjectRef DupinObject = JSObjectMake(ctx, jsDupinClass, d);
+  str = JSStringCreateWithUTF8CString("dupin");
+  JSObjectSetProperty(ctx, globalObject, str, DupinObject, kJSPropertyAttributeNone, NULL);
+  JSStringRelease(str);
 
   GString *buffer;
   gchar *b=NULL;
@@ -246,7 +269,8 @@ CouchDB doesn't necessarily pass in all the values for a unique key to the reduc
  */
 
 DupinJs *
-dupin_js_new_reduce (gchar *        js_json_keys,
+dupin_js_new_reduce (Dupin *        d,
+		     gchar *        js_json_keys,
 		     gchar *        js_json_values,
                      gboolean       rereduce,
                      gchar *        js_code,
@@ -256,7 +280,7 @@ dupin_js_new_reduce (gchar *        js_json_keys,
   JSGlobalContextRef ctx;
 
   JSStringRef str;
-  JSObjectRef func, globalObject;
+  JSObjectRef globalObject;
   JSValueRef result;
   JSValueRef js_exception=NULL;
 
@@ -285,12 +309,16 @@ dupin_js_new_reduce (gchar *        js_json_keys,
            global state in context kept per view (E.g. an object or array of states)
   */
 
-  /* register call back for debugging / logging purposes */
-  str = JSStringCreateWithUTF8CString ("dupin_log");
-  func = JSObjectMakeFunctionWithCallback (ctx, str, dupin_js_log);
-  JSObjectSetProperty (ctx, globalObject, str, func,
-                            kJSPropertyAttributeNone, NULL);
-  JSStringRelease (str);
+  static JSClassRef jsDupinClass;
+  JSClassDefinition dupin_class_def = kJSClassDefinitionEmpty;
+  dupin_class_def.className = "Dupin";
+  dupin_class_def.staticFunctions = dupin_js_dupin_class_static_functions;
+  dupin_class_def.staticValues = dupin_js_dupin_class_static_values;
+  jsDupinClass = JSClassCreate (&dupin_class_def);
+  JSObjectRef DupinObject = JSObjectMake(ctx, jsDupinClass, d);
+  str = JSStringCreateWithUTF8CString("dupin");
+  JSObjectSetProperty(ctx, globalObject, str, DupinObject, kJSPropertyAttributeNone, NULL);
+  JSStringRelease(str);
 
   GString *buffer;
   gchar *b=NULL;
@@ -605,10 +633,11 @@ dupin_js_emit(JSContextRef ctx, JSObjectRef object,
 }
 
 static JSValueRef
-dupin_js_log(JSContextRef ctx, JSObjectRef object,
-			   JSObjectRef thisObject, size_t argumentCount,
-			   const JSValueRef arguments[],
-			   JSValueRef * exception)
+dupin_js_dupin_class_log(JSContextRef ctx,
+             		 JSObjectRef object,
+	     		 JSObjectRef thisObject, size_t argumentCount,
+             		 const JSValueRef arguments[],
+	     		 JSValueRef * exception)
 {
   if (argumentCount != 1)
     {
@@ -618,10 +647,205 @@ dupin_js_log(JSContextRef ctx, JSObjectRef object,
 
   JsonNode * node = NULL;
   dupin_js_value (ctx, arguments[0], &node);
-  g_message("dupin_js_log: %s\n", dupin_util_json_serialize (node));
+  gchar * json = dupin_util_json_serialize (node);
+  g_message("dupin_js_dupin_class_log: %s\n", json);
+  g_free (json);
   json_node_free (node);
 
   return NULL;
+}
+
+/* Dupin.view_lookup (viewname, key, include_docs) */
+
+/* NOTE - we start by doing simple single key lookup ok/fail */
+
+static JSValueRef
+dupin_js_dupin_class_view_lookup(JSContextRef ctx,
+                   		 JSObjectRef object,
+		   		 JSObjectRef thisObject, size_t argumentCount,
+		   		 const JSValueRef arguments[],
+		   		 JSValueRef * exception)
+{
+  JSValueRef result=NULL;
+  Dupin * d = (Dupin *) JSObjectGetPrivate(thisObject);
+  DupinView *view=NULL;
+  DupinDB *parent_db=NULL;
+  DupinView *parent_view=NULL;
+
+  GList *results;
+
+  gboolean descending = FALSE;
+  guint count = 1;
+  guint offset = 0;
+  gchar * lookupkey = NULL;
+  gboolean inclusive_end = TRUE;
+
+  if (argumentCount != 3)
+    {
+      *exception = JSValueMakeNumber (ctx, 1);
+      return NULL;
+    }
+
+g_message("dupin_js_dupin_class_view_lookup: checking params...\n");
+
+  if ((!JSValueIsString(ctx, arguments[0]))
+       || (!arguments[1])
+       || (!JSValueIsBoolean(ctx, arguments[2])))
+    return NULL;
+
+g_message("dupin_js_dupin_class_view_lookup: ok params...\n");
+
+  /* view name */
+  JSStringRef string = JSValueToStringCopy (ctx, arguments[0], NULL);
+  gchar * view_name = dupin_js_string_utf8 (string);
+  JSStringRelease (string);
+
+  /* key is node */
+  JsonNode * key = NULL;
+  dupin_js_value (ctx, arguments[1], &key);
+  if (key == NULL)
+    return NULL;
+  lookupkey = dupin_util_json_serialize (key); 
+
+  /* include_docs */
+  gboolean include_docs = (JSValueToBoolean (ctx, arguments[2]) == true) ? TRUE : FALSE;
+
+g_message("dupin_js_dupin_class_view_lookup: view_name=%s include_docs=%d (dupin_path=%s)\n", view_name, (gint)include_docs, d->path);
+
+  if (!
+      (view =
+       dupin_view_open (d, view_name, NULL)))
+    {
+      g_free (lookupkey);
+      g_free (view_name);
+      json_node_free (key);
+      return NULL;
+    }
+
+  if (include_docs == TRUE)
+    {
+      if (dupin_view_get_parent_is_db (view) == TRUE)
+        {
+          if (!(parent_db = dupin_database_open (view->d, view->parent, NULL)))
+            {
+              dupin_view_unref (view);
+              g_free (lookupkey);
+              g_free (view_name);
+              json_node_free (key);
+              return NULL;
+            }
+        }
+      else
+        {
+          if (!(parent_view = dupin_view_open (view->d, view->parent, NULL)))
+            {
+              dupin_view_unref (view);
+              g_free (lookupkey);
+              g_free (view_name);
+              json_node_free (key);
+              return NULL;
+            }
+        }
+    }
+
+  if ((dupin_view_record_get_list (view, count, offset, 0, 0, DP_ORDERBY_KEY, descending,
+                                  lookupkey, lookupkey, inclusive_end,
+                                  &results, NULL) == FALSE)
+       || (g_list_length (results) <= 0))
+    {
+      result = NULL;
+      goto dupin_js_dupin_class_view_lookup_error;
+    }
+
+  DupinViewRecord *record = results->data;
+  JsonNode * match=NULL;
+
+  if (! (match = dupin_view_record_get (record)))
+    {
+      result = NULL;
+      goto dupin_js_dupin_class_view_lookup_error;
+    }
+  match = json_node_copy (match);
+
+  if (include_docs == TRUE)
+    {
+      gchar * record_id;
+      JsonNode * doc = NULL;
+      JsonObject * match_obj = json_node_get_object (match);
+      JsonObject * match_obj2 = json_object_get_object_member (match_obj, "value");
+
+      if (match_obj2 != NULL
+              && json_object_has_member (match_obj2, "_id"))
+        record_id = (gchar *) json_object_get_string_member (match_obj2, "_id");
+      else
+        record_id = (gchar *) json_object_get_string_member (match_obj, "id");
+
+      if (dupin_view_get_parent_is_db (view) == TRUE)
+        {
+          DupinRecord * db_record=NULL;
+          if (!(db_record = dupin_record_read (parent_db, record_id, NULL)))
+            {
+              doc = json_node_new (JSON_NODE_NULL);
+            }
+          else
+            {
+              doc = json_node_copy (dupin_record_get_revision_node (db_record, NULL));
+
+              dupin_record_close (db_record);
+            }
+        }
+      else
+        {
+          DupinViewRecord * view_record=NULL;
+          if (!(view_record = dupin_view_record_read (parent_view, record_id, NULL)))
+            {
+              doc = json_node_new (JSON_NODE_NULL);
+            }
+          else
+            {
+              doc = json_node_copy (dupin_view_record_get (view_record));
+
+              dupin_view_record_close (view_record);
+            }
+        }
+
+      json_object_set_member (match_obj, "doc", doc);
+    }
+
+  /* now match has the node we wanted */
+  gchar * match_json = dupin_util_json_serialize (match); 
+
+  gchar *b=NULL;
+  GString * buffer = g_string_new ("var result = ");
+  buffer = g_string_append (buffer, match_json);
+  buffer = g_string_append (buffer, "; result;");
+  b = g_string_free (buffer, FALSE);
+  string=JSStringCreateWithUTF8CString(b);
+  result = JSEvaluateScript (ctx, string, NULL, NULL, 1, NULL);
+  JSStringRelease(string);
+  g_free (b);
+  g_free (match_json);
+
+dupin_js_dupin_class_view_lookup_error:
+
+  if (match != NULL)
+    json_node_free (match);
+
+  if( results )
+    dupin_view_record_get_list_close(results);
+
+  if (parent_db != NULL)
+    dupin_database_unref (parent_db);
+
+  if (parent_view != NULL)
+    dupin_view_unref (parent_view);
+
+  dupin_view_unref (view);
+  g_free (lookupkey);
+  g_free (view_name);
+  json_node_free (key);
+
+  return result;
 }
 
 /* EOF */

@@ -6,12 +6,14 @@
 #include "dupin_utils.h"
 #include "dupin_mr.h"
 
-static gsize dupin_mr_map (gchar * map,
+static gsize dupin_mr_map (DupinView * view,
+			   gchar * map,
 		           DupinMRLang language,
 			   JsonObject * obj,
                            JsonArray * array);
 
-static JsonNode * dupin_mr_reduce (gchar * reduce,
+static JsonNode * dupin_mr_reduce (DupinView * view,
+				   gchar * reduce,
 		                   DupinMRLang language,
 		 		   JsonArray * keys,
 				   JsonArray * values,
@@ -27,7 +29,7 @@ dupin_mr_record_map (DupinView * view, JsonObject * obj)
   if (array == NULL)
     return NULL;
 
-  if (!dupin_mr_map (view->map, view->map_lang, obj, array))
+  if (!dupin_mr_map (view, view->map, view->map_lang, obj, array))
     {
       json_array_unref (array);
       return NULL;
@@ -41,11 +43,11 @@ dupin_mr_record_reduce  (DupinView * view, JsonArray * keys, JsonArray * values,
 {
   g_return_val_if_fail (values != NULL, NULL);
 
-  return dupin_mr_reduce (view->reduce, view->reduce_lang, keys, values, rereduce);
+  return dupin_mr_reduce (view, view->reduce, view->reduce_lang, keys, values, rereduce);
 }
 
 static gsize
-dupin_mr_map (gchar * map, DupinMRLang language, JsonObject * obj,
+dupin_mr_map (DupinView * view, gchar * map, DupinMRLang language, JsonObject * obj,
 	      JsonArray * ret_array)
 {
   switch (language)
@@ -86,7 +88,7 @@ dupin_mr_map (gchar * map, DupinMRLang language, JsonObject * obj,
           }
 
 	/* TODO - we should really make sure escaping from JSON to Javascript structures is transferred right - and returned clean JSON too */
-	if (!(js = dupin_js_new_map (buffer,map, NULL)))
+	if (!(js = dupin_js_new_map (view->d, buffer,map, NULL)))
 	  {
 	    g_free (buffer);
             g_object_unref (gen);
@@ -138,7 +140,8 @@ dupin_mr_map (gchar * map, DupinMRLang language, JsonObject * obj,
 }
 
 static JsonNode *
-dupin_mr_reduce (gchar * reduce,
+dupin_mr_reduce (DupinView * view,
+		 gchar * reduce,
 		 DupinMRLang language,
 		 JsonArray  * keys,
 	         JsonArray  * values,
@@ -227,7 +230,7 @@ dupin_mr_reduce (gchar * reduce,
 
 	/* TODO - we should really make sure escaping from JSON to Javascript structures is transferred right - and returned clean JSON too */
 
-	if (!(js = dupin_js_new_reduce (buffer_keys, buffer_values, rereduce, reduce, NULL)))
+	if (!(js = dupin_js_new_reduce (view->d, buffer_keys, buffer_values, rereduce, reduce, NULL)))
 	  {
             if (node_keys != NULL)
               json_node_free (node_keys);

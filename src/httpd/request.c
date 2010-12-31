@@ -1243,12 +1243,15 @@ request_global_get_database_error:
 #define REQUEST_RECORD_ARG_REV	"rev"
 #define REQUEST_RECORD_ARG_REVS	"revs"
 
+#define REQUEST_FIELDS		"_fields"
+
 static DSHttpStatusCode
 request_global_get_record (DSHttpdClient * client, GList * path,
 			   GList * arguments)
 {
   gchar * mvcc = NULL;
   gboolean allrevs = FALSE;
+  gboolean request_fields=FALSE;
 
   GList *list, *results=NULL;
 
@@ -1261,7 +1264,6 @@ request_global_get_record (DSHttpdClient * client, GList * path,
   guint offset = 0;
 
   JsonNode *node=NULL;
-  JsonGenerator *gen=NULL;
 
   gchar * doc_id=NULL;
   GList * title_parts=NULL;
@@ -1277,9 +1279,24 @@ request_global_get_record (DSHttpdClient * client, GList * path,
     }
   else
     {
+      if (path->next->next)
+        {
+          if (!g_strcmp0 (path->next->next->data, REQUEST_FIELDS))
+            {
+              if (!path->next->next->next
+                  || !g_strcmp0 (path->next->next->next->data, REQUEST_OBJ_ATTACHMENTS))
+                return HTTP_STATUS_400;
+
+              request_fields=TRUE;
+            }
+          else
+            {
+              title_parts = path->next->next;
+            }
+        }
+
       /* GET /document_ID/attachment or /document_ID/attachment */
       doc_id = g_strdup_printf ("%s", (gchar *)path->next->data);
-      title_parts = path->next->next;
     }
 
   if (!
@@ -1453,7 +1470,27 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 	      goto request_global_get_record_error;
             }
 
-          json_array_add_element( array, on);
+          if (request_fields == TRUE)
+            {
+              JsonObject * on_obj = json_node_get_object (on);
+
+              if (json_object_has_member (on_obj, (const gchar *)path->next->next->next->data) == FALSE)
+                {
+                  dupin_record_get_revisions_list_close (revisions);
+	          json_array_unref (array);
+	          dupin_record_close (record);
+	          dupin_database_unref (db);
+                  dupin_attachment_db_unref (attachment_db);
+                  g_free (doc_id);
+	          return HTTP_STATUS_404;
+                }
+
+              json_array_add_element( array, json_object_get_member (on_obj, (const gchar *)path->next->next->next->data));
+            }
+          else
+            {
+              json_array_add_element( array, on);
+            }
         }
       dupin_record_get_revisions_list_close (revisions);
 
@@ -1486,65 +1523,80 @@ request_global_get_record (DSHttpdClient * client, GList * path,
           g_free (doc_id);
 	  return HTTP_STATUS_404;
 	}
+
+      if (request_fields == TRUE)
+        {
+          JsonObject * node_obj = json_node_get_object (node);
+
+          if (json_object_has_member (node_obj, (const gchar *)path->next->next->next->data) == FALSE)
+            {
+	      dupin_record_close (record);
+	      dupin_database_unref (db);
+              dupin_attachment_db_unref (attachment_db);
+              g_free (doc_id);
+	      return HTTP_STATUS_404;
+            }
+
+          node = json_object_get_member (node_obj, (const gchar *)path->next->next->next->data);
+        }
     }
 
-  JsonObject * attachments_obj = json_object_new ();
+  if (request_fields == FALSE)
+    {
+      JsonObject * attachments_obj = json_object_new ();
 
-  if (dupin_attachment_record_get_list (attachment_db, DUPIN_ATTACHMENTS_COUNT,
+      if (dupin_attachment_record_get_list (attachment_db, DUPIN_ATTACHMENTS_COUNT,
 					    0, 1, 0, DP_ORDERBY_TITLE, FALSE,
 					    (gchar *) dupin_record_get_id (record), NULL, NULL, TRUE,
 					    &results, NULL) == FALSE)
-    {
-      if (node != NULL)
-        json_node_free (node);
-      json_object_unref (attachments_obj);
-      dupin_record_close (record);
-      dupin_database_unref (db);
-      dupin_attachment_db_unref (attachment_db);
-      g_free (doc_id);
-      return HTTP_STATUS_500;
-    }
-
-//g_message("request_global_get_record: g_list_length (results) = %d \n", (gint) g_list_length (results));
-
-  for (list = results; list; list = list->next)
-    {
-      JsonNode * attachment_node = NULL;
-      if (! (attachment_node = dupin_attachment_record_get (list->data)))
         {
           if (node != NULL)
             json_node_free (node);
           json_object_unref (attachments_obj);
-	  dupin_record_close (record);
-	  dupin_database_unref (db);
+          dupin_record_close (record);
+          dupin_database_unref (db);
           dupin_attachment_db_unref (attachment_db);
           g_free (doc_id);
-	  return HTTP_STATUS_500;
-	}
+          return HTTP_STATUS_500;
+        }
 
-      json_object_set_member (attachments_obj, dupin_attachment_record_get_title (list->data), attachment_node);
-    }
-  dupin_attachment_record_get_list_close (results);
+//g_message("request_global_get_record: g_list_length (results) = %d \n", (gint) g_list_length (results));
 
-  if (results)
-    {
-      if (allrevs == TRUE
-          || (allrevs == FALSE && (!g_strcmp0 (mvcc, dupin_record_get_last_revision (record)))))
-        json_object_set_object_member (json_node_get_object (node), REQUEST_OBJ_ATTACHMENTS, attachments_obj);
-    }
-  else
-    {
-      json_object_unref (attachments_obj);
+      for (list = results; list; list = list->next)
+        {
+          JsonNode * attachment_node = NULL;
+          if (! (attachment_node = dupin_attachment_record_get (list->data)))
+            {
+              if (node != NULL)
+                json_node_free (node);
+              json_object_unref (attachments_obj);
+	      dupin_record_close (record);
+	      dupin_database_unref (db);
+              dupin_attachment_db_unref (attachment_db);
+              g_free (doc_id);
+	      return HTTP_STATUS_500;
+	    }
+
+          json_object_set_member (attachments_obj, dupin_attachment_record_get_title (list->data), attachment_node);
+       }
+     dupin_attachment_record_get_list_close (results);
+
+     if (results)
+       {
+         if (allrevs == TRUE
+             || (allrevs == FALSE && (!g_strcmp0 (mvcc, dupin_record_get_last_revision (record)))))
+           json_object_set_object_member (json_node_get_object (node), REQUEST_OBJ_ATTACHMENTS, attachments_obj);
+       }
+     else
+       {
+         json_object_unref (attachments_obj);
+       }
     }
 
   /* Writing: */
-  gen = json_generator_new();
 
-  if (gen == NULL)
-    goto request_global_get_record_error;
-
-  json_generator_set_root (gen, node );
-  client->output.string.string = json_generator_to_data (gen,&client->output_size);
+  client->output.string.string = dupin_util_json_serialize (node);
+  client->output_size = strlen(client->output.string.string);
 
   if (client->output.string.string == NULL)
     goto request_global_get_record_error;
@@ -1552,8 +1604,6 @@ request_global_get_record (DSHttpdClient * client, GList * path,
   client->output_mime = g_strdup (HTTP_MIME_JSON);
   client->output_type = DS_HTTPD_OUTPUT_STRING;
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
 
@@ -1567,8 +1617,6 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 
 request_global_get_record_error:
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
 
@@ -2578,8 +2626,6 @@ request_global_post_bulk_docs_error:
 }
 
 /* PUT *********************************************************************/
-#define REQUEST_FIELDS		"_fields"
-
 static DSHttpStatusCode request_global_put_database (DSHttpdClient * client,
 						     GList * path,
 						     GList * arguments);

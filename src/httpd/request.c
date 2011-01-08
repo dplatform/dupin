@@ -1424,7 +1424,7 @@ request_global_get_record (DSHttpdClient * client, GList * path,
       GList * list=NULL;
       JsonObject *obj;
       JsonArray *array;
-      guint total_rows = 0;
+      gsize total_rows = 0;
 
       node = json_node_new (JSON_NODE_OBJECT);
 
@@ -1449,11 +1449,12 @@ request_global_get_record (DSHttpdClient * client, GList * path,
       if (array == NULL)
         goto request_global_get_record_error;
 
-      if (dupin_record_get_revisions_list (record,
+      if ((dupin_record_get_revisions_list (record,
 				           count,
 					   //offset, 1, 0, DP_COUNT_ALL, DP_ORDERBY_REV, descending,
 					   offset, 0, 0, DP_COUNT_ALL, DP_ORDERBY_REV, descending,
 					   &revisions, NULL) == FALSE)
+         || (dupin_record_get_total_revisions (record, &total_rows, NULL) == FALSE))
 	{
 	  dupin_record_close (record);
 	  dupin_database_unref (db);
@@ -1500,9 +1501,9 @@ request_global_get_record (DSHttpdClient * client, GList * path,
               json_array_add_element( array, on);
             }
         }
+
       dupin_record_get_revisions_list_close (revisions);
 
-      dupin_util_mvcc_get_revision (dupin_record_get_last_revision (record), &total_rows);
       json_object_set_int_member (obj, "total_rows", total_rows);
       json_object_set_int_member (obj, "offset", offset);
       json_object_set_int_member (obj, "rows_per_page", count);

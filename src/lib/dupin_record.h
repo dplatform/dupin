@@ -79,6 +79,11 @@ gboolean	dupin_record_get_revisions_list
 					 GList **		list,
 					 GError **		error);
 
+gboolean	dupin_record_get_total_revisions
+					(DupinRecord * record,
+					 gsize * total,
+					 GError ** error);
+
 void		dupin_record_get_revisions_list_close
 					(GList *		list);
 

@@ -536,6 +536,66 @@ dupin_record_get_revisions_list (DupinRecord * record,
   return TRUE;
 }
 
+static int
+dupin_record_get_total_revisions_cb (void *data, int argc, char **argv,
+                                     char **col)
+{
+  gsize *numb = data;
+
+  if (argv[0])
+    *numb = atoi (argv[0]);
+
+  return 0;
+}
+
+gboolean
+dupin_record_get_total_revisions (DupinRecord * record,
+				  gsize * total,
+                                  GError ** error)
+{
+  g_return_val_if_fail (record != NULL, FALSE);
+
+  GString *str;
+  gchar *tmp;
+  gchar *errmsg;
+  gchar * where_id=NULL;
+
+  guint total_revisions=0;
+
+  str = g_string_new ("SELECT count(*) FROM Dupin as d");
+
+  where_id = sqlite3_mprintf (" WHERE d.id = '%q' ", (gchar *) dupin_record_get_id (record));
+  str = g_string_append (str, where_id);
+  sqlite3_free (where_id);
+
+  tmp = g_string_free (str, FALSE);
+
+//g_message("dupin_record_get_total_revisions() query=%s\n",tmp);
+
+  g_mutex_lock (record->db->mutex);
+
+  if (sqlite3_exec (record->db->db, tmp, dupin_record_get_total_revisions_cb, &total_revisions, &errmsg) !=
+      SQLITE_OK)
+    {
+      g_mutex_unlock (record->db->mutex);
+
+      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
+		   errmsg);
+
+      sqlite3_free (errmsg);
+      g_free (tmp);
+      return FALSE;
+    }
+
+  g_mutex_unlock (record->db->mutex);
+
+  g_free (tmp);
+
+  *total = total_revisions;
+
+  return TRUE;
+}
+
 void
 dupin_record_get_revisions_list_close (GList * list)
 {

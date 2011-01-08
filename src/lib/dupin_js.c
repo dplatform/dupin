@@ -589,13 +589,13 @@ dupin_js_emit(JSContextRef ctx, JSObjectRef object,
   if (argumentCount != 2) /* does it work if key or value are null/empty ? */
     {
       *exception = JSValueMakeNumber (ctx, 1);
-      return NULL;
+      return JSValueMakeNull(ctx);
     }
 
   /* does nothing if both NULL */
   if (!arguments[0] && !arguments[1])
     {
-      return NULL;
+      return JSValueMakeNull(ctx);
     }
 
   JSStringRef str;
@@ -629,7 +629,7 @@ dupin_js_emit(JSContextRef ctx, JSObjectRef object,
   JSPropertyNameArrayRelease (array_names);
   JSObjectSetPropertyAtIndex(ctx,array,last, arguments[1], NULL); /* push */
 
-  return NULL;
+  return JSValueMakeNull(ctx);
 }
 
 static JSValueRef
@@ -642,7 +642,7 @@ dupin_js_dupin_class_log(JSContextRef ctx,
   if (argumentCount != 1)
     {
       *exception = JSValueMakeNumber (ctx, 1);
-      return NULL;
+      return JSValueMakeNull(ctx);
     }
 
   JsonNode * node = NULL;
@@ -652,7 +652,7 @@ dupin_js_dupin_class_log(JSContextRef ctx,
   g_free (json);
   json_node_free (node);
 
-  return NULL;
+  return JSValueMakeNull(ctx);
 }
 
 /* Dupin.view_lookup (viewname, key, include_docs) */
@@ -680,20 +680,23 @@ dupin_js_dupin_class_view_lookup(JSContextRef ctx,
   gchar * lookupkey = NULL;
   gboolean inclusive_end = TRUE;
 
+  DupinViewRecord *record=NULL;
+  JsonNode * match=NULL;
+
   if (argumentCount != 3)
     {
       *exception = JSValueMakeNumber (ctx, 1);
-      return NULL;
+      return JSValueMakeNull(ctx);
     }
 
-g_message("dupin_js_dupin_class_view_lookup: checking params...\n");
+//g_message("dupin_js_dupin_class_view_lookup: checking params...\n");
 
   if ((!JSValueIsString(ctx, arguments[0]))
        || (!arguments[1])
        || (!JSValueIsBoolean(ctx, arguments[2])))
-    return NULL;
+    return JSValueMakeNull(ctx);
 
-g_message("dupin_js_dupin_class_view_lookup: ok params...\n");
+//g_message("dupin_js_dupin_class_view_lookup: ok params...\n");
 
   /* view name */
   JSStringRef string = JSValueToStringCopy (ctx, arguments[0], NULL);
@@ -704,13 +707,13 @@ g_message("dupin_js_dupin_class_view_lookup: ok params...\n");
   JsonNode * key = NULL;
   dupin_js_value (ctx, arguments[1], &key);
   if (key == NULL)
-    return NULL;
+    return JSValueMakeNull(ctx);
   lookupkey = dupin_util_json_serialize (key); 
 
   /* include_docs */
   gboolean include_docs = (JSValueToBoolean (ctx, arguments[2]) == true) ? TRUE : FALSE;
 
-g_message("dupin_js_dupin_class_view_lookup: view_name=%s include_docs=%d (dupin_path=%s)\n", view_name, (gint)include_docs, d->path);
+//g_message("dupin_js_dupin_class_view_lookup: view_name=%s include_docs=%d (dupin_path=%s)\n", view_name, (gint)include_docs, d->path);
 
   if (!
       (view =
@@ -719,7 +722,7 @@ g_message("dupin_js_dupin_class_view_lookup: view_name=%s include_docs=%d (dupin
       g_free (lookupkey);
       g_free (view_name);
       json_node_free (key);
-      return NULL;
+      return JSValueMakeNull(ctx);
     }
 
   if (include_docs == TRUE)
@@ -732,7 +735,7 @@ g_message("dupin_js_dupin_class_view_lookup: view_name=%s include_docs=%d (dupin
               g_free (lookupkey);
               g_free (view_name);
               json_node_free (key);
-              return NULL;
+              return JSValueMakeNull(ctx);
             }
         }
       else
@@ -743,7 +746,7 @@ g_message("dupin_js_dupin_class_view_lookup: view_name=%s include_docs=%d (dupin
               g_free (lookupkey);
               g_free (view_name);
               json_node_free (key);
-              return NULL;
+              return JSValueMakeNull(ctx);
             }
         }
     }
@@ -757,8 +760,7 @@ g_message("dupin_js_dupin_class_view_lookup: view_name=%s include_docs=%d (dupin
       goto dupin_js_dupin_class_view_lookup_error;
     }
 
-  DupinViewRecord *record = results->data;
-  JsonNode * match=NULL;
+  record = results->data;
 
   if (! (match = dupin_view_record_get (record)))
     {

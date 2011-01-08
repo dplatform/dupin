@@ -571,6 +571,8 @@ dupin_record_update (DupinRecord * record, JsonNode * obj_node,
     sqlite3_mprintf (DUPIN_DB_SQL_INSERT, record->id, rev, md5,
 		     record->last->obj_serialized, created);
 
+//g_message("dupin_record_update: record->last->revision = %d - new rev=%d - query=%s\n", (gint) record->last->revision, (gint) rev, tmp);
+
   if (sqlite3_exec (record->db->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
     {
       g_mutex_unlock (record->db->mutex);
@@ -700,12 +702,13 @@ dupin_record_get_revision_node (DupinRecord * record, gchar * mvcc)
   if (mvcc != NULL)
     g_return_val_if_fail (dupin_util_is_valid_mvcc (mvcc) == TRUE, NULL);
 
-  if (mvcc == NULL || (!g_strcmp0 (mvcc, record->last->mvcc)))
+  if (mvcc == NULL || (!dupin_util_mvcc_revision_cmp (mvcc, record->last->mvcc)))
     r = record->last;
   else
     {
-      if (g_strcmp0 (mvcc,record->last->mvcc) > 0)
-	g_return_val_if_fail (g_strcmp0 (dupin_record_get_last_revision (record), mvcc) >= 0 , NULL);
+      /* TODO - check if the following check does make any sense ? */
+      if (dupin_util_mvcc_revision_cmp (mvcc,record->last->mvcc) > 0)
+	g_return_val_if_fail (dupin_util_mvcc_revision_cmp (dupin_record_get_last_revision (record), mvcc) >= 0 , NULL);
 
       if (!(r = g_hash_table_lookup (record->revisions, mvcc)))
 	return NULL;
@@ -751,12 +754,13 @@ dupin_record_is_deleted (DupinRecord * record, gchar * mvcc)
   if (mvcc != NULL)
     g_return_val_if_fail (dupin_util_is_valid_mvcc (mvcc) == TRUE, FALSE);
 
-  if (mvcc == NULL || (!g_strcmp0 (mvcc, record->last->mvcc)))
+  if (mvcc == NULL || (!dupin_util_mvcc_revision_cmp (mvcc, record->last->mvcc)))
     r = record->last;
   else
     {
-      if (g_strcmp0 (mvcc,record->last->mvcc) > 0)
-	g_return_val_if_fail (g_strcmp0 (dupin_record_get_last_revision (record), mvcc) >= 0 , FALSE);
+      /* TODO - check if the following check does make any sense ? */
+      if (dupin_util_mvcc_revision_cmp (mvcc,record->last->mvcc) > 0)
+	g_return_val_if_fail (dupin_util_mvcc_revision_cmp (dupin_record_get_last_revision (record), mvcc) >= 0 , FALSE);
 
       if (!(r = g_hash_table_lookup (record->revisions, mvcc)))
 	return FALSE;
@@ -846,7 +850,7 @@ dupin_record_add_revision_obj (DupinRecord * record, guint rev,
 
   g_hash_table_insert (record->revisions, g_strdup (mvcc), r);
 
-  if (!record->last || (g_strcmp0 (dupin_record_get_last_revision (record), mvcc) < 0))
+  if (!record->last || (dupin_util_mvcc_revision_cmp (dupin_record_get_last_revision (record), mvcc) < 0 ))
     record->last = r;
 }
 
@@ -891,7 +895,7 @@ dupin_record_add_revision_str (DupinRecord * record, guint rev, gchar * hash, gs
 
   g_hash_table_insert (record->revisions, g_strdup (mvcc), r);
 
-  if (!record->last || (g_strcmp0 (dupin_record_get_last_revision (record), mvcc) < 0))
+  if (!record->last || (dupin_util_mvcc_revision_cmp (dupin_record_get_last_revision (record), mvcc) < 0 ))
     record->last = r;
 }
 

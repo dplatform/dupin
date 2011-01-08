@@ -44,15 +44,21 @@ dupin_init (DSGlobal *data, GError ** error)
     g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
 			   (GDestroyNotify) dupin_attachment_db_free);
 
+  d->db_compact_workers_pool = g_thread_pool_new (dupin_database_compact_func,
+					        NULL,
+						(d->conf != NULL) ? d->conf->limit_compact_max_threads : DS_LIMIT_COMPACT_MAXTHREADS_DEFAULT,
+						FALSE,
+						NULL);
+
   d->sync_map_workers_pool = g_thread_pool_new (dupin_view_sync_map_func,
 					        NULL,
-						(d->conf != NULL) ? d->conf->limit_map_max_threads : 4,
+						(d->conf != NULL) ? d->conf->limit_map_max_threads : DS_LIMIT_MAP_MAXTHREADS_DEFAULT,
 						FALSE,
 						NULL);
 
   d->sync_reduce_workers_pool = g_thread_pool_new (dupin_view_sync_reduce_func,
 					           NULL,
-						   (d->conf != NULL) ? d->conf->limit_reduce_max_threads : 4,
+						   (d->conf != NULL) ? d->conf->limit_reduce_max_threads : DS_LIMIT_REDUCE_MAXTHREADS_DEFAULT,
 						   FALSE,
 						   NULL);
 
@@ -171,10 +177,11 @@ dupin_shutdown (Dupin * d)
 
   /* NOTE - wait until all map and reduce threads are done */
 
+  g_thread_pool_free (d->db_compact_workers_pool, TRUE, TRUE);
   g_thread_pool_free (d->sync_map_workers_pool, TRUE, TRUE);
   g_thread_pool_free (d->sync_reduce_workers_pool, TRUE, TRUE);
 
-g_message("dupin_shutdown: map and reduce worker pools freed\n");
+g_message("dupin_shutdown: worker pools freed\n");
 
   if (d->mutex)
     g_mutex_free (d->mutex);

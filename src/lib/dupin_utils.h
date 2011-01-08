@@ -61,6 +61,9 @@ gboolean        dupin_util_mvcc_new   		(guint revision,
 
 gboolean        dupin_util_is_valid_mvcc	(gchar * mvcc);
 
+gint		dupin_util_mvcc_revision_cmp	(gchar * mvcc_a,
+						 gchar * mvcc_b);
+
 gboolean        dupin_util_mvcc_get_revision	(gchar * mvcc,
                                          	 guint * revision);
 

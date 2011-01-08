@@ -40,6 +40,7 @@ struct dupin_t
 
   DSGlobal *	conf;
 
+  GThreadPool * db_compact_workers_pool;
   GThreadPool * sync_map_workers_pool;
   GThreadPool * sync_reduce_workers_pool;
 };
@@ -78,6 +79,11 @@ struct dupin_db_t
 
   DupinViewP	views;
   DupinAttachmentDBP	attachment_dbs;
+
+  gboolean	tocompact;
+  gboolean	compact_toquit;
+  GThread *	compact_thread;
+  gsize		compact_processed_count; /* incremental counter of compacted records */
 };
 
 struct dupin_view_t

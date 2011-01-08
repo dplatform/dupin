@@ -491,6 +491,18 @@ configure_limit_parser (xmlDocPtr xml, DSGlobal * data, GError ** error)
 			  xmlFree (tmp);
 			}
 		    }
+
+		  /* CompactMaxThreads: */
+		  else
+		    if (!xmlStrcmp
+			(cur->name, (xmlChar *) DS_LIMIT_COMPACT_MAXTHREADS_TAG))
+		    {
+		      if ((tmp = xmlNodeGetContent (cur)))
+			{
+			  data->limit_compact_max_threads = atoi ((char *) tmp);
+			  xmlFree (tmp);
+			}
+		    }
 		}
 	    }
 
@@ -515,6 +527,9 @@ configure_limit_parser (xmlDocPtr xml, DSGlobal * data, GError ** error)
 
   if (!data->limit_sync_interval)
     data->limit_sync_interval = DS_LIMIT_SYNC_INTERVAL_DEFAULT;
+
+  if (!data->limit_compact_max_threads)
+    data->limit_compact_max_threads = DS_LIMIT_COMPACT_MAXTHREADS_DEFAULT;
 
   return TRUE;
 }

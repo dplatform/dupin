@@ -12,5 +12,15 @@
 - Compaction
 - ID aliases via ?id=http://somethingelse.org/id
 - Add links / relationships creation (association, aggregation, composition)
-- Add GET /doc/_fields?query=json-path ...
+- Add GET /doc/_fields?query=json-path&jpaths=TRUE ...
+- Add PUT/DELETE /doc/_fields?query=json-path
 - Add view helper function json_path() and jpaths(node)
+- Compaction
+- HTTP basic and ACLs and Cookies
+- Filters on views and changes
+- SQLite related:
+  - Add sqlite3 code bundle in distribution (amalgamated SQLite source code) - see http://www.sqlite.org/amalgamation.html
+  - Add /domain/application/ prefix to DB, view and documents
+  - Attach multiple DBs into one (db, attachments, views...) into application bundle
+    see also http://www.gtkpod.org/libgpod/docs/libgpod-The-Itdb-iTunesDB-structure.html
+- Configuration in JSON (kill XML conf) and allow /_config GET/PUT/DELETE on settings and hot-reload

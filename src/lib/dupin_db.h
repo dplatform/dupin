@@ -71,6 +71,22 @@ gboolean        dupin_database_get_changes_list
 void            dupin_database_get_changes_list_close
                                         (GList *                list);
 
+gboolean	dupin_database_thread_compact
+					(DupinDB * db,
+					 gsize count);
+
+void		dupin_database_compact_func
+					(gpointer data,
+					gpointer user_data);
+
+void		dupin_database_compact 	(DupinDB * db);
+
+gboolean	dupin_database_is_compacting
+					(DupinDB * db);
+
+gboolean	dupin_database_is_compacted
+					(DupinDB * db);
+
 G_END_DECLS
 
 #endif

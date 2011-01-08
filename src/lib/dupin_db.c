@@ -23,8 +23,15 @@
 #define DUPIN_DB_SQL_CREATE_INDEX \
   "CREATE INDEX IF NOT EXISTS DupinId ON Dupin (id);"
 
+#define DUPIN_DB_SQL_DESC_CREATE \
+  "CREATE TABLE IF NOT EXISTS DupinDB (\n" \
+  "  compact_id  CHAR(255)\n" \
+  ");"
+
 #define DUPIN_DB_SQL_TOTAL \
         "SELECT count(*) AS c FROM Dupin AS d"
+
+#define DUPIN_DB_COMPACT_COUNT 100
 
 gchar **
 dupin_get_databases (Dupin * d)
@@ -101,6 +108,8 @@ dupin_database_new (Dupin * d, gchar * db, GError ** error)
   DupinDB *ret;
   gchar *path;
   gchar *name;
+  gchar * str;
+  gchar * errmsg;
 
   g_return_val_if_fail (d != NULL, NULL);
   g_return_val_if_fail (db != NULL, NULL);
@@ -133,6 +142,24 @@ dupin_database_new (Dupin * d, gchar * db, GError ** error)
   ret->ref++;
 
   g_hash_table_insert (d->dbs, g_strdup (db), ret);
+
+  
+  /* NOTE - the respective map and reduce threads will add +1 top the these values */
+  str = sqlite3_mprintf ("INSERT INTO DupinDB (compact_id) VALUES (0)");
+
+  if (sqlite3_exec (ret->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
+    {
+      g_mutex_unlock (d->mutex);
+      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
+                       errmsg);
+
+      sqlite3_free (errmsg);
+      sqlite3_free (str);
+      dupin_db_free (ret);
+      return NULL;
+    }
+
+  sqlite3_free (str);
 
   g_mutex_unlock (d->mutex);
 
@@ -286,6 +313,9 @@ dupin_db_create (Dupin * d, gchar * name, gchar * path, GError ** error)
   db->name = g_strdup (name);
   db->path = g_strdup (path);
 
+  db->tocompact = FALSE;
+  db->compact_processed_count = 0;
+
   if (sqlite3_open (db->path, &db->db) != SQLITE_OK)
     {
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
@@ -295,7 +325,8 @@ dupin_db_create (Dupin * d, gchar * name, gchar * path, GError ** error)
     }
 
   if (sqlite3_exec (db->db, DUPIN_DB_SQL_MAIN_CREATE, NULL, NULL, &errmsg) != SQLITE_OK
-      || sqlite3_exec (db->db, DUPIN_DB_SQL_CREATE_INDEX, NULL, NULL, &errmsg) != SQLITE_OK)
+      || sqlite3_exec (db->db, DUPIN_DB_SQL_CREATE_INDEX, NULL, NULL, &errmsg) != SQLITE_OK
+      || sqlite3_exec (db->db, DUPIN_DB_SQL_DESC_CREATE, NULL, NULL, &errmsg) != SQLITE_OK)
     {
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
 		   errmsg);
@@ -667,6 +698,221 @@ dupin_database_get_total_changes
   g_free (tmp);
 
   return TRUE;
+}
+
+static int
+dupin_database_compact_cb (void *data, int argc, char **argv, char **col)
+{
+  gchar **compact_id = data;
+
+  if (argv[0] && *argv[0])
+    *compact_id = g_strdup (argv[0]);
+
+  return 0;
+}
+
+gboolean
+dupin_database_thread_compact (DupinDB * db, gsize count)
+{
+  g_return_val_if_fail (db != NULL, FALSE);
+
+  gchar * compact_id = NULL;
+  gsize rowid;
+  gchar * errmsg;
+  GList *results, *list;
+
+  gboolean ret = TRUE;
+
+  gchar *str;
+
+  /* get last position we reduced and get anything up to count after that */
+  gchar * query = "SELECT compact_id as c FROM DupinDB";
+  g_mutex_lock (db->mutex);
+
+  if (sqlite3_exec (db->db, query, dupin_database_compact_cb, &compact_id, &errmsg) != SQLITE_OK)
+    {
+      g_mutex_unlock (db->mutex);
+
+      g_error("dupin_database_thread_compact: %s", errmsg);
+      sqlite3_free (errmsg);
+
+      return FALSE;
+    }
+
+  g_mutex_unlock (db->mutex);
+
+  gsize start_rowid = (compact_id != NULL) ? atoi(compact_id)+1 : 1;
+
+  if (dupin_record_get_list (db, count, 0, start_rowid, 0, DP_COUNT_ALL, DP_ORDERBY_ROWID, FALSE, &results, NULL) ==
+      FALSE || !results)
+    {
+      if (compact_id != NULL)
+        g_free(compact_id);
+
+      return FALSE;
+    }
+
+  if (g_list_length (results) != count)
+    ret = FALSE;
+
+  for (list = results; list; list = list->next)
+    {
+      DupinRecord * record = list->data;
+
+      guint last_revision = record->last->revision;
+
+      gchar *tmp = sqlite3_mprintf ("DELETE FROM Dupin WHERE id = '%q' AND rev < %d", (gchar *) dupin_record_get_id (record), (gint)last_revision);
+
+//g_message("dupin_database_thread_compact: query=%s\n", tmp);
+
+      g_mutex_lock (db->mutex);
+
+      if (sqlite3_exec (db->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
+        {
+          g_mutex_unlock (db->mutex);
+
+          sqlite3_free (tmp);
+
+          g_error ("dupin_database_thread_compact: %s", errmsg);
+
+          sqlite3_free (errmsg);
+
+          return FALSE;
+        }
+
+      db->compact_processed_count++;
+
+      g_mutex_unlock (db->mutex);
+
+      sqlite3_free (tmp);
+
+      rowid = dupin_record_get_rowid (record);
+
+      if (compact_id != NULL)
+        g_free(compact_id);
+
+      compact_id = g_strdup_printf ("%i", (gint)rowid);
+
+//g_message("dupin_database_thread_compact(%p) compact_id=%s as fetched",g_thread_self (), compact_id);
+    }
+  
+  dupin_record_get_list_close (results);
+
+//g_message("dupin_database_thread_compact() compact_id=%s as to be stored",compact_id);
+
+//g_message("dupin_database_thread_compact(%p)  finished last_compact_rowid=%s - compacted %d\n", g_thread_self (), compact_id, (gint)db->compact_processed_count);
+
+  str = sqlite3_mprintf ("UPDATE DupinDB SET compact_id = '%q'", compact_id);
+
+  if (compact_id != NULL)
+    g_free (compact_id);
+
+  g_mutex_lock (db->mutex);
+
+  if (sqlite3_exec (db->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
+    {
+      g_mutex_unlock (db->mutex);
+      sqlite3_free (str);
+
+      g_error("dupin_database_thread_compact: %s", errmsg);
+      sqlite3_free (errmsg);
+
+      return FALSE;
+    }
+
+  g_mutex_unlock (db->mutex);
+
+  sqlite3_free (str);
+
+  return ret;
+}
+
+void
+dupin_database_compact_func (gpointer data, gpointer user_data)
+{
+  DupinDB * db = (DupinDB*) data;
+
+  dupin_database_ref (db);
+
+  g_mutex_lock (db->mutex);
+  db->compact_thread = g_thread_self ();
+  g_mutex_unlock (db->mutex);
+
+//g_message("dupin_database_compact_func(%p) started\n",g_thread_self ());
+
+  g_mutex_lock (db->mutex);
+  db->compact_processed_count = 0;
+  g_mutex_unlock (db->mutex);
+
+  while (db->todelete == FALSE)
+    {
+      gboolean compact_operation = dupin_database_thread_compact (db, DUPIN_DB_COMPACT_COUNT);
+
+      if (compact_operation == FALSE)
+        {
+//g_message("dupin_database_compact_func(%p) Compacted TOTAL %d records\n", g_thread_self (), (gint)db->compact_processed_count);
+
+          break;
+        }
+    }
+
+//g_message("dupin_database_compact_func(%p) finished and database is compacted\n",g_thread_self ());
+
+  g_mutex_lock (db->mutex);
+  db->tocompact = FALSE;
+  g_mutex_unlock (db->mutex);
+
+  g_mutex_lock (db->mutex);
+  db->compact_thread = NULL;
+  g_mutex_unlock (db->mutex);
+
+  dupin_database_unref (db);
+}
+
+void
+dupin_database_compact (DupinDB * db)
+{
+  g_return_if_fail (db != NULL);
+
+  if (dupin_database_is_compacting (db))
+    {
+      g_mutex_lock (db->mutex);
+      db->tocompact = TRUE;
+      g_mutex_unlock (db->mutex);
+
+//g_message("dupin_database_compact(%p): database is still compacting db->compact_thread=%p\n", g_thread_self (), db->compact_thread);
+    }
+  else
+    {
+//g_message("dupin_database_compact(%p): push to thread pools db->compact_thread=%p\n", g_thread_self (), db->compact_thread);
+
+      if (!db->compact_thread)
+        {
+          g_thread_pool_push(db->d->db_compact_workers_pool, db, NULL);
+        }
+    }
+}
+
+gboolean
+dupin_database_is_compacting (DupinDB * db)
+{
+  g_return_val_if_fail (db != NULL, FALSE);
+
+  if (db->compact_thread)
+    return TRUE;
+
+  return FALSE;
+}
+
+gboolean
+dupin_database_is_compacted (DupinDB * db)
+{
+  g_return_val_if_fail (db != NULL, FALSE);
+
+  if (dupin_database_is_compacting (db))
+    return FALSE;
+
+  return db->tocompact ? FALSE : TRUE;
 }
 
 /* EOF */

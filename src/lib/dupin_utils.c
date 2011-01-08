@@ -673,6 +673,31 @@ dupin_util_is_valid_mvcc (gchar * mvcc)
   return TRUE;
 }
 
+gint
+dupin_util_mvcc_revision_cmp (gchar * mvcc_a,
+		              gchar * mvcc_b)
+{
+  g_return_val_if_fail (mvcc_a != NULL, -1);
+  g_return_val_if_fail (mvcc_b != NULL, -1);
+
+  gint status=-1;
+
+  guint rev_a, rev_b;
+
+  if ((dupin_util_mvcc_get_revision( mvcc_a, &rev_a) == FALSE)
+      || (dupin_util_mvcc_get_revision( mvcc_b, &rev_b) == FALSE))
+    return status;
+
+  if (rev_a == rev_b)
+    status = 0;
+  else if (rev_a < rev_b)
+    status = -1 ;
+  else if (rev_a > rev_b)
+    status = 1;
+
+  return status;
+}
+
 gboolean
 dupin_util_mvcc_get_revision (gchar * mvcc,
                               guint * revision)

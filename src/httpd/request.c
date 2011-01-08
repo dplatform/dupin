@@ -1198,7 +1198,7 @@ request_global_get_database (DSHttpdClient * client, GList * path,
 
   /* FIXME: this does not make sense for dupin yet, see also http://blog.couchone.com/post/632718824/simple-document-versioning-with-couchdb */
   /* NOTE - Compaction removes old revs, only the latest rev is represented in view queries, and only the latest revision is replicated. */
-  json_object_set_boolean_member (obj, "compact_running", FALSE);
+  json_object_set_boolean_member (obj, "compact_running", dupin_database_is_compacting (db));
 
   node = json_node_new (JSON_NODE_OBJECT);
 
@@ -1274,8 +1274,13 @@ request_global_get_record (DSHttpdClient * client, GList * path,
   if (ch == '_')
     {
       /* GET /_special_document/document_ID or /_special_document/document_ID/attachment  */
-      doc_id = g_strdup_printf ("%s/%s", (gchar *)path->next->data, (gchar *)path->next->next->data);
-      title_parts = path->next->next->next;
+      if (path->next->next)
+        {
+          doc_id = g_strdup_printf ("%s/%s", (gchar *)path->next->data, (gchar *)path->next->next->data);
+
+          if (path->next->next->next)
+            title_parts = path->next->next->next;
+        }
     }
   else
     {
@@ -1419,6 +1424,7 @@ request_global_get_record (DSHttpdClient * client, GList * path,
       GList * list=NULL;
       JsonObject *obj;
       JsonArray *array;
+      guint total_rows = 0;
 
       node = json_node_new (JSON_NODE_OBJECT);
 
@@ -1445,7 +1451,8 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 
       if (dupin_record_get_revisions_list (record,
 				           count,
-					   offset, 1, 0, DP_COUNT_ALL, DP_ORDERBY_REV, descending,
+					   //offset, 1, 0, DP_COUNT_ALL, DP_ORDERBY_REV, descending,
+					   offset, 0, 0, DP_COUNT_ALL, DP_ORDERBY_REV, descending,
 					   &revisions, NULL) == FALSE)
 	{
 	  dupin_record_close (record);
@@ -1485,7 +1492,8 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 	          return HTTP_STATUS_404;
                 }
 
-              json_array_add_element( array, json_object_get_member (on_obj, (const gchar *)path->next->next->next->data));
+              json_array_add_element( array, json_node_copy (json_object_get_member (on_obj, (const gchar *)path->next->next->next->data)));
+              json_node_free (on);
             }
           else
             {
@@ -1494,16 +1502,23 @@ request_global_get_record (DSHttpdClient * client, GList * path,
         }
       dupin_record_get_revisions_list_close (revisions);
 
+      dupin_util_mvcc_get_revision (dupin_record_get_last_revision (record), &total_rows);
+      json_object_set_int_member (obj, "total_rows", total_rows);
+      json_object_set_int_member (obj, "offset", offset);
+      json_object_set_int_member (obj, "rows_per_page", count);
+
       json_object_set_array_member (obj, "_revs_info", array );
     }
 
   /* Show a single revision: */
   else
     {
+      JsonNode *node_temp=NULL;
+
       if (mvcc == NULL)
 	mvcc = dupin_record_get_last_revision (record);
 
-      else if (g_strcmp0 (mvcc, dupin_record_get_last_revision (record)) > 0)
+      else if (dupin_util_mvcc_revision_cmp (mvcc, dupin_record_get_last_revision (record)) > 0)
 	{
 	  dupin_record_close (record);
 	  dupin_database_unref (db);
@@ -1513,7 +1528,7 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 	}
 
       if (!
-	  (node =
+	  (node_temp =
 	   request_record_obj (record, (gchar *) dupin_record_get_id (record),
 			       mvcc)))
 	{
@@ -1526,10 +1541,12 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 
       if (request_fields == TRUE)
         {
-          JsonObject * node_obj = json_node_get_object (node);
+          JsonObject * node_obj = json_node_get_object (node_temp);
 
           if (json_object_has_member (node_obj, (const gchar *)path->next->next->next->data) == FALSE)
             {
+              if (node_temp != NULL)
+                json_node_free (node_temp);
 	      dupin_record_close (record);
 	      dupin_database_unref (db);
               dupin_attachment_db_unref (attachment_db);
@@ -1537,8 +1554,14 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 	      return HTTP_STATUS_404;
             }
 
-          node = json_object_get_member (node_obj, (const gchar *)path->next->next->next->data);
+          node = json_node_copy (json_object_get_member (node_obj, (const gchar *)path->next->next->next->data));
         }
+      else
+        {
+          node = json_node_copy (node_temp);
+        }
+
+      json_node_free (node_temp);
     }
 
   if (request_fields == FALSE)
@@ -1584,7 +1607,7 @@ request_global_get_record (DSHttpdClient * client, GList * path,
      if (results)
        {
          if (allrevs == TRUE
-             || (allrevs == FALSE && (!g_strcmp0 (mvcc, dupin_record_get_last_revision (record)))))
+             || (allrevs == FALSE && (!dupin_util_mvcc_revision_cmp (mvcc, dupin_record_get_last_revision (record)))))
            json_object_set_object_member (json_node_get_object (node), REQUEST_OBJ_ATTACHMENTS, attachments_obj);
        }
      else
@@ -2421,6 +2444,7 @@ request_global_get_view_query_error:
 /* POST ********************************************************************/
 #define REQUEST_POST_BULK_DOCS		"_bulk_docs"
 #define REQUEST_POST_BULK_DOCS_DOCS	"docs"
+#define REQUEST_POST_COMPACT_DATABASE	"_compact"
 
 static DSHttpStatusCode request_global_post_record (DSHttpdClient * client,
 						    GList * path,
@@ -2428,6 +2452,9 @@ static DSHttpStatusCode request_global_post_record (DSHttpdClient * client,
 static DSHttpStatusCode request_global_post_bulk_docs (DSHttpdClient * client,
 						       GList * path,
 						       GList * arguments);
+static DSHttpStatusCode request_global_post_compact_database (DSHttpdClient * client,
+						     	      GList * path,
+						     	      GList * arguments);
 
 static DSHttpStatusCode
 request_global_post (DSHttpdClient * client, GList * path, GList * arguments)
@@ -2440,6 +2467,9 @@ request_global_post (DSHttpdClient * client, GList * path, GList * arguments)
 
   if (!g_strcmp0 (path->next->data, REQUEST_POST_BULK_DOCS) && !path->next->next)
     return request_global_post_bulk_docs (client, path, arguments);
+
+  if (!g_strcmp0 (path->next->data, REQUEST_POST_COMPACT_DATABASE) && !path->next->next)
+    return request_global_post_compact_database (client, path, arguments);
 
   return HTTP_STATUS_400;
 }
@@ -2623,6 +2653,24 @@ request_global_post_bulk_docs_error:
   if (parser != NULL)
     g_object_unref (parser);
   return code;
+}
+
+static DSHttpStatusCode
+request_global_post_compact_database (DSHttpdClient * client, GList * path,
+				      GList * arguments)
+{
+  DupinDB *db;
+
+  if (!
+      (db =
+       dupin_database_open (client->thread->data->dupin, path->data, NULL)))
+    return HTTP_STATUS_404;
+
+  dupin_database_compact (db);
+
+  dupin_database_unref (db);
+
+  return HTTP_STATUS_200;
 }
 
 /* PUT *********************************************************************/
@@ -2859,7 +2907,7 @@ static DSHttpStatusCode
 request_global_put_record (DSHttpdClient * client, GList * path,
 			   GList * arguments)
 {
-  JsonNode *node;
+  JsonNode *node=NULL;
   JsonParser *parser;
   DupinRecord *record;
   DSHttpStatusCode code;
@@ -2883,7 +2931,8 @@ request_global_put_record (DSHttpdClient * client, GList * path,
 	  return request_global_put_record_attachment (client, path, arguments);
         }
 
-        /* PUT /_special_document/document_ID */
+      /* PUT /_special_document/document_ID */
+      if (path->next->next)
         doc_id = g_strdup_printf ("%s/%s", (gchar *)path->next->data, (gchar *)path->next->next->data);
     }
   else
@@ -3049,8 +3098,13 @@ request_global_put_record_attachment (DSHttpdClient * client, GList * path,
   if (ch == '_')
     {
       /* PUT /_special_document/document_ID/attachment */
-      doc_id = g_strdup_printf ("%s/%s", (gchar *)path->next->data, (gchar *)path->next->next->data);
-      title_parts = path->next->next->next;
+      if (path->next->next)
+        {
+          doc_id = g_strdup_printf ("%s/%s", (gchar *)path->next->data, (gchar *)path->next->next->data);
+
+          if (path->next->next->next)
+            title_parts = path->next->next->next;
+        }
     }
   else
     {
@@ -3194,8 +3248,13 @@ request_global_delete_record (DSHttpdClient * client, GList * path,
       /* TODO - shouldn't we stop/avoid user to delete /_design/something ?! */
 
       /* DELETE /_special_document/document_ID and /_special_document/document_ID/attachment */
-      doc_id = g_strdup_printf ("%s/%s", (gchar *)path->next->data, (gchar *)path->next->next->data);
-      title_parts = path->next->next->next;
+      if (path->next->next)
+        {
+          doc_id = g_strdup_printf ("%s/%s", (gchar *)path->next->data, (gchar *)path->next->next->data);
+
+          if (path->next->next->next)
+            title_parts = path->next->next->next;
+        }
     }
   else
     {
@@ -3290,7 +3349,7 @@ request_global_delete_record (DSHttpdClient * client, GList * path,
            mvcc = dupin_record_get_last_revision (record);
         }
       else if (mvcc == NULL
-               || g_strcmp0 (mvcc, dupin_record_get_last_revision (record)))
+               || dupin_util_mvcc_revision_cmp (mvcc, dupin_record_get_last_revision (record)))
         {
           if (title != NULL)
             g_free (title);
@@ -3485,7 +3544,7 @@ request_record_insert (DSHttpdClient * client, JsonNode * obj_node,
 
       record = dupin_record_read (db, id, NULL);
 
-      if (!record || g_strcmp0 (json_record_mvcc, dupin_record_get_last_revision (record))
+      if (!record || dupin_util_mvcc_revision_cmp (json_record_mvcc, dupin_record_get_last_revision (record))
 	  || dupin_record_update (record, obj_node, NULL) == FALSE)
 	{
           if (record)
@@ -3793,6 +3852,8 @@ request_record_attachment_insert (DSHttpdClient * client,
   if (mvcc == NULL && record != NULL)
     {
       g_free (title);
+      dupin_record_close (record);
+      dupin_attachment_db_unref (attachment_db);
       dupin_database_unref (db);
       *code = HTTP_STATUS_400;
       return FALSE;
@@ -3823,7 +3884,7 @@ request_record_attachment_insert (DSHttpdClient * client,
   else
     {
       if (mvcc == NULL
-          || g_strcmp0 (mvcc, dupin_record_get_last_revision (record)) > 0)
+          || dupin_util_mvcc_revision_cmp (mvcc, dupin_record_get_last_revision (record)) > 0)
         {
           g_free (title);
           dupin_record_close (record);
@@ -3833,7 +3894,7 @@ request_record_attachment_insert (DSHttpdClient * client,
           return FALSE;
         }
 
-      if (g_strcmp0 (mvcc, dupin_record_get_last_revision (record)))
+      if (dupin_util_mvcc_revision_cmp (mvcc, dupin_record_get_last_revision (record)))
         {
           g_free (title);
           dupin_record_close (record);

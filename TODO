@@ -19,3 +19,7 @@
   - Attach multiple DBs into one (db, attachments, views...) into application bundle
     see also http://www.gtkpod.org/libgpod/docs/libgpod-The-Itdb-iTunesDB-structure.html
 - Configuration in JSON (kill XML conf) and allow /_config GET/PUT/DELETE on settings and hot-reload
+- Add JSQL / Google Refine Expression language support to transform metadata combined with map/reduce
+  set/delete/update of fields from views (E.g. refine kind of data quality scenario to group rows and rename column etc.)
+- Low evel HTTP
+  - Use proper HTTP pareser E.g. https://github.com/kazuho/picohttpparser

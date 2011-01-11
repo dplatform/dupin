@@ -19,7 +19,19 @@
   - Attach multiple DBs into one (db, attachments, views...) into application bundle
     see also http://www.gtkpod.org/libgpod/docs/libgpod-The-Itdb-iTunesDB-structure.html
 - Configuration in JSON (kill XML conf) and allow /_config GET/PUT/DELETE on settings and hot-reload
+- Add Geocouch / GeoJSON support - see http://vmx.cx/cgi-bin/blog/index.cgi/geocouch-the-future-is-now%3A2010-05-03%3Aen%2CCouchDB%2CPython%2CErlang%2Cgeo
+  http://vmx.cx/cgi-bin/blog/index.cgi/geocouch-the-future:2009-12-20:en,CouchDB,Python,geo and http://www.gaia-gis.it/spatialite/
+  for sample API see also http://api.freebase.com/api/service/geosearch?help
+- Add dates search (see Date Grabber mysql date time functions - e.g. periods, easter 2010 etc etc.)
 - Add JSQL / Google Refine Expression language support to transform metadata combined with map/reduce
   set/delete/update of fields from views (E.g. refine kind of data quality scenario to group rows and rename column etc.)
+- Add provenance info who (user or IP) what (CRUD) when(already in tm) and perhaps add _attribution
+  structure to contain/track all user-agent client details and headers if required/needed. E.g. all environment vars
+  It would be important to be in main obj JSON so views and indexes can be generted later E.g. who did what when BI etc.
 - Low evel HTTP
   - Use proper HTTP pareser E.g. https://github.com/kazuho/picohttpparser
+- Software Dev
+  - rework soource code to have more pluggable indexes/modules/handlers as needed - see for example
+    how couchdb does with hanlders http://vmx.cx/couchdb/tutorial/indexer.html
+    a good starting point is to port src/httpd/request.c and httpd.c to libsoup see
+    http://library.gnome.org/devel/libsoup/stable/libsoup-server-howto.html

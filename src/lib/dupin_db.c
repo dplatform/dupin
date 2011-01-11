@@ -831,6 +831,7 @@ void
 dupin_database_compact_func (gpointer data, gpointer user_data)
 {
   DupinDB * db = (DupinDB*) data;
+  gchar * errmsg;
 
   dupin_database_ref (db);
 
@@ -851,6 +852,23 @@ dupin_database_compact_func (gpointer data, gpointer user_data)
       if (compact_operation == FALSE)
         {
 //g_message("dupin_database_compact_func(%p) Compacted TOTAL %d records\n", g_thread_self (), (gint)db->compact_processed_count);
+
+          /* claim disk space back */
+
+//g_message("dupin_database_compact_func: VACUUM and ANALYZE\n");
+
+          g_mutex_lock (db->mutex);
+
+          if (sqlite3_exec (db->db, "VACUUM", NULL, NULL, &errmsg) != SQLITE_OK
+             || sqlite3_exec (db->db, "ANALYZE Dupin", NULL, NULL, &errmsg) != SQLITE_OK)
+            {
+              g_mutex_unlock (db->mutex);
+              g_error ("dupin_database_compact_func: %s", errmsg);
+              sqlite3_free (errmsg);
+              break;
+            }
+
+          g_mutex_unlock (db->mutex);
 
           break;
         }

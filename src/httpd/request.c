@@ -20,6 +20,9 @@
 #define REQUEST_OBJ_REV		"_rev"
 #define REQUEST_OBJ_ATTACHMENTS	"_attachments"
 
+#define REQUEST_OBJ_INLINE_ATTACHMENTS_DATA	"data"
+#define REQUEST_OBJ_INLINE_ATTACHMENTS_TYPE	"content_type"
+
 #define RESPONSE_OBJ_ID		"id"
 #define RESPONSE_OBJ_REV	"rev"
 
@@ -1609,7 +1612,10 @@ request_global_get_record (DSHttpdClient * client, GList * path,
        {
          if (allrevs == TRUE
              || (allrevs == FALSE && (!dupin_util_mvcc_revision_cmp (mvcc, dupin_record_get_last_revision (record)))))
-           json_object_set_object_member (json_node_get_object (node), REQUEST_OBJ_ATTACHMENTS, attachments_obj);
+           {
+             json_object_remove_member (json_node_get_object (node), REQUEST_OBJ_ATTACHMENTS);
+             json_object_set_object_member (json_node_get_object (node), REQUEST_OBJ_ATTACHMENTS, attachments_obj);
+           }
        }
      else
        {
@@ -2457,6 +2463,9 @@ static DSHttpStatusCode request_global_post_compact_database (DSHttpdClient * cl
 						     	      GList * path,
 						     	      GList * arguments);
 
+static gchar * request_record_insert_rev (JsonNode * obj_node);
+static gchar * request_record_insert_id (JsonNode * obj_node);
+
 static DSHttpStatusCode
 request_global_post (DSHttpdClient * client, GList * path, GList * arguments)
 {
@@ -2481,6 +2490,7 @@ request_global_post_record (DSHttpdClient * client, GList * path,
 {
   DupinRecord *record;
   DSHttpStatusCode code;
+  DupinAttachmentDB *attachment_db;
 
   if (!client->body)
     return HTTP_STATUS_400;
@@ -2515,6 +2525,92 @@ request_global_post_record (DSHttpdClient * client, GList * path,
     {
       code = HTTP_STATUS_400;
       goto request_global_post_record_end;
+    }
+
+  /* process _attachments object for inline attachments */
+
+  JsonNode * attachments_node = json_object_get_member (json_node_get_object (node), REQUEST_OBJ_ATTACHMENTS);
+  if (attachments_node != NULL
+      && json_node_get_node_type (attachments_node) == JSON_NODE_OBJECT)
+    { 
+      /* NOTE - peek ID in order pre-process attachments I.e. if attachments fails somehow no record is added */
+      gchar * doc_id = request_record_insert_id (node);
+
+      /* NOTE - poke the ID back due the above request removed it - yes we need to fix all this later! */
+      json_object_set_string_member (json_node_get_object (node), REQUEST_OBJ_ID, doc_id);
+
+      if (!  (attachment_db =
+               dupin_attachment_db_open (client->thread->data->dupin, path->data, NULL)))
+        {
+          if (doc_id != NULL)
+            g_free (doc_id);
+          code = HTTP_STATUS_400;
+          goto request_global_post_record_end;
+        }
+
+      JsonObject * attachments_obj = json_node_get_object (attachments_node);
+
+      GList *n;
+      GList *nodes = json_object_get_members (attachments_obj);
+
+      for (n = nodes; n != NULL; n = n->next)
+        {
+          gchar *member_name = (gchar *) n->data;
+          JsonNode *inline_attachment_node = json_object_get_member (attachments_obj, member_name);
+
+          if (json_node_get_node_type (inline_attachment_node) != JSON_NODE_OBJECT)
+            {
+              /* TODO - should log something or fail ? */
+              continue;
+            }
+
+          JsonObject *inline_attachment_obj = json_node_get_object (inline_attachment_node);
+
+          gchar * content_type = (gchar *) json_object_get_string_member (inline_attachment_obj, REQUEST_OBJ_INLINE_ATTACHMENTS_TYPE);
+          gchar * data = (gchar *) json_object_get_string_member (inline_attachment_obj, REQUEST_OBJ_INLINE_ATTACHMENTS_DATA);
+
+          /* decode base64 assuming data is a single (even if long) line/string */
+          gsize buff_size;
+          guchar * buff = g_base64_decode ((const gchar *)data, &buff_size);
+
+          if (content_type == NULL
+              || data == NULL
+              || buff == NULL)
+            {
+              if (buff != NULL)
+                g_free (buff);
+
+              /* TODO - should log something or fail ? */
+              continue;
+            }
+
+          /* NOTE - store inline attachment as normal one - correct? */
+          if (dupin_attachment_record_delete (attachment_db, doc_id, member_name) == FALSE
+               || dupin_attachment_record_insert (attachment_db, doc_id, member_name,
+                                          buff_size, content_type, NULL,
+                                          (const void *)buff) == FALSE)
+            {
+              if (doc_id != NULL)
+                g_free (doc_id);
+              if (buff != NULL)
+                g_free (buff);
+              dupin_attachment_db_unref (attachment_db);
+              code = HTTP_STATUS_404;
+              goto request_global_post_record_end;
+            }
+
+          g_free (buff);
+        }
+
+      g_list_free (nodes);
+
+      dupin_attachment_db_unref (attachment_db);
+
+      /* NOTE - remove inline attachments element */
+      json_object_remove_member (json_node_get_object (node), REQUEST_OBJ_ATTACHMENTS);
+
+      if (doc_id != NULL)
+        g_free (doc_id);
     }
 
   if (request_record_insert
@@ -3087,8 +3183,8 @@ request_global_put_record (DSHttpdClient * client, GList * path,
 
           JsonObject *inline_attachment_obj = json_node_get_object (inline_attachment_node);
 
-          gchar * content_type = (gchar *) json_object_get_string_member (inline_attachment_obj, "content_type");
-          gchar * data = (gchar *) json_object_get_string_member (inline_attachment_obj, "data");
+          gchar * content_type = (gchar *) json_object_get_string_member (inline_attachment_obj, REQUEST_OBJ_INLINE_ATTACHMENTS_TYPE);
+          gchar * data = (gchar *) json_object_get_string_member (inline_attachment_obj, REQUEST_OBJ_INLINE_ATTACHMENTS_DATA);
 
           /* decode base64 assuming data is a single (even if long) line/string */
           gsize buff_size;
@@ -3562,8 +3658,6 @@ RequestType request_types[] = {
 };
 
 /* RECORD *********************************************************************/
-static gchar * request_record_insert_rev (JsonNode * obj_node);
-static gchar * request_record_insert_id (JsonNode * obj_node);
 
 static gboolean
 request_record_insert (DSHttpdClient * client, JsonNode * obj_node,

@@ -2914,6 +2914,7 @@ request_global_put_record (DSHttpdClient * client, GList * path,
   DSHttpStatusCode code;
   gchar * doc_id=NULL; 
   gboolean request_fields=FALSE;
+  DupinAttachmentDB *attachment_db;
  
   if (!client->body
       || !path->next->data)
@@ -3053,6 +3054,79 @@ request_global_put_record (DSHttpdClient * client, GList * path,
           code = HTTP_STATUS_400;
           goto request_global_put_record_error;
         }
+    }
+
+  /* process _attachments object for inline attachments */
+
+  JsonNode * attachments_node = json_object_get_member (json_node_get_object (node), REQUEST_OBJ_ATTACHMENTS);
+  if (attachments_node != NULL
+      && json_node_get_node_type (attachments_node) == JSON_NODE_OBJECT)
+    {
+      if (!  (attachment_db =
+               dupin_attachment_db_open (client->thread->data->dupin, path->data, NULL)))
+        {
+          code = HTTP_STATUS_400;
+          goto request_global_put_record_error;
+        }
+
+      JsonObject * attachments_obj = json_node_get_object (attachments_node);
+
+      GList *n;
+      GList *nodes = json_object_get_members (attachments_obj);
+
+      for (n = nodes; n != NULL; n = n->next)
+        {
+          gchar *member_name = (gchar *) n->data;
+          JsonNode *inline_attachment_node = json_object_get_member (attachments_obj, member_name);
+
+          if (json_node_get_node_type (inline_attachment_node) != JSON_NODE_OBJECT)
+            {
+              /* TODO - should log something or fail ? */
+              continue;
+            }
+
+          JsonObject *inline_attachment_obj = json_node_get_object (inline_attachment_node);
+
+          gchar * content_type = (gchar *) json_object_get_string_member (inline_attachment_obj, "content_type");
+          gchar * data = (gchar *) json_object_get_string_member (inline_attachment_obj, "data");
+
+          /* decode base64 assuming data is a single (even if long) line/string */
+          gsize buff_size;
+          guchar * buff = g_base64_decode ((const gchar *)data, &buff_size);
+
+          if (content_type == NULL
+              || data == NULL
+              || buff == NULL)
+            {
+              if (buff != NULL)
+                g_free (buff);
+
+              /* TODO - should log something or fail ? */
+              continue;
+            }
+
+          /* NOTE - store inline attachment as normal one - correct? */
+          if (dupin_attachment_record_delete (attachment_db, doc_id, member_name) == FALSE
+               || dupin_attachment_record_insert (attachment_db, doc_id, member_name,
+                                          buff_size, content_type, NULL,
+                                          (const void *)buff) == FALSE)
+            {
+              if (buff != NULL)
+                g_free (buff);
+              dupin_attachment_db_unref (attachment_db);
+              code = HTTP_STATUS_404;
+              goto request_global_put_record_error;
+            }
+
+          g_free (buff);
+        }
+
+      g_list_free (nodes);
+
+      dupin_attachment_db_unref (attachment_db);
+
+      /* remove inline attachments element */
+      json_object_remove_member (json_node_get_object (node), REQUEST_OBJ_ATTACHMENTS);
     }
 
   if (request_record_insert

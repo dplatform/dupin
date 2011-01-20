@@ -35,3 +35,5 @@
     how couchdb does with hanlders http://vmx.cx/couchdb/tutorial/indexer.html
     a good starting point is to port src/httpd/request.c and httpd.c to libsoup see
     http://library.gnome.org/devel/libsoup/stable/libsoup-server-howto.html
+- Caching:
+  - Add ETag and If-None-Match headers and negotiation to methods

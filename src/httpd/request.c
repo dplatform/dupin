@@ -2490,7 +2490,6 @@ request_global_post_record (DSHttpdClient * client, GList * path,
 {
   DupinRecord *record;
   DSHttpStatusCode code;
-  DupinAttachmentDB *attachment_db;
 
   if (!client->body)
     return HTTP_STATUS_400;
@@ -2525,92 +2524,6 @@ request_global_post_record (DSHttpdClient * client, GList * path,
     {
       code = HTTP_STATUS_400;
       goto request_global_post_record_end;
-    }
-
-  /* process _attachments object for inline attachments */
-
-  JsonNode * attachments_node = json_object_get_member (json_node_get_object (node), REQUEST_OBJ_ATTACHMENTS);
-  if (attachments_node != NULL
-      && json_node_get_node_type (attachments_node) == JSON_NODE_OBJECT)
-    { 
-      /* NOTE - peek ID in order pre-process attachments I.e. if attachments fails somehow no record is added */
-      gchar * doc_id = request_record_insert_id (node);
-
-      /* NOTE - poke the ID back due the above request removed it - yes we need to fix all this later! */
-      json_object_set_string_member (json_node_get_object (node), REQUEST_OBJ_ID, doc_id);
-
-      if (!  (attachment_db =
-               dupin_attachment_db_open (client->thread->data->dupin, path->data, NULL)))
-        {
-          if (doc_id != NULL)
-            g_free (doc_id);
-          code = HTTP_STATUS_400;
-          goto request_global_post_record_end;
-        }
-
-      JsonObject * attachments_obj = json_node_get_object (attachments_node);
-
-      GList *n;
-      GList *nodes = json_object_get_members (attachments_obj);
-
-      for (n = nodes; n != NULL; n = n->next)
-        {
-          gchar *member_name = (gchar *) n->data;
-          JsonNode *inline_attachment_node = json_object_get_member (attachments_obj, member_name);
-
-          if (json_node_get_node_type (inline_attachment_node) != JSON_NODE_OBJECT)
-            {
-              /* TODO - should log something or fail ? */
-              continue;
-            }
-
-          JsonObject *inline_attachment_obj = json_node_get_object (inline_attachment_node);
-
-          gchar * content_type = (gchar *) json_object_get_string_member (inline_attachment_obj, REQUEST_OBJ_INLINE_ATTACHMENTS_TYPE);
-          gchar * data = (gchar *) json_object_get_string_member (inline_attachment_obj, REQUEST_OBJ_INLINE_ATTACHMENTS_DATA);
-
-          /* decode base64 assuming data is a single (even if long) line/string */
-          gsize buff_size;
-          guchar * buff = g_base64_decode ((const gchar *)data, &buff_size);
-
-          if (content_type == NULL
-              || data == NULL
-              || buff == NULL)
-            {
-              if (buff != NULL)
-                g_free (buff);
-
-              /* TODO - should log something or fail ? */
-              continue;
-            }
-
-          /* NOTE - store inline attachment as normal one - correct? */
-          if (dupin_attachment_record_delete (attachment_db, doc_id, member_name) == FALSE
-               || dupin_attachment_record_insert (attachment_db, doc_id, member_name,
-                                          buff_size, content_type, NULL,
-                                          (const void *)buff) == FALSE)
-            {
-              if (doc_id != NULL)
-                g_free (doc_id);
-              if (buff != NULL)
-                g_free (buff);
-              dupin_attachment_db_unref (attachment_db);
-              code = HTTP_STATUS_404;
-              goto request_global_post_record_end;
-            }
-
-          g_free (buff);
-        }
-
-      g_list_free (nodes);
-
-      dupin_attachment_db_unref (attachment_db);
-
-      /* NOTE - remove inline attachments element */
-      json_object_remove_member (json_node_get_object (node), REQUEST_OBJ_ATTACHMENTS);
-
-      if (doc_id != NULL)
-        g_free (doc_id);
     }
 
   if (request_record_insert
@@ -3010,7 +2923,6 @@ request_global_put_record (DSHttpdClient * client, GList * path,
   DSHttpStatusCode code;
   gchar * doc_id=NULL; 
   gboolean request_fields=FALSE;
-  DupinAttachmentDB *attachment_db;
  
   if (!client->body
       || !path->next->data)
@@ -3150,79 +3062,6 @@ request_global_put_record (DSHttpdClient * client, GList * path,
           code = HTTP_STATUS_400;
           goto request_global_put_record_error;
         }
-    }
-
-  /* process _attachments object for inline attachments */
-
-  JsonNode * attachments_node = json_object_get_member (json_node_get_object (node), REQUEST_OBJ_ATTACHMENTS);
-  if (attachments_node != NULL
-      && json_node_get_node_type (attachments_node) == JSON_NODE_OBJECT)
-    {
-      if (!  (attachment_db =
-               dupin_attachment_db_open (client->thread->data->dupin, path->data, NULL)))
-        {
-          code = HTTP_STATUS_400;
-          goto request_global_put_record_error;
-        }
-
-      JsonObject * attachments_obj = json_node_get_object (attachments_node);
-
-      GList *n;
-      GList *nodes = json_object_get_members (attachments_obj);
-
-      for (n = nodes; n != NULL; n = n->next)
-        {
-          gchar *member_name = (gchar *) n->data;
-          JsonNode *inline_attachment_node = json_object_get_member (attachments_obj, member_name);
-
-          if (json_node_get_node_type (inline_attachment_node) != JSON_NODE_OBJECT)
-            {
-              /* TODO - should log something or fail ? */
-              continue;
-            }
-
-          JsonObject *inline_attachment_obj = json_node_get_object (inline_attachment_node);
-
-          gchar * content_type = (gchar *) json_object_get_string_member (inline_attachment_obj, REQUEST_OBJ_INLINE_ATTACHMENTS_TYPE);
-          gchar * data = (gchar *) json_object_get_string_member (inline_attachment_obj, REQUEST_OBJ_INLINE_ATTACHMENTS_DATA);
-
-          /* decode base64 assuming data is a single (even if long) line/string */
-          gsize buff_size;
-          guchar * buff = g_base64_decode ((const gchar *)data, &buff_size);
-
-          if (content_type == NULL
-              || data == NULL
-              || buff == NULL)
-            {
-              if (buff != NULL)
-                g_free (buff);
-
-              /* TODO - should log something or fail ? */
-              continue;
-            }
-
-          /* NOTE - store inline attachment as normal one - correct? */
-          if (dupin_attachment_record_delete (attachment_db, doc_id, member_name) == FALSE
-               || dupin_attachment_record_insert (attachment_db, doc_id, member_name,
-                                          buff_size, content_type, NULL,
-                                          (const void *)buff) == FALSE)
-            {
-              if (buff != NULL)
-                g_free (buff);
-              dupin_attachment_db_unref (attachment_db);
-              code = HTTP_STATUS_404;
-              goto request_global_put_record_error;
-            }
-
-          g_free (buff);
-        }
-
-      g_list_free (nodes);
-
-      dupin_attachment_db_unref (attachment_db);
-
-      /* remove inline attachments element */
-      json_object_remove_member (json_node_get_object (node), REQUEST_OBJ_ATTACHMENTS);
     }
 
   if (request_record_insert
@@ -3665,11 +3504,14 @@ request_record_insert (DSHttpdClient * client, JsonNode * obj_node,
 		       DupinRecord ** ret_record)
 {
   DupinDB *db;
+  DupinAttachmentDB *attachment_db;
   DupinRecord *record;
   DSHttpStatusCode retcode;
 
   gchar * json_record_mvcc=NULL;
   gchar * json_record_id;
+
+  JsonNode * attachments_node=NULL;
 
   g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, FALSE);
 
@@ -3705,6 +3547,14 @@ request_record_insert (DSHttpdClient * client, JsonNode * obj_node,
       dupin_database_unref (db);
       *code = HTTP_STATUS_400;
       return FALSE;
+    }
+
+  /* get and remove inline attachments element */
+  attachments_node = json_object_get_member (json_node_get_object (obj_node), REQUEST_OBJ_ATTACHMENTS);
+  if (attachments_node != NULL)
+    {
+      attachments_node = json_node_copy (attachments_node);
+      json_object_remove_member (json_node_get_object (obj_node), REQUEST_OBJ_ATTACHMENTS);
     }
 
   if (json_record_mvcc != NULL)
@@ -3744,12 +3594,99 @@ request_record_insert (DSHttpdClient * client, JsonNode * obj_node,
 
   if (!record)
     {
+      if (attachments_node != NULL)
+        json_node_free (attachments_node);
       if (json_record_mvcc != NULL)
         g_free (json_record_mvcc);
       dupin_database_unref (db);
       *code = HTTP_STATUS_409;
       return FALSE;
     }
+
+  /* process _attachments object for inline attachments */
+
+  if (attachments_node != NULL
+      && json_node_get_node_type (attachments_node) == JSON_NODE_OBJECT)
+    {
+//g_message("process _attachments object for inline attachments\n");
+
+      if (!  (attachment_db =
+               dupin_attachment_db_open (client->thread->data->dupin, dbname, NULL)))
+        {
+          if (attachments_node != NULL)
+            json_node_free (attachments_node);
+          if (json_record_mvcc != NULL)
+            g_free (json_record_mvcc);
+          dupin_database_unref (db);
+          *code = HTTP_STATUS_400;
+          return FALSE;
+        }
+
+      JsonObject * attachments_obj = json_node_get_object (attachments_node);
+
+      GList *n;
+      GList *nodes = json_object_get_members (attachments_obj);
+
+      for (n = nodes; n != NULL; n = n->next)
+        {
+          gchar *member_name = (gchar *) n->data;
+          JsonNode *inline_attachment_node = json_object_get_member (attachments_obj, member_name);
+
+          if (json_node_get_node_type (inline_attachment_node) != JSON_NODE_OBJECT)
+            {
+              /* TODO - should log something or fail ? */
+              continue;
+            }
+
+          JsonObject *inline_attachment_obj = json_node_get_object (inline_attachment_node);
+
+          gchar * content_type = (gchar *) json_object_get_string_member (inline_attachment_obj, REQUEST_OBJ_INLINE_ATTACHMENTS_TYPE);
+          gchar * data = (gchar *) json_object_get_string_member (inline_attachment_obj, REQUEST_OBJ_INLINE_ATTACHMENTS_DATA);
+
+          /* decode base64 assuming data is a single (even if long) line/string */
+          gsize buff_size;
+          guchar * buff = g_base64_decode ((const gchar *)data, &buff_size);
+
+          if (content_type == NULL
+              || data == NULL
+              || buff == NULL)
+            {
+              if (buff != NULL)
+                g_free (buff);
+
+              /* TODO - should log something or fail ? */
+              continue;
+            }
+
+          /* NOTE - store inline attachment as normal one - correct? */
+          if (dupin_attachment_record_delete (attachment_db, (gchar *) dupin_record_get_id (record), member_name) == FALSE
+               || dupin_attachment_record_insert (attachment_db, (gchar *) dupin_record_get_id (record), member_name,
+                                          buff_size, content_type, NULL,
+                                          (const void *)buff) == FALSE)
+            {
+              if (buff != NULL)
+                g_free (buff);
+              dupin_attachment_db_unref (attachment_db);
+
+              if (attachments_node != NULL)
+                json_node_free (attachments_node);
+              if (json_record_mvcc != NULL)
+                g_free (json_record_mvcc);
+              dupin_database_unref (db);
+              *code = HTTP_STATUS_404;
+              return FALSE;
+            }
+
+          g_free (buff);
+        }
+
+      g_list_free (nodes);
+
+      dupin_attachment_db_unref (attachment_db);
+    }
+
+  if (attachments_node != NULL)
+    json_node_free (attachments_node);
 
   if (json_record_mvcc != NULL)
     g_free (json_record_mvcc);

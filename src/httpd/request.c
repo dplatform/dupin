@@ -1254,7 +1254,7 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 {
   gchar * mvcc = NULL;
   gboolean allrevs = FALSE;
-  gboolean request_fields=FALSE;
+  gchar * request_fields=NULL;
 
   GList *list, *results=NULL;
 
@@ -1282,7 +1282,20 @@ request_global_get_record (DSHttpdClient * client, GList * path,
           doc_id = g_strdup_printf ("%s/%s", (gchar *)path->next->data, (gchar *)path->next->next->data);
 
           if (path->next->next->next)
-            title_parts = path->next->next->next;
+            {
+              if (!g_strcmp0 (path->next->next->next->data, REQUEST_FIELDS))
+                {
+                  if (!path->next->next->next->next
+                       || !g_strcmp0 (path->next->next->next->next->data, REQUEST_OBJ_ATTACHMENTS))
+                    return HTTP_STATUS_400;
+
+                  request_fields=(gchar *)path->next->next->next->next->data;
+                }
+              else
+                {
+                  title_parts = path->next->next->next;
+                }
+            }
         }
     }
   else
@@ -1295,7 +1308,7 @@ request_global_get_record (DSHttpdClient * client, GList * path,
                   || !g_strcmp0 (path->next->next->next->data, REQUEST_OBJ_ATTACHMENTS))
                 return HTTP_STATUS_400;
 
-              request_fields=TRUE;
+              request_fields=(gchar *)path->next->next->next->data;
             }
           else
             {
@@ -1481,11 +1494,11 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 	      goto request_global_get_record_error;
             }
 
-          if (request_fields == TRUE)
+          if (request_fields != NULL)
             {
               JsonObject * on_obj = json_node_get_object (on);
 
-              if (json_object_has_member (on_obj, (const gchar *)path->next->next->next->data) == FALSE)
+              if (json_object_has_member (on_obj, (const gchar *)request_fields) == FALSE)
                 {
                   dupin_record_get_revisions_list_close (revisions);
 	          json_array_unref (array);
@@ -1496,7 +1509,7 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 	          return HTTP_STATUS_404;
                 }
 
-              json_array_add_element( array, json_node_copy (json_object_get_member (on_obj, (const gchar *)path->next->next->next->data)));
+              json_array_add_element( array, json_node_copy (json_object_get_member (on_obj, (const gchar *)request_fields)));
               json_node_free (on);
             }
           else
@@ -1543,11 +1556,11 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 	  return HTTP_STATUS_404;
 	}
 
-      if (request_fields == TRUE)
+      if (request_fields != NULL)
         {
           JsonObject * node_obj = json_node_get_object (node_temp);
 
-          if (json_object_has_member (node_obj, (const gchar *)path->next->next->next->data) == FALSE)
+          if (json_object_has_member (node_obj, (const gchar *)request_fields) == FALSE)
             {
               if (node_temp != NULL)
                 json_node_free (node_temp);
@@ -1558,7 +1571,7 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 	      return HTTP_STATUS_404;
             }
 
-          node = json_node_copy (json_object_get_member (node_obj, (const gchar *)path->next->next->next->data));
+          node = json_node_copy (json_object_get_member (node_obj, (const gchar *)request_fields));
         }
       else
         {
@@ -1568,7 +1581,7 @@ request_global_get_record (DSHttpdClient * client, GList * path,
       json_node_free (node_temp);
     }
 
-  if (request_fields == FALSE)
+  if (request_fields == NULL)
     {
       JsonObject * attachments_obj = json_object_new ();
 
@@ -2922,7 +2935,7 @@ request_global_put_record (DSHttpdClient * client, GList * path,
   DupinRecord *record;
   DSHttpStatusCode code;
   gchar * doc_id=NULL; 
-  gboolean request_fields=FALSE;
+  gchar * request_fields=NULL;
  
   if (!client->body
       || !path->next->data)
@@ -2937,8 +2950,21 @@ request_global_put_record (DSHttpdClient * client, GList * path,
 
       if (path->next->next->next)
         {
-          /* PUT /_special_document/document_ID/attachment */
-	  return request_global_put_record_attachment (client, path, arguments);
+          if (!g_strcmp0 (path->next->next->next->data, REQUEST_FIELDS))
+            {
+	      if (!path->next->next->next->next
+                  || !g_strcmp0 (path->next->next->next->next->data, REQUEST_OBJ_ID)
+                  || !g_strcmp0 (path->next->next->next->next->data, REQUEST_OBJ_REV)
+                  || !g_strcmp0 (path->next->next->next->next->data, REQUEST_OBJ_ATTACHMENTS))
+                return HTTP_STATUS_400;
+
+              request_fields=path->next->next->next->next->data;
+            }
+          else
+            {
+              /* PUT /_special_document/document_ID/attachment */
+	      return request_global_put_record_attachment (client, path, arguments);
+            }
         }
 
       /* PUT /_special_document/document_ID */
@@ -2957,7 +2983,7 @@ request_global_put_record (DSHttpdClient * client, GList * path,
                   || !g_strcmp0 (path->next->next->next->data, REQUEST_OBJ_ATTACHMENTS))
                 return HTTP_STATUS_400;
 
-              request_fields=TRUE;
+              request_fields=path->next->next->next->data;
             }
           else
             {
@@ -2995,7 +3021,7 @@ request_global_put_record (DSHttpdClient * client, GList * path,
       goto request_global_put_record_error;
     }
 
-  if (request_fields == TRUE)
+  if (request_fields != NULL)
     {
       gchar * mvcc=NULL;
       DupinDB *db;
@@ -3046,8 +3072,8 @@ request_global_put_record (DSHttpdClient * client, GList * path,
 
       /* set field */
       /* NOTE - we must remove the member first to make sure the correct node type is set internally */
-      json_object_remove_member (node1_obj, (const gchar *)path->next->next->next->data);
-      json_object_set_member (node1_obj, (const gchar *)path->next->next->next->data, json_node_copy (node));
+      json_object_remove_member (node1_obj, (const gchar *)request_fields);
+      json_object_set_member (node1_obj, (const gchar *)request_fields, json_node_copy (node));
 
       dupin_record_close (record);
       record = NULL;
@@ -3075,7 +3101,7 @@ request_global_put_record (DSHttpdClient * client, GList * path,
 
 request_global_put_record_error:
 
-  if (request_fields == TRUE
+  if (request_fields != NULL
       && node)
     json_node_free (node);
 
@@ -3248,7 +3274,7 @@ request_global_delete_record (DSHttpdClient * client, GList * path,
   GList * l=NULL;
   GString *str;
   gchar * doc_id=NULL;
-  gboolean request_fields=FALSE;
+  gchar * request_fields=NULL;
 
   /* check if special document name/id */
   gunichar ch = g_utf8_get_char (path->next->data);
@@ -3265,6 +3291,8 @@ request_global_delete_record (DSHttpdClient * client, GList * path,
           if (path->next->next->next)
             title_parts = path->next->next->next;
         }
+
+      /* NOTE - we deliberately do not implement field delete of special documents - of course general PUT of whole doc still works */
     }
   else
     {
@@ -3278,7 +3306,7 @@ request_global_delete_record (DSHttpdClient * client, GList * path,
                   || !g_strcmp0 (path->next->next->next->data, REQUEST_OBJ_ATTACHMENTS))
                 return HTTP_STATUS_400;
 
-              request_fields=TRUE;
+              request_fields=path->next->next->next->data;
             }
           else
             {
@@ -3330,7 +3358,7 @@ request_global_delete_record (DSHttpdClient * client, GList * path,
       return HTTP_STATUS_404;
     }
 
-  if (request_fields == TRUE
+  if (request_fields != NULL
       || title_parts != NULL)
     {
       JsonNode * obj_node = NULL;
@@ -3353,7 +3381,7 @@ request_global_delete_record (DSHttpdClient * client, GList * path,
             }
         }
 
-      if (request_fields == TRUE)
+      if (request_fields != NULL)
         {
           if (mvcc == NULL)
            mvcc = dupin_record_get_last_revision (record);
@@ -3396,9 +3424,9 @@ request_global_delete_record (DSHttpdClient * client, GList * path,
       json_object_remove_member (json_node_get_object (obj_node), REQUEST_OBJ_REV);
       json_object_remove_member (json_node_get_object (obj_node), REQUEST_OBJ_ID);
 
-      if (request_fields == TRUE)
+      if (request_fields != NULL)
         {
-          if (json_object_has_member (json_node_get_object (obj_node), (const gchar *)path->next->next->next->data) == FALSE)
+          if (json_object_has_member (json_node_get_object (obj_node), (const gchar *)request_fields) == FALSE)
             {
               if (title != NULL)
                 g_free (title);
@@ -3410,7 +3438,7 @@ request_global_delete_record (DSHttpdClient * client, GList * path,
               return HTTP_STATUS_404;
             }
 
-          json_object_remove_member (json_node_get_object (obj_node), (const gchar *)path->next->next->next->data);
+          json_object_remove_member (json_node_get_object (obj_node), (const gchar *)request_fields);
         }
 
       if (title_parts != NULL

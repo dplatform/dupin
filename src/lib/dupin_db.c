@@ -11,13 +11,14 @@
 
 #define DUPIN_DB_SQL_MAIN_CREATE \
   "CREATE TABLE IF NOT EXISTS Dupin (\n" \
-  "  id      CHAR(255) NOT NULL,\n" \
-  "  rev     INTEGER NOT NULL DEFAULT 1,\n" \
-  "  hash    CHAR(255) NOT NULL,\n" \
-  "  obj     TEXT,\n" \
-  "  deleted BOOL DEFAULT FALSE,\n" \
-  "  tm      INTEGER NOT NULL,\n" \
-  "  PRIMARY KEY(id, rev, hash)\n" \
+  "  id       CHAR(255) NOT NULL,\n" \
+  "  rev      INTEGER NOT NULL DEFAULT 1,\n" \
+  "  hash     CHAR(255) NOT NULL,\n" \
+  "  obj      TEXT,\n" \
+  "  profiles TEXT DEFAULT \"{}\",\n" \
+  "  deleted  BOOL DEFAULT FALSE,\n" \
+  "  tm       INTEGER NOT NULL,\n" \
+  "  PRIMARY  KEY(id, rev, hash)\n" \
   ");"
 
 #define DUPIN_DB_SQL_CREATE_INDEX \

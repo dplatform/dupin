@@ -38,6 +38,9 @@ struct dupin_t
   GHashTable *	views;
   GHashTable *	attachment_dbs;
 
+  /* TODO */
+  /* links, maps, paths (hierarchies) */ 
+
   DSGlobal *	conf;
 
   GThreadPool * db_compact_workers_pool;

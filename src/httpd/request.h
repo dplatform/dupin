@@ -24,7 +24,16 @@ DSHttpStatusCode
 				 GList *		arguments);
 
 gboolean
-		request_get_changes_comet
+		request_get_changes_comet_database
+				(DSHttpdClient * client,
+                           	 gchar *buf,
+                           	 gsize count,
+                           	 gsize offset, 
+                           	 gsize *bytes_read, 
+                           	 GError **       error);
+
+gboolean
+		request_get_changes_comet_linkbase
 				(DSHttpdClient * client,
                            	 gchar *buf,
                            	 gsize count,

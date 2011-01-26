@@ -4,6 +4,7 @@
 #include <dupin.h>
 #include <dupin_mr.h>
 #include <dupin_db.h>
+#include <dupin_linkb.h>
 
 G_BEGIN_DECLS
 
@@ -20,6 +21,7 @@ DupinView *	dupin_view_new		(Dupin *	d,
 					 gchar *	view,
 					 gchar *	parent,
 					 gboolean	is_db,
+					 gboolean	is_linkb,
 					 gchar *	map,
 					 DupinMRLang	map_language,
 					 gchar *	reduce,
@@ -41,6 +43,9 @@ const gchar *	dupin_view_get_name	(DupinView *	view);
 const gchar *	dupin_view_get_parent	(DupinView *	view);
 
 gboolean	dupin_view_get_parent_is_db
+					(DupinView *	view);
+
+gboolean	dupin_view_get_parent_is_linkb
 					(DupinView *	view);
 
 const gchar *	dupin_view_get_map	(DupinView *	view);

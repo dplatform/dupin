@@ -29,6 +29,9 @@
 #define DUPIN_ATTACHMENT_DB_SUFFIX	".attachments.dupin"
 #define DUPIN_ATTACHMENT_DB_SUFFIX_LEN	18
 
+#define DUPIN_LINKB_SUFFIX	".linkb.dupin"
+#define DUPIN_LINKB_SUFFIX_LEN	12
+
 struct dupin_t
 {
   GMutex *	mutex;
@@ -37,15 +40,23 @@ struct dupin_t
   GHashTable *	dbs;
   GHashTable *	views;
   GHashTable *	attachment_dbs;
-
-  /* TODO */
-  /* links, maps, paths (hierarchies) */ 
+  GHashTable *	linkbs;
 
   DSGlobal *	conf;
 
   GThreadPool * db_compact_workers_pool;
+  GThreadPool * linkb_compact_workers_pool;
   GThreadPool * sync_map_workers_pool;
   GThreadPool * sync_reduce_workers_pool;
+};
+
+typedef struct dupin_linkb_p_t DupinLinkBP;
+struct dupin_linkb_p_t
+{
+  DupinLinkB ** linkbs;
+
+  gsize		numb;
+  gsize		size;
 };
 
 typedef struct dupin_attachment_db_p_t DupinAttachmentDBP;
@@ -82,6 +93,34 @@ struct dupin_db_t
 
   DupinViewP	views;
   DupinAttachmentDBP	attachment_dbs;
+  DupinLinkBP	linkbs;
+
+  gboolean	tocompact;
+  gboolean	compact_toquit;
+  GThread *	compact_thread;
+  gsize		compact_processed_count; /* incremental counter of compacted records */
+};
+
+struct dupin_linkb_t
+{
+  Dupin *	d;
+  GMutex *	mutex;
+
+  gchar *	name;
+  gchar *	path;
+
+  gchar *	parent;
+  gboolean	parent_is_db;
+
+  guint		ref;
+
+  gboolean	todelete;
+
+  sqlite3 *	db;
+
+  DupinViewP	views;
+  /* no attacthments for link bases */
+  DupinLinkBP	linkbs;
 
   gboolean	tocompact;
   gboolean	compact_toquit;
@@ -99,6 +138,7 @@ struct dupin_view_t
 
   gchar *	parent;
   gboolean	parent_is_db;
+  gboolean	parent_is_linkb;
 
   guint		ref;
 
@@ -193,6 +233,43 @@ struct dupin_record_rev_t
   JsonNode *    obj;
 };
 
+typedef struct dupin_link_record_rev_t DupinLinkRecordRev;
+
+struct dupin_link_record_t
+{
+  DupinLinkB *	linkb;
+
+  gchar	*	id;
+
+  DupinLinkRecordRev * last;
+  GHashTable *	revisions;
+};
+
+struct dupin_link_record_rev_t
+{
+  guint		revision;
+  gchar *	hash;
+  gsize		hash_len;
+  gchar *	mvcc;
+  gsize		mvcc_len;
+
+  gchar	*	context_id;
+  gchar	*	href;
+  gchar	*	rel;
+  gboolean	is_weblink;
+  gchar	*	tag; /* E.g. to tag named hierarchies */
+
+  gboolean	deleted;
+
+  gsize		created;
+
+  gsize		rowid;
+
+  gchar *	obj_serialized;
+  gsize		obj_serialized_len;
+  JsonNode *    obj;
+};
+
 struct dupin_view_record_t
 {
   DupinView *	view;
@@ -226,6 +303,15 @@ DupinDB *	dupin_db_create	(Dupin *	d,
 
 void		dupin_db_free	(DupinDB *	db);
 
+DupinLinkB *	dupin_linkb_create
+				(Dupin *	d,
+				 gchar *	name,
+				 gchar *	path,
+				 GError **	error);
+
+void		dupin_linkb_free
+				(DupinLinkB *	linkb);
+
 DupinView *	dupin_view_create
 				(Dupin *	d,
 				 gchar *	name,
@@ -252,6 +338,29 @@ gboolean	dupin_record_exists_real
 				(DupinDB *	db,
 				 gchar *	id,
 				 gboolean	lock);
+
+gchar *		dupin_linkbase_generate_id_real
+				(DupinLinkB *	linkb,
+				 GError **	error,
+				 gboolean	lock);
+
+gboolean	dupin_link_record_exists_real
+				(DupinLinkB *	linkb,
+				 gchar *	id,
+				 gboolean	lock);
+
+gboolean	dupin_linkbase_p_update
+				(DupinLinkB *	linkb,
+				 GError **	error);
+
+void		dupin_linkbase_p_record_insert
+				(DupinLinkBP *	p,
+				 gchar *	id,
+				 JsonObject *obj);
+
+void		dupin_linkbase_p_record_delete
+				(DupinLinkBP *	p,
+				 gchar *	id);
 
 gboolean	dupin_view_p_update
 				(DupinView *	view,

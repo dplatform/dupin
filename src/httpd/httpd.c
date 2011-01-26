@@ -1511,12 +1511,30 @@ httpd_client_write_body_changes_comet (GIOChannel * source, GIOCondition cond,
 static gboolean
 httpd_client_write_body_changes_comet_read (DSHttpdClient * client)
 {
-  gboolean status = request_get_changes_comet
+  gboolean status;
+
+  if (client->output.changes_comet.db != NULL)
+    {
+      status = request_get_changes_comet_database
                                 (client,
                                  client->output.changes_comet.string,
                                  sizeof (client->output.changes_comet.string),
                                  client->output.changes_comet.offset,
                                  &client->output.changes_comet.size, NULL);
+    }
+  else if (client->output.changes_comet.linkb != NULL)
+    {
+      status = request_get_changes_comet_linkbase
+                                (client,
+                                 client->output.changes_comet.string,
+                                 sizeof (client->output.changes_comet.string),
+                                 client->output.changes_comet.offset,
+                                 &client->output.changes_comet.size, NULL);
+    }
+  else
+    {
+      return FALSE;
+    }
 
 //g_message("httpd_client_write_body_changes_comet_read: count=%d offset=%d bytes_read=%d\n", (gint)sizeof (client->output.changes_comet.string), (gint)client->output.changes_comet.offset, (gint)client->output.changes_comet.size);
 
@@ -1761,6 +1779,10 @@ httpd_client_free (DSHttpdClient * client)
       if (client->output.changes_comet.db)
         {
           dupin_database_unref (client->output.changes_comet.db); 
+        }
+      if (client->output.changes_comet.linkb)
+        {
+          dupin_linkbase_unref (client->output.changes_comet.linkb); 
         }
       break;
     }

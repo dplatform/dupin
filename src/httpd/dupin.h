@@ -127,6 +127,7 @@ struct ds_httpd_client_t
     struct
     {
       DupinDB *		   db;
+      DupinLinkB *	   linkb;
 
       gchar 		   string[4096];
       gsize		   size;
@@ -147,6 +148,8 @@ struct ds_httpd_client_t
       DupinChangesFeedType param_feed;
       DupinChangesType	   param_style;
       gboolean		   param_include_docs;
+      gboolean		   param_include_links;
+      gchar *		   param_context_id;
     } changes_comet;
 
   } output;

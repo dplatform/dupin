@@ -21,6 +21,19 @@ dupin_util_is_valid_db_name (gchar * db)
 }
 
 gboolean
+dupin_util_is_valid_linkb_name (gchar * linkb)
+{
+  g_return_val_if_fail (linkb != NULL, FALSE);
+
+  if (*linkb == '_')
+    return FALSE;
+
+  /* FIXME: something else? */
+
+  return TRUE;
+}
+
+gboolean
 dupin_util_is_valid_view_name (gchar * view)
 {
   g_return_val_if_fail (view != NULL, FALSE);
@@ -56,6 +69,24 @@ dupin_util_is_valid_record_id (gchar * id)
  /* TODO - consider '/' as valid document id sub-parts I.e. _design/foo/bar-attachment */
 
   return (strlen(id)<=DUPIN_ID_MAX_LEN) ? TRUE : FALSE;
+}
+
+gboolean
+dupin_util_is_valid_absolute_uri (gchar * uri)
+{
+  g_return_val_if_fail (uri != NULL, FALSE);
+
+  gchar *check = (gchar *) uri;
+
+  if (g_ascii_isalpha (*check))
+    {
+      check++;
+      while (g_ascii_isalnum (*check) || *check == '+'
+             || *check == '-' || *check == '.')
+        check++;
+    }
+
+  return *check == ':';
 }
 
 /* see also http://engineering.twitter.com/2010/06/announcing-snowflake.html */

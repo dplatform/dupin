@@ -525,10 +525,11 @@ command_newView (GList * list)
   gchar *name = list->data;
   gchar *parent = g_list_nth_data (list, 1);
   gchar *is_db = g_list_nth_data (list, 2);
-  gchar *map = g_list_nth_data (list, 3);
-  gchar *map_lang = g_list_nth_data (list, 4);
-  gchar *reduce = g_list_nth_data (list, 5);
-  gchar *reduce_lang = g_list_nth_data (list, 6);
+  gchar *is_linkb = g_list_nth_data (list, 3);
+  gchar *map = g_list_nth_data (list, 4);
+  gchar *map_lang = g_list_nth_data (list, 5);
+  gchar *reduce = g_list_nth_data (list, 6);
+  gchar *reduce_lang = g_list_nth_data (list, 7);
 
   if (view)
     dupin_view_unref (view);
@@ -536,7 +537,9 @@ command_newView (GList * list)
   if (!
       (view =
        dupin_view_new (d, name, parent,
-		       !g_strcmp0 (is_db, "true") ? TRUE : FALSE, map,
+		       !g_strcmp0 (is_db, "true") ? TRUE : FALSE,
+		       !g_strcmp0 (is_linkb, "true") ? TRUE : FALSE,
+		       map,
 		       dupin_util_mr_lang_to_enum (map_lang), reduce,
 		       dupin_util_mr_lang_to_enum (reduce_lang), &error)))
     {

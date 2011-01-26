@@ -7,12 +7,17 @@ G_BEGIN_DECLS
 
 gboolean	dupin_util_is_valid_db_name	(gchar *	db);
 
+gboolean	dupin_util_is_valid_linkb_name	(gchar *	linkb);
+
 gboolean	dupin_util_is_valid_view_name	(gchar *	view);
 
 gboolean	dupin_util_is_valid_attachment_db_name
 						(gchar * attachment_db);
 
 gboolean	dupin_util_is_valid_record_id	(gchar *	id);
+
+gboolean	dupin_util_is_valid_absolute_uri
+						(gchar *	uri);
 
 gchar *		dupin_util_json_strescape	(const gchar *	string);
 

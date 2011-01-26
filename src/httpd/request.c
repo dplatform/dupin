@@ -19,6 +19,14 @@
 #define REQUEST_OBJ_ID		"_id"
 #define REQUEST_OBJ_REV		"_rev"
 #define REQUEST_OBJ_ATTACHMENTS	"_attachments"
+#define REQUEST_OBJ_LINKS	"_links"
+
+#define REQUEST_LINK_OBJ_CONTEXT_ID	"_context_id"
+#define REQUEST_LINK_OBJ_HREF		"_href"
+#define REQUEST_LINK_OBJ_REL		"_rel"
+#define REQUEST_LINK_OBJ_TAG		"_tag"
+#define REQUEST_LINK_OBJ_LABEL		"_label"
+#define REQUEST_LINK_OBJ_LABEL_DEFAULT	"links"
 
 #define REQUEST_OBJ_INLINE_ATTACHMENTS_DATA	"data"
 #define REQUEST_OBJ_INLINE_ATTACHMENTS_TYPE	"content_type"
@@ -26,7 +34,13 @@
 #define RESPONSE_OBJ_ID		"id"
 #define RESPONSE_OBJ_REV	"rev"
 
+#define RESPONSE_LINK_OBJ_CONTEXT_ID	REQUEST_LINK_OBJ_CONTEXT_ID
+#define RESPONSE_LINK_OBJ_HREF		"href"
+#define RESPONSE_LINK_OBJ_REL		"rel"
+#define RESPONSE_LINK_OBJ_TAG		"tag"
+
 #define DUPIN_DB_MAX_DOCS_COUNT     50
+#define DUPIN_LINKB_MAX_LINKS_COUNT 50
 #define DUPIN_VIEW_MAX_DOCS_COUNT   50
 #define DUPIN_ATTACHMENTS_COUNT	    100
 #define DUPIN_REVISIONS_COUNT	    100
@@ -34,23 +48,41 @@
 
 static JsonNode *request_record_obj (DupinRecord * record, gchar * id,
 					     gchar * mvcc);
+static JsonNode *request_link_record_obj (DupinLinkRecord * record, gchar * id,
+					     gchar * mvcc);
 static JsonNode *request_view_record_obj (DupinViewRecord * record,
 						  gchar * id);
 
 static gboolean request_record_insert (DSHttpdClient * client,
 				       JsonNode * obj_node, gchar * dbname,
 				       gchar * id, DSHttpStatusCode * code,
-				       DupinRecord ** ret_record);
+				       DupinRecord ** ret_record,
+		       		       GList ** docs_list, GList ** links_list);
+
+static gboolean request_link_record_insert (DSHttpdClient * client,
+				            JsonNode * obj_node, gchar * dbname,
+				            gchar * id, gchar * context_id, DSHttpStatusCode * code,
+				            DupinLinkRecord ** ret_record);
+
+/* TODO - check, bug ? shouldn't be DupinAttachmentRecord ? 
+          at the moment it is a special case due we need to access DupinRecord revision
+	  information when adding/updating the attachment - we just been lazy? */
 static gboolean request_record_attachment_insert (DSHttpdClient * client,
 				                  gchar * dbname, gchar * id,
 						  GList * title_parts,
 						  GList * arguments,
 						  DSHttpStatusCode * code,
 				                  DupinRecord ** ret_record);
+
 static gboolean request_record_response_single (DSHttpdClient * client,
 						DupinRecord * record);
 static gboolean request_record_response_multi (DSHttpdClient * client,
 					       GList * list);
+static gboolean request_record_response_multi_mixed
+						(DSHttpdClient * client,
+						 GList * docs_list, GList * links_list);
+static gboolean request_link_record_response_single (DSHttpdClient * client,
+						     DupinLinkRecord * record);
 
 /* WWW FUNCTION *************************************************************/
 static DSHttpStatusCode
@@ -352,9 +384,14 @@ request_global (DSHttpdClient * client, GList * path, GList * arguments)
 
 /* GET *********************************************************************/
 #define REQUEST_ALL_DBS		"_all_dbs"
+#define REQUEST_ALL_LINKBS	"_all_linkbs"
+#define REQUEST_ALL_ATTACH_DBS	"_all_attachment_dbs"
 #define REQUEST_ALL_VIEWS	"_all_views"
 #define REQUEST_ALL_CHANGES	"_changes"
 #define REQUEST_ALL_DOCS	"_all_docs"
+#define REQUEST_ATTACH_DBS	"_attach_dbs"
+#define REQUEST_ALL_LINKS	"_all_links"
+#define REQUEST_LINKBS		"_linkbs"
 #define REQUEST_VIEWS		"_views"
 #define REQUEST_SYNC		"_sync"
 #define REQUEST_UUIDS		"_uuids"
@@ -364,6 +401,12 @@ static DSHttpStatusCode request_global_get_server_info (DSHttpdClient * client,
 							GList * path,
                              				GList * arguments);
 static DSHttpStatusCode request_global_get_all_dbs (DSHttpdClient * client,
+						    GList * paths,
+						    GList * arguments);
+static DSHttpStatusCode request_global_get_all_linkbs (DSHttpdClient * client,
+						    GList * paths,
+						    GList * arguments);
+static DSHttpStatusCode request_global_get_all_attachment_dbs (DSHttpdClient * client,
 						    GList * paths,
 						    GList * arguments);
 static DSHttpStatusCode request_global_get_all_views (DSHttpdClient * client,
@@ -381,10 +424,29 @@ static DSHttpStatusCode request_global_get_record (DSHttpdClient * client,
 static DSHttpStatusCode request_global_get_view (DSHttpdClient * client,
 						 GList * path,
 						 GList * arguments);
-static DSHttpStatusCode request_global_get_changes (DSHttpdClient *
-						    client,
+static DSHttpStatusCode request_global_get_changes_database (DSHttpdClient * client,
 						    GList * paths,
 						    GList * arguments);
+
+static DSHttpStatusCode request_global_get_linkbase (DSHttpdClient * client,
+						    GList * paths,
+						    GList * arguments);
+static DSHttpStatusCode request_global_get_all_links_linkbase (DSHttpdClient * client,
+						    GList * paths,
+						    GList * arguments);
+
+static DSHttpStatusCode request_global_get_changes_linkbase (DSHttpdClient * client,
+						    GList * paths,
+						    GList * arguments);
+
+static DSHttpStatusCode request_global_get_record_linkbase (DSHttpdClient * client,
+						    GList * paths,
+						    GList * arguments);
+static DSHttpStatusCode request_global_get_linkbase_query (DSHttpdClient *
+							   client,
+							   GList * path,
+							   gchar * query);
+
 static DSHttpStatusCode request_global_get_all_docs_view (DSHttpdClient *
 							  client,
 							  GList * paths,
@@ -418,6 +480,14 @@ request_global_get (DSHttpdClient * client, GList * path, GList * arguments)
   if (!g_strcmp0 (path->data, REQUEST_ALL_DBS))
     return request_global_get_all_dbs (client, path, arguments);
 
+  /* GET /_all_linkbs */
+  if (!g_strcmp0 (path->data, REQUEST_ALL_LINKBS))
+    return request_global_get_all_linkbs (client, path, arguments);
+
+  /* GET /_all_attachment_dbs */
+  if (!g_strcmp0 (path->data, REQUEST_ALL_ATTACH_DBS))
+    return request_global_get_all_attachment_dbs (client, path, arguments);
+
   /* GET /_all_views */
   if (!g_strcmp0 (path->data, REQUEST_ALL_VIEWS))
     return request_global_get_all_views (client, path, arguments);
@@ -432,11 +502,31 @@ request_global_get (DSHttpdClient * client, GList * path, GList * arguments)
 
   /* GET /database/_changes */
   if (!path->next->next && !g_strcmp0 (path->next->data, REQUEST_ALL_CHANGES))
-    return request_global_get_changes (client, path, arguments);
+    return request_global_get_changes_database (client, path, arguments);
 
   /* GET /database/_all_docs */
   if (!path->next->next && !g_strcmp0 (path->next->data, REQUEST_ALL_DOCS))
     return request_global_get_all_docs (client, path, arguments);
+
+  if (!g_strcmp0 (path->data, REQUEST_LINKBS))
+    {
+      /* GET /_linkbs/linkbase */
+      if (!path->next->next)
+	return request_global_get_linkbase (client, path->next, arguments);
+
+      /* GET /_linkbs/linkbase/_all_links */
+      if (!g_strcmp0 (path->next->next->data, REQUEST_ALL_LINKS))
+        return request_global_get_all_links_linkbase (client, path->next, arguments);
+
+      /* GET /_linkbs/linkbase/_changes */
+      if (!g_strcmp0 (path->next->next->data, REQUEST_ALL_CHANGES))
+        return request_global_get_changes_linkbase (client, path->next, arguments);
+
+      /* GET /_linkbs/linkbase/id */
+      return request_global_get_record_linkbase (client, path->next, arguments);
+
+      return HTTP_STATUS_400;
+    }
 
   if (!g_strcmp0 (path->data, REQUEST_VIEWS))
     {
@@ -614,6 +704,136 @@ request_global_get_all_dbs:
 }
 
 static DSHttpStatusCode
+request_global_get_all_linkbs (DSHttpdClient * client, GList * paths,
+			    GList * arguments)
+{
+  guint i;
+  gchar **linkbs;
+  JsonArray *array;
+  JsonNode *node=NULL;
+  JsonGenerator *gen=NULL;
+
+  if (client->request != DS_HTTPD_REQUEST_GET)
+    return HTTP_STATUS_400;
+
+  array = json_array_new ();
+
+  if (array == NULL)
+    return HTTP_STATUS_500;
+
+  linkbs = dupin_get_linkbases (client->thread->data->dupin);
+
+  for (i = 0; linkbs && linkbs[i]; i++)
+    {
+      json_array_add_string_element (array, linkbs[i]);
+    }
+
+  client->output_type = DS_HTTPD_OUTPUT_STRING;
+  client->output_mime = g_strdup (HTTP_MIME_JSON);
+
+  node = json_node_new (JSON_NODE_ARRAY);
+
+  if (node == NULL)
+    goto request_global_get_all_linkbs;
+
+  json_node_set_array (node, array);
+
+  gen = json_generator_new();
+
+  if (gen == NULL)
+    goto request_global_get_all_linkbs;
+
+  json_generator_set_root (gen, node );
+  client->output.string.string = json_generator_to_data (gen,&client->output_size);
+
+  if (client->output.string.string == NULL)
+    goto request_global_get_all_linkbs;
+
+  if (gen != NULL)
+    g_object_unref (gen);
+  if (node != NULL)
+    json_node_free (node);
+  json_array_unref (array);
+  g_strfreev (linkbs);
+  return HTTP_STATUS_200;
+
+request_global_get_all_linkbs:
+
+  if (gen != NULL)
+    g_object_unref (gen);
+  if (node != NULL)
+    json_node_free (node);
+  json_array_unref (array);
+  g_strfreev (linkbs);
+  return HTTP_STATUS_500;
+}
+
+static DSHttpStatusCode
+request_global_get_all_attachment_dbs (DSHttpdClient * client, GList * paths,
+			    GList * arguments)
+{
+  guint i;
+  gchar **attachment_dbs;
+  JsonArray *array;
+  JsonNode *node=NULL;
+  JsonGenerator *gen=NULL;
+
+  if (client->request != DS_HTTPD_REQUEST_GET)
+    return HTTP_STATUS_400;
+
+  array = json_array_new ();
+
+  if (array == NULL)
+    return HTTP_STATUS_500;
+
+  attachment_dbs = dupin_get_attachment_dbs (client->thread->data->dupin);
+
+  for (i = 0; attachment_dbs && attachment_dbs[i]; i++)
+    {
+      json_array_add_string_element (array, attachment_dbs[i]);
+    }
+
+  client->output_type = DS_HTTPD_OUTPUT_STRING;
+  client->output_mime = g_strdup (HTTP_MIME_JSON);
+
+  node = json_node_new (JSON_NODE_ARRAY);
+
+  if (node == NULL)
+    goto request_global_get_all_attachment_dbs;
+
+  json_node_set_array (node, array);
+
+  gen = json_generator_new();
+
+  if (gen == NULL)
+    goto request_global_get_all_attachment_dbs;
+
+  json_generator_set_root (gen, node );
+  client->output.string.string = json_generator_to_data (gen,&client->output_size);
+
+  if (client->output.string.string == NULL)
+    goto request_global_get_all_attachment_dbs;
+
+  if (gen != NULL)
+    g_object_unref (gen);
+  if (node != NULL)
+    json_node_free (node);
+  json_array_unref (array);
+  g_strfreev (attachment_dbs);
+  return HTTP_STATUS_200;
+
+request_global_get_all_attachment_dbs:
+
+  if (gen != NULL)
+    g_object_unref (gen);
+  if (node != NULL)
+    json_node_free (node);
+  json_array_unref (array);
+  g_strfreev (attachment_dbs);
+  return HTTP_STATUS_500;
+}
+
+static DSHttpStatusCode
 request_global_get_all_views (DSHttpdClient * client, GList * paths,
 			      GList * arguments)
 {
@@ -687,23 +907,39 @@ request_global_get_all_views:
 #define REQUEST_GET_ALL_DOCS_INCLUSIVEEND  "inclusive_end"
 #define REQUEST_GET_ALL_DOCS_INCLUDE_DOCS  "include_docs"
 
+#define REQUEST_GET_ALL_LINKS_DESCENDING   	REQUEST_GET_ALL_DOCS_DESCENDING
+#define REQUEST_GET_ALL_LINKS_COUNT	   	REQUEST_GET_ALL_DOCS_COUNT
+#define REQUEST_GET_ALL_LINKS_OFFSET	   	REQUEST_GET_ALL_DOCS_OFFSET
+#define REQUEST_GET_ALL_LINKS_KEY	   	REQUEST_GET_ALL_DOCS_KEY
+#define REQUEST_GET_ALL_LINKS_STARTKEY	   	REQUEST_GET_ALL_DOCS_STARTKEY
+#define REQUEST_GET_ALL_LINKS_ENDKEY	   	REQUEST_GET_ALL_DOCS_ENDKEY
+#define REQUEST_GET_ALL_LINKS_INCLUSIVEEND 	REQUEST_GET_ALL_DOCS_INCLUSIVEEND
+#define REQUEST_GET_ALL_LINKS_INCLUDE_LINKS	"include_links"
+
 #define REQUEST_GET_ALL_CHANGES_SINCE	      "since"
 #define REQUEST_GET_ALL_CHANGES_STYLE	      "style"
 #define REQUEST_GET_ALL_CHANGES_FEED	      "feed"
 #define REQUEST_GET_ALL_CHANGES_INCLUDE_DOCS  "include_docs"
 #define REQUEST_GET_ALL_CHANGES_HEARTBEAT     "heartbeat"
 #define REQUEST_GET_ALL_CHANGES_TIMEOUT       "timeout"
+#define REQUEST_GET_ALL_CHANGES_INCLUDE_LINKS "include_links"
+#define REQUEST_GET_ALL_CHANGES_CONTEXT_ID    "context_id"
 
 #define REQUEST_GET_ALL_CHANGES_HEARTBEAT_DEFAULT  60000
 #define REQUEST_GET_ALL_CHANGES_TIMEOUT_DEFAULT    60000
+
 #define REQUEST_GET_ALL_CHANGES_STYLE_DEFAULT	   "main_only"
+
+#define REQUEST_GET_ALL_CHANGES_STYLE_ALL_LINKS	   	"all_links"
+#define REQUEST_GET_ALL_CHANGES_STYLE_WEBLINKS	   	"web_links"
+#define REQUEST_GET_ALL_CHANGES_STYLE_RELATIONSHIPS	"relationships"
 
 #define REQUEST_GET_ALL_CHANGES_FEED_POLL	"poll"
 #define REQUEST_GET_ALL_CHANGES_FEED_LONGPOLL	"longpoll"
 #define REQUEST_GET_ALL_CHANGES_FEED_CONTINUOUS	"continuous"
 
 static DSHttpStatusCode
-request_global_get_changes (DSHttpdClient * client, GList * path,
+request_global_get_changes_database (DSHttpdClient * client, GList * path,
 			    GList * arguments)
 {
   DupinDB *db;
@@ -860,7 +1096,7 @@ request_global_get_changes (DSHttpdClient * client, GList * path,
   array = json_array_new ();
 
   if (array == NULL)
-    goto request_global_get_changes_error;
+    goto request_global_get_changes_database_error;
 
   for (list = results; list; list = list->next)
     {
@@ -880,7 +1116,7 @@ request_global_get_changes (DSHttpdClient * client, GList * path,
             {
               json_node_free (change);
               json_array_unref (array);
-              goto request_global_get_changes_error;
+              goto request_global_get_changes_database_error;
             }
 
           JsonNode * doc = NULL;
@@ -889,7 +1125,7 @@ request_global_get_changes (DSHttpdClient * client, GList * path,
             {
               json_node_free (change);
               json_array_unref (array);
-              goto request_global_get_changes_error;
+              goto request_global_get_changes_database_error;
             }
 
           dupin_record_close (db_record);
@@ -904,7 +1140,7 @@ request_global_get_changes (DSHttpdClient * client, GList * path,
 
   if (dupin_database_get_max_rowid (db, &last_seq) == FALSE)
     {
-      goto request_global_get_changes_error;
+      goto request_global_get_changes_database_error;
     }
 
   json_object_set_int_member (obj, "last_seq", last_seq);
@@ -915,20 +1151,20 @@ request_global_get_changes (DSHttpdClient * client, GList * path,
   node = json_node_new (JSON_NODE_OBJECT);
 
   if (node == NULL)
-    goto request_global_get_changes_error;
+    goto request_global_get_changes_database_error;
 
   json_node_set_object (node, obj);
 
   gen = json_generator_new();
 
   if (gen == NULL)
-    goto request_global_get_changes_error;
+    goto request_global_get_changes_database_error;
 
   json_generator_set_root (gen, node );
   client->output.string.string = json_generator_to_data (gen,&client->output_size);
 
   if (client->output.string.string == NULL)
-    goto request_global_get_changes_error;
+    goto request_global_get_changes_database_error;
 
   if( results )
     dupin_database_get_changes_list_close (results);
@@ -944,7 +1180,7 @@ request_global_get_changes (DSHttpdClient * client, GList * path,
 
   return HTTP_STATUS_200;
 
-request_global_get_changes_error:
+request_global_get_changes_database_error:
 
   if( results )
     dupin_database_get_changes_list_close (results);
@@ -1246,6 +1482,8 @@ request_global_get_database_error:
 #define REQUEST_RECORD_ARG_REV	"rev"
 #define REQUEST_RECORD_ARG_REVS	"revs"
 
+#define REQUEST_RECORD_ARG_LINKS_TAG	"links_tag"
+
 #define REQUEST_FIELDS		"_fields"
 
 static DSHttpStatusCode
@@ -1276,7 +1514,7 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 
   if (ch == '_')
     {
-      /* GET /_special_document/document_ID or /_special_document/document_ID/attachment  */
+      /* GET _special_document/document_ID or _special_document/document_ID/attachment  */
       if (path->next->next)
         {
           doc_id = g_strdup_printf ("%s/%s", (gchar *)path->next->data, (gchar *)path->next->next->data);
@@ -1316,7 +1554,7 @@ request_global_get_record (DSHttpdClient * client, GList * path,
             }
         }
 
-      /* GET /document_ID/attachment or /document_ID/attachment */
+      /* GET document_ID/attachment or document_ID/attachment */
       doc_id = g_strdup_printf ("%s", (gchar *)path->next->data);
     }
 
@@ -1672,6 +1910,776 @@ request_global_get_record_error:
   return HTTP_STATUS_500;
 }
 
+/* GET link bases */
+
+static DSHttpStatusCode
+request_global_get_linkbase (DSHttpdClient * client, GList * path,
+			     GList * arguments)
+{
+  DupinLinkB *linkb;
+  GList *list;
+  JsonObject *obj;
+  JsonNode *node=NULL;
+  JsonGenerator *gen=NULL;
+
+  for (list = arguments; list; list = list->next)
+    {
+      dupin_keyvalue_t *kv = list->data;
+
+      if (!g_strcmp0 (kv->key, REQUEST_QUERY))
+	return request_global_get_linkbase_query (client, path, kv->value);
+    }
+
+  if (!
+      (linkb =
+       dupin_linkbase_open (client->thread->data->dupin, path->data, NULL)))
+    return HTTP_STATUS_404;
+
+  obj = json_object_new ();
+
+  if (obj == NULL)
+    {
+      dupin_linkbase_unref (linkb);
+      return HTTP_STATUS_500;
+    }
+
+  json_object_set_string_member (obj, "linkbase_name", (gchar *) dupin_linkbase_get_name (linkb));
+  json_object_set_string_member (obj, "linkbase_parent", (gchar *) dupin_linkbase_get_parent (linkb));
+  json_object_set_int_member (obj, "link_count", dupin_linkbase_count (linkb, DP_COUNT_EXIST));
+  json_object_set_int_member (obj, "link_del_count", dupin_linkbase_count (linkb, DP_COUNT_DELETE));
+
+  json_object_set_int_member (obj, "disk_size", dupin_linkbase_get_size (linkb));
+
+  json_object_set_boolean_member (obj, "compact_running", dupin_linkbase_is_compacting (linkb));
+
+  node = json_node_new (JSON_NODE_OBJECT);
+
+  if (node == NULL)
+    goto request_global_get_linkbase_error;
+
+  json_node_set_object (node, obj);
+
+  gen = json_generator_new();
+
+  if (gen == NULL)
+    goto request_global_get_linkbase_error;
+
+  json_generator_set_root (gen, node );
+  client->output.string.string = json_generator_to_data (gen,&client->output_size);
+
+  if (client->output.string.string == NULL)
+    goto request_global_get_linkbase_error;
+
+  client->output_mime = g_strdup (HTTP_MIME_JSON);
+  client->output_type = DS_HTTPD_OUTPUT_STRING;
+
+  if (gen != NULL)
+    g_object_unref (gen);
+  if (node != NULL)
+    json_node_free (node);
+  json_object_unref (obj);
+  dupin_linkbase_unref (linkb);
+  return HTTP_STATUS_200;
+
+request_global_get_linkbase_error:
+
+  if (gen != NULL)
+    g_object_unref (gen);
+  if (node != NULL)
+    json_node_free (node);
+  json_object_unref (obj);
+  dupin_linkbase_unref (linkb);
+  return HTTP_STATUS_500;
+}
+
+static DSHttpStatusCode
+request_global_get_all_links_linkbase (DSHttpdClient * client, GList * path,
+			     	       GList * arguments)
+{
+  DupinLinkB *linkb;
+
+  GList *list;
+  GList *results;
+
+  gboolean descending = FALSE;
+  guint count = DUPIN_LINKB_MAX_LINKS_COUNT;
+  guint offset = 0;
+  gsize total_rows = 0;
+
+  JsonObject *obj;
+  JsonNode *node=NULL;
+  JsonArray *array;
+  JsonGenerator *gen=NULL;
+
+  if (!
+      (linkb =
+       dupin_linkbase_open (client->thread->data->dupin, path->data, NULL)))
+    return HTTP_STATUS_404;
+
+  for (list = arguments; list; list = list->next)
+    {
+      dupin_keyvalue_t *kv = list->data;
+
+      if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_DESCENDING)
+	  && !g_strcmp0 (kv->value, "true"))
+	descending = TRUE;
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_COUNT))
+	count = atoi (kv->value);
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_OFFSET))
+	offset = atoi (kv->value);
+    }
+
+  total_rows = dupin_linkbase_count (linkb, DP_COUNT_EXIST);
+
+  if (dupin_link_record_get_list (linkb, count, offset, 0, 0, DP_COUNT_EXIST, DP_ORDERBY_ROWID, descending, &results, NULL) ==
+      FALSE)
+    {
+      dupin_linkbase_unref (linkb);
+      return HTTP_STATUS_500;
+    }
+
+  obj = json_object_new ();
+
+  if (obj == NULL)
+    {
+      if( results )
+        dupin_link_record_get_list_close (results);
+
+      dupin_linkbase_unref (linkb);
+      return HTTP_STATUS_500;
+    }
+
+  json_object_set_int_member (obj, "total_rows", total_rows);
+  json_object_set_int_member (obj, "offset", offset);
+  json_object_set_int_member (obj, "rows_per_page", count);
+
+  array = json_array_new ();
+
+  if (array == NULL)
+    goto request_global_get_all_docs_error;
+
+  for (list = results; list; list = list->next)
+    {
+      DupinLinkRecord *record = list->data;
+      JsonNode *on;
+
+      if (!
+	  (on =
+	   request_link_record_obj (record, (gchar *) dupin_link_record_get_id (record),
+			       dupin_link_record_get_last_revision (record))))
+        {
+	  json_array_unref (array); /* if here, array is not under obj responsability yet */
+	  goto request_global_get_all_docs_error;
+        }
+
+      json_array_add_element( array, on);
+    }
+
+  json_object_set_array_member (obj, "rows", array );
+
+  client->output_mime = g_strdup (HTTP_MIME_JSON);
+  client->output_type = DS_HTTPD_OUTPUT_STRING;
+
+  node = json_node_new (JSON_NODE_OBJECT);
+
+  if (node == NULL)
+    goto request_global_get_all_docs_error;
+
+  json_node_set_object (node, obj);
+
+  gen = json_generator_new();
+
+  if (gen == NULL)
+    goto request_global_get_all_docs_error;
+
+  json_generator_set_root (gen, node );
+  client->output.string.string = json_generator_to_data (gen,&client->output_size);
+
+  if (client->output.string.string == NULL)
+    goto request_global_get_all_docs_error;
+
+  if( results )
+    dupin_link_record_get_list_close (results);
+
+  dupin_linkbase_unref (linkb);
+
+  if (gen != NULL)
+    g_object_unref (gen);
+  if (node != NULL)
+    json_node_free (node);
+  json_object_unref (obj);
+
+  return HTTP_STATUS_200;
+
+request_global_get_all_docs_error:
+
+  if( results )
+    dupin_link_record_get_list_close (results);
+
+  dupin_linkbase_unref (linkb);
+
+  if (gen != NULL)
+    g_object_unref (gen);
+  if (node != NULL)
+    json_node_free (node);
+  json_object_unref (obj);
+
+  return HTTP_STATUS_500;
+}
+
+static DSHttpStatusCode
+request_global_get_changes_linkbase (DSHttpdClient * client, GList * path,
+			    	     GList * arguments)
+{
+  DupinLinkB *linkb;
+
+  GList *list;
+  GList *results;
+
+  gboolean descending = FALSE;
+  guint count = DUPIN_DB_MAX_CHANGES_COUNT;
+
+  guint heartbeat=REQUEST_GET_ALL_CHANGES_HEARTBEAT_DEFAULT;
+  guint timeout=REQUEST_GET_ALL_CHANGES_TIMEOUT_DEFAULT;
+
+  gchar * context_id = NULL;
+
+  gsize total_rows = 0;
+
+  gsize last_seq=0;
+  gsize since = 0;
+  DupinChangesType style = DP_CHANGES_MAIN_ONLY;
+  DupinChangesFeedType feed = DP_CHANGES_FEED_POLL;
+  gboolean include_links = FALSE;
+
+  JsonObject *obj;
+  JsonNode *node=NULL;
+  JsonArray *array;
+  JsonGenerator *gen=NULL;
+
+  for (list = arguments; list; list = list->next)
+    {
+      dupin_keyvalue_t *kv = list->data;
+
+      if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_DESCENDING)
+	  && !g_strcmp0 (kv->value, "true"))
+	descending = TRUE;
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_COUNT))
+	count = atoi (kv->value);
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_SINCE))
+	since = (gsize)atof (kv->value);
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_HEARTBEAT))
+	heartbeat = atoi (kv->value);
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_TIMEOUT))
+	timeout = atoi (kv->value);
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_CONTEXT_ID))
+	context_id = kv->value;
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_STYLE))
+        {
+	  if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_CHANGES_STYLE_ALL_LINKS))
+	    style = DP_CHANGES_ALL_LINKS;
+	  else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_CHANGES_STYLE_WEBLINKS))
+	    style = DP_CHANGES_WEB_LINKS;
+	  else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_CHANGES_STYLE_RELATIONSHIPS))
+	    style = DP_CHANGES_RELATIONSHIPS;
+        }
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_FEED))
+        {
+	  if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_CHANGES_FEED_LONGPOLL))
+            {
+	      feed = DP_CHANGES_FEED_LONGPOLL;
+            }
+	  else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_CHANGES_FEED_CONTINUOUS))
+            {
+	      feed = DP_CHANGES_FEED_CONTINUOUS;
+            }
+	  else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_CHANGES_FEED_POLL))
+            {
+	      feed = DP_CHANGES_FEED_POLL;
+            }
+          else
+            {
+              return HTTP_STATUS_400;
+            }
+        }
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_INCLUDE_LINKS))
+        {
+          if (g_strcmp0 (kv->value,"false") && g_strcmp0 (kv->value,"FALSE") &&
+              g_strcmp0 (kv->value,"true") && g_strcmp0 (kv->value,"TRUE"))
+            {
+              return HTTP_STATUS_400;
+            }
+
+          include_links = (!g_strcmp0 (kv->value,"false") || !g_strcmp0 (kv->value,"FALSE")) ? FALSE : TRUE;
+        }
+    }
+
+  if (feed == DP_CHANGES_FEED_LONGPOLL
+      || feed == DP_CHANGES_FEED_CONTINUOUS)
+    {
+      if (!  (client->output.changes_comet.linkb =
+			dupin_linkbase_open (client->thread->data->dupin, path->data, NULL)))
+        return HTTP_STATUS_404;
+
+      if (dupin_linkbase_get_max_rowid (client->output.changes_comet.linkb, &client->output.changes_comet.change_total_changes) == FALSE)
+        {
+          dupin_linkbase_unref (client->output.changes_comet.linkb);
+          return HTTP_STATUS_500;
+        }
+
+      client->output.changes_comet.change_size = 0;
+      client->output.changes_comet.change_string = NULL;
+      client->output.changes_comet.change_errors = 0;
+      client->output.changes_comet.param_heartbeat = heartbeat;
+      client->output.changes_comet.param_timeout = timeout;
+      client->output.changes_comet.param_descending = descending;
+      client->output.changes_comet.param_style = style;
+      client->output.changes_comet.param_since = since;
+      client->output.changes_comet.param_feed = feed;
+      client->output.changes_comet.param_include_links = include_links;
+      client->output.changes_comet.param_context_id = context_id;
+      client->output.changes_comet.change_generated = FALSE;
+      client->output.changes_comet.change_last_seq = 0;
+
+      client->output_type = DS_HTTPD_OUTPUT_CHANGES_COMET;
+
+      if (feed == DP_CHANGES_FEED_LONGPOLL)
+        client->output_mime = g_strdup (HTTP_MIME_JSON);
+      else
+        client->output_mime = g_strdup (HTTP_MIME_TEXTPLAIN); /* this will not be valid JSON { ...} { ... } ... */
+
+      // we can not set output size and we use Transfer-Encoding: chunked instead - see httpd.c
+
+      return HTTP_STATUS_200;
+    }
+
+  /* feed type poll */
+
+  if (!
+      (linkb =
+       dupin_linkbase_open (client->thread->data->dupin, path->data, NULL)))
+    return HTTP_STATUS_404;
+
+  if (dupin_linkbase_get_total_changes (linkb, &total_rows, since+1, 0, style, DP_COUNT_CHANGES, TRUE, context_id, NULL) == FALSE)
+    {
+      dupin_linkbase_unref (linkb);
+      return HTTP_STATUS_500;
+    }
+
+  if (dupin_linkbase_get_changes_list (linkb, count, 0, since+1, 0, style, DP_COUNT_CHANGES, DP_ORDERBY_ROWID, descending, context_id, &results, NULL) ==
+      FALSE)
+    {
+      dupin_linkbase_unref (linkb);
+      return HTTP_STATUS_500;
+    }
+
+  obj = json_object_new ();
+
+  if (obj == NULL)
+    {
+      if( results )
+        dupin_linkbase_get_changes_list_close (results);
+      dupin_linkbase_unref (linkb);
+      return HTTP_STATUS_500;
+    }
+
+  json_object_set_int_member (obj, "total_rows", total_rows);
+  json_object_set_int_member (obj, "rows_per_page", count);
+
+  array = json_array_new ();
+
+  if (array == NULL)
+    goto request_global_get_changes_linkbase_error;
+
+  for (list = results; list; list = list->next)
+    {
+      JsonNode * change = json_node_copy (list->data);
+
+      if (include_links == TRUE)
+        {
+          JsonObject * on_obj = json_node_get_object (change);
+
+          gchar * record_id   = (gchar *) json_object_get_string_member (on_obj, RESPONSE_OBJ_ID);
+	  gchar * record_mvcc = (gchar *) json_object_get_string_member (
+						json_array_get_object_element (json_object_get_array_member (on_obj, "changes"), 0)
+						, RESPONSE_OBJ_REV);
+
+          DupinLinkRecord * link_record=NULL;
+          if (!(link_record = dupin_link_record_read (linkb, record_id, NULL)))
+            {
+              json_node_free (change);
+              json_array_unref (array);
+              goto request_global_get_changes_linkbase_error;
+            }
+
+          JsonNode * link = NULL;
+
+          if (! (link = request_link_record_obj (link_record, record_id, record_mvcc)))
+            {
+              json_node_free (change);
+              json_array_unref (array);
+              goto request_global_get_changes_linkbase_error;
+            }
+
+          dupin_link_record_close (link_record);
+
+          json_object_set_member (on_obj, "link", link);
+        }
+
+      json_array_add_element (array, change);
+    }
+
+  json_object_set_array_member (obj, "results", array );
+
+  if (dupin_linkbase_get_max_rowid (linkb, &last_seq) == FALSE)
+    {
+      goto request_global_get_changes_linkbase_error;
+    }
+
+  json_object_set_int_member (obj, "last_seq", last_seq);
+
+  client->output_mime = g_strdup (HTTP_MIME_JSON);
+  client->output_type = DS_HTTPD_OUTPUT_STRING;
+
+  node = json_node_new (JSON_NODE_OBJECT);
+
+  if (node == NULL)
+    goto request_global_get_changes_linkbase_error;
+
+  json_node_set_object (node, obj);
+
+  gen = json_generator_new();
+
+  if (gen == NULL)
+    goto request_global_get_changes_linkbase_error;
+
+  json_generator_set_root (gen, node );
+  client->output.string.string = json_generator_to_data (gen,&client->output_size);
+
+  if (client->output.string.string == NULL)
+    goto request_global_get_changes_linkbase_error;
+
+  if( results )
+    dupin_linkbase_get_changes_list_close (results);
+
+  dupin_linkbase_unref (linkb);
+
+  if (gen != NULL)
+    g_object_unref (gen);
+  if (node != NULL)
+    json_node_free (node);
+
+  json_object_unref (obj);
+
+  return HTTP_STATUS_200;
+
+request_global_get_changes_linkbase_error:
+
+  if( results )
+    dupin_linkbase_get_changes_list_close (results);
+
+  dupin_linkbase_unref (linkb);
+
+  if (gen != NULL)
+    g_object_unref (gen);
+  if (node != NULL)
+    json_node_free (node);
+  json_object_unref (obj);
+
+  return HTTP_STATUS_500;
+}
+
+static DSHttpStatusCode
+request_global_get_record_linkbase (DSHttpdClient * client, GList * path,
+			   	    GList * arguments)
+{
+  gchar * mvcc = NULL;
+  gboolean allrevs = FALSE;
+  gchar * request_fields=NULL;
+
+  GList *list=NULL;
+
+  DupinLinkB *linkb;
+  DupinLinkRecord *record;
+
+  gboolean descending = FALSE;
+  guint count = DUPIN_REVISIONS_COUNT;
+  guint offset = 0;
+
+  JsonNode *node=NULL;
+
+  gchar * link_id=NULL;
+
+  /* check if special linkument name/id */
+  gunichar ch = g_utf8_get_char (path->next->data);
+
+  if (ch == '_')
+    {
+      /* GET _special_document/link_ID */
+      if (path->next->next)
+        {
+          link_id = g_strdup_printf ("%s/%s", (gchar *)path->next->data, (gchar *)path->next->next->data);
+
+          if (path->next->next->next)
+            {
+              if (!g_strcmp0 (path->next->next->next->data, REQUEST_FIELDS))
+                {
+                  if (!path->next->next->next->next
+                       || !g_strcmp0 (path->next->next->next->next->data, REQUEST_OBJ_LINKS))
+                    return HTTP_STATUS_400;
+
+                  request_fields=(gchar *)path->next->next->next->next->data;
+                }
+            }
+        }
+    }
+  else
+    {
+      if (path->next->next)
+        {
+          if (!g_strcmp0 (path->next->next->data, REQUEST_FIELDS))
+            {
+              if (!path->next->next->next
+                  || !g_strcmp0 (path->next->next->next->data, REQUEST_OBJ_LINKS))
+                return HTTP_STATUS_400;
+
+              request_fields=(gchar *)path->next->next->next->data;
+            }
+        }
+
+      /* GET link_ID */
+      link_id = g_strdup_printf ("%s", (gchar *)path->next->data);
+    }
+
+  if (!
+      (linkb =
+       dupin_linkbase_open (client->thread->data->dupin, path->data, NULL)))
+    {
+      g_free (link_id);
+      return HTTP_STATUS_404;
+    }
+
+  if (!(record = dupin_link_record_read (linkb, link_id, NULL)))
+    {
+      dupin_linkbase_unref (linkb);
+      g_free (link_id);
+      return HTTP_STATUS_404;
+    }
+
+  for (list = arguments; list; list = list->next)
+    {
+      dupin_keyvalue_t *kv = list->data;
+
+      if (!g_strcmp0 (kv->key, REQUEST_RECORD_ARG_REV))
+        {
+          if (dupin_util_is_valid_mvcc (kv->value) == FALSE)
+            {
+              dupin_linkbase_unref (linkb);
+              g_free (link_id);
+              return HTTP_STATUS_400;
+            }
+	  mvcc = kv->value;
+        }
+
+      else if (!g_strcmp0 (kv->key, REQUEST_RECORD_ARG_REVS)
+	       && !g_strcmp0 (kv->value, "true"))
+	allrevs = TRUE;
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_DESCENDING)
+	  && !g_strcmp0 (kv->value, "true"))
+	descending = TRUE;
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_COUNT))
+	count = atoi (kv->value);
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_OFFSET))
+	offset = atoi (kv->value);
+    }
+
+  /* Show all revisions: */
+  if (allrevs == TRUE)
+    {
+      GList * revisions=NULL;
+      GList * list=NULL;
+      JsonObject *obj;
+      JsonArray *array;
+      gsize total_rows = 0;
+
+      node = json_node_new (JSON_NODE_OBJECT);
+
+      if (node == NULL)
+	{
+	  dupin_link_record_close (record);
+	  dupin_linkbase_unref (linkb);
+          g_free (link_id);
+	  return HTTP_STATUS_500;
+	}
+
+      obj = json_object_new ();
+
+      if (obj == NULL)
+        goto request_global_get_record_error;
+
+      json_node_take_object (node, obj);
+
+      array = json_array_new ();
+
+      if (array == NULL)
+        goto request_global_get_record_error;
+
+      if ((dupin_link_record_get_revisions_list (record,
+				           count,
+					   //offset, 1, 0, DP_COUNT_ALL, DP_ORDERBY_REV, descending,
+					   offset, 0, 0, DP_COUNT_ALL, DP_ORDERBY_REV, descending,
+					   &revisions, NULL) == FALSE)
+         || (dupin_link_record_get_total_revisions (record, &total_rows, NULL) == FALSE))
+	{
+	  dupin_link_record_close (record);
+	  dupin_linkbase_unref (linkb);
+          g_free (link_id);
+	  return HTTP_STATUS_500;
+	}
+
+      for (list = revisions; list; list = list->next)
+        {
+	  JsonNode *on;
+
+	  if (!
+	      (on =
+	       request_link_record_obj (record,
+				   (gchar *) dupin_link_record_get_id (record),
+				   (gchar *) list->data)))
+            {
+              dupin_link_record_get_revisions_list_close (revisions);
+	      json_array_unref (array);
+	      goto request_global_get_record_error;
+            }
+
+          if (request_fields != NULL)
+            {
+              JsonObject * on_obj = json_node_get_object (on);
+
+              if (json_object_has_member (on_obj, (const gchar *)request_fields) == FALSE)
+                {
+                  dupin_link_record_get_revisions_list_close (revisions);
+	          json_array_unref (array);
+	          dupin_link_record_close (record);
+	          dupin_linkbase_unref (linkb);
+                  g_free (link_id);
+	          return HTTP_STATUS_404;
+                }
+
+              json_array_add_element( array, json_node_copy (json_object_get_member (on_obj, (const gchar *)request_fields)));
+              json_node_free (on);
+            }
+          else
+            {
+              json_array_add_element( array, on);
+            }
+        }
+
+      dupin_link_record_get_revisions_list_close (revisions);
+
+      json_object_set_int_member (obj, "total_rows", total_rows);
+      json_object_set_int_member (obj, "offset", offset);
+      json_object_set_int_member (obj, "rows_per_page", count);
+
+      json_object_set_array_member (obj, "_revs_info", array );
+    }
+
+  /* Show a single revision: */
+  else
+    {
+      JsonNode *node_temp=NULL;
+
+      if (mvcc == NULL)
+	mvcc = dupin_link_record_get_last_revision (record);
+
+      else if (dupin_util_mvcc_revision_cmp (mvcc, dupin_link_record_get_last_revision (record)) > 0)
+	{
+	  dupin_link_record_close (record);
+	  dupin_linkbase_unref (linkb);
+          g_free (link_id);
+	  return HTTP_STATUS_404;
+	}
+
+      if (!
+	  (node_temp =
+	   request_link_record_obj (record, (gchar *) dupin_link_record_get_id (record),
+			       mvcc)))
+	{
+	  dupin_link_record_close (record);
+	  dupin_linkbase_unref (linkb);
+          g_free (link_id);
+	  return HTTP_STATUS_404;
+	}
+
+      if (request_fields != NULL)
+        {
+          JsonObject * node_obj = json_node_get_object (node_temp);
+
+          if (json_object_has_member (node_obj, (const gchar *)request_fields) == FALSE)
+            {
+              if (node_temp != NULL)
+                json_node_free (node_temp);
+	      dupin_link_record_close (record);
+	      dupin_linkbase_unref (linkb);
+              g_free (link_id);
+	      return HTTP_STATUS_404;
+            }
+
+          node = json_node_copy (json_object_get_member (node_obj, (const gchar *)request_fields));
+        }
+      else
+        {
+          node = json_node_copy (node_temp);
+        }
+
+      json_node_free (node_temp);
+    }
+
+  /* Writing: */
+
+  client->output.string.string = dupin_util_json_serialize (node);
+  client->output_size = strlen(client->output.string.string);
+
+  if (client->output.string.string == NULL)
+    goto request_global_get_record_error;
+
+  client->output_mime = g_strdup (HTTP_MIME_JSON);
+  client->output_type = DS_HTTPD_OUTPUT_STRING;
+
+  if (node != NULL)
+    json_node_free (node);
+
+  dupin_link_record_close (record);
+  dupin_linkbase_unref (linkb);
+
+  g_free (link_id);
+
+  return HTTP_STATUS_200;
+
+request_global_get_record_error:
+
+  if (node != NULL)
+    json_node_free (node);
+
+  dupin_link_record_close (record);
+  dupin_linkbase_unref (linkb);
+
+  g_free (link_id);
+
+  return HTTP_STATUS_500;
+}
+
 static DSHttpStatusCode
 request_global_get_view (DSHttpdClient * client, GList * path,
 			 GList * arguments)
@@ -1714,6 +2722,7 @@ request_global_get_view (DSHttpdClient * client, GList * path,
 
   json_object_set_string_member (subobj, "name", (gchar *) dupin_view_get_parent (view));
   json_object_set_boolean_member (subobj, "is_db", dupin_view_get_parent_is_db (view));
+  json_object_set_boolean_member (subobj, "is_linkb", dupin_view_get_parent_is_linkb (view));
   json_object_set_object_member (obj, "parent", subobj );
 
   subobj = json_object_new ();
@@ -1813,6 +2822,7 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
 {
   DupinView *view=NULL;
   DupinDB *parent_db=NULL;
+  DupinLinkB *parent_linkb=NULL;
   DupinView *parent_view=NULL;
 
   GList *list;
@@ -1916,6 +2926,14 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
               return HTTP_STATUS_404;
             }
         }
+      else if (dupin_view_get_parent_is_linkb (view) == TRUE)
+        {
+          if (!(parent_linkb = dupin_linkbase_open (view->d, view->parent, NULL)))
+            {
+              dupin_view_unref (view);
+              return HTTP_STATUS_404;
+            }
+        }
       else
         {
           if (!(parent_view = dupin_view_open (view->d, view->parent, NULL)))
@@ -1952,6 +2970,9 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
               if (parent_db != NULL)
                 dupin_database_unref (parent_db);
 
+              if (parent_linkb != NULL)
+                dupin_linkbase_unref (parent_linkb);
+
               if (parent_view != NULL)
                 dupin_view_unref (parent_view);
 
@@ -1983,6 +3004,9 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
               if (parent_db != NULL)
                 dupin_database_unref (parent_db);
 
+              if (parent_linkb != NULL)
+                dupin_linkbase_unref (parent_linkb);
+
               if (parent_view != NULL)
                 dupin_view_unref (parent_view);
 
@@ -2010,6 +3034,9 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
       if (parent_db != NULL)
         dupin_database_unref (parent_db);
 
+      if (parent_linkb != NULL)
+        dupin_linkbase_unref (parent_linkb);
+
       if (parent_view != NULL)
         dupin_view_unref (parent_view);
 
@@ -2031,6 +3058,9 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
       if (parent_db != NULL)
         dupin_database_unref (parent_db);
 
+      if (parent_linkb != NULL)
+        dupin_linkbase_unref (parent_linkb);
+
       if (parent_view != NULL)
         dupin_view_unref (parent_view);
 
@@ -2045,6 +3075,9 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
     {
       if (parent_db != NULL)
         dupin_database_unref (parent_db);
+
+      if (parent_linkb != NULL)
+        dupin_linkbase_unref (parent_linkb);
 
       if (parent_view != NULL)
         dupin_view_unref (parent_view);
@@ -2114,6 +3147,20 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
 	          dupin_record_close (db_record);
                 }
             }
+          else if (dupin_view_get_parent_is_linkb (view) == TRUE)
+            {
+	      DupinLinkRecord * linkb_record=NULL;
+              if (!(linkb_record = dupin_link_record_read (parent_linkb, record_id, NULL)))
+                {
+                  doc = json_node_new (JSON_NODE_NULL);
+                }
+              else
+                {
+                  doc = json_node_copy (dupin_link_record_get_revision_node (linkb_record, NULL));
+
+	          dupin_link_record_close (linkb_record);
+                }
+            }
           else
             {
               DupinViewRecord * view_record=NULL;
@@ -2175,6 +3222,9 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
   if (parent_db != NULL)
     dupin_database_unref (parent_db);
 
+  if (parent_linkb != NULL)
+    dupin_linkbase_unref (parent_linkb);
+
   if (parent_view != NULL)
     dupin_view_unref (parent_view);
 
@@ -2201,6 +3251,9 @@ request_global_get_all_docs_view_error:
 
   if (parent_db != NULL)
     dupin_database_unref (parent_db);
+
+  if (parent_linkb != NULL)
+    dupin_linkbase_unref (parent_linkb);
 
   if (parent_view != NULL)
     dupin_view_unref (parent_view);
@@ -2373,6 +3426,94 @@ request_global_get_database_query_error:
 }
 
 static DSHttpStatusCode
+request_global_get_linkbase_query (DSHttpdClient * client, GList * path,
+				   gchar * query)
+{
+  DupinLinkB *linkb;
+  GList *results;
+  gsize offset = 0;
+
+  JsonArray *array;
+  JsonNode *node=NULL;
+  JsonGenerator *gen=NULL;
+
+  if (!
+      (linkb =
+       dupin_linkbase_open (client->thread->data->dupin, path->data, NULL)))
+    return HTTP_STATUS_404;
+
+  array = json_array_new ();
+
+  while (dupin_link_record_get_list (linkb, QUERY_BLOCK, offset, 0, 0, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE, &results, NULL) == TRUE && results)
+    {
+      GList *list;
+
+      for (list = results; list; list = list->next)
+	{
+	  DupinLinkRecord *record = list->data;
+	  tb_jsonpath_result_t *ret = NULL;
+
+	  /* TODO - check if we need to json_node_copy ( dupin_link_record_get_revision_node() ) or not */
+	  if (tb_jsonpath_exec
+	      (query, -1, json_node_get_object (dupin_link_record_get_revision_node (record, NULL)), &ret, NULL,
+	       NULL) == TRUE && ret)
+	    {
+	      JsonNode *value;
+
+	      while (tb_jsonpath_result_next (ret, &value) == TRUE)
+		{
+		  json_array_add_element (array, json_node_copy (value));
+		}
+
+	      tb_jsonpath_result_free (ret);
+	    }
+	}
+
+      offset += g_list_length (results);
+      dupin_link_record_get_list_close (results);
+    }
+
+  node = json_node_new (JSON_NODE_ARRAY);
+
+  if (node == NULL)
+    goto request_global_get_linkbase_query_error;
+
+  json_node_set_array (node, array);
+
+  gen = json_generator_new();
+
+  if (gen == NULL)
+    goto request_global_get_linkbase_query_error;
+
+  json_generator_set_root (gen, node );
+  client->output.string.string = json_generator_to_data (gen,&client->output_size);
+
+  if (client->output.string.string == NULL)
+    goto request_global_get_linkbase_query_error;
+
+  client->output_mime = g_strdup (HTTP_MIME_JSON);
+  client->output_type = DS_HTTPD_OUTPUT_STRING;
+
+  if (gen != NULL)
+    g_object_unref (gen);
+  if (node != NULL)
+    json_node_free (node);
+  json_array_unref (array);
+  dupin_linkbase_unref (linkb);
+  return HTTP_STATUS_200;
+
+request_global_get_linkbase_query_error:
+
+  if (gen != NULL)
+    g_object_unref (gen);
+  if (node != NULL)
+    json_node_free (node);
+  json_array_unref (array);
+  dupin_linkbase_unref (linkb);
+  return HTTP_STATUS_500;
+}
+
+static DSHttpStatusCode
 request_global_get_view_query (DSHttpdClient * client, GList * path,
 			       gchar * query)
 {
@@ -2466,6 +3607,10 @@ request_global_get_view_query_error:
 #define REQUEST_POST_BULK_DOCS_DOCS	"docs"
 #define REQUEST_POST_COMPACT_DATABASE	"_compact"
 
+#define REQUEST_POST_BULK_LINKS		"_bulk_links"
+#define REQUEST_POST_BULK_LINKS_LINKS	"links"
+#define REQUEST_POST_COMPACT_LINKBASE	REQUEST_POST_COMPACT_DATABASE
+
 static DSHttpStatusCode request_global_post_record (DSHttpdClient * client,
 						    GList * path,
 						    GList * arguments);
@@ -2476,8 +3621,18 @@ static DSHttpStatusCode request_global_post_compact_database (DSHttpdClient * cl
 						     	      GList * path,
 						     	      GList * arguments);
 
+static DSHttpStatusCode request_global_post_compact_linkbase (DSHttpdClient * client,
+						     	      GList * path,
+						     	      GList * arguments);
+
+/* NOTE - we use the following also for linkbase records to set/get id and rev */
+
 static gchar * request_record_insert_rev (JsonNode * obj_node);
 static gchar * request_record_insert_id (JsonNode * obj_node);
+
+static gchar * request_link_record_insert_href (JsonNode * obj_node);
+static gchar * request_link_record_insert_rel (JsonNode * obj_node);
+static gchar * request_link_record_insert_tag (JsonNode * obj_node);
 
 static DSHttpStatusCode
 request_global_post (DSHttpdClient * client, GList * path, GList * arguments)
@@ -2485,12 +3640,24 @@ request_global_post (DSHttpdClient * client, GList * path, GList * arguments)
   if (!path)
     return HTTP_STATUS_400;
 
+  if (!g_strcmp0 (path->data, REQUEST_LINKBS))
+    {
+      /* POST /_linkbs/linkbase/_compact */
+      if (!g_strcmp0 (path->next->next->data, REQUEST_POST_COMPACT_LINKBASE))
+        return request_global_post_compact_linkbase (client, path->next, arguments);
+
+      return HTTP_STATUS_400;
+    }
+
+  /* POST /database */
   if (!path->next)
     return request_global_post_record (client, path, arguments);
 
+  /* POST /database/_bluck_docs */
   if (!g_strcmp0 (path->next->data, REQUEST_POST_BULK_DOCS) && !path->next->next)
     return request_global_post_bulk_docs (client, path, arguments);
 
+  /* POST /database/_compact */
   if (!g_strcmp0 (path->next->data, REQUEST_POST_COMPACT_DATABASE) && !path->next->next)
     return request_global_post_compact_database (client, path, arguments);
 
@@ -2503,6 +3670,8 @@ request_global_post_record (DSHttpdClient * client, GList * path,
 {
   DupinRecord *record;
   DSHttpStatusCode code;
+  GList *docs_list=NULL;
+  GList *links_list=NULL;
 
   if (!client->body)
     return HTTP_STATUS_400;
@@ -2540,12 +3709,29 @@ request_global_post_record (DSHttpdClient * client, GList * path,
     }
 
   if (request_record_insert
-      (client, node, path->data, NULL, &code, &record) == TRUE)
+      (client, node, path->data, NULL, &code, &record, &docs_list, &links_list) == TRUE)
     {
-      if (request_record_response_single (client, record) == FALSE)
-	code = HTTP_STATUS_500;
+      if (links_list == NULL)
+        {
+          if (request_record_response_single (client, record) == FALSE)
+	    code = HTTP_STATUS_500;
+        }
+      else
+        {
+          if (request_record_response_multi_mixed (client, docs_list, links_list) == FALSE)
+            code = HTTP_STATUS_500;
 
-      dupin_record_close (record);
+          while (links_list)
+            {
+              dupin_link_record_close (links_list->data);
+              links_list = g_list_remove (links_list, links_list->data);
+            }
+        }
+      while (docs_list)
+        {
+          dupin_record_close (docs_list->data);
+          docs_list = g_list_remove (docs_list, docs_list->data);
+        }
     }
 
 request_global_post_record_end:
@@ -2559,7 +3745,8 @@ static DSHttpStatusCode
 request_global_post_bulk_docs (DSHttpdClient * client, GList * path,
 			       GList * arguments)
 {
-  GList *list;
+  GList *docs_list=NULL;
+  GList *links_list=NULL;
 
   JsonObject *obj;
   JsonNode *node;
@@ -2628,8 +3815,6 @@ request_global_post_bulk_docs (DSHttpdClient * client, GList * path,
     }
 
   /* scan JSON array */
-  list = NULL;
- 
   nodes = json_array_get_elements (array);
 
   for (n = nodes; n != NULL; n = n->next)
@@ -2645,26 +3830,41 @@ request_global_post_bulk_docs (DSHttpdClient * client, GList * path,
         }
 
       if (request_record_insert
-	  (client, element_node, path->data, NULL, &code, &record) == FALSE)
+	  (client, element_node, path->data, NULL, &code, &record,
+		&docs_list, &links_list) == FALSE)
 	{
           g_list_free (nodes);
           code = HTTP_STATUS_400;
           goto request_global_post_bulk_docs_error;
 	}
-
-      list = g_list_prepend (list, record);
     }
   g_list_free (nodes);
 
-  if (request_record_response_multi (client, list) == FALSE)
-    code = HTTP_STATUS_500;
-  else
-    code = HTTP_STATUS_200;
-
-  while (list)
+  if (links_list == NULL)
     {
-      dupin_record_close (list->data);
-      list = g_list_remove (list, list->data);
+      if (request_record_response_multi (client, docs_list) == FALSE)
+        code = HTTP_STATUS_500;
+      else
+        code = HTTP_STATUS_200;
+    }
+  else
+    {
+      if (request_record_response_multi_mixed (client, docs_list, links_list) == FALSE)
+        code = HTTP_STATUS_500;
+      else
+        code = HTTP_STATUS_200;
+
+      while (links_list)
+        {
+          dupin_link_record_close (links_list->data);
+          links_list = g_list_remove (links_list, links_list->data);
+        }
+    }
+
+  while (docs_list)
+    {
+      dupin_record_close (docs_list->data);
+      docs_list = g_list_remove (docs_list, docs_list->data);
     }
 
   if (parser != NULL)
@@ -2696,6 +3896,24 @@ request_global_post_compact_database (DSHttpdClient * client, GList * path,
   return HTTP_STATUS_200;
 }
 
+static DSHttpStatusCode
+request_global_post_compact_linkbase (DSHttpdClient * client, GList * path,
+				      GList * arguments)
+{
+  DupinLinkB *linkb;
+
+  if (!
+      (linkb =
+       dupin_linkbase_open (client->thread->data->dupin, path->data, NULL)))
+    return HTTP_STATUS_404;
+
+  dupin_linkbase_compact (linkb);
+
+  dupin_linkbase_unref (linkb);
+
+  return HTTP_STATUS_200;
+}
+
 /* PUT *********************************************************************/
 static DSHttpStatusCode request_global_put_database (DSHttpdClient * client,
 						     GList * path,
@@ -2707,6 +3925,10 @@ static DSHttpStatusCode request_global_put_record (DSHttpdClient * client,
 						   GList * path,
 						   GList * arguments);
 
+static DSHttpStatusCode request_global_put_link_record (DSHttpdClient * client,
+						   	GList * path,
+						   	GList * arguments);
+
 static DSHttpStatusCode request_global_put_record_attachment (DSHttpdClient * client,
 						   	      GList * path,
 						              GList * arguments);
@@ -2716,6 +3938,15 @@ request_global_put (DSHttpdClient * client, GList * path, GList * arguments)
 {
   if (!path)
     return HTTP_STATUS_400;
+
+  if (!g_strcmp0 (path->data, REQUEST_LINKBS))
+    {
+      /* PUT /_linkbs/linkbase/id */
+      if (path->next && path->next->next)
+	return request_global_put_link_record (client, path->next, arguments);
+
+      return HTTP_STATUS_400;
+    }
 
   if (!g_strcmp0 (path->data, REQUEST_VIEWS))
     {
@@ -2743,6 +3974,7 @@ request_global_put_database (DSHttpdClient * client, GList * path,
 			     GList * arguments)
 {
   DupinDB *db;
+  DupinLinkB *linkb;
   DupinAttachmentDB *attachment_db;
 
   if (!
@@ -2751,6 +3983,13 @@ request_global_put_database (DSHttpdClient * client, GList * path,
     return HTTP_STATUS_409;
 
   dupin_database_unref (db);
+
+  if (!
+      (linkb =
+       dupin_linkbase_new (client->thread->data->dupin, path->data, path->data, TRUE, NULL)))
+    return HTTP_STATUS_409;
+
+  dupin_linkbase_unref (linkb);
 
   /* create a default attachments DB named after the database being created */
   if (!
@@ -2778,6 +4017,7 @@ request_global_put_view (DSHttpdClient * client, GList * path,
 
   const gchar *parent = NULL;
   gboolean parent_is_db = FALSE;
+  gboolean parent_is_linkb = FALSE;
   const gchar *map = NULL;
   const gchar *map_lang = "javascript";
   const gchar *reduce = NULL;
@@ -2843,6 +4083,10 @@ request_global_put_view (DSHttpdClient * client, GList * path,
 	      else if (!g_strcmp0 (sub_member_name, "is_db")
 		       && json_node_get_value_type (sub_subnode) == G_TYPE_BOOLEAN)
 		parent_is_db = json_node_get_boolean (sub_subnode);
+
+	      else if (!g_strcmp0 (sub_member_name, "is_linkb")
+		       && json_node_get_value_type (sub_subnode) == G_TYPE_BOOLEAN)
+		parent_is_linkb = json_node_get_boolean (sub_subnode);
 	    }
           g_list_free (subnodes);
 	}
@@ -2904,7 +4148,7 @@ request_global_put_view (DSHttpdClient * client, GList * path,
   if (!
       (view =
        dupin_view_new (client->thread->data->dupin, path->next->data, (gchar *)parent,
-		       parent_is_db, (gchar *)map,
+		       parent_is_db, parent_is_linkb, (gchar *)map,
 		       dupin_util_mr_lang_to_enum ((gchar *)map_lang), (gchar *)reduce,
 		       dupin_util_mr_lang_to_enum ((gchar *)reduce_lang), NULL)))
     {
@@ -2936,6 +4180,8 @@ request_global_put_record (DSHttpdClient * client, GList * path,
   DSHttpStatusCode code;
   gchar * doc_id=NULL; 
   gchar * request_fields=NULL;
+  GList *docs_list=NULL;
+  GList *links_list=NULL;
  
   if (!client->body
       || !path->next->data)
@@ -2962,12 +4208,12 @@ request_global_put_record (DSHttpdClient * client, GList * path,
             }
           else
             {
-              /* PUT /_special_document/document_ID/attachment */
+              /* PUT _special_document/document_ID/attachment */
 	      return request_global_put_record_attachment (client, path, arguments);
             }
         }
 
-      /* PUT /_special_document/document_ID */
+      /* PUT _special_document/document_ID */
       if (path->next->next)
         doc_id = g_strdup_printf ("%s/%s", (gchar *)path->next->data, (gchar *)path->next->next->data);
     }
@@ -3092,11 +4338,29 @@ request_global_put_record (DSHttpdClient * client, GList * path,
 
   if (request_record_insert
       (client, node, path->data, doc_id, &code,
-            &record) == TRUE)
+            &record, &docs_list, &links_list) == TRUE)
     {
-      if (request_record_response_single (client, record) == FALSE)
-	    code = HTTP_STATUS_500;
-        dupin_record_close (record);
+      if (links_list == NULL)
+        {
+          if (request_record_response_single (client, record) == FALSE)
+            code = HTTP_STATUS_500;
+        }
+      else
+        {
+          if (request_record_response_multi_mixed (client, docs_list, links_list) == FALSE)
+            code = HTTP_STATUS_500;
+
+          while (links_list)
+            {
+              dupin_link_record_close (links_list->data);
+              links_list = g_list_remove (links_list, links_list->data);
+            }
+        }
+      while (docs_list)
+        {
+          dupin_record_close (docs_list->data);
+          docs_list = g_list_remove (docs_list, docs_list->data);
+        }
     }
 
 request_global_put_record_error:
@@ -3109,6 +4373,207 @@ request_global_put_record_error:
     g_object_unref (parser);
 
   g_free (doc_id);
+
+  return code;
+}
+
+static DSHttpStatusCode
+request_global_put_link_record (DSHttpdClient * client, GList * path,
+			   	GList * arguments)
+{
+  JsonNode *node=NULL;
+  JsonParser *parser;
+  DupinLinkRecord *record;
+  DSHttpStatusCode code;
+  gchar * link_id=NULL; 
+  gchar * request_fields=NULL;
+ 
+  if (!client->body
+      || !path->next->data)
+    return HTTP_STATUS_400;
+
+  /* check if special link name/id */
+  gunichar ch = g_utf8_get_char (path->next->data);
+
+  if (ch == '_')
+    {
+//g_message("request_global_put_link_record: linkbname=%s id=%s\n", (gchar *) path->data, (gchar *)path->next->data);
+
+      if (path->next->next->next)
+        {
+          if (!g_strcmp0 (path->next->next->next->data, REQUEST_FIELDS))
+            {
+	      if (!path->next->next->next->next
+                  || !g_strcmp0 (path->next->next->next->next->data, REQUEST_OBJ_ID)
+                  || !g_strcmp0 (path->next->next->next->next->data, REQUEST_OBJ_REV)
+                  || !g_strcmp0 (path->next->next->next->next->data, REQUEST_OBJ_ATTACHMENTS)
+                  || !g_strcmp0 (path->next->next->next->next->data, REQUEST_OBJ_LINKS))
+                return HTTP_STATUS_400;
+
+              request_fields=path->next->next->next->next->data;
+            }
+        }
+
+      /* PUT _special_link/link_ID */
+      if (path->next->next)
+        link_id = g_strdup_printf ("%s/%s", (gchar *)path->next->data, (gchar *)path->next->next->data);
+    }
+  else
+    {
+      if (path->next->next)
+        {
+          if (!g_strcmp0 (path->next->next->data, REQUEST_FIELDS))
+            {
+	      if (!path->next->next->next
+                  || !g_strcmp0 (path->next->next->next->data, REQUEST_OBJ_ID)
+                  || !g_strcmp0 (path->next->next->next->data, REQUEST_OBJ_REV)
+                  || !g_strcmp0 (path->next->next->next->data, REQUEST_OBJ_ATTACHMENTS)
+                  || !g_strcmp0 (path->next->next->next->data, REQUEST_OBJ_LINKS))
+                return HTTP_STATUS_400;
+
+              request_fields=path->next->next->next->data;
+            }
+        }
+
+      /* PUT /link_ID */
+      link_id = g_strdup_printf ("%s", (gchar *)path->next->data);
+    }
+
+//g_message("request_global_put_link_record: linkbname=%s link_id=%s\n", (gchar *) path->data, link_id);
+
+  parser = json_parser_new ();
+
+  if (parser == NULL)
+    {
+      code = HTTP_STATUS_500;
+      goto request_global_put_link_record_error;
+    }
+
+  /* TODO - check any parsing error */
+  if (json_parser_load_from_data (parser, client->body, client->body_size, NULL) == FALSE)
+    {
+      code = HTTP_STATUS_400;
+      goto request_global_put_link_record_error;
+    }
+
+  node = json_parser_get_root (parser);
+
+  if (node == NULL)
+    {
+      code = HTTP_STATUS_400;
+      goto request_global_put_link_record_error;
+    }
+
+  if (request_fields != NULL)
+    {
+      gchar * mvcc=NULL;
+      DupinLinkB *linkb;
+      JsonNode * node1=NULL;
+      JsonObject * node1_obj=NULL;
+
+      /* fetch last revision */
+      if (!  (linkb =
+       		dupin_linkbase_open (client->thread->data->dupin, path->data, NULL)))
+        {
+          code = HTTP_STATUS_404;
+          goto request_global_put_link_record_error;
+        }
+
+      if (!(record = dupin_link_record_read (linkb, link_id, NULL)))
+        {
+          dupin_linkbase_unref (linkb);
+          code = HTTP_STATUS_404;
+          goto request_global_put_link_record_error;
+        }
+
+      mvcc = dupin_link_record_get_last_revision (record);
+
+      if (dupin_link_record_is_deleted (record, mvcc) == TRUE)
+        {
+          dupin_linkbase_unref (linkb);
+          code = HTTP_STATUS_404;
+          goto request_global_put_link_record_error;
+        }
+
+      node1 = dupin_link_record_get_revision_node (record, mvcc);
+
+      if (node1 == NULL)
+        {
+          dupin_link_record_close (record);
+          dupin_linkbase_unref (linkb);
+          code = HTTP_STATUS_404;
+          goto request_global_put_link_record_error;
+        }
+
+      node1 = json_node_copy (node1);
+
+      node1_obj = json_node_get_object (node1);
+
+      /* Setting _id and _rev: */
+      json_object_set_string_member (node1_obj, REQUEST_OBJ_ID, link_id);
+      json_object_set_string_member (node1_obj, REQUEST_OBJ_REV, mvcc);
+
+      /* set field */
+      /* NOTE - we must remove the member first to make sure the correct node type is set internally */
+      json_object_remove_member (node1_obj, (const gchar *)request_fields);
+      json_object_set_member (node1_obj, (const gchar *)request_fields, json_node_copy (node));
+
+      if (json_object_has_member (node1_obj, REQUEST_LINK_OBJ_HREF) == FALSE)
+        {
+          json_object_remove_member (node1_obj, REQUEST_LINK_OBJ_HREF);
+          json_object_set_string_member (node1_obj, REQUEST_LINK_OBJ_HREF, dupin_link_record_get_href (record));
+        }
+
+      gchar * rel = (gchar *)dupin_link_record_get_rel (record);
+      if (json_object_has_member (node1_obj, REQUEST_LINK_OBJ_REL) == FALSE
+	  && rel != NULL)
+        {
+          json_object_remove_member (node1_obj, REQUEST_LINK_OBJ_REL);
+          json_object_set_string_member (node1_obj, REQUEST_LINK_OBJ_REL, rel);
+        }
+
+      gchar * tag = (gchar *)dupin_link_record_get_tag (record);
+      if (json_object_has_member (node1_obj, REQUEST_LINK_OBJ_TAG) == FALSE
+	  && tag != NULL)
+        {
+          json_object_remove_member (node1_obj, REQUEST_LINK_OBJ_TAG);
+          json_object_set_string_member (node1_obj, REQUEST_LINK_OBJ_TAG, tag);
+        }
+
+      dupin_link_record_close (record);
+      record = NULL;
+      dupin_linkbase_unref (linkb);
+
+      node = node1;
+    }
+  else
+    {
+      if (json_node_get_node_type (node) != JSON_NODE_OBJECT)
+        {
+          code = HTTP_STATUS_400;
+          goto request_global_put_link_record_error;
+        }
+    }
+
+  if (request_link_record_insert
+      (client, node, path->data, link_id, NULL, &code,
+            &record) == TRUE)
+    {
+      if (request_link_record_response_single (client, record) == FALSE)
+	    code = HTTP_STATUS_500;
+        dupin_link_record_close (record);
+    }
+
+  if (request_fields != NULL
+      && node)
+    json_node_free (node);
+
+request_global_put_link_record_error:
+
+  if (parser != NULL)
+    g_object_unref (parser);
+
+  g_free (link_id);
 
   return code;
 }
@@ -3133,7 +4598,7 @@ request_global_put_record_attachment (DSHttpdClient * client, GList * path,
 
   if (ch == '_')
     {
-      /* PUT /_special_document/document_ID/attachment */
+      /* PUT _special_document/document_ID/attachment */
       if (path->next->next)
         {
           doc_id = g_strdup_printf ("%s/%s", (gchar *)path->next->data, (gchar *)path->next->next->data);
@@ -3178,12 +4643,25 @@ static DSHttpStatusCode request_global_delete_record (DSHttpdClient * client,
 						      GList * path,
 						      GList * arguments);
 
+static DSHttpStatusCode request_global_delete_link_record (DSHttpdClient * client,
+						           GList * path,
+						           GList * arguments);
+
 static DSHttpStatusCode
 request_global_delete (DSHttpdClient * client, GList * path,
 		       GList * arguments)
 {
   if (!path)
     return HTTP_STATUS_400;
+
+  if (!g_strcmp0 (path->data, REQUEST_LINKBS))
+    {
+      /* DELETE /_linkbs/linkbase/id */
+      if (path->next && path->next->next)
+	return request_global_delete_link_record (client, path->next, arguments);
+
+      return HTTP_STATUS_400;
+    }
 
   /* DELETE /database */
   if (!path->next)
@@ -3207,6 +4685,7 @@ request_global_delete_database (DSHttpdClient * client, GList * path,
 				GList * arguments)
 {
   DupinDB *db;
+  DupinLinkB *linkb;
   DupinAttachmentDB *attachment_db;
 
   if (!
@@ -3221,6 +4700,19 @@ request_global_delete_database (DSHttpdClient * client, GList * path,
     }
 
   dupin_database_unref (db);
+
+  if (!
+      (linkb =
+       dupin_linkbase_open (client->thread->data->dupin, path->data, NULL)))
+    return HTTP_STATUS_404;
+
+  if (dupin_linkbase_delete (linkb, NULL) == FALSE)
+    {
+      dupin_linkbase_unref (linkb);
+      return HTTP_STATUS_409;
+    }
+
+  dupin_linkbase_unref (linkb);
 
   /* remove also default attachment DB named after the database being deleted */
 
@@ -3283,7 +4775,7 @@ request_global_delete_record (DSHttpdClient * client, GList * path,
     {
       /* TODO - shouldn't we stop/avoid user to delete /_design/something ?! */
 
-      /* DELETE /_special_document/document_ID and /_special_document/document_ID/attachment */
+      /* DELETE _special_document/document_ID and _special_document/document_ID/attachment */
       if (path->next->next)
         {
           doc_id = g_strdup_printf ("%s/%s", (gchar *)path->next->data, (gchar *)path->next->next->data);
@@ -3509,6 +5001,175 @@ request_global_delete_record (DSHttpdClient * client, GList * path,
   return HTTP_STATUS_200;
 }
 
+static DSHttpStatusCode
+request_global_delete_link_record (DSHttpdClient * client, GList * path,
+			           GList * arguments)
+{
+  DupinLinkB *linkb;
+  DupinLinkRecord *record;
+  gchar * mvcc=NULL;
+  GList * l=NULL;
+  gchar * link_id=NULL;
+  gchar * request_fields=NULL;
+
+  /* check if special document name/id */
+  gunichar ch = g_utf8_get_char (path->next->data);
+
+  if (ch == '_')
+    {
+      /* TODO - shouldn't we stop/avoid user to delete /_design/something ?! */
+
+      /* DELETE _special_document/document_ID */
+      if (path->next->next)
+        {
+          link_id = g_strdup_printf ("%s/%s", (gchar *)path->next->data, (gchar *)path->next->next->data);
+        }
+
+      /* NOTE - we deliberately do not implement field delete of special documents - of course general PUT of whole doc still works */
+    }
+  else
+    {
+      if (path->next->next)
+        {
+          if (!g_strcmp0 (path->next->next->data, REQUEST_FIELDS))
+            {
+              if (!path->next->next->next
+                  || !g_strcmp0 (path->next->next->next->data, REQUEST_OBJ_ID)
+                  || !g_strcmp0 (path->next->next->next->data, REQUEST_OBJ_REV)
+                  || !g_strcmp0 (path->next->next->next->data, REQUEST_OBJ_ATTACHMENTS)
+                  || !g_strcmp0 (path->next->next->next->data, REQUEST_OBJ_LINKS)
+                  || !g_strcmp0 (path->next->next->next->data, REQUEST_LINK_OBJ_CONTEXT_ID)
+                  || !g_strcmp0 (path->next->next->next->data, REQUEST_LINK_OBJ_HREF)
+                  || !g_strcmp0 (path->next->next->next->data, REQUEST_LINK_OBJ_REL)
+                  || !g_strcmp0 (path->next->next->next->data, REQUEST_LINK_OBJ_TAG))
+                return HTTP_STATUS_400;
+
+              request_fields=path->next->next->next->data;
+            }
+        }
+
+      /* DELETE /document_ID and /document_ID/_fields/field */
+      link_id = g_strdup_printf ("%s", (gchar *)path->next->data);
+    }
+
+g_message("request_global_delete_link_record: link_id=%s request_fields=%s\n", link_id, request_fields);
+
+  if (!
+      (linkb =
+       dupin_linkbase_open (client->thread->data->dupin, path->data, NULL)))
+    {
+      g_free (link_id);
+      return HTTP_STATUS_404;
+    }
+
+  if (!(record = dupin_link_record_read (linkb, link_id, NULL)))
+    {
+      dupin_linkbase_unref (linkb);
+      g_free (link_id);
+      return HTTP_STATUS_404;
+    }
+
+  if (request_fields != NULL)
+    {
+      JsonNode * obj_node = NULL;
+
+      for (l = arguments; l; l = l->next)
+        {
+          dupin_keyvalue_t *kv = l->data;
+
+          if (!g_strcmp0 (kv->key, REQUEST_RECORD_ARG_REV))
+            {
+              if (dupin_util_is_valid_mvcc (kv->value) == FALSE)
+                {
+                  dupin_linkbase_unref (linkb);
+                  g_free (link_id);
+                  return HTTP_STATUS_400;
+                }
+              mvcc = kv->value;
+            }
+        }
+
+      if (request_fields != NULL)
+        {
+          if (mvcc == NULL)
+           mvcc = dupin_link_record_get_last_revision (record);
+        }
+      else if (mvcc == NULL
+               || dupin_util_mvcc_revision_cmp (mvcc, dupin_link_record_get_last_revision (record)))
+        {
+          dupin_link_record_close (record);
+          dupin_linkbase_unref (linkb);
+          g_free (link_id);
+          return HTTP_STATUS_404;
+        }
+
+      if (!(obj_node = request_link_record_obj (record, link_id, mvcc)))
+        {
+          dupin_link_record_close (record);
+          dupin_linkbase_unref (linkb);
+          g_free (link_id);
+          return HTTP_STATUS_404;
+        }
+
+      json_object_remove_member (json_node_get_object (obj_node), REQUEST_OBJ_REV);
+      json_object_remove_member (json_node_get_object (obj_node), REQUEST_OBJ_ID);
+
+      if (json_object_has_member (json_node_get_object (obj_node), (const gchar *)request_fields) == FALSE)
+        {
+          if (obj_node != NULL)
+            json_node_free (obj_node);
+          dupin_link_record_close (record);
+          dupin_linkbase_unref (linkb);
+          g_free (link_id);
+          return HTTP_STATUS_404;
+        }
+
+      json_object_remove_member (json_node_get_object (obj_node), (const gchar *)request_fields);
+
+      if (dupin_link_record_update (record, obj_node, 
+      				    (gchar *)dupin_link_record_get_href (record),
+      				    (gchar *)dupin_link_record_get_rel (record),
+      				    (gchar *)dupin_link_record_get_tag (record),
+				    NULL) == FALSE)
+        {
+          if (obj_node != NULL)
+            json_node_free (obj_node);
+          dupin_link_record_close (record);
+          dupin_linkbase_unref (linkb);
+          g_free (link_id);
+          return HTTP_STATUS_404;
+        }
+
+      if (obj_node != NULL)
+        json_node_free (obj_node);
+
+      if (request_link_record_response_single (client, record) == FALSE)
+        {
+          dupin_link_record_close (record);
+          dupin_linkbase_unref (linkb);
+          g_free (link_id);
+          return HTTP_STATUS_500;
+        }
+    }
+  else
+    {
+      if (!(dupin_link_record_delete (record, NULL)))
+        {
+          dupin_link_record_close (record);
+          dupin_linkbase_unref (linkb);
+          g_free (link_id);
+          return HTTP_STATUS_400;
+        }
+    }
+
+  dupin_link_record_close (record);
+  dupin_linkbase_unref (linkb);
+
+  g_free (link_id);
+
+  return HTTP_STATUS_200;
+}
+
 /* DATA STRUCT *************************************************************/
 #define REQUEST_WWW		"_www"
 #define REQUEST_QUIT		"_quit"
@@ -3529,9 +5190,11 @@ RequestType request_types[] = {
 static gboolean
 request_record_insert (DSHttpdClient * client, JsonNode * obj_node,
 		       gchar * dbname, gchar * id, DSHttpStatusCode * code,
-		       DupinRecord ** ret_record)
+		       DupinRecord ** ret_record,
+		       GList ** docs_list, GList ** links_list)
 {
   DupinDB *db;
+  DupinLinkB *linkb;
   DupinAttachmentDB *attachment_db;
   DupinRecord *record;
   DSHttpStatusCode retcode;
@@ -3539,6 +5202,7 @@ request_record_insert (DSHttpdClient * client, JsonNode * obj_node,
   gchar * json_record_mvcc=NULL;
   gchar * json_record_id;
 
+  JsonNode * links_node=NULL;
   JsonNode * attachments_node=NULL;
 
   g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, FALSE);
@@ -3585,6 +5249,14 @@ request_record_insert (DSHttpdClient * client, JsonNode * obj_node,
       json_object_remove_member (json_node_get_object (obj_node), REQUEST_OBJ_ATTACHMENTS);
     }
 
+  /* get and remove inline links element */
+  links_node = json_object_get_member (json_node_get_object (obj_node), REQUEST_OBJ_LINKS);
+  if (links_node != NULL)
+    {
+      links_node = json_node_copy (links_node);
+      json_object_remove_member (json_node_get_object (obj_node), REQUEST_OBJ_LINKS);
+    }
+
   if (json_record_mvcc != NULL)
     {
       retcode = HTTP_STATUS_200;
@@ -3624,6 +5296,8 @@ request_record_insert (DSHttpdClient * client, JsonNode * obj_node,
     {
       if (attachments_node != NULL)
         json_node_free (attachments_node);
+      if (links_node != NULL)
+        json_node_free (links_node);
       if (json_record_mvcc != NULL)
         g_free (json_record_mvcc);
       dupin_database_unref (db);
@@ -3643,6 +5317,8 @@ request_record_insert (DSHttpdClient * client, JsonNode * obj_node,
         {
           if (attachments_node != NULL)
             json_node_free (attachments_node);
+          if (links_node != NULL)
+            json_node_free (links_node);
           if (json_record_mvcc != NULL)
             g_free (json_record_mvcc);
           dupin_database_unref (db);
@@ -3698,6 +5374,8 @@ request_record_insert (DSHttpdClient * client, JsonNode * obj_node,
 
               if (attachments_node != NULL)
                 json_node_free (attachments_node);
+              if (links_node != NULL)
+                json_node_free (links_node);
               if (json_record_mvcc != NULL)
                 g_free (json_record_mvcc);
               dupin_database_unref (db);
@@ -3713,12 +5391,247 @@ request_record_insert (DSHttpdClient * client, JsonNode * obj_node,
       dupin_attachment_db_unref (attachment_db);
     }
 
+  /* process _links object for inline links */
+
+  /*
+	links context_id is defaulted to this document_id
+
+     {
+       'displayName': 'A Record with a few links',
+	...
+	...
+	...
+
+       '_links':
+           {
+             "title1": <- becomes the link '_label' - '_content' label value is special
+               [
+                 {
+                   "_href": "docfoo"
+                 },
+                 {
+                   "_href": "docbar",
+                   "_tag": "bartag",
+                   "_rel": "up"
+                 }
+               ],
+             "google":
+               {
+                 "_href": "http://www.google.com",
+                 "_rel": "related"
+               }
+           }
+      }
+
+	alternatively the following can be used:
+
+      {
+	'_links':
+          [
+            {
+              "_href": "http://www.anonymouslink.com", <-- the link will not have a 'label'
+            },
+            {
+              "_href": "http://www.facebook.com",
+              "title": "facebook"
+            }
+          ]
+       }
+   */
+
+  if (links_node != NULL)
+    {
+      GList *n, *nodes;
+      gchar * context_id = (gchar *)dupin_record_get_id (record);
+
+      if (!  (linkb =
+               dupin_linkbase_open (client->thread->data->dupin, dbname, NULL)))
+        {
+          if (attachments_node != NULL)
+            json_node_free (attachments_node);
+          if (links_node != NULL)
+            json_node_free (links_node);
+          if (json_record_mvcc != NULL)
+            g_free (json_record_mvcc);
+          dupin_database_unref (db);
+          *code = HTTP_STATUS_400;
+          return FALSE;
+        }
+
+      if (json_node_get_node_type (links_node) == JSON_NODE_OBJECT)
+        {
+          JsonObject * links_obj = json_node_get_object (links_node);
+          nodes = json_object_get_members (links_obj);
+          for (n = nodes; n != NULL; n = n->next)
+            {
+              gchar *label = (gchar *) n->data;
+              JsonNode *inline_link_node = json_object_get_member (links_obj, label);
+
+              if (json_node_get_node_type (inline_link_node) == JSON_NODE_ARRAY)
+                {
+                  GList *sn, *snodes;
+                  snodes = json_array_get_elements (json_node_get_array (inline_link_node));
+                  for (sn = snodes; sn != NULL; sn = sn->next)
+                    {
+                      DupinLinkRecord *link_record;
+                      JsonNode * lnode = (JsonNode *) sn->data;
+
+                      if (json_node_get_node_type (lnode) != JSON_NODE_OBJECT)
+                        {
+                          /* TODO - should log something or fail ? */
+                          continue;
+                        }
+
+                      /* add each link with context_id and label */
+
+                      JsonObject * lobj = json_node_get_object (lnode);
+
+		      if (json_object_has_member (lobj, REQUEST_LINK_OBJ_LABEL) == FALSE)
+  		        json_object_set_string_member (lobj, REQUEST_LINK_OBJ_LABEL, label);
+
+		      if (request_link_record_insert (client, lnode,
+						      dbname, NULL, context_id, code, &link_record) == FALSE)
+        	        {
+          		  g_list_free (snodes);
+          		  g_list_free (nodes);
+
+			  while (*links_list)
+            		    {
+              		      dupin_link_record_close ((*links_list)->data);
+              		      *links_list = g_list_remove (*links_list, (*links_list)->data);
+            		    }
+
+  			  if (attachments_node != NULL)
+    			    json_node_free (attachments_node);
+
+  			  if (links_node != NULL)
+    			    json_node_free (links_node);
+
+  			  if (json_record_mvcc != NULL)
+    			    g_free (json_record_mvcc);
+
+  			  dupin_database_unref (db);
+      			  dupin_linkbase_unref (linkb);
+
+          		  *code = HTTP_STATUS_400;
+			  return FALSE;
+        		}
+
+                      *links_list = g_list_prepend (*links_list, link_record);
+                    }
+                  g_list_free (snodes);
+                }
+              else if (json_node_get_node_type (inline_link_node) == JSON_NODE_OBJECT)
+                {
+                  DupinLinkRecord *link_record;
+
+                  /* add link with context_id and label */
+
+                  JsonObject * inline_link_obj = json_node_get_object (inline_link_node);
+
+		  if (json_object_has_member (inline_link_obj, REQUEST_LINK_OBJ_LABEL) == FALSE)
+  		    json_object_set_string_member (inline_link_obj, REQUEST_LINK_OBJ_LABEL, label);
+
+		  if (request_link_record_insert (client, inline_link_node,
+						  dbname, NULL, context_id, code, &link_record) == FALSE)
+        	    {
+          	      g_list_free (nodes);
+
+		      while (*links_list)
+            	        {
+              	          dupin_link_record_close ((*links_list)->data);
+              		  *links_list = g_list_remove (*links_list, (*links_list)->data);
+            		}
+
+  	              if (attachments_node != NULL)
+    	                json_node_free (attachments_node);
+
+  	              if (links_node != NULL)
+    		        json_node_free (links_node);
+
+  	              if (json_record_mvcc != NULL)
+    	                g_free (json_record_mvcc);
+
+  	              dupin_database_unref (db);
+      		      dupin_linkbase_unref (linkb);
+
+          	      *code = HTTP_STATUS_400;
+		      return FALSE;
+        	    }
+
+                  *links_list = g_list_prepend (*links_list, link_record);
+                }
+            }
+          g_list_free (nodes);
+        }
+      else if (json_node_get_node_type (links_node) == JSON_NODE_ARRAY)
+        {
+          nodes = json_array_get_elements (json_node_get_array (links_node));
+          for (n = nodes; n != NULL; n = n->next)
+            {
+              DupinLinkRecord *link_record;
+              JsonNode * lnode = (JsonNode *) n->data;
+
+              if (json_node_get_node_type (lnode) != JSON_NODE_OBJECT)
+                {
+                  /* TODO - should log something or fail ? */
+                  continue;
+                }
+
+              /* add each link with context_id and with label 'links' */
+
+              JsonObject * lobj = json_node_get_object (lnode);
+
+	      if (json_object_has_member (lobj, REQUEST_LINK_OBJ_LABEL) == FALSE)
+  	        json_object_set_string_member (lobj, REQUEST_LINK_OBJ_LABEL, REQUEST_LINK_OBJ_LABEL_DEFAULT);
+
+	      if (request_link_record_insert (client, lnode,
+	        			      dbname, NULL, context_id, code, &link_record) == FALSE)
+                {
+          	  g_list_free (nodes);
+
+		  while (*links_list)
+            	    {
+              	      dupin_link_record_close ((*links_list)->data);
+              	      *links_list = g_list_remove (*links_list, (*links_list)->data);
+            	    }
+
+  	          if (attachments_node != NULL)
+    	            json_node_free (attachments_node);
+
+  	          if (links_node != NULL)
+    		    json_node_free (links_node);
+
+  	          if (json_record_mvcc != NULL)
+    	            g_free (json_record_mvcc);
+
+  	          dupin_database_unref (db);
+      		  dupin_linkbase_unref (linkb);
+
+          	  *code = HTTP_STATUS_400;
+		  return FALSE;
+        	}
+
+              *links_list = g_list_prepend (*links_list, link_record);
+            }
+          g_list_free (nodes);
+        }
+
+      dupin_linkbase_unref (linkb);
+    }
+
   if (attachments_node != NULL)
     json_node_free (attachments_node);
 
+  if (links_node != NULL)
+    json_node_free (links_node);
+
   if (json_record_mvcc != NULL)
     g_free (json_record_mvcc);
+
   dupin_database_unref (db);
+
+  *docs_list = g_list_prepend (*docs_list, record);
 
   *ret_record = record;
   *code = retcode;
@@ -3778,6 +5691,220 @@ request_record_insert_id (JsonNode * obj_node)
   json_object_remove_member (obj, REQUEST_OBJ_ID); 
 
   return id;
+}
+
+static gchar *
+request_link_record_insert_href (JsonNode * obj_node)
+{
+  gchar *ret = NULL;
+  JsonNode *node;
+  JsonObject *obj;
+
+  g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, NULL);
+
+  obj = json_node_get_object (obj_node);
+
+  if (json_object_has_member (obj, REQUEST_LINK_OBJ_HREF) == FALSE)
+    return NULL;
+
+  node = json_object_get_member (obj, REQUEST_LINK_OBJ_HREF);
+
+  if (node == NULL)
+    return NULL;
+
+  if (json_node_get_value_type (node) == G_TYPE_STRING) /* check this is correct type */
+    ret = g_strdup (json_node_get_string (node));
+
+  json_object_remove_member (obj, REQUEST_LINK_OBJ_HREF); 
+
+  return ret;
+}
+
+static gchar *
+request_link_record_insert_rel (JsonNode * obj_node)
+{
+  gchar *ret = NULL;
+  JsonNode *node;
+  JsonObject *obj;
+
+  g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, NULL);
+
+  obj = json_node_get_object (obj_node);
+
+  if (json_object_has_member (obj, REQUEST_LINK_OBJ_REL) == FALSE)
+    return NULL;
+
+  node = json_object_get_member (obj, REQUEST_LINK_OBJ_REL);
+
+  if (node == NULL)
+    return NULL;
+
+  if (json_node_get_value_type (node) == G_TYPE_STRING) /* check this is correct type */
+    ret = g_strdup (json_node_get_string (node));
+
+  json_object_remove_member (obj, REQUEST_LINK_OBJ_REL); 
+
+  return ret;
+}
+
+static gchar *
+request_link_record_insert_tag (JsonNode * obj_node)
+{
+  gchar *ret = NULL;
+  JsonNode *node;
+  JsonObject *obj;
+
+  g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, NULL);
+
+  obj = json_node_get_object (obj_node);
+
+  if (json_object_has_member (obj, REQUEST_LINK_OBJ_TAG) == FALSE)
+    return NULL;
+
+  node = json_object_get_member (obj, REQUEST_LINK_OBJ_TAG);
+
+  if (node == NULL)
+    return NULL;
+
+  if (json_node_get_value_type (node) == G_TYPE_STRING) /* check this is correct type */
+    ret = g_strdup (json_node_get_string (node));
+
+  json_object_remove_member (obj, REQUEST_LINK_OBJ_TAG); 
+
+  return ret;
+}
+
+static gboolean
+request_link_record_insert (DSHttpdClient * client, JsonNode * obj_node,
+		       	    gchar * linkbname, gchar * id, gchar * context_id,
+			    DSHttpStatusCode * code,
+		            DupinLinkRecord ** ret_record)
+{
+  DupinLinkB *linkb;
+  DupinLinkRecord *record;
+  DSHttpStatusCode retcode;
+
+  gchar * json_record_mvcc=NULL;
+  gchar * json_record_id;
+
+  gchar * json_record_href;
+  gchar * json_record_rel;
+  gchar * json_record_tag;
+
+  g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, FALSE);
+
+  /* NOTE - context_id is purely internal and can not be set in any way by the user if not via
+            the document is being linked from */
+
+  g_return_val_if_fail (json_object_has_member (json_node_get_object (obj_node),
+				REQUEST_LINK_OBJ_CONTEXT_ID) == FALSE, FALSE);
+
+  if (!(linkb = dupin_linkbase_open (client->thread->data->dupin, linkbname, NULL)))
+    {
+      *code = HTTP_STATUS_400;
+      return FALSE;
+    }
+
+  json_record_mvcc = request_record_insert_rev (obj_node);
+
+  if ((json_record_id = request_record_insert_id (obj_node)))
+    {
+      if (id && g_strcmp0 (id, json_record_id))
+	{
+          if (json_record_mvcc != NULL)
+	    g_free (json_record_mvcc);
+	  g_free (json_record_id);
+          dupin_linkbase_unref (linkb);
+	  *code = HTTP_STATUS_400;
+	  return FALSE;
+	}
+
+      id = json_record_id;
+    }
+
+  if (json_record_mvcc != NULL && !id)
+    {
+      if (json_record_id != NULL)
+        g_free (json_record_id);
+      if (json_record_mvcc != NULL)
+        g_free (json_record_mvcc);
+      dupin_linkbase_unref (linkb);
+      *code = HTTP_STATUS_400;
+      return FALSE;
+    }
+
+  json_record_href = request_link_record_insert_href (obj_node);
+  json_record_rel = request_link_record_insert_rel (obj_node);
+  json_record_tag = request_link_record_insert_tag (obj_node);
+
+  if (json_record_mvcc != NULL)
+    {
+      retcode = HTTP_STATUS_200;
+
+      record = dupin_link_record_read (linkb, id, NULL);
+
+      if (!record || dupin_util_mvcc_revision_cmp (json_record_mvcc, dupin_link_record_get_last_revision (record))
+	  || dupin_link_record_update (record, obj_node, 
+				       json_record_href, json_record_rel, json_record_tag,
+					NULL) == FALSE)
+	{
+          if (record)
+	    dupin_link_record_close (record);
+	  record = NULL;
+	}
+    }
+
+  else if (!id)
+    {
+      retcode = HTTP_STATUS_201;
+
+      record = dupin_link_record_create (linkb, obj_node,
+				         context_id,
+				         json_record_href, json_record_rel, json_record_tag,
+					 NULL);
+    }
+
+  else
+    {
+      retcode = HTTP_STATUS_201;
+
+      if (dupin_link_record_exists (linkb, id) == FALSE)
+	record = dupin_link_record_create_with_id (linkb, obj_node, id, 
+				         	   context_id,
+				         	   json_record_href, json_record_rel, json_record_tag,
+						   NULL);
+      else
+	record = NULL;
+    }
+
+  if (json_record_href)
+    g_free (json_record_href);
+
+  if (json_record_rel)
+    g_free (json_record_rel);
+
+  if (json_record_tag)
+    g_free (json_record_tag);
+
+  if (json_record_id)
+    g_free (json_record_id);
+
+  if (!record)
+    {
+      if (json_record_mvcc != NULL)
+        g_free (json_record_mvcc);
+      dupin_linkbase_unref (linkb);
+      *code = HTTP_STATUS_409;
+      return FALSE;
+    }
+
+  if (json_record_mvcc != NULL)
+    g_free (json_record_mvcc);
+  dupin_linkbase_unref (linkb);
+
+  *ret_record = record;
+  *code = retcode;
+  return TRUE;
 }
 
 static gboolean
@@ -3902,6 +6029,173 @@ request_record_response_multi (DSHttpdClient * client, GList * list)
   return TRUE;
 
 request_record_response_multi_error:
+
+  if (gen != NULL)
+    g_object_unref (gen);
+  if (node != NULL)
+    json_node_free (node);
+  json_object_unref (obj);
+  return FALSE;
+}
+
+static gboolean
+request_record_response_multi_mixed (DSHttpdClient * client,
+				     GList * docs_list,
+				     GList * links_list)
+{
+  JsonObject *obj;
+  JsonNode *node=NULL;
+  JsonArray *docs_array;
+  JsonArray *links_array;
+  JsonGenerator *gen=NULL;
+
+  obj = json_object_new ();
+
+  if (obj == NULL)
+    return FALSE;
+
+  /* TODO - do we ever set this to false? no... ! */
+  json_object_set_boolean_member (obj, "ok", TRUE);
+
+  docs_array = json_array_new ();
+
+  if (docs_array == NULL)
+    {
+      goto request_record_response_multi_mixed_error;
+    }
+
+  links_array = json_array_new ();
+
+  if (links_array == NULL)
+    {
+      json_array_unref (docs_array);
+      goto request_record_response_multi_mixed_error;
+    }
+
+  for (; docs_list; docs_list = docs_list->next)
+    {
+      JsonObject *o;
+      DupinRecord *record = docs_list->data;
+
+      o = json_object_new ();
+
+      if (o == NULL)
+        {
+          json_array_unref (docs_array);
+          goto request_record_response_multi_mixed_error; 
+        }
+
+      json_object_set_string_member (o, RESPONSE_OBJ_ID, (gchar *) dupin_record_get_id (record));
+      json_object_set_string_member (o, RESPONSE_OBJ_REV, dupin_record_get_last_revision (record));
+
+      json_array_add_object_element( docs_array, o);
+    }
+  json_object_set_array_member (obj, "new_docs_revs", docs_array );
+
+  for (; links_list; links_list = links_list->next)
+    {
+      JsonObject *o;
+      DupinLinkRecord *record = links_list->data;
+
+      o = json_object_new ();
+
+      if (o == NULL)
+        {
+          json_array_unref (links_array);
+          goto request_record_response_multi_mixed_error; 
+        }
+
+      json_object_set_string_member (o, RESPONSE_OBJ_ID, (gchar *) dupin_link_record_get_id (record));
+      json_object_set_string_member (o, RESPONSE_OBJ_REV, dupin_link_record_get_last_revision (record));
+
+      json_array_add_object_element( links_array, o);
+    }
+  json_object_set_array_member (obj, "new_links_revs", links_array );
+
+  node = json_node_new (JSON_NODE_OBJECT);
+
+  if (node == NULL)
+    goto request_record_response_multi_mixed_error;
+
+  json_node_set_object (node, obj);
+
+  gen = json_generator_new();
+
+  if (gen == NULL)
+    goto request_record_response_multi_mixed_error;
+
+  json_generator_set_root (gen, node );
+  client->output.string.string = json_generator_to_data (gen,&client->output_size);
+
+  if (client->output.string.string == NULL)
+    goto request_record_response_multi_mixed_error;
+
+  client->output_mime = g_strdup (HTTP_MIME_JSON);
+  client->output_type = DS_HTTPD_OUTPUT_STRING;
+
+  if (gen != NULL)
+    g_object_unref (gen);
+  if (node != NULL)
+    json_node_free (node);
+  json_object_unref (obj);
+  return TRUE;
+
+request_record_response_multi_mixed_error:
+
+  if (gen != NULL)
+    g_object_unref (gen);
+  if (node != NULL)
+    json_node_free (node);
+  json_object_unref (obj);
+  return FALSE;
+}
+
+static gboolean
+request_link_record_response_single (DSHttpdClient * client, DupinLinkRecord * record)
+{
+  JsonObject *obj;
+  JsonNode *node=NULL;
+  JsonGenerator *gen=NULL;
+
+  obj = json_object_new ();
+
+  if (obj == NULL)
+    return FALSE;
+
+  /* TODO - do we ever set this to false? no... ! */
+  json_object_set_boolean_member (obj, "ok", TRUE);
+  json_object_set_string_member (obj, RESPONSE_OBJ_ID, (gchar *) dupin_link_record_get_id (record));
+  json_object_set_string_member (obj, RESPONSE_OBJ_REV, dupin_link_record_get_last_revision (record));
+
+  node = json_node_new (JSON_NODE_OBJECT);
+
+  if (node == NULL)
+    goto request_link_record_response_single_error;
+
+  json_node_set_object (node, obj);
+
+  gen = json_generator_new();
+
+  if (gen == NULL)
+    goto request_link_record_response_single_error;
+
+  json_generator_set_root (gen, node );
+  client->output.string.string = json_generator_to_data (gen,&client->output_size);
+
+  if (client->output.string.string == NULL)
+    goto request_link_record_response_single_error;
+
+  client->output_mime = g_strdup (HTTP_MIME_JSON);
+  client->output_type = DS_HTTPD_OUTPUT_STRING;
+
+  if (gen != NULL)
+    g_object_unref (gen);
+  if (node != NULL)
+    json_node_free (node);
+  json_object_unref (obj);
+  return TRUE;
+
+request_link_record_response_single_error:
 
   if (gen != NULL)
     g_object_unref (gen);
@@ -4134,6 +6428,64 @@ request_record_obj (DupinRecord * record, gchar * id, gchar * mvcc)
 }
 
 static JsonNode *
+request_link_record_obj (DupinLinkRecord * record, gchar * id, gchar * mvcc)
+{
+  JsonNode *obj_node;
+  JsonObject *obj;
+
+  if (dupin_link_record_is_deleted (record, mvcc) == TRUE)
+    {
+      obj_node = json_node_new (JSON_NODE_OBJECT);
+
+      if (obj_node == NULL)
+        return NULL;
+
+      obj = json_object_new ();
+
+      if (obj == NULL)
+        {
+          json_node_free (obj_node);
+          return NULL;
+        }
+
+      json_node_take_object (obj_node, obj);
+
+      json_object_set_boolean_member (obj, "_deleted", TRUE);
+    }
+
+  else
+    {
+      obj_node = dupin_link_record_get_revision_node (record, mvcc);
+
+      if (obj_node == NULL)
+        return NULL;
+
+      obj_node = json_node_copy (obj_node);
+
+      obj = json_node_get_object (obj_node);
+    }
+
+  /* Setting _id and _rev: */
+  json_object_set_string_member (obj, REQUEST_OBJ_ID, id);
+  json_object_set_string_member (obj, REQUEST_OBJ_REV, mvcc);
+
+  json_object_set_string_member (obj, RESPONSE_LINK_OBJ_CONTEXT_ID, dupin_link_record_get_context_id (record));
+  json_object_set_string_member (obj, RESPONSE_LINK_OBJ_HREF, dupin_link_record_get_href (record));
+
+  gchar * rel = (gchar *)dupin_link_record_get_rel (record);
+
+  if (rel != NULL)
+    json_object_set_string_member (obj, RESPONSE_LINK_OBJ_REL, rel);
+
+  gchar * tag = (gchar *)dupin_link_record_get_tag (record);
+
+  if (tag != NULL)
+    json_object_set_string_member (obj, RESPONSE_LINK_OBJ_TAG, tag);
+
+  return obj_node;
+}
+
+static JsonNode *
 request_view_record_obj (DupinViewRecord * record, gchar * id)
 {
   JsonNode * node = dupin_view_record_get (record);
@@ -4177,7 +6529,7 @@ dupin_keyvalue_destroy (dupin_keyvalue_t * data)
 #define DUPIN_DB_MAX_CHANGES_COMET_COUNT  1
 
 gboolean
-request_get_changes_comet (DSHttpdClient * client,
+request_get_changes_comet_database (DSHttpdClient * client,
 			   gchar *buf,
 			   gsize count,
                            gsize offset,
@@ -4196,9 +6548,9 @@ request_get_changes_comet (DSHttpdClient * client,
   gboolean ret = TRUE;
   GString * str = NULL;
 
-request_get_changes_comet_next:
+request_get_changes_comet_database_next:
 
-//g_message("request_get_changes_comet: count=%d offset=%d\n", (gint)count, (gint)offset);
+//g_message("request_get_changes_comet_database: count=%d offset=%d\n", (gint)count, (gint)offset);
 
   if (client->output.changes_comet.change_generated == FALSE)
     {
@@ -4211,10 +6563,10 @@ request_get_changes_comet_next:
                                        DP_COUNT_CHANGES, DP_ORDERBY_ROWID,
                                        client->output.changes_comet.param_descending, &results, NULL) == FALSE)
         {
-          goto request_get_changes_comet_error;
+          goto request_get_changes_comet_database_error;
         }
 
-//g_message("request_get_changes_comet: param_since=%d results_count=%d\n", (gint)client->output.changes_comet.param_since, (gint)g_list_length (results));
+//g_message("request_get_changes_comet_database: param_since=%d results_count=%d\n", (gint)client->output.changes_comet.param_since, (gint)g_list_length (results));
 
       str = g_string_new (NULL);
 
@@ -4226,7 +6578,7 @@ request_get_changes_comet_next:
       else if (g_list_length (results) == 0)
         {
           /* heartbeat */
-//g_message("request_get_changes_comet: heat beat\n");
+//g_message("request_get_changes_comet_database: heat beat\n");
 
           g_string_append (str,"\n");
         }
@@ -4244,13 +6596,13 @@ request_get_changes_comet_next:
                                                 json_array_get_object_element (json_object_get_array_member (on_obj, "changes"), 0)
                                                 , "rev");
 
-//g_message("request_get_changes_comet: record_id=%s record_mvcc=%s\n", record_id, record_mvcc);
+//g_message("request_get_changes_comet_database: record_id=%s record_mvcc=%s\n", record_id, record_mvcc);
 
                   DupinRecord * db_record=NULL;
                   if (!(db_record = dupin_record_read (client->output.changes_comet.db, record_id, NULL)))
                     {
                       json_node_free (change);
-                      goto request_get_changes_comet_error;
+                      goto request_get_changes_comet_database_error;
                     }
 
                   JsonNode * doc = NULL;
@@ -4258,7 +6610,7 @@ request_get_changes_comet_next:
                   if (! (doc = request_record_obj (db_record, record_id, record_mvcc)))
                     {
                       json_node_free (change);
-                      goto request_get_changes_comet_error;
+                      goto request_get_changes_comet_database_error;
                     }
 
                   dupin_record_close (db_record);
@@ -4281,7 +6633,7 @@ request_get_changes_comet_next:
                 g_string_append (str, "\n");
             }
 
-//g_message("request_get_changes_comet: last_seq=%d total_changes=%d\n", (gint)client->output.changes_comet.change_last_seq , (gint) client->output.changes_comet.change_total_changes);
+//g_message("request_get_changes_comet_database: last_seq=%d total_changes=%d\n", (gint)client->output.changes_comet.change_last_seq , (gint) client->output.changes_comet.change_total_changes);
 
             if ((client->output.changes_comet.param_feed == DP_CHANGES_FEED_LONGPOLL)
                 && ((client->output.changes_comet.change_last_seq == client->output.changes_comet.change_total_changes)
@@ -4301,8 +6653,8 @@ request_get_changes_comet_next:
       client->output.changes_comet.change_string = g_string_free (str, FALSE);
       client->output.changes_comet.change_size = strlen (client->output.changes_comet.change_string);
 
-//g_message("request_get_changes_comet: generated string=%s of len=%d\n",client->output.changes_comet.change_string, (gint)client->output.changes_comet.change_size);
-//g_message("request_get_changes_comet: generated string of len=%d\n",(gint)client->output.changes_comet.change_size);
+//g_message("request_get_changes_comet_database: generated string=%s of len=%d\n",client->output.changes_comet.change_string, (gint)client->output.changes_comet.change_size);
+//g_message("request_get_changes_comet_database: generated string of len=%d\n",(gint)client->output.changes_comet.change_size);
     }
 
   /* NOTE - cursors stuff - we have got one bunch of results/changes from longpoll or continous
@@ -4312,7 +6664,7 @@ request_get_changes_comet_next:
 
   gint left = client->output.changes_comet.change_size - offset;
 
-//g_message("request_get_changes_comet: left=%d count=%d\n", (gint)left, (gint)count);
+//g_message("request_get_changes_comet_database: left=%d count=%d\n", (gint)left, (gint)count);
 
   if (left <= 0)
     {
@@ -4326,9 +6678,9 @@ request_get_changes_comet_next:
           client->output.changes_comet.offset = 0;
 	  client->output.changes_comet.param_since+= DUPIN_DB_MAX_CHANGES_COMET_COUNT;
 
-//g_message("request_get_changes_comet: NEXT -> last_seq=%d < total_changes=%d\n", (gint)client->output.changes_comet.change_last_seq, (gint)client->output.changes_comet.change_total_changes);
+//g_message("request_get_changes_comet_database: NEXT -> last_seq=%d < total_changes=%d\n", (gint)client->output.changes_comet.change_last_seq, (gint)client->output.changes_comet.change_total_changes);
 
-          goto request_get_changes_comet_next;
+          goto request_get_changes_comet_database_next;
         }
       else if (client->output.changes_comet.param_feed == DP_CHANGES_FEED_LONGPOLL)
         {
@@ -4341,7 +6693,7 @@ request_get_changes_comet_next:
 
   /* copy count bytes to buf from change_string starting from offset */
 
-//g_message("request_get_changes_comet: memcpy %d bytes from change_string of len %d to buf starting at %d\n",(gint)count, (gint)client->output.changes_comet.change_size, (gint)offset);
+//g_message("request_get_changes_comet_database: memcpy %d bytes from change_string of len %d to buf starting at %d\n",(gint)count, (gint)client->output.changes_comet.change_size, (gint)offset);
 
 /* TODO - we get garbage copied over !! probably when string is bigger than buffer and need to chunk it up I.e. cursoring */
 
@@ -4349,14 +6701,205 @@ request_get_changes_comet_next:
 
   *bytes_read = count;
 
-//g_message("request_get_changes_comet: bytes_read=%d (=count)\n", (gint)*bytes_read);
+//g_message("request_get_changes_comet_database: bytes_read=%d (=count)\n", (gint)*bytes_read);
 
   return ret;
 
-request_get_changes_comet_error:
+request_get_changes_comet_database_error:
 
   if (results)
     dupin_database_get_changes_list_close (results);
+
+  client->output.changes_comet.change_errors++;
+
+  return FALSE;
+}
+
+#define DUPIN_LINKB_MAX_CHANGES_COMET_COUNT  1
+
+gboolean
+request_get_changes_comet_linkbase (DSHttpdClient * client,
+			   gchar *buf,
+			   gsize count,
+                           gsize offset,
+                           gsize *bytes_read, 
+			   GError **       error)
+{
+  g_return_val_if_fail (client->output.changes_comet.linkb != NULL, FALSE);
+  g_return_val_if_fail (client != NULL, FALSE);
+  g_return_val_if_fail (   client->output.changes_comet.param_feed == DP_CHANGES_FEED_LONGPOLL
+                        || client->output.changes_comet.param_feed == DP_CHANGES_FEED_CONTINUOUS , FALSE);
+
+  GList * results=NULL;
+  GList * list=NULL;
+  JsonNode * change=NULL;
+  JsonObject * on_obj=NULL;
+  gboolean ret = TRUE;
+  GString * str = NULL;
+
+request_get_changes_comet_linkbase_next:
+
+//g_message("request_get_changes_comet_linkbase: count=%d offset=%d\n", (gint)count, (gint)offset);
+
+  if (client->output.changes_comet.change_generated == FALSE)
+    {
+      if (dupin_linkbase_get_changes_list (client->output.changes_comet.linkb,
+                                       DUPIN_DB_MAX_CHANGES_COMET_COUNT,
+                                       0,
+                                       client->output.changes_comet.param_since+1,
+                                       0,
+                                       client->output.changes_comet.param_style,
+                                       DP_COUNT_CHANGES, DP_ORDERBY_ROWID,
+                                       client->output.changes_comet.param_descending,
+                                       client->output.changes_comet.param_context_id,
+					&results, NULL) == FALSE)
+        {
+          goto request_get_changes_comet_linkbase_error;
+        }
+
+//g_message("request_get_changes_comet_linkbase: param_since=%d results_count=%d\n", (gint)client->output.changes_comet.param_since, (gint)g_list_length (results));
+
+      str = g_string_new (NULL);
+
+      if (client->output.changes_comet.change_size == 0
+          && client->output.changes_comet.param_feed == DP_CHANGES_FEED_LONGPOLL)
+        {
+          g_string_append (str,"{ \"results\": [\n");
+        }
+      else if (g_list_length (results) == 0)
+        {
+          /* heartbeat */
+//g_message("request_get_changes_comet_linkbase: heat beat\n");
+
+          g_string_append (str,"\n");
+        }
+      else
+        {
+          for (list = results; list; list = list->next)
+            {
+              change = list->data;
+              on_obj = json_node_get_object (change);
+
+              if (client->output.changes_comet.param_include_links == TRUE)
+                {
+                  gchar * record_id   = (gchar *) json_object_get_string_member (on_obj, "id");
+                  gchar * record_mvcc = (gchar *) json_object_get_string_member (
+                                                json_array_get_object_element (json_object_get_array_member (on_obj, "changes"), 0)
+                                                , "rev");
+
+//g_message("request_get_changes_comet_linkbase: record_id=%s record_mvcc=%s\n", record_id, record_mvcc);
+
+                  DupinLinkRecord * linkb_record=NULL;
+                  if (!(linkb_record = dupin_link_record_read (client->output.changes_comet.linkb, record_id, NULL)))
+                    {
+                      json_node_free (change);
+                      goto request_get_changes_comet_linkbase_error;
+                    }
+
+                  JsonNode * link = NULL;
+
+                  if (! (link = request_link_record_obj (linkb_record, record_id, record_mvcc)))
+                    {
+                      json_node_free (change);
+                      goto request_get_changes_comet_linkbase_error;
+                    }
+
+                  dupin_link_record_close (linkb_record);
+
+                  json_object_set_member (on_obj, "link", link);
+                }
+
+                client->output.changes_comet.change_last_seq = (gsize)json_object_get_int_member (on_obj, "seq");
+
+                gchar * change_str = dupin_util_json_serialize (change);
+                g_string_append (str, change_str);
+		g_free (change_str);
+
+                if ((client->output.changes_comet.param_feed == DP_CHANGES_FEED_LONGPOLL)
+                    && ((client->output.changes_comet.change_last_seq < client->output.changes_comet.change_total_changes)
+                         || (client->output.changes_comet.change_last_seq > client->output.changes_comet.change_total_changes
+                             && client->output.changes_comet.change_last_seq < (client->output.changes_comet.param_since+DUPIN_DB_MAX_CHANGES_COMET_COUNT))))
+                  g_string_append (str, ",");
+
+                g_string_append (str, "\n");
+            }
+
+//g_message("request_get_changes_comet_linkbase: last_seq=%d total_changes=%d\n", (gint)client->output.changes_comet.change_last_seq , (gint) client->output.changes_comet.change_total_changes);
+
+            if ((client->output.changes_comet.param_feed == DP_CHANGES_FEED_LONGPOLL)
+                && ((client->output.changes_comet.change_last_seq == client->output.changes_comet.change_total_changes)
+                     || (client->output.changes_comet.change_last_seq > client->output.changes_comet.change_total_changes
+                         && client->output.changes_comet.change_last_seq == (client->output.changes_comet.param_since+1))))
+              g_string_append_printf (str,"], \"last_seq\": %" G_GSIZE_FORMAT " }", client->output.changes_comet.change_last_seq);
+
+            client->output.changes_comet.change_generated = TRUE;
+        }
+
+      if (results)
+        dupin_linkbase_get_changes_list_close (results);
+
+      if (client->output.changes_comet.change_string != NULL)
+        g_free (client->output.changes_comet.change_string);
+
+      client->output.changes_comet.change_string = g_string_free (str, FALSE);
+      client->output.changes_comet.change_size = strlen (client->output.changes_comet.change_string);
+
+//g_message("request_get_changes_comet_linkbase: generated string=%s of len=%d\n",client->output.changes_comet.change_string, (gint)client->output.changes_comet.change_size);
+//g_message("request_get_changes_comet_linkbase: generated string of len=%d\n",(gint)client->output.changes_comet.change_size);
+    }
+
+  /* NOTE - cursors stuff - we have got one bunch of results/changes from longpoll or continous
+            in client->output.changes_comet.changes_string of client->output.changes_comet.changes_size
+	    now need to slice it as count requested by the caller - once finished if longpoll terminates,
+	    otherwise read next bunch for continous */
+
+  gint left = client->output.changes_comet.change_size - offset;
+
+//g_message("request_get_changes_comet_linkbase: left=%d count=%d\n", (gint)left, (gint)count);
+
+  if (left <= 0)
+    {
+      client->output.changes_comet.change_generated = FALSE;
+      *bytes_read = 0;
+
+      if (client->output.changes_comet.change_last_seq < client->output.changes_comet.change_total_changes
+          || client->output.changes_comet.param_feed == DP_CHANGES_FEED_CONTINUOUS)
+        {
+	  offset = 0;
+          client->output.changes_comet.offset = 0;
+	  client->output.changes_comet.param_since+= DUPIN_DB_MAX_CHANGES_COMET_COUNT;
+
+//g_message("request_get_changes_comet_linkbase: NEXT -> last_seq=%d < total_changes=%d\n", (gint)client->output.changes_comet.change_last_seq, (gint)client->output.changes_comet.change_total_changes);
+
+          goto request_get_changes_comet_linkbase_next;
+        }
+      else if (client->output.changes_comet.param_feed == DP_CHANGES_FEED_LONGPOLL)
+        {
+          return FALSE; /* done */
+        }
+    }
+
+  if (left > 0 && left < count)
+    count = left;
+
+  /* copy count bytes to buf from change_string starting from offset */
+
+//g_message("request_get_changes_comet_linkbase: memcpy %d bytes from change_string of len %d to buf starting at %d\n",(gint)count, (gint)client->output.changes_comet.change_size, (gint)offset);
+
+/* TODO - we get garbage copied over !! probably when string is bigger than buffer and need to chunk it up I.e. cursoring */
+
+  memcpy (buf, client->output.changes_comet.change_string+offset, count);
+
+  *bytes_read = count;
+
+//g_message("request_get_changes_comet_linkbase: bytes_read=%d (=count)\n", (gint)*bytes_read);
+
+  return ret;
+
+request_get_changes_comet_linkbase_error:
+
+  if (results)
+    dupin_linkbase_get_changes_list_close (results);
 
   client->output.changes_comet.change_errors++;
 

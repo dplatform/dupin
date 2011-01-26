@@ -28,7 +28,10 @@ typedef enum
 typedef enum
 {
   DP_CHANGES_MAIN_ONLY,
-  DP_CHANGES_ALL_DOCS
+  DP_CHANGES_ALL_DOCS,
+  DP_CHANGES_ALL_LINKS,
+  DP_CHANGES_WEB_LINKS,
+  DP_CHANGES_RELATIONSHIPS
 } DupinChangesType;
 
 /* Changes feed type: */
@@ -75,16 +78,20 @@ typedef struct dupin_view_t		DupinView;
 typedef struct dupin_attachment_db_t		DupinAttachmentDB;
 typedef struct dupin_attachment_record_t	DupinAttachmentRecord;
 typedef struct dupin_js_t		DupinJs;
+typedef struct dupin_linkb_t		DupinLinkB;
+typedef struct dupin_link_record_t	DupinLinkRecord;
 
 #include <dupin_init.h>
 
 #include <dupin_record.h>
 #include <dupin_view_record.h>
 #include <dupin_attachment_record.h>
+#include <dupin_link_record.h>
 
 #include <dupin_db.h>
 #include <dupin_view.h>
 #include <dupin_attachment_db.h>
+#include <dupin_linkb.h>
 #include <dupin_mr.h>
 #include <dupin_js.h>
 

@@ -262,7 +262,13 @@ dupin_attachment_db_p_update (DupinAttachmentDB * attachment_db, GError ** error
 
   dupin_database_unref (db);
 
-  g_free (update.parent);
+  /* make sure parameters are set after dupin server restart on existing database */
+
+  if (attachment_db->parent == NULL)
+    attachment_db->parent = update.parent;
+  else
+    g_free (update.parent);
+
   return TRUE;
 }
 

@@ -33,6 +33,7 @@ See http://wiki.apache.org/couchdb/Introduction_to_CouchDB_views
   "CREATE TABLE IF NOT EXISTS DupinView (\n" \
   "  parent                    CHAR(255) NOT NULL,\n" \
   "  isdb                      BOOL DEFAULT TRUE,\n" \
+  "  islinkb                   BOOL DEFAULT FALSE,\n" \
   "  map                       TEXT,\n" \
   "  map_lang                  CHAR(255),\n" \
   "  reduce                    TEXT,\n" \
@@ -152,7 +153,7 @@ dupin_view_open (Dupin * d, gchar * view, GError ** error)
 }
 
 DupinView *
-dupin_view_new (Dupin * d, gchar * view, gchar * parent, gboolean is_db,
+dupin_view_new (Dupin * d, gchar * view, gchar * parent, gboolean is_db, gboolean is_linkb,
 		gchar * map, DupinMRLang map_language, gchar * reduce,
 		DupinMRLang reduce_language, GError ** error)
 {
@@ -170,6 +171,8 @@ dupin_view_new (Dupin * d, gchar * view, gchar * parent, gboolean is_db,
 
   if (is_db == TRUE)
     g_return_val_if_fail (dupin_database_exists (d, parent) == TRUE, NULL);
+  else if (is_linkb == TRUE)
+    g_return_val_if_fail (dupin_linkbase_exists (d, parent) == TRUE, NULL);
   else
     g_return_val_if_fail (dupin_view_exists (d, parent) == TRUE, NULL);
 
@@ -205,15 +208,18 @@ dupin_view_new (Dupin * d, gchar * view, gchar * parent, gboolean is_db,
 
   ret->parent = g_strdup (parent);
   ret->parent_is_db = is_db;
+  ret->parent_is_linkb = is_linkb;
 
   g_free (path);
   ret->ref++;
 
   str =
     sqlite3_mprintf ("INSERT INTO DupinView "
-		     "(parent, isdb, map, map_lang, reduce, reduce_lang) "
-		     "VALUES('%q', '%s', '%q', '%q', '%q' ,'%q')", parent,
-		     is_db ? "TRUE" : "FALSE", map,
+		     "(parent, isdb, islinkb, map, map_lang, reduce, reduce_lang) "
+		     "VALUES('%q', '%s', '%s', '%q', '%q', '%q' ,'%q')", parent,
+		     is_db ? "TRUE" : "FALSE",
+		     is_linkb ? "TRUE" : "FALSE",
+		     map,
 		     dupin_util_mr_lang_to_string (map_language), reduce,
 		     dupin_util_mr_lang_to_string (reduce_language));
 
@@ -268,7 +274,12 @@ dupin_view_new (Dupin * d, gchar * view, gchar * parent, gboolean is_db,
 struct dupin_view_p_update_t
 {
   gchar *parent;
+  gchar *map;
+  DupinMRLang map_lang;
+  gchar *reduce;
+  DupinMRLang reduce_lang;
   gboolean isdb;
+  gboolean islinkb;
 };
 
 static int
@@ -281,6 +292,21 @@ dupin_view_p_update_cb (void *data, int argc, char **argv, char **col)
 
   if (argv[1] && *argv[1])
     update->isdb = !g_strcmp0 (argv[1], "TRUE") ? TRUE : FALSE;
+
+  if (argv[2] && *argv[2])
+    update->islinkb = !g_strcmp0 (argv[2], "TRUE") ? TRUE : FALSE;
+
+  if (argv[3] && *argv[3])
+    update->map = g_strdup (argv[3]);
+
+  if (argv[4] && *argv[4])
+    update->map_lang = dupin_util_mr_lang_to_enum (argv[4]);
+
+  if (argv[5] && *argv[5])
+    update->reduce = g_strdup (argv[5]);
+
+  if (argv[6] && *argv[6])
+    update->reduce_lang = dupin_util_mr_lang_to_enum (argv[6]);
 
   return 0;
 }
@@ -311,7 +337,7 @@ dupin_view_p_update (DupinView * view, GError ** error)
 {
   gchar *errmsg;
   struct dupin_view_p_update_t update;
-  gchar *query = "SELECT parent, isdb FROM DupinView";
+  gchar *query = "SELECT parent, isdb, islinkb, map, map_lang, reduce, reduce_lang FROM DupinView";
 
   memset (&update, 0, sizeof (struct dupin_view_p_update_t));
 
@@ -332,6 +358,12 @@ dupin_view_p_update (DupinView * view, GError ** error)
 
   if (!update.parent)
     {
+      if (update.map != NULL)
+        g_free (update.map);
+
+      if (update.reduce != NULL)
+        g_free (update.reduce);
+
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
 		   "Internal error.");
       return FALSE;
@@ -353,6 +385,22 @@ dupin_view_p_update (DupinView * view, GError ** error)
 
       dupin_database_unref (db);
     }
+  else if (update.islinkb == TRUE)
+    {
+      DupinLinkB *linkb;
+
+      if (!(linkb = dupin_linkbase_open (view->d, update.parent, error)))
+	{
+	  g_free (update.parent);
+	  return FALSE;
+	}
+
+      g_mutex_lock (linkb->mutex);
+      dupin_view_p_update_real (&linkb->views, view);
+      g_mutex_unlock (linkb->mutex);
+
+      dupin_linkbase_unref (linkb);
+    }
   else
     {
       DupinView *v;
@@ -370,7 +418,33 @@ dupin_view_p_update (DupinView * view, GError ** error)
       dupin_view_unref (view);
     }
 
-  g_free (update.parent);
+  /* make sure parameters are set after dupin server restart on existing view */
+
+  if (view->parent == NULL)
+    view->parent = update.parent;
+  else
+    g_free (update.parent);
+
+  view->parent_is_db = update.isdb;
+  view->parent_is_linkb = update.islinkb;
+
+  if (view->map == NULL)
+    view->map = update.map;
+  else
+    g_free (update.map);
+
+  view->map_lang = update.map_lang;
+
+  if (update.reduce != NULL && g_strcmp0(update.reduce,"(NULL)") && g_strcmp0(update.reduce,"null") )
+    {
+      if (view->reduce == NULL)
+        view->reduce = update.reduce;
+      else
+        g_free (update.reduce);
+
+      view->reduce_lang = update.reduce_lang;
+    }
+
   return TRUE;
 }
 
@@ -639,6 +713,14 @@ dupin_view_get_parent_is_db (DupinView * view)
   return view->parent_is_db;
 }
 
+gboolean
+dupin_view_get_parent_is_linkb (DupinView * view)
+{
+  g_return_val_if_fail (view != NULL, FALSE);
+
+  return view->parent_is_linkb;
+}
+
 const gchar *
 dupin_view_get_map (DupinView * view)
 {
@@ -725,7 +807,7 @@ dupin_view_create_cb (void *data, int argc, char **argv, char **col)
 {
   DupinView *view = data;
 
-  if (argc == 6)
+  if (argc == 7)
     {
       view->map = g_strdup (argv[0]);
       view->map_lang = dupin_util_mr_lang_to_enum (argv[1]);
@@ -738,6 +820,7 @@ dupin_view_create_cb (void *data, int argc, char **argv, char **col)
 
       view->parent = g_strdup (argv[4]);
       view->parent_is_db = g_strcmp0 (argv[5], "TRUE") == 0 ? TRUE : FALSE;
+      view->parent_is_linkb = g_strcmp0 (argv[6], "TRUE") == 0 ? TRUE : FALSE;
     }
 
   return 0;
@@ -856,7 +939,7 @@ dupin_view_create (Dupin * d, gchar * name, gchar * path, GError ** error)
     }
 
   query =
-    "SELECT map, map_lang, reduce, reduce_lang, parent, isdb FROM DupinView";
+    "SELECT map, map_lang, reduce, reduce_lang, parent, isdb, islinkb FROM DupinView";
 
   if (sqlite3_exec (view->db, query, dupin_view_create_cb, view, &errmsg) !=
       SQLITE_OK)
@@ -1261,6 +1344,10 @@ dupin_view_sync_thread_map (DupinView * view, gsize count)
 {
   if (view->parent_is_db == TRUE)
     return dupin_view_sync_thread_map_db (view, count);
+
+  /* TODO - unimplemented */
+  if (view->parent_is_linkb == TRUE)
+    return FALSE;
 
   return dupin_view_sync_thread_map_view (view, count);
 }
@@ -1985,6 +2072,21 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
     g_free (rere_matching.first_matching_key);
 
 //g_message("dupin_view_sync_reduce_func(%p) finished to reduce %d total records and view reduce part is in sync\n",g_thread_self (), (gint)view->sync_reduce_total_records);
+
+
+  /* claim disk space back due reduce did actually remove rows from view table */
+
+//g_message("dupin_view_sync_reduce_func: VACUUM and ANALYZE\n");
+
+  g_mutex_lock (view->mutex);
+  if (sqlite3_exec (view->db, "VACUUM", NULL, NULL, &errmsg) != SQLITE_OK
+      || sqlite3_exec (view->db, "ANALYZE Dupin", NULL, NULL, &errmsg) != SQLITE_OK)
+    {
+      g_mutex_unlock (view->mutex);
+      g_error ("dupin_view_sync_reduce_func: %s", errmsg);
+      sqlite3_free (errmsg);
+    }
+  g_mutex_unlock (view->mutex);
 
   g_mutex_lock (view->mutex);
   view->sync_reduce_thread = NULL;

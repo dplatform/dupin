@@ -36,6 +36,9 @@ dupin_init (DSGlobal *data, GError ** error)
   d->dbs =
     g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
 			   (GDestroyNotify) dupin_db_free);
+  d->linkbs =
+    g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
+			   (GDestroyNotify) dupin_linkb_free);
   d->views =
     g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
 			   (GDestroyNotify) dupin_view_free);
@@ -45,6 +48,12 @@ dupin_init (DSGlobal *data, GError ** error)
 			   (GDestroyNotify) dupin_attachment_db_free);
 
   d->db_compact_workers_pool = g_thread_pool_new (dupin_database_compact_func,
+					        NULL,
+						(d->conf != NULL) ? d->conf->limit_compact_max_threads : DS_LIMIT_COMPACT_MAXTHREADS_DEFAULT,
+						FALSE,
+						NULL);
+
+  d->linkb_compact_workers_pool = g_thread_pool_new (dupin_linkbase_compact_func,
 					        NULL,
 						(d->conf != NULL) ? d->conf->limit_compact_max_threads : DS_LIMIT_COMPACT_MAXTHREADS_DEFAULT,
 						FALSE,
@@ -85,6 +94,43 @@ dupin_init (DSGlobal *data, GError ** error)
 	}
 
       g_hash_table_insert (d->dbs, g_strdup (name), db);
+      g_free (path);
+      g_free (name);
+    }
+
+  g_dir_rewind (dir);
+
+  while ((filename = g_dir_read_name (dir)))
+    {
+      DupinLinkB *linkb;
+      gchar *path;
+      gchar *name;
+
+      if (g_str_has_suffix (filename, DUPIN_LINKB_SUFFIX) == FALSE)
+	continue;
+
+      path = g_build_path (G_DIR_SEPARATOR_S, d->path, filename, NULL);
+
+      name = g_strdup (filename);
+      name[strlen (filename) - DUPIN_LINKB_SUFFIX_LEN] = 0;
+
+      if (!(linkb = dupin_linkb_create (d, name, path, error)))
+	{
+	  dupin_shutdown (d);
+	  g_free (path);
+	  g_free (name);
+	  return NULL;
+	}
+
+      if (dupin_linkbase_p_update (linkb, error) == FALSE)
+	{
+	  dupin_shutdown (d);
+	  g_free (path);
+	  g_free (name);
+	  return NULL;
+	}
+
+      g_hash_table_insert (d->linkbs, g_strdup (name), linkb);
       g_free (path);
       g_free (name);
     }
@@ -178,6 +224,7 @@ dupin_shutdown (Dupin * d)
   /* NOTE - wait until all map and reduce threads are done */
 
   g_thread_pool_free (d->db_compact_workers_pool, TRUE, TRUE);
+  g_thread_pool_free (d->linkb_compact_workers_pool, TRUE, TRUE);
   g_thread_pool_free (d->sync_map_workers_pool, TRUE, TRUE);
   g_thread_pool_free (d->sync_reduce_workers_pool, TRUE, TRUE);
 
@@ -188,6 +235,9 @@ g_message("dupin_shutdown: worker pools freed\n");
 
   if (d->views)
     g_hash_table_destroy (d->views);
+
+  if (d->linkbs)
+    g_hash_table_destroy (d->linkbs);
 
   if (d->attachment_dbs)
     g_hash_table_destroy (d->attachment_dbs);

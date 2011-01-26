@@ -26,7 +26,11 @@ libdupin_la_SOURCES = \
 	dupin_attachment_db.c \
 	dupin_attachment_db.h \
 	dupin_attachment_record.c \
-	dupin_attachment_record.h
+	dupin_attachment_record.h \
+	dupin_linkb.c \
+	dupin_linkb.h \
+	dupin_link_record.c \
+	dupin_link_record.h
 
 libdupin_la_LIBADD = \
 	../tbjson/libtbjson.la

@@ -37,3 +37,5 @@
     http://library.gnome.org/devel/libsoup/stable/libsoup-server-howto.html
 - Caching:
   - Add ETag and If-None-Match headers and negotiation to methods
+- Add simple triggers/handlers at start view map/reduce and finish to generate SQLite indexes
+  or proper INSERT/DELETE/UPDATE statements to be used by API E.g. Portable Listings.

@@ -11,14 +11,13 @@
 
 #define DUPIN_DB_SQL_MAIN_CREATE \
   "CREATE TABLE IF NOT EXISTS Dupin (\n" \
-  "  id       CHAR(255) NOT NULL,\n" \
-  "  rev      INTEGER NOT NULL DEFAULT 1,\n" \
-  "  hash     CHAR(255) NOT NULL,\n" \
-  "  obj      TEXT,\n" \
-  "  profiles TEXT DEFAULT \"{}\",\n" \
-  "  deleted  BOOL DEFAULT FALSE,\n" \
-  "  tm       INTEGER NOT NULL,\n" \
-  "  PRIMARY  KEY(id, rev, hash)\n" \
+  "  id      CHAR(255) NOT NULL,\n" \
+  "  rev     INTEGER NOT NULL DEFAULT 1,\n" \
+  "  hash    CHAR(255) NOT NULL,\n" \
+  "  obj     TEXT,\n" \
+  "  deleted BOOL DEFAULT FALSE,\n" \
+  "  tm      INTEGER NOT NULL,\n" \
+  "  PRIMARY KEY(id, rev, hash)\n" \
   ");"
 
 #define DUPIN_DB_SQL_CREATE_INDEX \
@@ -295,6 +294,9 @@ dupin_db_free (DupinDB * db)
   if (db->views.views)
     g_free (db->views.views);
 
+  if (db->linkbs.linkbs)
+    g_free (db->linkbs.linkbs);
+
   if (db->attachment_dbs.attachment_dbs)
     g_free (db->attachment_dbs.attachment_dbs);
 
@@ -341,7 +343,7 @@ dupin_db_create (Dupin * d, gchar * name, gchar * path, GError ** error)
   return db;
 }
 
-struct dp_count_t
+struct dupin_database_dp_count_t
 {
   gsize ret;
   DupinCountType type;
@@ -350,7 +352,7 @@ struct dp_count_t
 static int
 dupin_database_count_cb (void *data, int argc, char **argv, char **col)
 {
-  struct dp_count_t *count = data;
+  struct dupin_database_dp_count_t *count = data;
 
   if (argv[0] && *argv[0])
     {
@@ -379,7 +381,7 @@ dupin_database_count_cb (void *data, int argc, char **argv, char **col)
 gsize
 dupin_database_count (DupinDB * db, DupinCountType type)
 {
-  struct dp_count_t count;
+  struct dupin_database_dp_count_t count;
   gchar *query;
 
   g_return_val_if_fail (db != NULL, 0);

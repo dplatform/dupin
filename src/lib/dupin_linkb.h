@@ -42,8 +42,11 @@ gchar **	dupin_linkbase_get_views
 DupinView *	dupin_linkbase_get_view	(DupinLinkB *	linkb,
 					 gchar *	view);
 
-gsize		dupin_linkbase_count	(DupinLinkB *	linkb,
-					 DupinCountType	type);
+gsize		dupin_linkbase_count	(DupinLinkB * linkb,
+					 DupinLinksType links_type,
+					 DupinCountType count_type,
+					 gchar * context_id,
+					 gchar * tag);
 
 gboolean	dupin_linkbase_get_max_rowid	(DupinLinkB *	linkb,
 					         gsize * max_rowid);
@@ -59,6 +62,7 @@ gboolean        dupin_linkbase_get_total_changes
 					 DupinCountType         count_type,
                                          gboolean               inclusive_end,
  					 gchar *                context_id,
+ 					 gchar *                tag,
                                          GError **              error);
 
 gboolean        dupin_linkbase_get_changes_list
@@ -72,6 +76,7 @@ gboolean        dupin_linkbase_get_changes_list
                                          DupinOrderByType       orderby_type,
                                          gboolean               descending,
  					 gchar *                context_id,
+ 					 gchar *                tag,
                                          GList **               list,
                                          GError **              error);
 

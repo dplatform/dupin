@@ -102,9 +102,12 @@ gboolean	dupin_link_record_get_list
 					 guint			offset,
 				         gsize			rowid_start,
 					 gsize			rowid_end,
+					 DupinLinksType		links_type,
 					 DupinCountType		count_type,
 					 DupinOrderByType	orderby_type,
 					 gboolean		descending,
+					 gchar *                context_id,
+                                         gchar *                tag,
 					 GList **		list,
 					 GError **		error);
 

@@ -16,10 +16,11 @@
 #include <string.h>
 #include <stdlib.h>
 
-#define REQUEST_OBJ_ID		"_id"
-#define REQUEST_OBJ_REV		"_rev"
-#define REQUEST_OBJ_ATTACHMENTS	"_attachments"
-#define REQUEST_OBJ_LINKS	"_links"
+#define REQUEST_OBJ_ID			"_id"
+#define REQUEST_OBJ_REV			"_rev"
+#define REQUEST_OBJ_ATTACHMENTS		"_attachments"
+#define REQUEST_OBJ_LINKS		"_links"
+#define REQUEST_OBJ_RELATIONSHIPS	"_relationships"
 
 #define REQUEST_LINK_OBJ_CONTEXT_ID	"_context_id"
 #define REQUEST_LINK_OBJ_HREF		"_href"
@@ -914,25 +915,34 @@ request_global_get_all_views:
 #define REQUEST_GET_ALL_LINKS_STARTKEY	   	REQUEST_GET_ALL_DOCS_STARTKEY
 #define REQUEST_GET_ALL_LINKS_ENDKEY	   	REQUEST_GET_ALL_DOCS_ENDKEY
 #define REQUEST_GET_ALL_LINKS_INCLUSIVEEND 	REQUEST_GET_ALL_DOCS_INCLUSIVEEND
-#define REQUEST_GET_ALL_LINKS_INCLUDE_LINKS	"include_links"
+
+#define REQUEST_GET_ALL_LINKS_LINKBASE			"linkbase"
+
+#define REQUEST_GET_ALL_LINKS_CONTEXT_ID 		"context_id"
+#define REQUEST_GET_ALL_LINKS_TAG	 		"tag"
+#define REQUEST_GET_ALL_LINKS_LINK_TYPE			"link_type"
+#define REQUEST_GET_ALL_LINKS_LINK_TYPE_ALL_LINKS	"all_links"
+#define REQUEST_GET_ALL_LINKS_LINK_TYPE_WEBLINKS	"web_links"
+#define REQUEST_GET_ALL_LINKS_LINK_TYPE_RELATIONSHIPS	"relationships"
 
 #define REQUEST_GET_ALL_CHANGES_SINCE	      "since"
 #define REQUEST_GET_ALL_CHANGES_STYLE	      "style"
 #define REQUEST_GET_ALL_CHANGES_FEED	      "feed"
-#define REQUEST_GET_ALL_CHANGES_INCLUDE_DOCS  "include_docs"
+#define REQUEST_GET_ALL_CHANGES_INCLUDE_DOCS  REQUEST_GET_ALL_DOCS_INCLUDE_DOCS
 #define REQUEST_GET_ALL_CHANGES_HEARTBEAT     "heartbeat"
 #define REQUEST_GET_ALL_CHANGES_TIMEOUT       "timeout"
 #define REQUEST_GET_ALL_CHANGES_INCLUDE_LINKS "include_links"
-#define REQUEST_GET_ALL_CHANGES_CONTEXT_ID    "context_id"
+#define REQUEST_GET_ALL_CHANGES_CONTEXT_ID    REQUEST_GET_ALL_LINKS_CONTEXT_ID
+#define REQUEST_GET_ALL_CHANGES_TAG	      REQUEST_GET_ALL_LINKS_TAG
 
 #define REQUEST_GET_ALL_CHANGES_HEARTBEAT_DEFAULT  60000
 #define REQUEST_GET_ALL_CHANGES_TIMEOUT_DEFAULT    60000
 
 #define REQUEST_GET_ALL_CHANGES_STYLE_DEFAULT	   "main_only"
 
-#define REQUEST_GET_ALL_CHANGES_STYLE_ALL_LINKS	   	"all_links"
-#define REQUEST_GET_ALL_CHANGES_STYLE_WEBLINKS	   	"web_links"
-#define REQUEST_GET_ALL_CHANGES_STYLE_RELATIONSHIPS	"relationships"
+#define REQUEST_GET_ALL_CHANGES_STYLE_ALL_LINKS	   	REQUEST_GET_ALL_LINKS_LINK_TYPE_ALL_LINKS
+#define REQUEST_GET_ALL_CHANGES_STYLE_WEBLINKS	   	REQUEST_GET_ALL_LINKS_LINK_TYPE_WEBLINKS
+#define REQUEST_GET_ALL_CHANGES_STYLE_RELATIONSHIPS	REQUEST_GET_ALL_LINKS_LINK_TYPE_RELATIONSHIPS
 
 #define REQUEST_GET_ALL_CHANGES_FEED_POLL	"poll"
 #define REQUEST_GET_ALL_CHANGES_FEED_LONGPOLL	"longpoll"
@@ -1509,19 +1519,26 @@ request_global_get_record (DSHttpdClient * client, GList * path,
   gchar * doc_id=NULL;
   GList * title_parts=NULL;
 
+  gchar * dbname = path->data;
+
   /* check if special document name/id */
   gunichar ch = g_utf8_get_char (path->next->data);
 
   if (ch == '_')
     {
-      /* GET _special_document/document_ID or _special_document/document_ID/attachment  */
+      /* GET _special_document/document_ID or _special_document/document_ID/_attachments/attachment  */
       if (path->next->next)
         {
           doc_id = g_strdup_printf ("%s/%s", (gchar *)path->next->data, (gchar *)path->next->next->data);
 
           if (path->next->next->next)
             {
-              if (!g_strcmp0 (path->next->next->next->data, REQUEST_FIELDS))
+              if (!g_strcmp0 (path->next->next->next->data, REQUEST_OBJ_ATTACHMENTS))
+                {
+                  if (path->next->next->next->next)
+                    title_parts = path->next->next->next->next;
+                }
+              else if (!g_strcmp0 (path->next->next->next->data, REQUEST_FIELDS))
                 {
                   if (!path->next->next->next->next
                        || !g_strcmp0 (path->next->next->next->next->data, REQUEST_OBJ_ATTACHMENTS))
@@ -1531,7 +1548,7 @@ request_global_get_record (DSHttpdClient * client, GList * path,
                 }
               else
                 {
-                  title_parts = path->next->next->next;
+                  return HTTP_STATUS_400;
                 }
             }
         }
@@ -1548,26 +1565,62 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 
               request_fields=(gchar *)path->next->next->next->data;
             }
+          else if (path->next->next->next
+                   && (!g_strcmp0 (path->next->next->data, REQUEST_OBJ_ATTACHMENTS)))
+            {
+              /* GET /document_ID/_attachments/attachment */
+              title_parts = path->next->next->next;
+            }
+
+          /* NOTE - the following two works becuase the database and the default linkbase
+		    are named the same - we should rewrite path really */
+
+          else if ((!g_strcmp0 (path->next->next->data, REQUEST_OBJ_LINKS))
+                  || (!g_strcmp0 (path->next->next->data, REQUEST_OBJ_RELATIONSHIPS)))
+            {
+	      /* never override users parameters */
+              arguments = g_list_append (arguments,
+				dp_keyvalue_new (REQUEST_GET_ALL_LINKS_LINKBASE,
+						 dbname));
+              arguments = g_list_append (arguments,
+				dp_keyvalue_new (REQUEST_GET_ALL_LINKS_CONTEXT_ID,
+						 (gchar *)path->next->data));
+
+              if (!g_strcmp0 (path->next->next->data, REQUEST_OBJ_LINKS))
+                {
+                  arguments = g_list_append (arguments,
+				dp_keyvalue_new (REQUEST_GET_ALL_LINKS_LINK_TYPE,
+						 REQUEST_GET_ALL_LINKS_LINK_TYPE_WEBLINKS));
+                }
+              else
+                {
+                  arguments = g_list_append (arguments,
+				dp_keyvalue_new (REQUEST_GET_ALL_LINKS_LINK_TYPE,
+						 REQUEST_GET_ALL_LINKS_LINK_TYPE_RELATIONSHIPS));
+                }
+
+	      return request_global_get_all_links_linkbase (client, path, arguments);
+	    }
           else
             {
-              title_parts = path->next->next;
+              return HTTP_STATUS_400;
             }
         }
 
-      /* GET document_ID/attachment or document_ID/attachment */
+      /* GET document_ID or document_ID/_attachments/attachment */
       doc_id = g_strdup_printf ("%s", (gchar *)path->next->data);
     }
 
   if (!
       (db =
-       dupin_database_open (client->thread->data->dupin, path->data, NULL)))
+       dupin_database_open (client->thread->data->dupin, dbname, NULL)))
     {
       g_free (doc_id);
       return HTTP_STATUS_404;
     }
 
   if (!  (attachment_db =
-                dupin_attachment_db_open (client->thread->data->dupin, path->data, NULL)))
+                dupin_attachment_db_open (client->thread->data->dupin, dbname, NULL)))
     {
       dupin_database_unref (db);
       g_free (doc_id);
@@ -1945,8 +1998,12 @@ request_global_get_linkbase (DSHttpdClient * client, GList * path,
 
   json_object_set_string_member (obj, "linkbase_name", (gchar *) dupin_linkbase_get_name (linkb));
   json_object_set_string_member (obj, "linkbase_parent", (gchar *) dupin_linkbase_get_parent (linkb));
-  json_object_set_int_member (obj, "link_count", dupin_linkbase_count (linkb, DP_COUNT_EXIST));
-  json_object_set_int_member (obj, "link_del_count", dupin_linkbase_count (linkb, DP_COUNT_DELETE));
+  json_object_set_int_member (obj, "links_count", dupin_linkbase_count (linkb, DP_LINKS_ALL_LINKS, DP_COUNT_EXIST, NULL, NULL));
+  json_object_set_int_member (obj, "web_links_count", dupin_linkbase_count (linkb, DP_LINKS_WEB_LINKS, DP_COUNT_EXIST, NULL, NULL));
+  json_object_set_int_member (obj, "relationships_count", dupin_linkbase_count (linkb, DP_LINKS_RELATIONSHIPS, DP_COUNT_EXIST, NULL, NULL));
+  json_object_set_int_member (obj, "links_del_count", dupin_linkbase_count (linkb, DP_LINKS_ALL_LINKS, DP_COUNT_DELETE, NULL, NULL));
+  json_object_set_int_member (obj, "web_links_del_count", dupin_linkbase_count (linkb, DP_LINKS_WEB_LINKS, DP_COUNT_DELETE, NULL, NULL));
+  json_object_set_int_member (obj, "relationships_del_count", dupin_linkbase_count (linkb, DP_LINKS_RELATIONSHIPS, DP_COUNT_DELETE, NULL, NULL));
 
   json_object_set_int_member (obj, "disk_size", dupin_linkbase_get_size (linkb));
 
@@ -2006,15 +2063,16 @@ request_global_get_all_links_linkbase (DSHttpdClient * client, GList * path,
   guint offset = 0;
   gsize total_rows = 0;
 
+  gchar * context_id = NULL;
+  gchar * tag = NULL;
+  DupinLinksType link_type = DP_LINKS_ALL_LINKS;
+
   JsonObject *obj;
   JsonNode *node=NULL;
   JsonArray *array;
   JsonGenerator *gen=NULL;
 
-  if (!
-      (linkb =
-       dupin_linkbase_open (client->thread->data->dupin, path->data, NULL)))
-    return HTTP_STATUS_404;
+  gchar * linkbase_name = path->data;
 
   for (list = arguments; list; list = list->next)
     {
@@ -2029,11 +2087,35 @@ request_global_get_all_links_linkbase (DSHttpdClient * client, GList * path,
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_OFFSET))
 	offset = atoi (kv->value);
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_CONTEXT_ID))
+        context_id = kv->value;
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_TAG))
+        tag = kv->value;
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_LINKBASE))
+        linkbase_name = kv->value;
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_LINK_TYPE))
+        {
+          if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_LINKS_LINK_TYPE_WEBLINKS))
+            link_type = DP_LINKS_WEB_LINKS;
+          else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_LINKS_LINK_TYPE_RELATIONSHIPS))
+            link_type = DP_LINKS_RELATIONSHIPS;
+        }
+
     }
 
-  total_rows = dupin_linkbase_count (linkb, DP_COUNT_EXIST);
+  if (!
+      (linkb =
+       dupin_linkbase_open (client->thread->data->dupin, linkbase_name, NULL)))
+    return HTTP_STATUS_404;
 
-  if (dupin_link_record_get_list (linkb, count, offset, 0, 0, DP_COUNT_EXIST, DP_ORDERBY_ROWID, descending, &results, NULL) ==
+  total_rows = dupin_linkbase_count (linkb, link_type, DP_COUNT_EXIST, context_id, tag);
+
+  if (dupin_link_record_get_list (linkb, count, offset, 0, 0, link_type, DP_COUNT_EXIST, DP_ORDERBY_ROWID, descending, 
+					context_id, tag, &results, NULL) ==
       FALSE)
     {
       dupin_linkbase_unref (linkb);
@@ -2145,6 +2227,7 @@ request_global_get_changes_linkbase (DSHttpdClient * client, GList * path,
   guint timeout=REQUEST_GET_ALL_CHANGES_TIMEOUT_DEFAULT;
 
   gchar * context_id = NULL;
+  gchar * tag = NULL;
 
   gsize total_rows = 0;
 
@@ -2181,6 +2264,9 @@ request_global_get_changes_linkbase (DSHttpdClient * client, GList * path,
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_CONTEXT_ID))
 	context_id = kv->value;
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_TAG))
+	tag = kv->value;
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_STYLE))
         {
@@ -2246,6 +2332,7 @@ request_global_get_changes_linkbase (DSHttpdClient * client, GList * path,
       client->output.changes_comet.param_feed = feed;
       client->output.changes_comet.param_include_links = include_links;
       client->output.changes_comet.param_context_id = context_id;
+      client->output.changes_comet.param_tag = tag;
       client->output.changes_comet.change_generated = FALSE;
       client->output.changes_comet.change_last_seq = 0;
 
@@ -2268,13 +2355,13 @@ request_global_get_changes_linkbase (DSHttpdClient * client, GList * path,
        dupin_linkbase_open (client->thread->data->dupin, path->data, NULL)))
     return HTTP_STATUS_404;
 
-  if (dupin_linkbase_get_total_changes (linkb, &total_rows, since+1, 0, style, DP_COUNT_CHANGES, TRUE, context_id, NULL) == FALSE)
+  if (dupin_linkbase_get_total_changes (linkb, &total_rows, since+1, 0, style, DP_COUNT_CHANGES, TRUE, context_id, tag, NULL) == FALSE)
     {
       dupin_linkbase_unref (linkb);
       return HTTP_STATUS_500;
     }
 
-  if (dupin_linkbase_get_changes_list (linkb, count, 0, since+1, 0, style, DP_COUNT_CHANGES, DP_ORDERBY_ROWID, descending, context_id, &results, NULL) ==
+  if (dupin_linkbase_get_changes_list (linkb, count, 0, since+1, 0, style, DP_COUNT_CHANGES, DP_ORDERBY_ROWID, descending, context_id, tag, &results, NULL) ==
       FALSE)
     {
       dupin_linkbase_unref (linkb);
@@ -2459,6 +2546,8 @@ request_global_get_record_linkbase (DSHttpdClient * client, GList * path,
       link_id = g_strdup_printf ("%s", (gchar *)path->next->data);
     }
 
+//g_message("request_global_get_record_linkbase: link_id=%s request_fields=%s\n", link_id, request_fields);
+
   if (!
       (linkb =
        dupin_linkbase_open (client->thread->data->dupin, path->data, NULL)))
@@ -2642,6 +2731,8 @@ request_global_get_record_linkbase (DSHttpdClient * client, GList * path,
         {
           node = json_node_copy (node_temp);
         }
+
+//g_message("request_global_get_record_linkbase: link_id=%s request_fields=%s\n", link_id, request_fields);
 
       json_node_free (node_temp);
     }
@@ -3444,7 +3535,8 @@ request_global_get_linkbase_query (DSHttpdClient * client, GList * path,
 
   array = json_array_new ();
 
-  while (dupin_link_record_get_list (linkb, QUERY_BLOCK, offset, 0, 0, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE, &results, NULL) == TRUE && results)
+  while (dupin_link_record_get_list (linkb, QUERY_BLOCK, offset, 0, 0, DP_LINKS_ALL_LINKS, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE,
+					NULL, NULL, &results, NULL) == TRUE && results)
     {
       GList *list;
 
@@ -4231,9 +4323,9 @@ request_global_put_record (DSHttpdClient * client, GList * path,
 
               request_fields=path->next->next->next->data;
             }
-          else
+          else if (!g_strcmp0 (path->next->next->data, REQUEST_OBJ_ATTACHMENTS))
             {
-              /* PUT /document_ID/attachment */
+              /* PUT /document_ID/_attachments/attachment */
               return request_global_put_record_attachment (client, path, arguments);
             }
         }
@@ -4598,23 +4690,32 @@ request_global_put_record_attachment (DSHttpdClient * client, GList * path,
 
   if (ch == '_')
     {
-      /* PUT _special_document/document_ID/attachment */
-      if (path->next->next)
-        {
-          doc_id = g_strdup_printf ("%s/%s", (gchar *)path->next->data, (gchar *)path->next->next->data);
+      /* PUT _special_document/document_ID/_attachments/attachment */
+      doc_id = g_strdup_printf ("%s/%s", (gchar *)path->next->data, (gchar *)path->next->next->data);
 
-          if (path->next->next->next)
-            title_parts = path->next->next->next;
+      if (path->next->next->next
+	  && (!g_strcmp0 (path->next->next->next->data, REQUEST_OBJ_ATTACHMENTS)))
+        {
+          if (path->next->next->next->next)
+            title_parts = path->next->next->next->next;
         }
     }
   else
     {
-      /* PUT /document_ID/attachment */
-      doc_id = g_strdup_printf ("%s", (gchar *)path->next->data);
-      title_parts = path->next->next;
+       if (path->next->next->next
+	   && (!g_strcmp0 (path->next->next->data, REQUEST_OBJ_ATTACHMENTS)))
+         {
+           /* PUT /document_ID/_attachments/attachment */
+          doc_id = g_strdup_printf ("%s", (gchar *)path->next->data);
+          title_parts = path->next->next->next;
+         }
+       else
+         {
+           return HTTP_STATUS_400;
+         }
     }
 
-//g_message("request_global_put_record_attachment: dbname=%s doc_id=%s\n", (gchar *) path->data, doc_id);
+//g_message("request_global_put_record_attachment: dbname=%s doc_id=%s title_parts=%s\n", (gchar *) path->data, doc_id, (gchar *)title_parts->data);
 
   if (request_record_attachment_insert
       (client, path->data, doc_id,
@@ -4775,13 +4876,17 @@ request_global_delete_record (DSHttpdClient * client, GList * path,
     {
       /* TODO - shouldn't we stop/avoid user to delete /_design/something ?! */
 
-      /* DELETE _special_document/document_ID and _special_document/document_ID/attachment */
+      /* DELETE _special_document/document_ID and _special_document/document_ID/_attachments/attachment */
       if (path->next->next)
         {
           doc_id = g_strdup_printf ("%s/%s", (gchar *)path->next->data, (gchar *)path->next->next->data);
 
-          if (path->next->next->next)
-            title_parts = path->next->next->next;
+          if (path->next->next->next
+              && (!g_strcmp0 (path->next->next->next->data, REQUEST_OBJ_ATTACHMENTS)))
+            {
+              if (path->next->next->next->next)
+                title_parts = path->next->next->next->next;
+            }
         }
 
       /* NOTE - we deliberately do not implement field delete of special documents - of course general PUT of whole doc still works */
@@ -4800,13 +4905,19 @@ request_global_delete_record (DSHttpdClient * client, GList * path,
 
               request_fields=path->next->next->next->data;
             }
+          else if (path->next->next->next
+                   && (!g_strcmp0 (path->next->next->data, REQUEST_OBJ_ATTACHMENTS)))
+            {
+              /* DELETE /document_ID/_attachments/attachment */
+              title_parts = path->next->next->next;
+            }
           else
             {
-              title_parts = path->next->next;
+              return HTTP_STATUS_400;
             }
         }
 
-      /* DELETE /document_ID, /document_ID/_fields/field and /document_ID/attachment */
+      /* DELETE /document_ID, /document_ID/_fields/field and /document_ID/_attachments/attachment */
       doc_id = g_strdup_printf ("%s", (gchar *)path->next->data);
     }
 
@@ -4828,7 +4939,7 @@ request_global_delete_record (DSHttpdClient * client, GList * path,
           return HTTP_STATUS_400;
         }
 
-//g_message("request_global_delete_record: title=%s\n", title);
+//g_message("request_global_delete_record: doc_id=%s title=%s\n", doc_id, title);
     }
 
   if (!
@@ -5052,7 +5163,7 @@ request_global_delete_link_record (DSHttpdClient * client, GList * path,
       link_id = g_strdup_printf ("%s", (gchar *)path->next->data);
     }
 
-g_message("request_global_delete_link_record: link_id=%s request_fields=%s\n", link_id, request_fields);
+//g_message("request_global_delete_link_record: link_id=%s request_fields=%s\n", link_id, request_fields);
 
   if (!
       (linkb =
@@ -6752,6 +6863,7 @@ request_get_changes_comet_linkbase_next:
                                        DP_COUNT_CHANGES, DP_ORDERBY_ROWID,
                                        client->output.changes_comet.param_descending,
                                        client->output.changes_comet.param_context_id,
+                                       client->output.changes_comet.param_tag,
 					&results, NULL) == FALSE)
         {
           goto request_get_changes_comet_linkbase_error;

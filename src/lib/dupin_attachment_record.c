@@ -141,6 +141,21 @@ dupin_attachment_record_delete (DupinAttachmentDB * attachment_db,
 
   sqlite3_free (query);
 
+//g_message("dupin_attachment_record_delete: VACUUM and ANALYZE\n");
+
+  g_mutex_lock (attachment_db->mutex);
+
+  if (sqlite3_exec (attachment_db->db, "VACUUM", NULL, NULL, &errmsg) != SQLITE_OK
+      || sqlite3_exec (attachment_db->db, "ANALYZE Dupin", NULL, NULL, &errmsg) != SQLITE_OK)
+    {
+      g_mutex_unlock (attachment_db->mutex);
+      g_error("dupin_attachment_db_p_record_delete: %s", errmsg);
+      sqlite3_free (errmsg);
+      return FALSE;
+    }
+
+  g_mutex_unlock (attachment_db->mutex);
+
   return TRUE;
 }
 

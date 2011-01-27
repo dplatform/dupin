@@ -72,6 +72,20 @@ gboolean	httpd_init		(DSGlobal *	data,
 
 void		httpd_close		(DSGlobal *	data);
 
+
+typedef struct dp_keyvalue_t    dp_keyvalue_t;
+
+struct dp_keyvalue_t
+{
+  gchar *       key;
+  gchar *       value;
+};
+
+dp_keyvalue_t * dp_keyvalue_new         (gchar *        key,
+                                         gchar *        value) G_GNUC_WARN_UNUSED_RESULT;
+
+void            dp_keyvalue_destroy     (dp_keyvalue_t * data);
+
 #endif
 
 /* EOF */

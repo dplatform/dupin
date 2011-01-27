@@ -27,8 +27,8 @@
 	"SELECT rev, hash, obj, deleted, tm, ROWID AS rowid, context_id, href, rel, tag, is_weblink FROM Dupin WHERE id='%q'"
 
 #define DUPIN_LINKB_SQL_DELETE \
-	"INSERT OR REPLACE INTO Dupin (id, rev, deleted, hash, tm) " \
-        "VALUES('%q', '%" G_GSIZE_FORMAT "', 'TRUE', '%q', '%" G_GSIZE_FORMAT "')"
+	"INSERT OR REPLACE INTO Dupin (id, rev, deleted, hash, tm, context_id, href, rel, tag, is_weblink) " \
+        "VALUES('%q', '%" G_GSIZE_FORMAT "', 'TRUE', '%q', '%" G_GSIZE_FORMAT "', '%q', '%q', %Q, %Q, '%q')"
 
 
 DSWeblinkingRelationRegistry DSWeblinkingRelationRegistryList[] = {
@@ -502,20 +502,28 @@ dupin_link_record_get_list_cb (void *data, int argc, char **argv, char **col)
 
 gboolean
 dupin_link_record_get_list (DupinLinkB * linkb, guint count, guint offset,
-                       gsize rowid_start, gsize rowid_end,
-		       DupinCountType         count_type,
-		       DupinOrderByType       orderby_type,
-		       gboolean descending, GList ** list, GError ** error)
+                            gsize rowid_start, gsize rowid_end,
+			    DupinLinksType         links_type,
+			    DupinCountType         count_type,
+                            DupinOrderByType       orderby_type,
+                            gboolean               descending,
+                            gchar *                context_id,
+                            gchar *                tag,
+		            GList ** list, GError ** error)
 {
   GString *str;
   gchar *tmp;
   gchar *errmsg;
   gchar *check_deleted="";
+  gchar *check_linktype="";
 
   struct dupin_link_record_get_list_t s;
 
   g_return_val_if_fail (linkb != NULL, FALSE);
   g_return_val_if_fail (list != NULL, FALSE);
+
+  if (context_id != NULL)
+    g_return_val_if_fail (dupin_link_record_util_is_valid_context_id (context_id) == TRUE, FALSE);
 
   memset (&s, 0, sizeof (s));
   s.linkb = linkb;
@@ -527,14 +535,67 @@ dupin_link_record_get_list (DupinLinkB * linkb, guint count, guint offset,
   else if (count_type == DP_COUNT_DELETE)
     check_deleted = " d.deleted = 'TRUE' ";
 
+  if (links_type == DP_LINKS_WEB_LINKS)
+    check_linktype = " d.is_weblink = 'TRUE' ";
+  else if (links_type == DP_LINKS_RELATIONSHIPS)
+    check_linktype = " d.is_weblink = 'FALSE' ";
+
+  gchar * op = "";
+
   if (rowid_start > 0 && rowid_end > 0)
-    g_string_append_printf (str, " WHERE %s %s d.ROWID >= %d AND d.ROWID <= %d ", check_deleted, (g_strcmp0 (check_deleted, "")) ? "AND" : "", (gint)rowid_start, (gint)rowid_end);
+    {
+      g_string_append_printf (str, " WHERE d.ROWID >= %d AND d.ROWID <= %d ", (gint)rowid_start, (gint)rowid_end);
+      op = "AND";
+    }
   else if (rowid_start > 0)
-    g_string_append_printf (str, " WHERE %s %s d.ROWID >= %d ", check_deleted, (g_strcmp0 (check_deleted, "")) ? "AND" : "", (gint)rowid_start);
+    {
+      g_string_append_printf (str, " WHERE d.ROWID >= %d ", (gint)rowid_start);
+      op = "AND";
+    }
   else if (rowid_end > 0)
-    g_string_append_printf (str, " WHERE %s %s d.ROWID <= %d ", check_deleted, (g_strcmp0 (check_deleted, "")) ? "AND" : "", (gint)rowid_end);
-  else if (g_strcmp0 (check_deleted, ""))
-    g_string_append_printf (str, " WHERE %s ", check_deleted);
+    {
+      g_string_append_printf (str, " WHERE d.ROWID <= %d ", (gint)rowid_end);
+      op = "AND";
+    }
+
+  if (g_strcmp0 (check_deleted, ""))
+    {
+      if (!g_strcmp0 (op, ""))
+        op = "WHERE";
+
+      g_string_append_printf (str, " %s %s ", op, check_deleted);
+      op = "AND";
+    }
+
+  if (g_strcmp0 (check_linktype, ""))
+    {
+      if (!g_strcmp0 (op, ""))
+        op = "WHERE";
+
+      g_string_append_printf (str, " %s %s ", op, check_linktype);
+      op = "AND";
+    }
+
+  if (context_id != NULL)
+    {
+      if (!g_strcmp0 (op, ""))
+        op = "WHERE";
+
+      gchar * tmp2 = sqlite3_mprintf (" %s d.context_id = '%q' ", op, context_id);
+      str = g_string_append (str, tmp2);
+      sqlite3_free (tmp2);
+      op = "AND";
+    }
+
+  if (tag != NULL)
+    {
+      if (!g_strcmp0 (op, ""))
+        op = "WHERE";
+
+      gchar * tmp2 = sqlite3_mprintf (" %s d.tag = '%q' ", op, tag);
+      str = g_string_append (str, tmp2);
+      sqlite3_free (tmp2);
+    }
 
   if (orderby_type == DP_ORDERBY_ROWID)
     str = g_string_append (str, " GROUP BY id ORDER BY d.ROWID");
@@ -881,7 +942,14 @@ dupin_link_record_delete (DupinLinkRecord * record, GError ** error)
  				      TRUE, created,
 				      dupin_link_record_is_weblink (record));
 
-  tmp = sqlite3_mprintf (DUPIN_LINKB_SQL_DELETE, record->id, rev, md5, created);
+  tmp = sqlite3_mprintf (DUPIN_LINKB_SQL_DELETE, record->id, rev, md5, created,	
+				      (gchar *)dupin_link_record_get_context_id (record),
+				      (gchar *)dupin_link_record_get_href (record),
+				      (gchar *)dupin_link_record_get_rel (record),
+				      (gchar *)dupin_link_record_get_tag (record),
+				      dupin_link_record_is_weblink (record) ? "TRUE" : "FALSE" );
+
+//g_message("dupin_link_record_delete: query=%s\n", tmp);
 
   if (sqlite3_exec (record->linkb->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
     {

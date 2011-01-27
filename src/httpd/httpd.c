@@ -8,8 +8,6 @@
 #include "map.h"
 #include "request.h"
 
-#include "../tbjson/tb_keyvalue.h"
-
 /* HTTPD: */
 #ifdef G_OS_UNIX
 #  include <netinet/in.h>
@@ -860,7 +858,7 @@ httpd_client_header_parse (DSHttpdClient * client, gchar * request,
       key = g_uri_unescape_string (attribute[0], NULL);
       value = g_uri_unescape_string (attribute[1], NULL);
 
-      ret = g_list_prepend (ret, tb_keyvalue_new (key, value));
+      ret = g_list_prepend (ret, dp_keyvalue_new (key, value));
 
       g_free (value);
       g_free (key);
@@ -1724,7 +1722,7 @@ httpd_client_free (DSHttpdClient * client)
 
   if (client->request_arguments)
     {
-      g_list_foreach (client->request_arguments, (GFunc) tb_keyvalue_destroy,
+      g_list_foreach (client->request_arguments, (GFunc) dp_keyvalue_destroy,
 		      NULL);
       g_list_free (client->request_arguments);
     }
@@ -1885,6 +1883,38 @@ httpd_thread_free (DSHttpdThread * thread)
     g_mutex_free (thread->mutex);
 
   g_free (thread);
+}
+
+/* utility */
+
+dp_keyvalue_t *
+dp_keyvalue_new (gchar * key, gchar * value)
+{
+  dp_keyvalue_t *new;
+
+  g_return_val_if_fail (key != NULL, NULL);
+  g_return_val_if_fail (value != NULL, NULL);
+
+  new = g_malloc0 (sizeof (dp_keyvalue_t));
+  new->key = g_strdup (key);
+  new->value = g_strdup (value);
+
+  return new;
+}
+
+void
+dp_keyvalue_destroy (dp_keyvalue_t * data)
+{
+  if (!data)
+    return;
+
+  if (data->key)
+    g_free (data->key);
+
+  if (data->value)
+    g_free (data->value);
+
+  g_free (data);
 }
 
 /* EOF */

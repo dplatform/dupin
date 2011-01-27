@@ -24,6 +24,14 @@ typedef enum
   DP_COUNT_ALL
 } DupinCountType;
 
+/* Get Links type: */
+typedef enum
+{
+  DP_LINKS_ALL_LINKS,
+  DP_LINKS_WEB_LINKS,
+  DP_LINKS_RELATIONSHIPS
+} DupinLinksType;
+
 /* Changes type: */
 typedef enum
 {

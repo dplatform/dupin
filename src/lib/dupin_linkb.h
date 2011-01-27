@@ -46,6 +46,7 @@ gsize		dupin_linkbase_count	(DupinLinkB * linkb,
 					 DupinLinksType links_type,
 					 DupinCountType count_type,
 					 gchar * context_id,
+					 gchar * label,
 					 gchar * tag);
 
 gboolean	dupin_linkbase_get_max_rowid	(DupinLinkB *	linkb,

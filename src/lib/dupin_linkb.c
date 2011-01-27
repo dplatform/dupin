@@ -19,6 +19,7 @@
   "  deleted     BOOL DEFAULT FALSE,\n" \
   "  tm          INTEGER NOT NULL,\n" \
   "  context_id  CHAR(255) NOT NULL,\n" \
+  "  label       CHAR(255) NOT NULL,\n" \
   "  href        TEXT NOT NULL,\n" \
   "  rel         TEXT DEFAULT NULL,\n" \
   "  is_weblink  BOOL DEFAULT FALSE,\n" \
@@ -574,6 +575,7 @@ dupin_linkbase_count (DupinLinkB * linkb,
 		      DupinLinksType links_type,
 	              DupinCountType count_type,
                       gchar * context_id,
+                      gchar * label,
                       gchar * tag)
 {
   struct dupin_linkbase_dp_count_t count;
@@ -585,6 +587,9 @@ dupin_linkbase_count (DupinLinkB * linkb,
 
   if (context_id != NULL)
     g_return_val_if_fail (dupin_link_record_util_is_valid_context_id (context_id) == TRUE, FALSE);
+
+  if (label != NULL)
+    g_return_val_if_fail (dupin_link_record_util_is_valid_label (label) == TRUE, FALSE);
 
   count.ret = 0;
   count.count_type = count_type;
@@ -613,6 +618,17 @@ dupin_linkbase_count (DupinLinkB * linkb,
         op = "WHERE";
 
       gchar * tmp2 = sqlite3_mprintf (" %s context_id = '%q' ", op, context_id);
+      str = g_string_append (str, tmp2);
+      sqlite3_free (tmp2);
+      op = "AND";
+    }
+
+  if (label != NULL)
+    {
+      if (!g_strcmp0 (op, ""))
+        op = "WHERE";
+
+      gchar * tmp2 = sqlite3_mprintf (" %s label = '%q' ", op, label);
       str = g_string_append (str, tmp2);
       sqlite3_free (tmp2);
       op = "AND";
@@ -714,6 +730,7 @@ dupin_linkbase_get_changes_list_cb (void *data, int argc, char **argv, char **co
   gchar *href = NULL;
   gchar *rel = NULL;
   gchar *tag = NULL; 
+  gchar *label = NULL; 
 
   for (i = 0; i < argc; i++)
     {
@@ -753,6 +770,9 @@ dupin_linkbase_get_changes_list_cb (void *data, int argc, char **argv, char **co
 
       else if (!g_strcmp0 (col[i], "tag"))
         tag = argv[i];
+
+      else if (!g_strcmp0 (col[i], "label"))
+        label = argv[i];
     }
 
   if (rev && hash !=NULL)
@@ -780,6 +800,7 @@ dupin_linkbase_get_changes_list_cb (void *data, int argc, char **argv, char **co
       json_object_set_string_member (node_obj, "rev", mvcc);
 
       json_object_set_string_member (node_obj, "context_id", context_id);
+      json_object_set_string_member (node_obj, "label", label);
       json_object_set_string_member (node_obj, "href", href);
       if (rel != NULL)
         json_object_set_string_member (node_obj, "rel", rel);
@@ -835,7 +856,7 @@ dupin_linkbase_get_changes_list (DupinLinkB *              linkb,
   memset (&s, 0, sizeof (s));
   s.style = changes_type;
 
-  str = g_string_new ("SELECT id, rev, hash, obj, deleted, tm, ROWID AS rowid, context_id, href, rel, is_weblink, tag FROM Dupin as d");
+  str = g_string_new ("SELECT id, rev, hash, obj, deleted, tm, ROWID AS rowid, context_id, href, rel, is_weblink, tag, label FROM Dupin as d");
 
   if (count_type == DP_COUNT_EXIST)
     check_deleted = " d.deleted = 'FALSE' ";
@@ -1138,7 +1159,7 @@ dupin_linkbase_thread_compact (DupinLinkB * linkb, gsize count)
 
   gsize start_rowid = (compact_id != NULL) ? atoi(compact_id)+1 : 1;
 
-  if (dupin_link_record_get_list (linkb, count, 0, start_rowid, 0, DP_LINKS_ALL_LINKS, DP_COUNT_ALL, DP_ORDERBY_ROWID, FALSE, NULL, NULL, &results, NULL) ==
+  if (dupin_link_record_get_list (linkb, count, 0, start_rowid, 0, DP_LINKS_ALL_LINKS, DP_COUNT_ALL, DP_ORDERBY_ROWID, FALSE, NULL, NULL, NULL, &results, NULL) ==
       FALSE || !results)
     {
       if (compact_id != NULL)

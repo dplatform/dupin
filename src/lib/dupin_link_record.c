@@ -16,19 +16,19 @@
 	"SELECT count(id) FROM Dupin WHERE id = '%q' "
 
 #define DUPIN_LINKB_SQL_INSERT \
-	"INSERT INTO Dupin (id, rev, hash, obj, tm, context_id, href, rel, tag, is_weblink) " \
-        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%" G_GSIZE_FORMAT "', '%q', '%q', %Q, %Q, '%q')"
+	"INSERT INTO Dupin (id, rev, hash, obj, tm, context_id, label, href, rel, tag, is_weblink) " \
+        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%q', %Q, %Q, '%q')"
 
 #define DUPIN_LINKB_SQL_UPDATE \
-	"INSERT OR REPLACE INTO Dupin (id, rev, hash, obj, tm, context_id, href, rel, tag, is_weblink) " \
-        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%" G_GSIZE_FORMAT "', '%q', '%q', %Q, %Q, '%q')"
+	"INSERT OR REPLACE INTO Dupin (id, rev, hash, obj, tm, context_id, label, href, rel, tag, is_weblink) " \
+        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%q', %Q, %Q, '%q')"
 
 #define DUPIN_LINKB_SQL_READ \
-	"SELECT rev, hash, obj, deleted, tm, ROWID AS rowid, context_id, href, rel, tag, is_weblink FROM Dupin WHERE id='%q'"
+	"SELECT rev, hash, obj, deleted, tm, ROWID AS rowid, context_id, label, href, rel, tag, is_weblink FROM Dupin WHERE id='%q'"
 
 #define DUPIN_LINKB_SQL_DELETE \
-	"INSERT OR REPLACE INTO Dupin (id, rev, deleted, hash, tm, context_id, href, rel, tag, is_weblink) " \
-        "VALUES('%q', '%" G_GSIZE_FORMAT "', 'TRUE', '%q', '%" G_GSIZE_FORMAT "', '%q', '%q', %Q, %Q, '%q')"
+	"INSERT OR REPLACE INTO Dupin (id, rev, deleted, hash, tm, context_id, label, href, rel, tag, is_weblink) " \
+        "VALUES('%q', '%" G_GSIZE_FORMAT "', 'TRUE', '%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%q', %Q, %Q, '%q')"
 
 
 DSWeblinkingRelationRegistry DSWeblinkingRelationRegistryList[] = {
@@ -122,6 +122,7 @@ static DupinLinkRecord *dupin_link_record_create_with_id_real (DupinLinkB * link
 						      JsonNode * obj_node,
 						      gchar * id,
 						      gchar * context_id,
+						      gchar * label,
                                          	      gchar * href,
                                          	      gchar * rel,
                                          	      gchar * tag,
@@ -138,6 +139,7 @@ static void dupin_link_record_add_revision_obj (DupinLinkRecord * record, guint 
 					   gchar ** hash,
 					   JsonNode * obj_node,
 					   gchar * context_id,
+					   gchar * label,
                                            gchar * href,
                                            gchar * rel,
                                            gchar * tag,
@@ -149,6 +151,7 @@ static void dupin_link_record_add_revision_str (DupinLinkRecord * record, guint 
 					   gchar * hash, gssize hash_size,
 					   gchar * obj, gssize size,
 					   gchar * context_id,
+					   gchar * label,
                                            gchar * href,
                                            gchar * rel,
                                            gchar * tag,
@@ -161,6 +164,7 @@ static gboolean
 	   dupin_link_record_generate_hash	(DupinLinkRecord * record,
                             		 gchar * obj_serialized, gssize obj_serialized_len,
 					 gchar * context_id,
+					 gchar * label,
                                          gchar * href,
                                          gchar * rel,
                                          gchar * tag,
@@ -225,6 +229,7 @@ dupin_link_record_exists_real (DupinLinkB * linkb, gchar * id, gboolean lock)
 DupinLinkRecord *
 dupin_link_record_create (DupinLinkB * linkb, JsonNode * obj_node,
 			  gchar * context_id,
+			  gchar * label,
                           gchar * href,
                           gchar * rel,
                           gchar * tag,
@@ -236,8 +241,10 @@ dupin_link_record_create (DupinLinkB * linkb, JsonNode * obj_node,
   g_return_val_if_fail (linkb != NULL, NULL);
   g_return_val_if_fail (obj_node != NULL, NULL);
   g_return_val_if_fail (context_id != NULL, NULL);
+  g_return_val_if_fail (label != NULL, NULL);
   g_return_val_if_fail (href != NULL, NULL);
   g_return_val_if_fail (dupin_link_record_util_is_valid_context_id (context_id) == TRUE, NULL);
+  g_return_val_if_fail (dupin_link_record_util_is_valid_label (label) == TRUE, NULL);
   g_return_val_if_fail (dupin_link_record_util_is_valid_href (href) == TRUE, NULL);
   g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, NULL);
 
@@ -255,7 +262,7 @@ dupin_link_record_create (DupinLinkB * linkb, JsonNode * obj_node,
     }
 
   record = dupin_link_record_create_with_id_real (linkb, obj_node, id,
-						  context_id, href, rel, tag,
+						  context_id, label, href, rel, tag,
 						  error, FALSE);
 
   g_mutex_unlock (linkb->mutex);
@@ -268,6 +275,7 @@ DupinLinkRecord *
 dupin_link_record_create_with_id (DupinLinkB * linkb, JsonNode * obj_node,
 				  gchar * id,
 				  gchar * context_id,
+				  gchar * label,
                                   gchar * href,
                                   gchar * rel,
                                   gchar * tag,
@@ -277,9 +285,11 @@ dupin_link_record_create_with_id (DupinLinkB * linkb, JsonNode * obj_node,
   g_return_val_if_fail (obj_node != NULL, NULL);
   g_return_val_if_fail (id != NULL, NULL);
   g_return_val_if_fail (context_id != NULL, NULL);
+  g_return_val_if_fail (label != NULL, NULL);
   g_return_val_if_fail (href != NULL, NULL);
   g_return_val_if_fail (dupin_util_is_valid_record_id (id) != FALSE, NULL);
   g_return_val_if_fail (dupin_link_record_util_is_valid_context_id (context_id) == TRUE, NULL);
+  g_return_val_if_fail (dupin_link_record_util_is_valid_label (label) == TRUE, NULL);
   g_return_val_if_fail (dupin_link_record_util_is_valid_href (href) == TRUE, NULL);
   g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, NULL);
 
@@ -289,7 +299,7 @@ dupin_link_record_create_with_id (DupinLinkB * linkb, JsonNode * obj_node,
     g_return_val_if_fail (dupin_link_record_util_is_valid_rel (rel) == TRUE, NULL);
 
   return dupin_link_record_create_with_id_real (linkb, obj_node, id,
-						context_id, href, rel, tag,
+						context_id, label, href, rel, tag,
 						error, TRUE);
 }
 
@@ -297,6 +307,7 @@ static DupinLinkRecord *
 dupin_link_record_create_with_id_real (DupinLinkB * linkb, JsonNode * obj_node,
 				       gchar * id,
 				       gchar * context_id,
+				       gchar * label,
                                        gchar * href,
                                        gchar * rel,
                                        gchar * tag,
@@ -326,14 +337,14 @@ dupin_link_record_create_with_id_real (DupinLinkB * linkb, JsonNode * obj_node,
   gsize created = dupin_util_timestamp_now ();
 
   dupin_link_record_add_revision_obj (record, 1, &md5, obj_node,
-				      context_id, href, rel, tag,
+				      context_id, label, href, rel, tag,
 				      FALSE, created,
 				      dupin_util_is_valid_absolute_uri (href));
 
   tmp =
     sqlite3_mprintf (DUPIN_LINKB_SQL_INSERT, id, 1, md5,
 		     record->last->obj_serialized, created,
-		     context_id, href, rel, tag,
+		     context_id, label, href, rel, tag,
 		     dupin_util_is_valid_absolute_uri (href) ? "TRUE" : "FALSE" );
 
 //g_message("dupin_link_record_create_with_id_real: query=%s\n", tmp);
@@ -374,6 +385,7 @@ dupin_link_record_read_cb (void *data, int argc, char **argv, char **col)
   gsize rowid=0;
   gint i;
   gchar *context_id = NULL;
+  gchar *label = NULL;
   gchar *href = NULL;
   gchar *rel = NULL;
   gchar *tag = NULL;
@@ -403,6 +415,9 @@ dupin_link_record_read_cb (void *data, int argc, char **argv, char **col)
       else if (!g_strcmp0 (col[i], "context_id"))
 	context_id = argv[i];
 
+      else if (!g_strcmp0 (col[i], "label"))
+	label = argv[i];
+
       else if (!g_strcmp0 (col[i], "href"))
 	href = argv[i];
 
@@ -418,7 +433,7 @@ dupin_link_record_read_cb (void *data, int argc, char **argv, char **col)
 
   if (rev && hash !=NULL)
     dupin_link_record_add_revision_str (data, rev, hash, -1, obj, -1,
-					context_id, href, rel, tag,
+					context_id, label, href, rel, tag,
 					delete, tm, rowid, is_weblink);
 
   return 0;
@@ -508,6 +523,7 @@ dupin_link_record_get_list (DupinLinkB * linkb, guint count, guint offset,
                             DupinOrderByType       orderby_type,
                             gboolean               descending,
                             gchar *                context_id,
+                            gchar *                label,
                             gchar *                tag,
 		            GList ** list, GError ** error)
 {
@@ -524,6 +540,9 @@ dupin_link_record_get_list (DupinLinkB * linkb, guint count, guint offset,
 
   if (context_id != NULL)
     g_return_val_if_fail (dupin_link_record_util_is_valid_context_id (context_id) == TRUE, FALSE);
+
+  if (label != NULL)
+    g_return_val_if_fail (dupin_link_record_util_is_valid_label (label) == TRUE, FALSE);
 
   memset (&s, 0, sizeof (s));
   s.linkb = linkb;
@@ -582,6 +601,17 @@ dupin_link_record_get_list (DupinLinkB * linkb, guint count, guint offset,
         op = "WHERE";
 
       gchar * tmp2 = sqlite3_mprintf (" %s d.context_id = '%q' ", op, context_id);
+      str = g_string_append (str, tmp2);
+      sqlite3_free (tmp2);
+      op = "AND";
+    }
+
+  if (label != NULL)
+    {
+      if (!g_strcmp0 (op, ""))
+        op = "WHERE";
+
+      gchar * tmp2 = sqlite3_mprintf (" %s d.label = '%q' ", op, label);
       str = g_string_append (str, tmp2);
       sqlite3_free (tmp2);
       op = "AND";
@@ -846,6 +876,7 @@ dupin_link_record_get_revisions_list_close (GList * list)
 
 gboolean
 dupin_link_record_update (DupinLinkRecord * record, JsonNode * obj_node,
+                          gchar * label,
                           gchar * href,
                           gchar * rel,
                           gchar * tag,
@@ -858,7 +889,9 @@ dupin_link_record_update (DupinLinkRecord * record, JsonNode * obj_node,
 
   g_return_val_if_fail (record != NULL, FALSE);
   g_return_val_if_fail (obj_node != NULL, FALSE);
+  g_return_val_if_fail (label != NULL, FALSE);
   g_return_val_if_fail (href != NULL, FALSE);
+  g_return_val_if_fail (dupin_link_record_util_is_valid_label (label) == TRUE, FALSE);
   g_return_val_if_fail (dupin_link_record_util_is_valid_href (href) == TRUE, FALSE);
   g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, FALSE);
 
@@ -874,14 +907,16 @@ dupin_link_record_update (DupinLinkRecord * record, JsonNode * obj_node,
   gsize created = dupin_util_timestamp_now ();
 
   dupin_link_record_add_revision_obj (record, rev, &md5, obj_node,
-				      (gchar *)dupin_link_record_get_context_id (record), href, rel, tag,
-					FALSE, created,
+				      (gchar *)dupin_link_record_get_context_id (record),
+				      label, href, rel, tag,
+				      FALSE, created,
 				      dupin_util_is_valid_absolute_uri (href));
 
   tmp =
     sqlite3_mprintf (DUPIN_LINKB_SQL_INSERT, record->id, rev, md5,
 		     record->last->obj_serialized, created,
-		     (gchar *)dupin_link_record_get_context_id (record), href, rel, tag,
+		     (gchar *)dupin_link_record_get_context_id (record),
+		     label, href, rel, tag,
 		     dupin_util_is_valid_absolute_uri (href) ? "TRUE" : "FALSE" );
 
 //g_message("dupin_link_record_update: record->last->revision = %d - new rev=%d - query=%s\n", (gint) record->last->revision, (gint) rev, tmp);
@@ -936,6 +971,7 @@ dupin_link_record_delete (DupinLinkRecord * record, GError ** error)
 
   dupin_link_record_add_revision_obj (record, rev, &md5, NULL,
 				      (gchar *)dupin_link_record_get_context_id (record),
+				      (gchar *)dupin_link_record_get_label (record),
 				      (gchar *)dupin_link_record_get_href (record),
 				      (gchar *)dupin_link_record_get_rel (record),
 				      (gchar *)dupin_link_record_get_tag (record),
@@ -944,6 +980,7 @@ dupin_link_record_delete (DupinLinkRecord * record, GError ** error)
 
   tmp = sqlite3_mprintf (DUPIN_LINKB_SQL_DELETE, record->id, rev, md5, created,	
 				      (gchar *)dupin_link_record_get_context_id (record),
+				      (gchar *)dupin_link_record_get_label (record),
 				      (gchar *)dupin_link_record_get_href (record),
 				      (gchar *)dupin_link_record_get_rel (record),
 				      (gchar *)dupin_link_record_get_tag (record),
@@ -1018,6 +1055,13 @@ dupin_link_record_get_context_id (DupinLinkRecord * record)
   return record->last->context_id;
 }
 
+const gchar *
+dupin_link_record_get_label (DupinLinkRecord * record)
+{
+  g_return_val_if_fail (record != NULL, 0);
+
+  return record->last->label;
+}
 const gchar *
 dupin_link_record_get_href (DupinLinkRecord * record)
 {
@@ -1170,6 +1214,9 @@ dupin_link_record_rev_close (DupinLinkRecordRev * rev)
   if (rev->context_id)
     g_free (rev->context_id);
 
+  if (rev->label)
+    g_free (rev->label);
+
   if (rev->href)
     g_free (rev->href);
 
@@ -1187,6 +1234,7 @@ dupin_link_record_add_revision_obj (DupinLinkRecord * record, guint rev,
 			       gchar ** hash,
 			       JsonNode * obj_node,
 			       gchar * context_id,
+			       gchar * label,
                                gchar * href,
                                gchar * rel,
                                gchar * tag,
@@ -1220,6 +1268,7 @@ dupin_link_record_add_revision_obj (DupinLinkRecord * record, guint rev,
   dupin_link_record_generate_hash (record,
 			      r->obj_serialized, r->obj_serialized_len,
 			      context_id,
+			      label,
                               href,
                               rel,
 			      tag,
@@ -1237,6 +1286,7 @@ dupin_link_record_add_revision_obj (DupinLinkRecord * record, guint rev,
   r->mvcc_len = strlen (mvcc);
 
   r->context_id = g_strdup (context_id);
+  r->label = g_strdup (label);
   r->href = g_strdup (href);
   r->rel = g_strdup (rel);
   r->tag = g_strdup (tag);
@@ -1253,6 +1303,7 @@ static void
 dupin_link_record_add_revision_str (DupinLinkRecord * record, guint rev, gchar * hash, gssize hash_size,
  			            gchar * str, gssize size,
 		                    gchar * context_id,
+		                    gchar * label,
                                     gchar * href,
                                     gchar * rel,
                                     gchar * tag,
@@ -1296,6 +1347,7 @@ dupin_link_record_add_revision_str (DupinLinkRecord * record, guint rev, gchar *
   r->mvcc_len = strlen (mvcc);
 
   r->context_id = g_strdup (context_id);
+  r->label = g_strdup (label);
   r->href = g_strdup (href);
   r->rel = g_strdup (rel);
   r->tag = g_strdup (tag);
@@ -1308,12 +1360,13 @@ dupin_link_record_add_revision_str (DupinLinkRecord * record, guint rev, gchar *
     record->last = r;
 }
 
-/* NOTE - compute DUPIN_ID_HASH_ALGO hash of JSON + deleted flag + context_id + href + rel + tag + is_weblink */
+/* NOTE - compute DUPIN_ID_HASH_ALGO hash of JSON + deleted flag + context_id + label + href + rel + tag + is_weblink */
 
 static gboolean
 dupin_link_record_generate_hash (DupinLinkRecord * record,
                             gchar * obj_serialized, gssize obj_serialized_len,
 			    gchar * context_id,
+			    gchar * label,
                             gchar * href,
                             gchar * rel,
                             gchar * tag,
@@ -1336,6 +1389,7 @@ dupin_link_record_generate_hash (DupinLinkRecord * record,
   g_string_append_printf (str, "%d", (gint)is_weblink);
 
   g_string_append_printf (str, "%s", context_id);
+  g_string_append_printf (str, "%s", label);
   g_string_append_printf (str, "%s", href);
   g_string_append_printf (str, "%s", rel);
   g_string_append_printf (str, "%s", tag);
@@ -1356,6 +1410,14 @@ dupin_link_record_util_is_valid_context_id (gchar * id)
   g_return_val_if_fail (id != NULL, FALSE);
 
   return dupin_util_is_valid_record_id (id);
+}
+
+gboolean
+dupin_link_record_util_is_valid_label (gchar * label)
+{
+  g_return_val_if_fail (label != NULL, FALSE);
+
+  return g_strcmp0 (label, "") ? TRUE : FALSE;
 }
 
 gboolean

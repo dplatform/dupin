@@ -71,6 +71,7 @@ DupinLinkRecord *	dupin_link_record_create
 					(DupinLinkB *		linkb,
 					 JsonNode *		obj_node,
 					 gchar *                context_id,
+					 gchar *                label,
                                          gchar *                href,
                                          gchar *                rel,
                                          gchar *                tag,
@@ -81,6 +82,7 @@ DupinLinkRecord *	dupin_link_record_create_with_id
 					 JsonNode *		obj_node,
 					 gchar *		id,
 					 gchar *                context_id,
+					 gchar *                label,
                                          gchar *                href,
                                          gchar *                rel,
                                          gchar *                tag,
@@ -107,6 +109,7 @@ gboolean	dupin_link_record_get_list
 					 DupinOrderByType	orderby_type,
 					 gboolean		descending,
 					 gchar *                context_id,
+					 gchar *                label,
                                          gchar *                tag,
 					 GList **		list,
 					 GError **		error);
@@ -117,6 +120,7 @@ void		dupin_link_record_get_list_close
 gboolean	dupin_link_record_update
 					(DupinLinkRecord *		record,
 					 JsonNode *		obj_node,
+					 gchar *                label,
                                          gchar *                href,
                                          gchar *                rel,
                                          gchar *                tag,
@@ -132,6 +136,9 @@ const gchar *	dupin_link_record_get_id
 					(DupinLinkRecord *		record);
 
 const gchar *	dupin_link_record_get_context_id
+					(DupinLinkRecord *		record);
+
+const gchar *	dupin_link_record_get_label
 					(DupinLinkRecord *		record);
 
 const gchar *	dupin_link_record_get_href
@@ -188,6 +195,9 @@ gboolean	dupin_link_record_is_deleted
 
 gboolean	dupin_link_record_util_is_valid_context_id
 					(gchar * id);
+
+gboolean	dupin_link_record_util_is_valid_label
+					(gchar * label);
 
 gboolean	dupin_link_record_util_is_valid_href 
 					(gchar * href);

@@ -27,7 +27,6 @@
 #define REQUEST_LINK_OBJ_REL		"_rel"
 #define REQUEST_LINK_OBJ_TAG		"_tag"
 #define REQUEST_LINK_OBJ_LABEL		"_label"
-#define REQUEST_LINK_OBJ_LABEL_DEFAULT	"links"
 
 #define REQUEST_OBJ_INLINE_ATTACHMENTS_DATA	"data"
 #define REQUEST_OBJ_INLINE_ATTACHMENTS_TYPE	"content_type"
@@ -36,6 +35,7 @@
 #define RESPONSE_OBJ_REV	"rev"
 
 #define RESPONSE_LINK_OBJ_CONTEXT_ID	REQUEST_LINK_OBJ_CONTEXT_ID
+#define RESPONSE_LINK_OBJ_LABEL		REQUEST_LINK_OBJ_LABEL
 #define RESPONSE_LINK_OBJ_HREF		"href"
 #define RESPONSE_LINK_OBJ_REL		"rel"
 #define RESPONSE_LINK_OBJ_TAG		"tag"
@@ -920,6 +920,7 @@ request_global_get_all_views:
 
 #define REQUEST_GET_ALL_LINKS_CONTEXT_ID 		"context_id"
 #define REQUEST_GET_ALL_LINKS_TAG	 		"tag"
+#define REQUEST_GET_ALL_LINKS_LABEL	 		"label"
 #define REQUEST_GET_ALL_LINKS_LINK_TYPE			"link_type"
 #define REQUEST_GET_ALL_LINKS_LINK_TYPE_ALL_LINKS	"all_links"
 #define REQUEST_GET_ALL_LINKS_LINK_TYPE_WEBLINKS	"web_links"
@@ -1998,12 +1999,12 @@ request_global_get_linkbase (DSHttpdClient * client, GList * path,
 
   json_object_set_string_member (obj, "linkbase_name", (gchar *) dupin_linkbase_get_name (linkb));
   json_object_set_string_member (obj, "linkbase_parent", (gchar *) dupin_linkbase_get_parent (linkb));
-  json_object_set_int_member (obj, "links_count", dupin_linkbase_count (linkb, DP_LINKS_ALL_LINKS, DP_COUNT_EXIST, NULL, NULL));
-  json_object_set_int_member (obj, "web_links_count", dupin_linkbase_count (linkb, DP_LINKS_WEB_LINKS, DP_COUNT_EXIST, NULL, NULL));
-  json_object_set_int_member (obj, "relationships_count", dupin_linkbase_count (linkb, DP_LINKS_RELATIONSHIPS, DP_COUNT_EXIST, NULL, NULL));
-  json_object_set_int_member (obj, "links_del_count", dupin_linkbase_count (linkb, DP_LINKS_ALL_LINKS, DP_COUNT_DELETE, NULL, NULL));
-  json_object_set_int_member (obj, "web_links_del_count", dupin_linkbase_count (linkb, DP_LINKS_WEB_LINKS, DP_COUNT_DELETE, NULL, NULL));
-  json_object_set_int_member (obj, "relationships_del_count", dupin_linkbase_count (linkb, DP_LINKS_RELATIONSHIPS, DP_COUNT_DELETE, NULL, NULL));
+  json_object_set_int_member (obj, "links_count", dupin_linkbase_count (linkb, DP_LINKS_ALL_LINKS, DP_COUNT_EXIST, NULL, NULL, NULL));
+  json_object_set_int_member (obj, "web_links_count", dupin_linkbase_count (linkb, DP_LINKS_WEB_LINKS, DP_COUNT_EXIST, NULL, NULL, NULL));
+  json_object_set_int_member (obj, "relationships_count", dupin_linkbase_count (linkb, DP_LINKS_RELATIONSHIPS, DP_COUNT_EXIST, NULL, NULL, NULL));
+  json_object_set_int_member (obj, "links_del_count", dupin_linkbase_count (linkb, DP_LINKS_ALL_LINKS, DP_COUNT_DELETE, NULL, NULL, NULL));
+  json_object_set_int_member (obj, "web_links_del_count", dupin_linkbase_count (linkb, DP_LINKS_WEB_LINKS, DP_COUNT_DELETE, NULL, NULL, NULL));
+  json_object_set_int_member (obj, "relationships_del_count", dupin_linkbase_count (linkb, DP_LINKS_RELATIONSHIPS, DP_COUNT_DELETE, NULL, NULL, NULL));
 
   json_object_set_int_member (obj, "disk_size", dupin_linkbase_get_size (linkb));
 
@@ -2064,6 +2065,7 @@ request_global_get_all_links_linkbase (DSHttpdClient * client, GList * path,
   gsize total_rows = 0;
 
   gchar * context_id = NULL;
+  gchar * label = NULL;
   gchar * tag = NULL;
   DupinLinksType link_type = DP_LINKS_ALL_LINKS;
 
@@ -2091,6 +2093,9 @@ request_global_get_all_links_linkbase (DSHttpdClient * client, GList * path,
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_CONTEXT_ID))
         context_id = kv->value;
 
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_LABEL))
+        label = kv->value;
+
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_TAG))
         tag = kv->value;
 
@@ -2112,10 +2117,10 @@ request_global_get_all_links_linkbase (DSHttpdClient * client, GList * path,
        dupin_linkbase_open (client->thread->data->dupin, linkbase_name, NULL)))
     return HTTP_STATUS_404;
 
-  total_rows = dupin_linkbase_count (linkb, link_type, DP_COUNT_EXIST, context_id, tag);
+  total_rows = dupin_linkbase_count (linkb, link_type, DP_COUNT_EXIST, context_id, label, tag);
 
   if (dupin_link_record_get_list (linkb, count, offset, 0, 0, link_type, DP_COUNT_EXIST, DP_ORDERBY_ROWID, descending, 
-					context_id, tag, &results, NULL) ==
+					context_id, label, tag, &results, NULL) ==
       FALSE)
     {
       dupin_linkbase_unref (linkb);
@@ -3536,7 +3541,7 @@ request_global_get_linkbase_query (DSHttpdClient * client, GList * path,
   array = json_array_new ();
 
   while (dupin_link_record_get_list (linkb, QUERY_BLOCK, offset, 0, 0, DP_LINKS_ALL_LINKS, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE,
-					NULL, NULL, &results, NULL) == TRUE && results)
+					NULL, NULL, NULL, &results, NULL) == TRUE && results)
     {
       GList *list;
 
@@ -3722,6 +3727,7 @@ static DSHttpStatusCode request_global_post_compact_linkbase (DSHttpdClient * cl
 static gchar * request_record_insert_rev (JsonNode * obj_node);
 static gchar * request_record_insert_id (JsonNode * obj_node);
 
+static gchar * request_link_record_insert_label (JsonNode * obj_node);
 static gchar * request_link_record_insert_href (JsonNode * obj_node);
 static gchar * request_link_record_insert_rel (JsonNode * obj_node);
 static gchar * request_link_record_insert_tag (JsonNode * obj_node);
@@ -5150,6 +5156,7 @@ request_global_delete_link_record (DSHttpdClient * client, GList * path,
                   || !g_strcmp0 (path->next->next->next->data, REQUEST_OBJ_ATTACHMENTS)
                   || !g_strcmp0 (path->next->next->next->data, REQUEST_OBJ_LINKS)
                   || !g_strcmp0 (path->next->next->next->data, REQUEST_LINK_OBJ_CONTEXT_ID)
+                  || !g_strcmp0 (path->next->next->next->data, REQUEST_LINK_OBJ_LABEL)
                   || !g_strcmp0 (path->next->next->next->data, REQUEST_LINK_OBJ_HREF)
                   || !g_strcmp0 (path->next->next->next->data, REQUEST_LINK_OBJ_REL)
                   || !g_strcmp0 (path->next->next->next->data, REQUEST_LINK_OBJ_TAG))
@@ -5238,6 +5245,7 @@ request_global_delete_link_record (DSHttpdClient * client, GList * path,
       json_object_remove_member (json_node_get_object (obj_node), (const gchar *)request_fields);
 
       if (dupin_link_record_update (record, obj_node, 
+      				    (gchar *)dupin_link_record_get_label (record),
       				    (gchar *)dupin_link_record_get_href (record),
       				    (gchar *)dupin_link_record_get_rel (record),
       				    (gchar *)dupin_link_record_get_tag (record),
@@ -5693,11 +5701,9 @@ request_record_insert (DSHttpdClient * client, JsonNode * obj_node,
 
               JsonObject * lobj = json_node_get_object (lnode);
 
-	      if (json_object_has_member (lobj, REQUEST_LINK_OBJ_LABEL) == FALSE)
-  	        json_object_set_string_member (lobj, REQUEST_LINK_OBJ_LABEL, REQUEST_LINK_OBJ_LABEL_DEFAULT);
-
-	      if (request_link_record_insert (client, lnode,
-	        			      dbname, NULL, context_id, code, &link_record) == FALSE)
+	      if ((json_object_has_member (lobj, REQUEST_LINK_OBJ_LABEL) == FALSE)
+	          || (request_link_record_insert (client, lnode,
+	        			      dbname, NULL, context_id, code, &link_record) == FALSE))
                 {
           	  g_list_free (nodes);
 
@@ -5805,6 +5811,33 @@ request_record_insert_id (JsonNode * obj_node)
 }
 
 static gchar *
+request_link_record_insert_label (JsonNode * obj_node)
+{
+  gchar *ret = NULL;
+  JsonNode *node;
+  JsonObject *obj;
+
+  g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, NULL);
+
+  obj = json_node_get_object (obj_node);
+
+  if (json_object_has_member (obj, REQUEST_LINK_OBJ_LABEL) == FALSE)
+    return NULL;
+
+  node = json_object_get_member (obj, REQUEST_LINK_OBJ_LABEL);
+
+  if (node == NULL)
+    return NULL;
+
+  if (json_node_get_value_type (node) == G_TYPE_STRING) /* check this is correct type */
+    ret = g_strdup (json_node_get_string (node));
+
+  json_object_remove_member (obj, REQUEST_LINK_OBJ_LABEL); 
+
+  return ret;
+}
+
+static gchar *
 request_link_record_insert_href (JsonNode * obj_node)
 {
   gchar *ret = NULL;
@@ -5898,6 +5931,7 @@ request_link_record_insert (DSHttpdClient * client, JsonNode * obj_node,
   gchar * json_record_mvcc=NULL;
   gchar * json_record_id;
 
+  gchar * json_record_label;
   gchar * json_record_href;
   gchar * json_record_rel;
   gchar * json_record_tag;
@@ -5944,6 +5978,7 @@ request_link_record_insert (DSHttpdClient * client, JsonNode * obj_node,
       return FALSE;
     }
 
+  json_record_label = request_link_record_insert_label (obj_node);
   json_record_href = request_link_record_insert_href (obj_node);
   json_record_rel = request_link_record_insert_rel (obj_node);
   json_record_tag = request_link_record_insert_tag (obj_node);
@@ -5956,7 +5991,7 @@ request_link_record_insert (DSHttpdClient * client, JsonNode * obj_node,
 
       if (!record || dupin_util_mvcc_revision_cmp (json_record_mvcc, dupin_link_record_get_last_revision (record))
 	  || dupin_link_record_update (record, obj_node, 
-				       json_record_href, json_record_rel, json_record_tag,
+				       json_record_label, json_record_href, json_record_rel, json_record_tag,
 					NULL) == FALSE)
 	{
           if (record)
@@ -5971,7 +6006,7 @@ request_link_record_insert (DSHttpdClient * client, JsonNode * obj_node,
 
       record = dupin_link_record_create (linkb, obj_node,
 				         context_id,
-				         json_record_href, json_record_rel, json_record_tag,
+				         json_record_label, json_record_href, json_record_rel, json_record_tag,
 					 NULL);
     }
 
@@ -5982,11 +6017,15 @@ request_link_record_insert (DSHttpdClient * client, JsonNode * obj_node,
       if (dupin_link_record_exists (linkb, id) == FALSE)
 	record = dupin_link_record_create_with_id (linkb, obj_node, id, 
 				         	   context_id,
+						   json_record_label,
 				         	   json_record_href, json_record_rel, json_record_tag,
 						   NULL);
       else
 	record = NULL;
     }
+
+  if (json_record_label)
+    g_free (json_record_label);
 
   if (json_record_href)
     g_free (json_record_href);
@@ -6581,6 +6620,7 @@ request_link_record_obj (DupinLinkRecord * record, gchar * id, gchar * mvcc)
   json_object_set_string_member (obj, REQUEST_OBJ_REV, mvcc);
 
   json_object_set_string_member (obj, RESPONSE_LINK_OBJ_CONTEXT_ID, dupin_link_record_get_context_id (record));
+  json_object_set_string_member (obj, RESPONSE_LINK_OBJ_LABEL, dupin_link_record_get_label (record));
   json_object_set_string_member (obj, RESPONSE_LINK_OBJ_HREF, dupin_link_record_get_href (record));
 
   gchar * rel = (gchar *)dupin_link_record_get_rel (record);

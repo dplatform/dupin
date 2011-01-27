@@ -254,6 +254,7 @@ struct dupin_link_record_rev_t
   gsize		mvcc_len;
 
   gchar	*	context_id;
+  gchar	*	label;
   gchar	*	href;
   gchar	*	rel;
   gboolean	is_weblink;

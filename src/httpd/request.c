@@ -21,6 +21,7 @@
 #define REQUEST_OBJ_ATTACHMENTS		"_attachments"
 #define REQUEST_OBJ_LINKS		"_links"
 #define REQUEST_OBJ_RELATIONSHIPS	"_relationships"
+#define REQUEST_OBJ_CONTENT		"_content"
 
 #define REQUEST_LINK_OBJ_CONTEXT_ID	"_context_id"
 #define REQUEST_LINK_OBJ_HREF		"_href"
@@ -5322,6 +5323,7 @@ request_record_insert (DSHttpdClient * client, JsonNode * obj_node,
   gchar * json_record_id;
 
   JsonNode * links_node=NULL;
+  JsonNode * relationships_node=NULL;
   JsonNode * attachments_node=NULL;
 
   g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, FALSE);
@@ -5360,7 +5362,7 @@ request_record_insert (DSHttpdClient * client, JsonNode * obj_node,
       return FALSE;
     }
 
-  /* get and remove inline attachments element */
+  /* get and remove inline _attachments element */
   attachments_node = json_object_get_member (json_node_get_object (obj_node), REQUEST_OBJ_ATTACHMENTS);
   if (attachments_node != NULL)
     {
@@ -5368,12 +5370,20 @@ request_record_insert (DSHttpdClient * client, JsonNode * obj_node,
       json_object_remove_member (json_node_get_object (obj_node), REQUEST_OBJ_ATTACHMENTS);
     }
 
-  /* get and remove inline links element */
+  /* get and remove inline _links element */
   links_node = json_object_get_member (json_node_get_object (obj_node), REQUEST_OBJ_LINKS);
   if (links_node != NULL)
     {
       links_node = json_node_copy (links_node);
       json_object_remove_member (json_node_get_object (obj_node), REQUEST_OBJ_LINKS);
+    }
+
+  /* get and remove inline _relationships element */
+  relationships_node = json_object_get_member (json_node_get_object (obj_node), REQUEST_OBJ_RELATIONSHIPS);
+  if (relationships_node != NULL)
+    {
+      relationships_node = json_node_copy (relationships_node);
+      json_object_remove_member (json_node_get_object (obj_node), REQUEST_OBJ_RELATIONSHIPS);
     }
 
   if (json_record_mvcc != NULL)
@@ -5417,6 +5427,8 @@ request_record_insert (DSHttpdClient * client, JsonNode * obj_node,
         json_node_free (attachments_node);
       if (links_node != NULL)
         json_node_free (links_node);
+      if (relationships_node != NULL)
+        json_node_free (relationships_node);
       if (json_record_mvcc != NULL)
         g_free (json_record_mvcc);
       dupin_database_unref (db);
@@ -5438,6 +5450,8 @@ request_record_insert (DSHttpdClient * client, JsonNode * obj_node,
             json_node_free (attachments_node);
           if (links_node != NULL)
             json_node_free (links_node);
+          if (relationships_node != NULL)
+            json_node_free (relationships_node);
           if (json_record_mvcc != NULL)
             g_free (json_record_mvcc);
           dupin_database_unref (db);
@@ -5495,6 +5509,8 @@ request_record_insert (DSHttpdClient * client, JsonNode * obj_node,
                 json_node_free (attachments_node);
               if (links_node != NULL)
                 json_node_free (links_node);
+              if (relationships_node != NULL)
+                json_node_free (relationships_node);
               if (json_record_mvcc != NULL)
                 g_free (json_record_mvcc);
               dupin_database_unref (db);
@@ -5512,53 +5528,8 @@ request_record_insert (DSHttpdClient * client, JsonNode * obj_node,
 
   /* process _links object for inline links */
 
-  /*
-	links context_id is defaulted to this document_id
-
-     {
-       'displayName': 'A Record with a few links',
-	...
-	...
-	...
-
-       '_links':
-           {
-             "title1": <- becomes the link '_label' - '_content' label value is special
-               [
-                 {
-                   "_href": "docfoo"
-                 },
-                 {
-                   "_href": "docbar",
-                   "_tag": "bartag",
-                   "_rel": "up"
-                 }
-               ],
-             "google":
-               {
-                 "_href": "http://www.google.com",
-                 "_rel": "related"
-               }
-           }
-      }
-
-	alternatively the following can be used:
-
-      {
-	'_links':
-          [
-            {
-              "_href": "http://www.anonymouslink.com", <-- the link will not have a 'label'
-            },
-            {
-              "_href": "http://www.facebook.com",
-              "title": "facebook"
-            }
-          ]
-       }
-   */
-
-  if (links_node != NULL)
+  if (links_node != NULL
+      || relationships_node != NULL)
     {
       GList *n, *nodes;
       gchar * context_id = (gchar *)dupin_record_get_id (record);
@@ -5570,6 +5541,8 @@ request_record_insert (DSHttpdClient * client, JsonNode * obj_node,
             json_node_free (attachments_node);
           if (links_node != NULL)
             json_node_free (links_node);
+          if (relationships_node != NULL)
+            json_node_free (relationships_node);
           if (json_record_mvcc != NULL)
             g_free (json_record_mvcc);
           dupin_database_unref (db);
@@ -5577,7 +5550,7 @@ request_record_insert (DSHttpdClient * client, JsonNode * obj_node,
           return FALSE;
         }
 
-      if (json_node_get_node_type (links_node) == JSON_NODE_OBJECT)
+      if (links_node != NULL && json_node_get_node_type (links_node) == JSON_NODE_OBJECT)
         {
           JsonObject * links_obj = json_node_get_object (links_node);
           nodes = json_object_get_members (links_obj);
@@ -5594,6 +5567,9 @@ request_record_insert (DSHttpdClient * client, JsonNode * obj_node,
                     {
                       DupinLinkRecord *link_record;
                       JsonNode * lnode = (JsonNode *) sn->data;
+		      gchar * lnode_context_id = NULL;
+		      gchar * lnode_label = NULL;
+		      gchar * lnode_href = NULL;
 
                       if (json_node_get_node_type (lnode) != JSON_NODE_OBJECT)
                         {
@@ -5605,11 +5581,26 @@ request_record_insert (DSHttpdClient * client, JsonNode * obj_node,
 
                       JsonObject * lobj = json_node_get_object (lnode);
 
-		      if (json_object_has_member (lobj, REQUEST_LINK_OBJ_LABEL) == FALSE)
+		      if (json_object_has_member (lobj, REQUEST_LINK_OBJ_CONTEXT_ID) == TRUE)
+                        lnode_context_id = (gchar *)json_object_get_string_member (lobj, REQUEST_LINK_OBJ_CONTEXT_ID);
+
+		      if (json_object_has_member (lobj, REQUEST_LINK_OBJ_LABEL) == TRUE)
+                        lnode_label = (gchar *)json_object_get_string_member (lobj, REQUEST_LINK_OBJ_LABEL);
+                      else
   		        json_object_set_string_member (lobj, REQUEST_LINK_OBJ_LABEL, label);
 
-		      if (request_link_record_insert (client, lnode,
-						      dbname, NULL, context_id, code, &link_record) == FALSE)
+		      if (json_object_has_member (lobj, REQUEST_LINK_OBJ_HREF) == TRUE)
+                        lnode_href = (gchar *)json_object_get_string_member (lobj, REQUEST_LINK_OBJ_HREF);
+
+//g_message("request_record_insert: context_id=%s label=%s lnode_context_id=%s lnode_label=%s\n", context_id, label, lnode_context_id, lnode_label);
+
+		      /* TODO - rework this to report errors to poort user ! perhaps using contextual logging if useful */
+
+		      if ( ((lnode_context_id != NULL ) && (g_strcmp0 (lnode_context_id, context_id)))
+		           || ((lnode_label != NULL ) && (g_strcmp0 (lnode_label, label)))
+		           || ((lnode_href != NULL ) && (dupin_util_is_valid_absolute_uri (lnode_href) == FALSE))
+			   || (request_link_record_insert (client, lnode,
+						      dbname, NULL, context_id, code, &link_record) == FALSE))
         	        {
           		  g_list_free (snodes);
           		  g_list_free (nodes);
@@ -5626,6 +5617,9 @@ request_record_insert (DSHttpdClient * client, JsonNode * obj_node,
   			  if (links_node != NULL)
     			    json_node_free (links_node);
 
+                          if (relationships_node != NULL)
+                            json_node_free (relationships_node);
+
   			  if (json_record_mvcc != NULL)
     			    g_free (json_record_mvcc);
 
@@ -5636,100 +5630,104 @@ request_record_insert (DSHttpdClient * client, JsonNode * obj_node,
 			  return FALSE;
         		}
 
+//g_message("request_record_insert: DONE link context_id=%s label=%s lnode_context_id=%s lnode_label=%s\n", context_id, label, lnode_context_id, lnode_label);
+
                       *links_list = g_list_prepend (*links_list, link_record);
                     }
                   g_list_free (snodes);
                 }
-              else if (json_node_get_node_type (inline_link_node) == JSON_NODE_OBJECT)
-                {
-                  DupinLinkRecord *link_record;
-
-                  /* add link with context_id and label */
-
-                  JsonObject * inline_link_obj = json_node_get_object (inline_link_node);
-
-		  if (json_object_has_member (inline_link_obj, REQUEST_LINK_OBJ_LABEL) == FALSE)
-  		    json_object_set_string_member (inline_link_obj, REQUEST_LINK_OBJ_LABEL, label);
-
-		  if (request_link_record_insert (client, inline_link_node,
-						  dbname, NULL, context_id, code, &link_record) == FALSE)
-        	    {
-          	      g_list_free (nodes);
-
-		      while (*links_list)
-            	        {
-              	          dupin_link_record_close ((*links_list)->data);
-              		  *links_list = g_list_remove (*links_list, (*links_list)->data);
-            		}
-
-  	              if (attachments_node != NULL)
-    	                json_node_free (attachments_node);
-
-  	              if (links_node != NULL)
-    		        json_node_free (links_node);
-
-  	              if (json_record_mvcc != NULL)
-    	                g_free (json_record_mvcc);
-
-  	              dupin_database_unref (db);
-      		      dupin_linkbase_unref (linkb);
-
-          	      *code = HTTP_STATUS_400;
-		      return FALSE;
-        	    }
-
-                  *links_list = g_list_prepend (*links_list, link_record);
-                }
             }
           g_list_free (nodes);
         }
-      else if (json_node_get_node_type (links_node) == JSON_NODE_ARRAY)
+
+      nodes = NULL;
+
+      if (relationships_node != NULL && json_node_get_node_type (relationships_node) == JSON_NODE_OBJECT)
         {
-          nodes = json_array_get_elements (json_node_get_array (links_node));
+          JsonObject * relationships_obj = json_node_get_object (relationships_node);
+          nodes = json_object_get_members (relationships_obj);
           for (n = nodes; n != NULL; n = n->next)
             {
-              DupinLinkRecord *link_record;
-              JsonNode * lnode = (JsonNode *) n->data;
+              gchar *label = (gchar *) n->data;
+              JsonNode *inline_relationship_node = json_object_get_member (relationships_obj, label);
 
-              if (json_node_get_node_type (lnode) != JSON_NODE_OBJECT)
+              if (json_node_get_node_type (inline_relationship_node) == JSON_NODE_ARRAY)
                 {
-                  /* TODO - should log something or fail ? */
-                  continue;
+                  GList *sn, *snodes;
+                  snodes = json_array_get_elements (json_node_get_array (inline_relationship_node));
+                  for (sn = snodes; sn != NULL; sn = sn->next)
+                    {
+                      DupinLinkRecord *relationship_record;
+                      JsonNode * rnode = (JsonNode *) sn->data;
+		      gchar * rnode_context_id = NULL;
+		      gchar * rnode_label = NULL;
+		      gchar * rnode_href = NULL;
+
+                      if (json_node_get_node_type (rnode) != JSON_NODE_OBJECT)
+                        {
+                          /* TODO - should log something or fail ? */
+                          continue;
+                        }
+
+                      /* add each relationship with context_id and label */
+
+                      JsonObject * robj = json_node_get_object (rnode);
+
+		      if (json_object_has_member (robj, REQUEST_LINK_OBJ_CONTEXT_ID) == TRUE)
+                        rnode_context_id = (gchar *)json_object_get_string_member (robj, REQUEST_LINK_OBJ_CONTEXT_ID);
+
+		      if (json_object_has_member (robj, REQUEST_LINK_OBJ_LABEL) == TRUE)
+                        rnode_label = (gchar *)json_object_get_string_member (robj, REQUEST_LINK_OBJ_LABEL);
+                      else
+  		        json_object_set_string_member (robj, REQUEST_LINK_OBJ_LABEL, label);
+
+		      if (json_object_has_member (robj, REQUEST_LINK_OBJ_HREF) == TRUE)
+                        rnode_href = (gchar *)json_object_get_string_member (robj, REQUEST_LINK_OBJ_HREF);
+
+//g_message("request_record_insert: context_id=%s label=%s rnode_context_id=%s rnode_label=%s\n", context_id, label, rnode_context_id, rnode_label);
+
+		      /* TODO - rework this to report errors to poort user ! perhaps using contextual logging if useful */
+
+		      if ( ((rnode_context_id != NULL ) && (g_strcmp0 (rnode_context_id, context_id)))
+		           || ((rnode_label != NULL ) && (g_strcmp0 (rnode_label, label)))
+		           || ((rnode_href != NULL ) && (dupin_util_is_valid_absolute_uri (rnode_href) == TRUE))
+			   || (request_link_record_insert (client, rnode,
+						      dbname, NULL, context_id, code, &relationship_record) == FALSE))
+        	        {
+          		  g_list_free (snodes);
+          		  g_list_free (nodes);
+
+			  while (*links_list)
+            		    {
+              		      dupin_link_record_close ((*links_list)->data);
+              		      *links_list = g_list_remove (*links_list, (*links_list)->data);
+            		    }
+
+  			  if (attachments_node != NULL)
+    			    json_node_free (attachments_node);
+
+  			  if (links_node != NULL)
+    			    json_node_free (links_node);
+
+                          if (relationships_node != NULL)
+                            json_node_free (relationships_node);
+
+  			  if (json_record_mvcc != NULL)
+    			    g_free (json_record_mvcc);
+
+  			  dupin_database_unref (db);
+      			  dupin_linkbase_unref (linkb);
+
+          		  *code = HTTP_STATUS_400;
+			  return FALSE;
+        		}
+
+//g_message("request_record_insert: DONE relationship context_id=%s label=%s rnode_context_id=%s rnode_label=%s\n", context_id, label, rnode_context_id, rnode_label);
+
+                      *links_list = g_list_prepend (*links_list, relationship_record);
+                    }
+                  g_list_free (snodes);
                 }
-
-              /* add each link with context_id and with label 'links' */
-
-              JsonObject * lobj = json_node_get_object (lnode);
-
-	      if ((json_object_has_member (lobj, REQUEST_LINK_OBJ_LABEL) == FALSE)
-	          || (request_link_record_insert (client, lnode,
-	        			      dbname, NULL, context_id, code, &link_record) == FALSE))
-                {
-          	  g_list_free (nodes);
-
-		  while (*links_list)
-            	    {
-              	      dupin_link_record_close ((*links_list)->data);
-              	      *links_list = g_list_remove (*links_list, (*links_list)->data);
-            	    }
-
-  	          if (attachments_node != NULL)
-    	            json_node_free (attachments_node);
-
-  	          if (links_node != NULL)
-    		    json_node_free (links_node);
-
-  	          if (json_record_mvcc != NULL)
-    	            g_free (json_record_mvcc);
-
-  	          dupin_database_unref (db);
-      		  dupin_linkbase_unref (linkb);
-
-          	  *code = HTTP_STATUS_400;
-		  return FALSE;
-        	}
-
-              *links_list = g_list_prepend (*links_list, link_record);
             }
           g_list_free (nodes);
         }
@@ -5742,6 +5740,9 @@ request_record_insert (DSHttpdClient * client, JsonNode * obj_node,
 
   if (links_node != NULL)
     json_node_free (links_node);
+
+  if (relationships_node != NULL)
+    json_node_free (relationships_node);
 
   if (json_record_mvcc != NULL)
     g_free (json_record_mvcc);
@@ -5982,6 +5983,12 @@ request_link_record_insert (DSHttpdClient * client, JsonNode * obj_node,
   json_record_href = request_link_record_insert_href (obj_node);
   json_record_rel = request_link_record_insert_rel (obj_node);
   json_record_tag = request_link_record_insert_tag (obj_node);
+
+//g_message("request_link_record_insert: context_id=%s\n", context_id);
+//g_message("request_link_record_insert: json_record_label=%s\n", json_record_label);
+//g_message("request_link_record_insert: json_record_href=%s\n", json_record_href);
+//g_message("request_link_record_insert: json_record_rel=%s\n", json_record_rel);
+//g_message("request_link_record_insert: json_record_tag=%s\n", json_record_tag);
 
   if (json_record_mvcc != NULL)
     {

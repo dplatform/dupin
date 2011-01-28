@@ -1536,18 +1536,21 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 
   if (ch == '_')
     {
-      /* GET _special_document/document_ID or _special_document/document_ID/_attachments/attachment  */
+      /* GET _special_document/document_ID */
       if (path->next->next)
         {
           doc_id = g_strdup_printf ("%s/%s", (gchar *)path->next->data, (gchar *)path->next->next->data);
 
           if (path->next->next->next)
             {
+              /* GET _special_document/document_ID/_attachments/attachment  */
               if (!g_strcmp0 (path->next->next->next->data, REQUEST_OBJ_ATTACHMENTS))
                 {
                   if (path->next->next->next->next)
                     title_parts = path->next->next->next->next;
                 }
+
+              /* GET _special_document/document_ID/_fields/field */
               else if (!g_strcmp0 (path->next->next->next->data, REQUEST_FIELDS))
                 {
                   if (!path->next->next->next->next
@@ -1567,6 +1570,7 @@ request_global_get_record (DSHttpdClient * client, GList * path,
     {
       if (path->next->next)
         {
+          /* GET document_ID/_fields/field */
           if (!g_strcmp0 (path->next->next->data, REQUEST_FIELDS))
             {
               if (!path->next->next->next
@@ -1575,6 +1579,8 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 
               request_fields=(gchar *)path->next->next->next->data;
             }
+
+          /* GET document_ID/_attachments/attachment */
           else if (path->next->next->next
                    && (!g_strcmp0 (path->next->next->data, REQUEST_OBJ_ATTACHMENTS)))
             {
@@ -1585,6 +1591,7 @@ request_global_get_record (DSHttpdClient * client, GList * path,
           /* NOTE - the following two works becuase the database and the default linkbase
 		    are named the same - we should rewrite path really */
 
+          /* GET document_ID/_links and document_ID/_relationships */
           else if ((!g_strcmp0 (path->next->next->data, REQUEST_OBJ_LINKS))
                   || (!g_strcmp0 (path->next->next->data, REQUEST_OBJ_RELATIONSHIPS)))
             {
@@ -1617,7 +1624,7 @@ request_global_get_record (DSHttpdClient * client, GList * path,
             }
         }
 
-      /* GET document_ID or document_ID/_attachments/attachment */
+      /* GET document_ID */
       doc_id = g_strdup_printf ("%s", (gchar *)path->next->data);
     }
 
@@ -4286,6 +4293,7 @@ request_global_put_record (DSHttpdClient * client, GList * path,
 
       if (path->next->next->next)
         {
+          /* PUT _special_document/document_ID/_fields/field */
           if (!g_strcmp0 (path->next->next->next->data, REQUEST_FIELDS))
             {
 	      if (!path->next->next->next->next
@@ -4296,10 +4304,15 @@ request_global_put_record (DSHttpdClient * client, GList * path,
 
               request_fields=path->next->next->next->next->data;
             }
-          else
+
+          /* PUT _special_document/document_ID/_attachments/attachment */
+          else if (!g_strcmp0 (path->next->next->next->data, REQUEST_OBJ_ATTACHMENTS))
             {
-              /* PUT _special_document/document_ID/attachment */
 	      return request_global_put_record_attachment (client, path, arguments);
+            }
+	  else
+            {
+              return HTTP_STATUS_400;
             }
         }
 
@@ -4311,6 +4324,7 @@ request_global_put_record (DSHttpdClient * client, GList * path,
     {
       if (path->next->next)
         {
+          /* PUT /document_ID/_fields/field */
           if (!g_strcmp0 (path->next->next->data, REQUEST_FIELDS))
             {
 	      if (!path->next->next->next
@@ -4321,9 +4335,10 @@ request_global_put_record (DSHttpdClient * client, GList * path,
 
               request_fields=path->next->next->next->data;
             }
+
+          /* PUT /document_ID/_attachments/attachment */
           else if (!g_strcmp0 (path->next->next->data, REQUEST_OBJ_ATTACHMENTS))
             {
-              /* PUT /document_ID/_attachments/attachment */
               return request_global_put_record_attachment (client, path, arguments);
             }
         }
@@ -4491,6 +4506,7 @@ request_global_put_link_record (DSHttpdClient * client, GList * path,
 
       if (path->next->next->next)
         {
+          /* PUT _special_link/link_ID/_fields/field */
           if (!g_strcmp0 (path->next->next->next->data, REQUEST_FIELDS))
             {
 	      if (!path->next->next->next->next
@@ -4512,6 +4528,7 @@ request_global_put_link_record (DSHttpdClient * client, GList * path,
     {
       if (path->next->next)
         {
+          /* PUT link_ID/_fields/field */
           if (!g_strcmp0 (path->next->next->data, REQUEST_FIELDS))
             {
 	      if (!path->next->next->next
@@ -4846,11 +4863,12 @@ request_global_delete_record (DSHttpdClient * client, GList * path,
     {
       /* TODO - shouldn't we stop/avoid user to delete /_design/something ?! */
 
-      /* DELETE _special_document/document_ID and _special_document/document_ID/_attachments/attachment */
+      /* DELETE _special_document/document_ID */
       if (path->next->next)
         {
           doc_id = g_strdup_printf ("%s/%s", (gchar *)path->next->data, (gchar *)path->next->next->data);
 
+          /* DELETE _special_document/document_ID/_attachments/attachment */
           if (path->next->next->next
               && (!g_strcmp0 (path->next->next->next->data, REQUEST_OBJ_ATTACHMENTS)))
             {
@@ -4865,6 +4883,7 @@ request_global_delete_record (DSHttpdClient * client, GList * path,
     {
       if (path->next->next)
         {
+          /* DELETE /document_ID/_fields/field */
           if (!g_strcmp0 (path->next->next->data, REQUEST_FIELDS))
             {
               if (!path->next->next->next
@@ -4875,10 +4894,11 @@ request_global_delete_record (DSHttpdClient * client, GList * path,
 
               request_fields=path->next->next->next->data;
             }
+
+          /* DELETE /document_ID/_attachments/attachment */
           else if (path->next->next->next
                    && (!g_strcmp0 (path->next->next->data, REQUEST_OBJ_ATTACHMENTS)))
             {
-              /* DELETE /document_ID/_attachments/attachment */
               title_parts = path->next->next->next;
             }
           else
@@ -4887,7 +4907,7 @@ request_global_delete_record (DSHttpdClient * client, GList * path,
             }
         }
 
-      /* DELETE /document_ID, /document_ID/_fields/field and /document_ID/_attachments/attachment */
+      /* DELETE /document_ID */
       doc_id = g_strdup_printf ("%s", (gchar *)path->next->data);
     }
 
@@ -5100,7 +5120,7 @@ request_global_delete_link_record (DSHttpdClient * client, GList * path,
     {
       /* TODO - shouldn't we stop/avoid user to delete /_design/something ?! */
 
-      /* DELETE _special_document/document_ID */
+      /* DELETE _special_document/link_ID */
       if (path->next->next)
         {
           link_id = g_strdup_printf ("%s/%s", (gchar *)path->next->data, (gchar *)path->next->next->data);
@@ -5112,6 +5132,7 @@ request_global_delete_link_record (DSHttpdClient * client, GList * path,
     {
       if (path->next->next)
         {
+          /* DELETE /link_ID/_fields/field */
           if (!g_strcmp0 (path->next->next->data, REQUEST_FIELDS))
             {
               if (!path->next->next->next
@@ -5130,7 +5151,7 @@ request_global_delete_link_record (DSHttpdClient * client, GList * path,
             }
         }
 
-      /* DELETE /document_ID and /document_ID/_fields/field */
+      /* DELETE /link_ID */
       link_id = g_strdup_printf ("%s", (gchar *)path->next->data);
     }
 

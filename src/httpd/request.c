@@ -2538,6 +2538,7 @@ request_global_get_record_linkbase (DSHttpdClient * client, GList * path,
 
           if (path->next->next->next)
             {
+              /* GET _special_link/link_ID/_fields/field */
               if (!g_strcmp0 (path->next->next->next->data, REQUEST_FIELDS))
                 {
                   if (!path->next->next->next->next
@@ -2553,6 +2554,7 @@ request_global_get_record_linkbase (DSHttpdClient * client, GList * path,
     {
       if (path->next->next)
         {
+          /* GET link_ID/_fields/field */
           if (!g_strcmp0 (path->next->next->data, REQUEST_FIELDS))
             {
               if (!path->next->next->next

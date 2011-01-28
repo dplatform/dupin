@@ -3767,7 +3767,7 @@ request_global_post (DSHttpdClient * client, GList * path, GList * arguments)
   if (!path->next)
     return request_global_post_record (client, path, arguments);
 
-  /* POST /database/_bluck_docs */
+  /* POST /database/_bulk_docs */
   if (!g_strcmp0 (path->next->data, REQUEST_POST_BULK_DOCS) && !path->next->next)
     return request_global_post_bulk_docs (client, path, arguments);
 

@@ -554,9 +554,9 @@ dupin_link_record_get_list (DupinLinkB * linkb, guint count, guint offset,
   else if (count_type == DP_COUNT_DELETE)
     check_deleted = " d.deleted = 'TRUE' ";
 
-  if (links_type == DP_LINKS_WEB_LINKS)
+  if (links_type == DP_LINK_TYPE_WEB_LINK)
     check_linktype = " d.is_weblink = 'TRUE' ";
-  else if (links_type == DP_LINKS_RELATIONSHIPS)
+  else if (links_type == DP_LINK_TYPE_RELATIONSHIP)
     check_linktype = " d.is_weblink = 'FALSE' ";
 
   gchar * op = "";

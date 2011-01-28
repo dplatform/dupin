@@ -72,7 +72,8 @@ static gboolean request_record_insert (DSHttpdClient * client,
 static gboolean request_link_record_insert (DSHttpdClient * client,
 				            JsonNode * obj_node, gchar * dbname,
 				            gchar * id, gchar * context_id, DSHttpStatusCode * code,
-				            DupinLinkRecord ** ret_record);
+				            DupinLinkRecord ** ret_record,
+					    DupinLinksType link_type);
 
 /* TODO - check, bug ? shouldn't be DupinAttachmentRecord ? 
           at the moment it is a special case due we need to access DupinRecord revision
@@ -2015,12 +2016,12 @@ request_global_get_linkbase (DSHttpdClient * client, GList * path,
 
   json_object_set_string_member (obj, "linkbase_name", (gchar *) dupin_linkbase_get_name (linkb));
   json_object_set_string_member (obj, "linkbase_parent", (gchar *) dupin_linkbase_get_parent (linkb));
-  json_object_set_int_member (obj, "links_count", dupin_linkbase_count (linkb, DP_LINKS_ALL_LINKS, DP_COUNT_EXIST, NULL, NULL, NULL));
-  json_object_set_int_member (obj, "web_links_count", dupin_linkbase_count (linkb, DP_LINKS_WEB_LINKS, DP_COUNT_EXIST, NULL, NULL, NULL));
-  json_object_set_int_member (obj, "relationships_count", dupin_linkbase_count (linkb, DP_LINKS_RELATIONSHIPS, DP_COUNT_EXIST, NULL, NULL, NULL));
-  json_object_set_int_member (obj, "links_del_count", dupin_linkbase_count (linkb, DP_LINKS_ALL_LINKS, DP_COUNT_DELETE, NULL, NULL, NULL));
-  json_object_set_int_member (obj, "web_links_del_count", dupin_linkbase_count (linkb, DP_LINKS_WEB_LINKS, DP_COUNT_DELETE, NULL, NULL, NULL));
-  json_object_set_int_member (obj, "relationships_del_count", dupin_linkbase_count (linkb, DP_LINKS_RELATIONSHIPS, DP_COUNT_DELETE, NULL, NULL, NULL));
+  json_object_set_int_member (obj, "links_count", dupin_linkbase_count (linkb, DP_LINK_TYPE_ANY, DP_COUNT_EXIST, NULL, NULL, NULL));
+  json_object_set_int_member (obj, "web_links_count", dupin_linkbase_count (linkb, DP_LINK_TYPE_WEB_LINK, DP_COUNT_EXIST, NULL, NULL, NULL));
+  json_object_set_int_member (obj, "relationships_count", dupin_linkbase_count (linkb, DP_LINK_TYPE_RELATIONSHIP, DP_COUNT_EXIST, NULL, NULL, NULL));
+  json_object_set_int_member (obj, "links_del_count", dupin_linkbase_count (linkb, DP_LINK_TYPE_ANY, DP_COUNT_DELETE, NULL, NULL, NULL));
+  json_object_set_int_member (obj, "web_links_del_count", dupin_linkbase_count (linkb, DP_LINK_TYPE_WEB_LINK, DP_COUNT_DELETE, NULL, NULL, NULL));
+  json_object_set_int_member (obj, "relationships_del_count", dupin_linkbase_count (linkb, DP_LINK_TYPE_RELATIONSHIP, DP_COUNT_DELETE, NULL, NULL, NULL));
 
   json_object_set_int_member (obj, "disk_size", dupin_linkbase_get_size (linkb));
 
@@ -2083,7 +2084,7 @@ request_global_get_all_links_linkbase (DSHttpdClient * client, GList * path,
   gchar * context_id = NULL;
   gchar * label = NULL;
   gchar * tag = NULL;
-  DupinLinksType link_type = DP_LINKS_ALL_LINKS;
+  DupinLinksType link_type = DP_LINK_TYPE_ANY;
 
   JsonObject *obj;
   JsonNode *node=NULL;
@@ -2121,9 +2122,9 @@ request_global_get_all_links_linkbase (DSHttpdClient * client, GList * path,
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_LINK_TYPE))
         {
           if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_LINKS_LINK_TYPE_WEBLINKS))
-            link_type = DP_LINKS_WEB_LINKS;
+            link_type = DP_LINK_TYPE_WEB_LINK;
           else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_LINKS_LINK_TYPE_RELATIONSHIPS))
-            link_type = DP_LINKS_RELATIONSHIPS;
+            link_type = DP_LINK_TYPE_RELATIONSHIP;
         }
 
     }
@@ -3558,7 +3559,7 @@ request_global_get_linkbase_query (DSHttpdClient * client, GList * path,
 
   array = json_array_new ();
 
-  while (dupin_link_record_get_list (linkb, QUERY_BLOCK, offset, 0, 0, DP_LINKS_ALL_LINKS, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE,
+  while (dupin_link_record_get_list (linkb, QUERY_BLOCK, offset, 0, 0, DP_LINK_TYPE_ANY, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE,
 					NULL, NULL, NULL, &results, NULL) == TRUE && results)
     {
       GList *list;
@@ -3732,6 +3733,10 @@ static DSHttpStatusCode request_global_post_record (DSHttpdClient * client,
 static DSHttpStatusCode request_global_post_bulk_docs (DSHttpdClient * client,
 						       GList * path,
 						       GList * arguments);
+static DSHttpStatusCode request_global_post_doc_link (DSHttpdClient * client,
+						      GList * path,
+						      GList * arguments,
+						      DupinLinksType link_type);
 static DSHttpStatusCode request_global_post_compact_database (DSHttpdClient * client,
 						     	      GList * path,
 						     	      GList * arguments);
@@ -3776,6 +3781,18 @@ request_global_post (DSHttpdClient * client, GList * path, GList * arguments)
   /* POST /database/_compact */
   if (!g_strcmp0 (path->next->data, REQUEST_POST_COMPACT_DATABASE) && !path->next->next)
     return request_global_post_compact_database (client, path, arguments);
+
+  /* POST /database/doc_id/_links */
+  if (path->next
+      && path->next->next && !g_strcmp0 (path->next->next->data, REQUEST_OBJ_LINKS)
+      && !path->next->next->next)
+    return request_global_post_doc_link (client, path, arguments, DP_LINK_TYPE_WEB_LINK);
+
+  /* POST /database/doc_id/_relationships */
+  if (path->next
+      && path->next->next && !g_strcmp0 (path->next->next->data, REQUEST_OBJ_RELATIONSHIPS)
+      && !path->next->next->next)
+    return request_global_post_doc_link (client, path, arguments, DP_LINK_TYPE_RELATIONSHIP);
 
   return HTTP_STATUS_400;
 }
@@ -3851,6 +3868,68 @@ request_global_post_record (DSHttpdClient * client, GList * path,
     }
 
 request_global_post_record_end:
+
+  if (parser != NULL)
+    g_object_unref (parser);
+  return code;
+}
+
+static DSHttpStatusCode
+request_global_post_doc_link (DSHttpdClient * client, GList * path,
+			      GList * arguments,
+			      DupinLinksType link_type)
+{
+  DupinLinkRecord *record;
+  DSHttpStatusCode code;
+
+  if (!client->body
+      || !path->next)
+    return HTTP_STATUS_400;
+
+  gchar * context_id = path->next->data;
+
+  JsonParser *parser = json_parser_new ();
+
+  if (parser == NULL)
+    {
+      code = HTTP_STATUS_500;
+      goto request_global_post_doc_links_end;
+    }
+
+  /* TODO - add options to GET methods to pass escape/unescape Unicode if needed by client accordingly to RFC4627
+            we currently read escaped JSON documents and stored them as UTF-8 - also check UTF-16 and UTF-32 encodings if needed/supported */
+
+  /* TODO - add error checking and return any parsing error to client */
+  if (json_parser_load_from_data (parser, client->body, client->body_size, NULL) == FALSE)
+    {
+      code = HTTP_STATUS_400;
+      goto request_global_post_doc_links_end;
+    }
+
+  JsonNode * node = json_parser_get_root (parser);
+
+  if (node == NULL)
+    {
+      code = HTTP_STATUS_500;
+      goto request_global_post_doc_links_end;
+    }
+
+  if (json_node_get_node_type (node) != JSON_NODE_OBJECT)
+    {
+      code = HTTP_STATUS_400;
+      goto request_global_post_doc_links_end;
+    }
+
+  if (request_link_record_insert
+      (client, node, path->data, NULL, context_id, &code,
+            &record, link_type) == TRUE)
+    {
+      if (request_link_record_response_single (client, record) == FALSE)
+        code = HTTP_STATUS_500;
+      dupin_link_record_close (record);
+    }
+
+request_global_post_doc_links_end:
 
   if (parser != NULL)
     g_object_unref (parser);
@@ -4666,7 +4745,7 @@ request_global_put_link_record (DSHttpdClient * client, GList * path,
 
   if (request_link_record_insert
       (client, node, path->data, link_id, NULL, &code,
-            &record) == TRUE)
+            &record, DP_LINK_TYPE_ANY) == TRUE)
     {
       if (request_link_record_response_single (client, record) == FALSE)
 	    code = HTTP_STATUS_500;
@@ -5555,7 +5634,6 @@ request_record_insert (DSHttpdClient * client, JsonNode * obj_node,
                       JsonNode * lnode = (JsonNode *) sn->data;
 		      gchar * lnode_context_id = NULL;
 		      gchar * lnode_label = NULL;
-		      gchar * lnode_href = NULL;
 
                       if (json_node_get_node_type (lnode) != JSON_NODE_OBJECT)
                         {
@@ -5575,18 +5653,14 @@ request_record_insert (DSHttpdClient * client, JsonNode * obj_node,
                       else
   		        json_object_set_string_member (lobj, REQUEST_LINK_OBJ_LABEL, label);
 
-		      if (json_object_has_member (lobj, REQUEST_LINK_OBJ_HREF) == TRUE)
-                        lnode_href = (gchar *)json_object_get_string_member (lobj, REQUEST_LINK_OBJ_HREF);
-
 //g_message("request_record_insert: context_id=%s label=%s lnode_context_id=%s lnode_label=%s\n", context_id, label, lnode_context_id, lnode_label);
 
 		      /* TODO - rework this to report errors to poort user ! perhaps using contextual logging if useful */
 
 		      if ( ((lnode_context_id != NULL ) && (g_strcmp0 (lnode_context_id, context_id)))
 		           || ((lnode_label != NULL ) && (g_strcmp0 (lnode_label, label)))
-		           || ((lnode_href != NULL ) && (dupin_util_is_valid_absolute_uri (lnode_href) == FALSE))
 			   || (request_link_record_insert (client, lnode,
-						      dbname, NULL, context_id, code, &link_record) == FALSE))
+						      dbname, NULL, context_id, code, &link_record, DP_LINK_TYPE_WEB_LINK) == FALSE))
         	        {
           		  g_list_free (snodes);
           		  g_list_free (nodes);
@@ -5647,7 +5721,6 @@ request_record_insert (DSHttpdClient * client, JsonNode * obj_node,
                       JsonNode * rnode = (JsonNode *) sn->data;
 		      gchar * rnode_context_id = NULL;
 		      gchar * rnode_label = NULL;
-		      gchar * rnode_href = NULL;
 
                       if (json_node_get_node_type (rnode) != JSON_NODE_OBJECT)
                         {
@@ -5667,18 +5740,14 @@ request_record_insert (DSHttpdClient * client, JsonNode * obj_node,
                       else
   		        json_object_set_string_member (robj, REQUEST_LINK_OBJ_LABEL, label);
 
-		      if (json_object_has_member (robj, REQUEST_LINK_OBJ_HREF) == TRUE)
-                        rnode_href = (gchar *)json_object_get_string_member (robj, REQUEST_LINK_OBJ_HREF);
-
 //g_message("request_record_insert: context_id=%s label=%s rnode_context_id=%s rnode_label=%s\n", context_id, label, rnode_context_id, rnode_label);
 
 		      /* TODO - rework this to report errors to poort user ! perhaps using contextual logging if useful */
 
 		      if ( ((rnode_context_id != NULL ) && (g_strcmp0 (rnode_context_id, context_id)))
 		           || ((rnode_label != NULL ) && (g_strcmp0 (rnode_label, label)))
-		           || ((rnode_href != NULL ) && (dupin_util_is_valid_absolute_uri (rnode_href) == TRUE))
 			   || (request_link_record_insert (client, rnode,
-						      dbname, NULL, context_id, code, &relationship_record) == FALSE))
+						      dbname, NULL, context_id, code, &relationship_record, DP_LINK_TYPE_RELATIONSHIP) == FALSE))
         	        {
           		  g_list_free (snodes);
           		  g_list_free (nodes);
@@ -5909,7 +5978,8 @@ static gboolean
 request_link_record_insert (DSHttpdClient * client, JsonNode * obj_node,
 		       	    gchar * linkbname, gchar * id, gchar * context_id,
 			    DSHttpStatusCode * code,
-		            DupinLinkRecord ** ret_record)
+		            DupinLinkRecord ** ret_record,
+			    DupinLinksType link_type)
 {
   DupinLinkB *linkb;
   DupinLinkRecord *record;
@@ -5930,6 +6000,18 @@ request_link_record_insert (DSHttpdClient * client, JsonNode * obj_node,
 
   g_return_val_if_fail (json_object_has_member (json_node_get_object (obj_node),
 				REQUEST_LINK_OBJ_CONTEXT_ID) == FALSE, FALSE);
+
+  json_record_href = request_link_record_insert_href (obj_node);
+
+  if (link_type == DP_LINK_TYPE_WEB_LINK)
+    {
+      g_return_val_if_fail (dupin_util_is_valid_absolute_uri (json_record_href) == TRUE, FALSE);
+    }
+  else if (link_type == DP_LINK_TYPE_RELATIONSHIP)
+    {
+      g_return_val_if_fail (dupin_util_is_valid_absolute_uri (json_record_href) == FALSE, FALSE);
+    }
+  /* else is auto, picked by the system */
 
   if (!(linkb = dupin_linkbase_open (client->thread->data->dupin, linkbname, NULL)))
     {
@@ -5966,7 +6048,6 @@ request_link_record_insert (DSHttpdClient * client, JsonNode * obj_node,
     }
 
   json_record_label = request_link_record_insert_label (obj_node);
-  json_record_href = request_link_record_insert_href (obj_node);
   json_record_rel = request_link_record_insert_rel (obj_node);
   json_record_tag = request_link_record_insert_tag (obj_node);
 

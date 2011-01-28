@@ -636,9 +636,9 @@ dupin_linkbase_count (DupinLinkB * linkb,
   count.ret = 0;
   count.count_type = count_type;
 
-  if (links_type == DP_LINKS_WEB_LINKS)
+  if (links_type == DP_LINK_TYPE_WEB_LINK)
     check_linktype = " is_weblink = 'TRUE' ";
-  else if (links_type == DP_LINKS_RELATIONSHIPS)
+  else if (links_type == DP_LINK_TYPE_RELATIONSHIP)
     check_linktype = " is_weblink = 'FALSE' "; 
 
   str = g_string_new ("SELECT deleted, max(rev) as rev FROM Dupin ");
@@ -1201,7 +1201,7 @@ dupin_linkbase_thread_compact (DupinLinkB * linkb, gsize count)
 
   gsize start_rowid = (compact_id != NULL) ? atoi(compact_id)+1 : 1;
 
-  if (dupin_link_record_get_list (linkb, count, 0, start_rowid, 0, DP_LINKS_ALL_LINKS, DP_COUNT_ALL, DP_ORDERBY_ROWID, FALSE, NULL, NULL, NULL, &results, NULL) ==
+  if (dupin_link_record_get_list (linkb, count, 0, start_rowid, 0, DP_LINK_TYPE_ANY, DP_COUNT_ALL, DP_ORDERBY_ROWID, FALSE, NULL, NULL, NULL, &results, NULL) ==
       FALSE || !results)
     {
       if (compact_id != NULL)

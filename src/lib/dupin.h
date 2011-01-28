@@ -63,7 +63,10 @@ typedef enum
   DP_ORDERBY_KEY,
   DP_ORDERBY_TITLE,
   DP_ORDERBY_REV,
-  DP_ORDERBY_HASH
+  DP_ORDERBY_HASH,
+  DP_ORDERBY_LABEL,
+  DP_ORDERBY_TAG,
+  DP_ORDERBY_LINK_TYPE_LABEL	/* 2 levels sort key sort weblinks and relationships with respective labels */
 } DupinOrderByType;
 
 /* SQLite key collation */

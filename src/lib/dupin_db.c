@@ -106,6 +106,9 @@ DupinDB *
 dupin_database_new (Dupin * d, gchar * db, GError ** error)
 {
   DupinDB *ret;
+  DupinLinkB *linkb;
+  DupinAttachmentDB *attachment_db;
+
   gchar *path;
   gchar *name;
   gchar * str;
@@ -163,6 +166,19 @@ dupin_database_new (Dupin * d, gchar * db, GError ** error)
 
   g_mutex_unlock (d->mutex);
 
+  /* NOTE - create one default link base and attachment database named after the main database */
+
+  if (!  (linkb = dupin_linkbase_new (d, db, db, TRUE, NULL)))
+    return NULL;
+
+  dupin_linkbase_unref (linkb);
+
+  if (!  (attachment_db =
+       dupin_attachment_db_new (d, db, db, NULL)))
+    return NULL;
+
+  dupin_attachment_db_unref (attachment_db);
+
   return ret;
 }
 
@@ -206,9 +222,66 @@ gboolean
 dupin_database_delete (DupinDB * db, GError ** error)
 {
   Dupin *d;
+  DupinViewP * p_views;
+  DupinLinkBP * p_linkbases;
+  DupinAttachmentDBP * p_attachments;
+  gsize i;
 
   g_return_val_if_fail (db != NULL, FALSE);
 
+  /* trigger delete on all views, link bases and attachment databases attached */
+
+  p_views = &db->views;
+  for (i = 0; i < p_views->numb; i++)
+    {
+      DupinView *view;
+
+      if (!  (view = dupin_view_open (db->d, (gchar *)dupin_view_get_name (p_views->views[i]), error)))
+        return FALSE;
+
+      if (dupin_view_delete (view, error) == FALSE)
+        {
+          dupin_view_unref (view);
+          return FALSE;
+        }
+
+      dupin_view_unref (view);
+    }
+
+  p_linkbases = &db->linkbs;
+  for (i = 0; i < p_linkbases->numb; i++)
+    {
+      DupinLinkB *linkb;
+
+      if (!  (linkb = dupin_linkbase_open (db->d, (gchar *)dupin_linkbase_get_name (p_linkbases->linkbs[i]), error)))
+        return FALSE;
+
+      if (dupin_linkbase_delete (linkb, error) == FALSE)
+        {
+          dupin_linkbase_unref (linkb);
+          return FALSE;
+        }
+
+      dupin_linkbase_unref (linkb); 
+    }
+
+  p_attachments = &db->attachment_dbs;
+  for (i = 0; i < p_attachments->numb; i++)
+    {
+      DupinAttachmentDB *attachment_db;
+
+      if (!  (attachment_db = dupin_attachment_db_open (db->d, (gchar *)dupin_attachment_db_get_name (p_attachments->attachment_dbs[i]), error)))
+        return FALSE;
+
+      if (dupin_attachment_db_delete (attachment_db, error) == FALSE)
+        {
+          dupin_attachment_db_unref (attachment_db);
+          return FALSE;
+        }
+
+      dupin_attachment_db_unref (attachment_db); 
+    }
+ 
   d = db->d;
 
   g_mutex_lock (d->mutex);

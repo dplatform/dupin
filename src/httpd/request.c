@@ -32,8 +32,16 @@
 #define REQUEST_OBJ_INLINE_ATTACHMENTS_DATA	"data"
 #define REQUEST_OBJ_INLINE_ATTACHMENTS_TYPE	"content_type"
 
-#define RESPONSE_OBJ_ID		"id"
-#define RESPONSE_OBJ_REV	"rev"
+#define RESPONSE_OBJ_ID			"id"
+#define RESPONSE_OBJ_REV		"rev"
+
+#define RESPONSE_LINK_OBJ_ID		RESPONSE_OBJ_ID
+#define RESPONSE_LINK_OBJ_REV		RESPONSE_OBJ_REV
+#define RESPONSE_LINK_OBJ_CONTEXT_ID	REQUEST_LINK_OBJ_CONTEXT_ID
+#define RESPONSE_LINK_OBJ_HREF		"href"
+#define RESPONSE_LINK_OBJ_REL		"rel"
+#define RESPONSE_LINK_OBJ_TAG		"tag"
+#define RESPONSE_LINK_OBJ_LABEL		REQUEST_LINK_OBJ_LABEL
 
 #define RESPONSE_LINK_OBJ_CONTEXT_ID	REQUEST_LINK_OBJ_CONTEXT_ID
 #define RESPONSE_LINK_OBJ_LABEL		REQUEST_LINK_OBJ_LABEL
@@ -4073,8 +4081,6 @@ request_global_put_database (DSHttpdClient * client, GList * path,
 			     GList * arguments)
 {
   DupinDB *db;
-  DupinLinkB *linkb;
-  DupinAttachmentDB *attachment_db;
 
   if (!
       (db =
@@ -4082,21 +4088,6 @@ request_global_put_database (DSHttpdClient * client, GList * path,
     return HTTP_STATUS_409;
 
   dupin_database_unref (db);
-
-  if (!
-      (linkb =
-       dupin_linkbase_new (client->thread->data->dupin, path->data, path->data, TRUE, NULL)))
-    return HTTP_STATUS_409;
-
-  dupin_linkbase_unref (linkb);
-
-  /* create a default attachments DB named after the database being created */
-  if (!
-      (attachment_db =
-       dupin_attachment_db_new (client->thread->data->dupin, path->data, path->data, NULL)))
-    return HTTP_STATUS_409;
-
-  dupin_attachment_db_unref (attachment_db);
 
   return HTTP_STATUS_201;
 }
@@ -4793,13 +4784,13 @@ request_global_delete_database (DSHttpdClient * client, GList * path,
 				GList * arguments)
 {
   DupinDB *db;
-  DupinLinkB *linkb;
-  DupinAttachmentDB *attachment_db;
 
   if (!
       (db =
        dupin_database_open (client->thread->data->dupin, path->data, NULL)))
     return HTTP_STATUS_404;
+
+  /* TODO - shoudl trigger delete any views, link bases and attachment dbs associated to the database */
 
   if (dupin_database_delete (db, NULL) == FALSE)
     {
@@ -4808,34 +4799,6 @@ request_global_delete_database (DSHttpdClient * client, GList * path,
     }
 
   dupin_database_unref (db);
-
-  if (!
-      (linkb =
-       dupin_linkbase_open (client->thread->data->dupin, path->data, NULL)))
-    return HTTP_STATUS_404;
-
-  if (dupin_linkbase_delete (linkb, NULL) == FALSE)
-    {
-      dupin_linkbase_unref (linkb);
-      return HTTP_STATUS_409;
-    }
-
-  dupin_linkbase_unref (linkb);
-
-  /* remove also default attachment DB named after the database being deleted */
-
-  if (!
-      (attachment_db =
-       dupin_attachment_db_open (client->thread->data->dupin, path->data, NULL)))
-    return HTTP_STATUS_404;
-
-  if (dupin_attachment_db_delete (attachment_db, NULL) == FALSE)
-    {
-      dupin_attachment_db_unref (attachment_db);
-      return HTTP_STATUS_409;
-    }
-
-  dupin_attachment_db_unref (attachment_db);
 
   return HTTP_STATUS_200;
 }
@@ -6203,8 +6166,8 @@ request_record_response_multi_mixed (DSHttpdClient * client,
   JsonObject *obj;
   JsonNode *node=NULL;
   JsonArray *docs_array;
-  JsonArray *links_array;
   JsonGenerator *gen=NULL;
+  GList * l=NULL;
 
   obj = json_object_new ();
 
@@ -6221,14 +6184,6 @@ request_record_response_multi_mixed (DSHttpdClient * client,
       goto request_record_response_multi_mixed_error;
     }
 
-  links_array = json_array_new ();
-
-  if (links_array == NULL)
-    {
-      json_array_unref (docs_array);
-      goto request_record_response_multi_mixed_error;
-    }
-
   for (; docs_list; docs_list = docs_list->next)
     {
       JsonObject *o;
@@ -6242,32 +6197,154 @@ request_record_response_multi_mixed (DSHttpdClient * client,
           goto request_record_response_multi_mixed_error; 
         }
 
-      json_object_set_string_member (o, RESPONSE_OBJ_ID, (gchar *) dupin_record_get_id (record));
+      gchar * context_id = (gchar *) dupin_record_get_id (record);
+      json_object_set_string_member (o, RESPONSE_OBJ_ID, context_id);
       json_object_set_string_member (o, RESPONSE_OBJ_REV, dupin_record_get_last_revision (record));
+
+      /* TODO - generate tree of links and relationships for new link nodes revisions including href and tag to let
+	 	caller application to distinguish what is what */
+
+      /* relationships */
+
+      JsonObject * new_links_o = json_object_new ();
+
+      if (new_links_o == NULL)
+        {
+          json_object_unref (o);
+          json_array_unref (docs_array);
+          goto request_record_response_multi_mixed_error;
+        }
+
+      json_object_set_object_member (o, "new_relationships_revs", new_links_o );
+
+      l = links_list;
+      for (l = links_list; l; l = l->next)
+        {
+          DupinLinkRecord *record = l->data;
+          JsonArray * label_links_array = NULL;
+
+          gchar * link_context_id = (gchar *)dupin_link_record_get_context_id (record);
+          gchar * link_label = (gchar *)dupin_link_record_get_label (record);
+          gchar * link_href = (gchar *)dupin_link_record_get_href (record);
+          gchar * link_rel = (gchar *)dupin_link_record_get_rel (record);
+          gchar * link_tag = (gchar *)dupin_link_record_get_tag (record);
+
+	  /* for each link label create an array memeber */
+
+          if ((dupin_link_record_is_weblink (record) == TRUE)
+              || (!g_strcmp0 (link_context_id, context_id)))
+            continue;
+
+          if ( json_object_has_member (new_links_o, link_label) == FALSE)
+            {
+              label_links_array = json_array_new ();
+
+              if (label_links_array == NULL)
+                {
+                  json_object_unref (o);
+                  json_array_unref (docs_array);
+                  goto request_record_response_multi_mixed_error;
+                }
+
+              json_object_set_array_member (new_links_o, link_label, label_links_array );
+            }
+          else
+            {
+              label_links_array = json_object_get_array_member (new_links_o, link_label);
+            }
+
+          JsonObject *o_link = json_object_new ();
+
+          if (o_link == NULL)
+            {
+              json_object_unref (o);
+              json_array_unref (docs_array);
+              goto request_record_response_multi_mixed_error; 
+            }
+
+          json_array_add_object_element (label_links_array, o_link);
+
+          json_object_set_string_member (o_link, RESPONSE_OBJ_ID, (gchar *) dupin_link_record_get_id (record));
+          json_object_set_string_member (o_link, RESPONSE_OBJ_REV, dupin_link_record_get_last_revision (record));
+          json_object_set_string_member (o_link, RESPONSE_LINK_OBJ_HREF, link_href);
+	  if (link_rel != NULL)
+            json_object_set_string_member (o_link, RESPONSE_LINK_OBJ_REL, link_rel);
+	  if (link_tag != NULL)
+            json_object_set_string_member (o_link, RESPONSE_LINK_OBJ_TAG, link_tag);
+        }
+
+      /* web links */
+
+      new_links_o = json_object_new ();
+
+      if (new_links_o == NULL)
+        {
+          json_object_unref (o);
+          json_array_unref (docs_array);
+          goto request_record_response_multi_mixed_error;
+        }
+
+      json_object_set_object_member (o, "new_weblinks_revs", new_links_o );
+
+      l = links_list;
+      for (l = links_list; l; l = l->next)
+        {
+          DupinLinkRecord *record = l->data;
+          JsonArray * label_links_array = NULL;
+
+          gchar * link_context_id = (gchar *)dupin_link_record_get_context_id (record);
+          gchar * link_label = (gchar *)dupin_link_record_get_label (record);
+          gchar * link_href = (gchar *)dupin_link_record_get_href (record);
+          gchar * link_rel = (gchar *)dupin_link_record_get_rel (record);
+          gchar * link_tag = (gchar *)dupin_link_record_get_tag (record);
+
+	  /* for each link label create an array memeber */
+
+          if ((dupin_link_record_is_weblink (record) == FALSE)
+              || (!g_strcmp0 (link_context_id, context_id)))
+            continue;
+
+          if ( json_object_has_member (new_links_o, link_label) == FALSE)
+            {
+              label_links_array = json_array_new ();
+
+              if (label_links_array == NULL)
+                {
+                  json_object_unref (o);
+                  json_array_unref (docs_array);
+                  goto request_record_response_multi_mixed_error;
+                }
+
+              json_object_set_array_member (new_links_o, link_label, label_links_array );
+            }
+          else
+            {
+              label_links_array = json_object_get_array_member (new_links_o, link_label);
+            }
+
+          JsonObject *o_link = json_object_new ();
+
+          if (o_link == NULL)
+            {
+              json_object_unref (o);
+              json_array_unref (docs_array);
+              goto request_record_response_multi_mixed_error; 
+            }
+
+          json_array_add_object_element (label_links_array, o_link);
+
+          json_object_set_string_member (o_link, RESPONSE_OBJ_ID, (gchar *) dupin_link_record_get_id (record));
+          json_object_set_string_member (o_link, RESPONSE_OBJ_REV, dupin_link_record_get_last_revision (record));
+          json_object_set_string_member (o_link, RESPONSE_LINK_OBJ_HREF, link_href);
+	  if (link_rel != NULL)
+            json_object_set_string_member (o_link, RESPONSE_LINK_OBJ_REL, link_rel);
+	  if (link_tag != NULL)
+            json_object_set_string_member (o_link, RESPONSE_LINK_OBJ_TAG, link_tag);
+        }
 
       json_array_add_object_element( docs_array, o);
     }
   json_object_set_array_member (obj, "new_docs_revs", docs_array );
-
-  for (; links_list; links_list = links_list->next)
-    {
-      JsonObject *o;
-      DupinLinkRecord *record = links_list->data;
-
-      o = json_object_new ();
-
-      if (o == NULL)
-        {
-          json_array_unref (links_array);
-          goto request_record_response_multi_mixed_error; 
-        }
-
-      json_object_set_string_member (o, RESPONSE_OBJ_ID, (gchar *) dupin_link_record_get_id (record));
-      json_object_set_string_member (o, RESPONSE_OBJ_REV, dupin_link_record_get_last_revision (record));
-
-      json_array_add_object_element( links_array, o);
-    }
-  json_object_set_array_member (obj, "new_links_revs", links_array );
 
   node = json_node_new (JSON_NODE_OBJECT);
 

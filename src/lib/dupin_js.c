@@ -167,6 +167,10 @@ dupin_js_new_map (Dupin *    	 d,
       else
         {
           g_warning ("dupin_js_new_map: %s", value);
+
+          g_warning("\n\tscript is: %s\n",js_code);
+          g_warning("\n\tjs_json_doc is: %s\n",js_json_doc);
+
           g_free (value);
         }
       JSStringRelease (js_message);
@@ -366,6 +370,12 @@ dupin_js_new_reduce (Dupin *        d,
       else
         {
           g_warning ("dupin_js_new_reduce: %s", value);
+
+          g_warning("\n\tscript is: %s\n",js_code);
+          g_warning("\n\tjs_json_keys is: %s\n",js_json_keys);
+          g_warning("\n\tjs_json_values is: %s\n",js_json_values);
+          g_warning("\n\trereduce is: %s\n",rereduce_param);
+
           g_free (value);
         }
       JSStringRelease (js_message);

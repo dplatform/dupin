@@ -889,9 +889,7 @@ dupin_link_record_update (DupinLinkRecord * record, JsonNode * obj_node,
 
   g_return_val_if_fail (record != NULL, FALSE);
   g_return_val_if_fail (obj_node != NULL, FALSE);
-  g_return_val_if_fail (label != NULL, FALSE);
   g_return_val_if_fail (href != NULL, FALSE);
-  g_return_val_if_fail (dupin_link_record_util_is_valid_label (label) == TRUE, FALSE);
   g_return_val_if_fail (dupin_link_record_util_is_valid_href (href) == TRUE, FALSE);
   g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, FALSE);
 
@@ -899,6 +897,11 @@ dupin_link_record_update (DupinLinkRecord * record, JsonNode * obj_node,
     rel = DUPIN_LINKB_DEFAULT_REL;
   else
     g_return_val_if_fail (dupin_link_record_util_is_valid_rel (rel) == TRUE, FALSE);
+
+  if (label == NULL)
+    label = (gchar *)dupin_link_record_get_label (record);
+  else
+    g_return_val_if_fail (dupin_link_record_util_is_valid_label (label) == TRUE, FALSE);
 
   g_mutex_lock (record->linkb->mutex);
 

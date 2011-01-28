@@ -45,3 +45,6 @@
 - Think of a kind of snap-shot generator of SQLite databases with a specific version/tag so other
   applications can start using the copy for read-only purposes for example. See also ideas here
   http://search.cpan.org/~adamk/ ORLite mirror and migrate related modules
+- When _compact database and linkbase should copy over the very first revision _created value
+  as _published to the latest record, unless already set. This allows to know when record was
+  originally "published" put into the system.

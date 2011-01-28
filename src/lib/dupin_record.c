@@ -200,6 +200,10 @@ dupin_record_create_with_id_real (DupinDB * db, JsonNode * obj_node,
   if (lock == TRUE)
     g_mutex_unlock (db->mutex);
 
+  dupin_linkbase_p_record_insert (&db->linkbs,
+			          (gchar *) dupin_record_get_id (record),
+			          json_node_get_object (dupin_record_get_revision_node (record, NULL)));
+
   dupin_view_p_record_insert (&db->views,
 			      (gchar *) dupin_record_get_id (record),
 			      json_node_get_object (dupin_record_get_revision_node (record, NULL)));
@@ -646,6 +650,12 @@ dupin_record_update (DupinRecord * record, JsonNode * obj_node,
     }
 
   g_mutex_unlock (record->db->mutex);
+
+  dupin_linkbase_p_record_delete (&record->db->linkbs,
+			          (gchar *) dupin_record_get_id (record));
+  dupin_linkbase_p_record_insert (&record->db->linkbs,
+			          (gchar *) dupin_record_get_id (record),
+			          json_node_get_object (dupin_record_get_revision_node (record, NULL)));
 
   dupin_view_p_record_delete (&record->db->views,
 			      (gchar *) dupin_record_get_id (record));

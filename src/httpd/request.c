@@ -2531,7 +2531,7 @@ request_global_get_record_linkbase (DSHttpdClient * client, GList * path,
 
   if (ch == '_')
     {
-      /* GET _special_document/link_ID */
+      /* GET _special_link/link_ID */
       if (path->next->next)
         {
           link_id = g_strdup_printf ("%s/%s", (gchar *)path->next->data, (gchar *)path->next->next->data);
@@ -5120,7 +5120,7 @@ request_global_delete_link_record (DSHttpdClient * client, GList * path,
     {
       /* TODO - shouldn't we stop/avoid user to delete /_design/something ?! */
 
-      /* DELETE _special_document/link_ID */
+      /* DELETE _special_link/link_ID */
       if (path->next->next)
         {
           link_id = g_strdup_printf ("%s/%s", (gchar *)path->next->data, (gchar *)path->next->next->data);

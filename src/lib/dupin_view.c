@@ -287,26 +287,33 @@ dupin_view_p_update_cb (void *data, int argc, char **argv, char **col)
 {
   struct dupin_view_p_update_t *update = data;
 
-  if (argv[0] && *argv[0])
-    update->parent = g_strdup (argv[0]);
+  if (argc == 7)
+    {
+      if (argv[0] && *argv[0])
+        update->parent = g_strdup (argv[0]);
 
-  if (argv[1] && *argv[1])
-    update->isdb = !g_strcmp0 (argv[1], "TRUE") ? TRUE : FALSE;
+      if (argv[1] && *argv[1])
+        update->isdb = !g_strcmp0 (argv[1], "TRUE") ? TRUE : FALSE;
 
-  if (argv[2] && *argv[2])
-    update->islinkb = !g_strcmp0 (argv[2], "TRUE") ? TRUE : FALSE;
+      if (argv[2] && *argv[2])
+        update->islinkb = !g_strcmp0 (argv[2], "TRUE") ? TRUE : FALSE;
 
-  if (argv[3] && *argv[3])
-    update->map = g_strdup (argv[3]);
+      if (argv[3] && *argv[3])
+        update->map = g_strdup (argv[3]);
 
-  if (argv[4] && *argv[4])
-    update->map_lang = dupin_util_mr_lang_to_enum (argv[4]);
+      if (argv[4] && *argv[4])
+        update->map_lang = dupin_util_mr_lang_to_enum (argv[4]);
 
-  if (argv[5] && *argv[5])
-    update->reduce = g_strdup (argv[5]);
+      if (argv[5] != NULL && g_strcmp0(argv[5],"(NULL)") && g_strcmp0(argv[5],"null") )
+        {
+          update->reduce = g_strdup (argv[5]);
+        }
 
-  if (argv[6] && *argv[6])
-    update->reduce_lang = dupin_util_mr_lang_to_enum (argv[6]);
+      if (argv[6] != NULL && g_strcmp0(argv[6],"(NULL)") && g_strcmp0(argv[6],"null") )
+        {
+          update->reduce_lang = dupin_util_mr_lang_to_enum (argv[6]);
+        }
+    }
 
   return 0;
 }
@@ -850,7 +857,7 @@ dupin_view_create_cb (void *data, int argc, char **argv, char **col)
 /* see also http://wiki.apache.org/couchdb/View_collation */
 
 int
-dupin_view_collation (void        * view,
+dupin_view_collation (void        * ref,
 		      int         left_len,
 		      const void  *left_void,
 		      int         right_len,
@@ -936,7 +943,8 @@ dupin_view_create (Dupin * d, gchar * name, gchar * path, GError ** error)
       return NULL;
     }
 
-  /* TODO - create collation functions for views - see http://wiki.apache.org/couchdb/View_collation */
+  /* NOTE - set simple collation functions for views - see http://wiki.apache.org/couchdb/View_collation */
+
   if (sqlite3_create_collation (view->db, "dupincmp", SQLITE_UTF8,  view, dupin_view_collation) != SQLITE_OK)
     {
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,

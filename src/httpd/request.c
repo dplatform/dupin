@@ -3240,7 +3240,12 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
           gchar * record_id;
 	  JsonNode * doc = NULL;
 	  JsonObject * on_obj = json_node_get_object (on);
-	  JsonObject * on_obj2 = json_object_get_object_member (on_obj, "value");
+
+	  JsonObject * on_obj2 = NULL;
+	  JsonNode * on_obj2_node = json_object_get_member (on_obj, "value");
+          if (on_obj2_node != NULL
+              && json_node_get_node_type (on_obj2_node) == JSON_NODE_OBJECT)
+	    on_obj2 = json_object_get_object_member (on_obj, "value");
 
           if (on_obj2 != NULL
               && json_object_has_member (on_obj2, REQUEST_OBJ_ID))
@@ -5740,7 +5745,7 @@ request_record_insert (DSHttpdClient * client, JsonNode * obj_node,
                       else
   		        json_object_set_string_member (robj, REQUEST_LINK_OBJ_LABEL, label);
 
-//g_message("request_record_insert: context_id=%s label=%s rnode_context_id=%s rnode_label=%s\n", context_id, label, rnode_context_id, rnode_label);
+g_message("request_record_insert: context_id=%s label=%s rnode_context_id=%s rnode_label=%s\n", context_id, label, rnode_context_id, rnode_label);
 
 		      /* TODO - rework this to report errors to poort user ! perhaps using contextual logging if useful */
 

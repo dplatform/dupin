@@ -64,12 +64,14 @@ static JsonNode *request_view_record_obj (DupinViewRecord * record,
 						  gchar * id);
 
 static gboolean request_record_insert (DSHttpdClient * client,
+				       GList * arguments,
 				       JsonNode * obj_node, gchar * dbname,
 				       gchar * id, DSHttpStatusCode * code,
 				       DupinRecord ** ret_record,
 		       		       GList ** docs_list, GList ** links_list);
 
 static gboolean request_link_record_insert (DSHttpdClient * client,
+					    GList * arguments,
 				            JsonNode * obj_node, gchar * dbname,
 				            gchar * id, gchar * context_id, DSHttpStatusCode * code,
 				            DupinLinkRecord ** ret_record,
@@ -79,9 +81,9 @@ static gboolean request_link_record_insert (DSHttpdClient * client,
           at the moment it is a special case due we need to access DupinRecord revision
 	  information when adding/updating the attachment - we just been lazy? */
 static gboolean request_record_attachment_insert (DSHttpdClient * client,
+						  GList * arguments,
 				                  gchar * dbname, gchar * id,
 						  GList * title_parts,
-						  GList * arguments,
 						  DSHttpStatusCode * code,
 				                  DupinRecord ** ret_record);
 
@@ -3847,7 +3849,7 @@ request_global_post_record (DSHttpdClient * client, GList * path,
     }
 
   if (request_record_insert
-      (client, node, path->data, NULL, &code, &record, &docs_list, &links_list) == TRUE)
+      (client, arguments, node, path->data, NULL, &code, &record, &docs_list, &links_list) == TRUE)
     {
       if (links_list == NULL)
         {
@@ -3926,7 +3928,7 @@ request_global_post_doc_link (DSHttpdClient * client, GList * path,
     }
 
   if (request_link_record_insert
-      (client, node, path->data, NULL, context_id, &code,
+      (client, arguments, node, path->data, NULL, context_id, &code,
             &record, link_type) == TRUE)
     {
       if (request_link_record_response_single (client, record) == FALSE)
@@ -4030,7 +4032,7 @@ request_global_post_bulk_docs (DSHttpdClient * client, GList * path,
         }
 
       if (request_record_insert
-	  (client, element_node, path->data, NULL, &code, &record,
+	  (client, arguments, element_node, path->data, NULL, &code, &record,
 		&docs_list, &links_list) == FALSE)
 	{
           g_list_free (nodes);
@@ -4528,7 +4530,7 @@ request_global_put_record (DSHttpdClient * client, GList * path,
     }
 
   if (request_record_insert
-      (client, node, path->data, doc_id, &code,
+      (client, arguments, node, path->data, doc_id, &code,
             &record, &docs_list, &links_list) == TRUE)
     {
       if (links_list == NULL)
@@ -4749,7 +4751,7 @@ request_global_put_link_record (DSHttpdClient * client, GList * path,
     }
 
   if (request_link_record_insert
-      (client, node, path->data, link_id, NULL, &code,
+      (client, arguments, node, path->data, link_id, NULL, &code,
             &record, DP_LINK_TYPE_ANY) == TRUE)
     {
       if (request_link_record_response_single (client, record) == FALSE)
@@ -4819,8 +4821,8 @@ request_global_put_record_attachment (DSHttpdClient * client, GList * path,
 //g_message("request_global_put_record_attachment: dbname=%s doc_id=%s title_parts=%s\n", (gchar *) path->data, doc_id, (gchar *)title_parts->data);
 
   if (request_record_attachment_insert
-      (client, path->data, doc_id,
-       title_parts, arguments, &code,
+      (client, arguments, path->data, doc_id,
+       title_parts, &code,
        &record) == TRUE)
     {
       if (request_record_response_single (client, record) == FALSE)
@@ -5378,7 +5380,7 @@ RequestType request_types[] = {
 /* RECORD *********************************************************************/
 
 static gboolean
-request_record_insert (DSHttpdClient * client, JsonNode * obj_node,
+request_record_insert (DSHttpdClient * client, GList * arguments, JsonNode * obj_node,
 		       gchar * dbname, gchar * id, DSHttpStatusCode * code,
 		       DupinRecord ** ret_record,
 		       GList ** docs_list, GList ** links_list)
@@ -5389,7 +5391,7 @@ request_record_insert (DSHttpdClient * client, JsonNode * obj_node,
   DupinRecord *record;
   DSHttpStatusCode retcode;
 
-  gchar * json_record_mvcc=NULL;
+  gchar * mvcc=NULL;
   gchar * json_record_id;
 
   JsonNode * links_node=NULL;
@@ -5398,20 +5400,41 @@ request_record_insert (DSHttpdClient * client, JsonNode * obj_node,
 
   g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, FALSE);
 
+  /* fetch the _rev field in the record first, if there */
+  mvcc = request_record_insert_rev (obj_node);
+
+  /* otherwise check passed parameters */
+  if (mvcc == NULL)
+    {
+      GList * l=NULL;
+      for (l = arguments; l; l = l->next)
+        {
+          dupin_keyvalue_t *kv = l->data;
+
+          if (!g_strcmp0 (kv->key, REQUEST_RECORD_ARG_REV))
+            {
+              if (dupin_util_is_valid_mvcc (kv->value) == FALSE)
+                {
+                  *code = HTTP_STATUS_400;
+                  return FALSE;
+                }
+              mvcc = g_strdup (kv->value);
+            }
+        }
+    }
+
   if (!(db = dupin_database_open (client->thread->data->dupin, dbname, NULL)))
     {
       *code = HTTP_STATUS_400;
       return FALSE;
     }
 
-  json_record_mvcc = request_record_insert_rev (obj_node);
-
   if ((json_record_id = request_record_insert_id (obj_node)))
     {
       if (id && g_strcmp0 (id, json_record_id))
 	{
-          if (json_record_mvcc != NULL)
-	    g_free (json_record_mvcc);
+          if (mvcc != NULL)
+	    g_free (mvcc);
 	  g_free (json_record_id);
           dupin_database_unref (db); /* added by AR 2010-10-05 */
 	  *code = HTTP_STATUS_400;
@@ -5421,12 +5444,12 @@ request_record_insert (DSHttpdClient * client, JsonNode * obj_node,
       id = json_record_id;
     }
 
-  if (json_record_mvcc != NULL && !id)
+  if (mvcc != NULL && !id)
     {
       if (json_record_id != NULL)
         g_free (json_record_id);
-      if (json_record_mvcc != NULL)
-        g_free (json_record_mvcc);
+      if (mvcc != NULL)
+        g_free (mvcc);
       dupin_database_unref (db);
       *code = HTTP_STATUS_400;
       return FALSE;
@@ -5456,13 +5479,13 @@ request_record_insert (DSHttpdClient * client, JsonNode * obj_node,
       json_object_remove_member (json_node_get_object (obj_node), REQUEST_OBJ_RELATIONSHIPS);
     }
 
-  if (json_record_mvcc != NULL)
+  if (mvcc != NULL)
     {
       retcode = HTTP_STATUS_200;
 
       record = dupin_record_read (db, id, NULL);
 
-      if (!record || dupin_util_mvcc_revision_cmp (json_record_mvcc, dupin_record_get_last_revision (record))
+      if (!record || dupin_util_mvcc_revision_cmp (mvcc, dupin_record_get_last_revision (record))
 	  || dupin_record_update (record, obj_node, NULL) == FALSE)
 	{
           if (record)
@@ -5499,8 +5522,8 @@ request_record_insert (DSHttpdClient * client, JsonNode * obj_node,
         json_node_free (links_node);
       if (relationships_node != NULL)
         json_node_free (relationships_node);
-      if (json_record_mvcc != NULL)
-        g_free (json_record_mvcc);
+      if (mvcc != NULL)
+        g_free (mvcc);
       dupin_database_unref (db);
       *code = HTTP_STATUS_409;
       return FALSE;
@@ -5522,8 +5545,8 @@ request_record_insert (DSHttpdClient * client, JsonNode * obj_node,
             json_node_free (links_node);
           if (relationships_node != NULL)
             json_node_free (relationships_node);
-          if (json_record_mvcc != NULL)
-            g_free (json_record_mvcc);
+          if (mvcc != NULL)
+            g_free (mvcc);
           dupin_database_unref (db);
           *code = HTTP_STATUS_400;
           return FALSE;
@@ -5581,8 +5604,8 @@ request_record_insert (DSHttpdClient * client, JsonNode * obj_node,
                 json_node_free (links_node);
               if (relationships_node != NULL)
                 json_node_free (relationships_node);
-              if (json_record_mvcc != NULL)
-                g_free (json_record_mvcc);
+              if (mvcc != NULL)
+                g_free (mvcc);
               dupin_database_unref (db);
               *code = HTTP_STATUS_404;
               return FALSE;
@@ -5613,8 +5636,8 @@ request_record_insert (DSHttpdClient * client, JsonNode * obj_node,
             json_node_free (links_node);
           if (relationships_node != NULL)
             json_node_free (relationships_node);
-          if (json_record_mvcc != NULL)
-            g_free (json_record_mvcc);
+          if (mvcc != NULL)
+            g_free (mvcc);
           dupin_database_unref (db);
           *code = HTTP_STATUS_400;
           return FALSE;
@@ -5664,7 +5687,7 @@ request_record_insert (DSHttpdClient * client, JsonNode * obj_node,
 
 		      if ( ((lnode_context_id != NULL ) && (g_strcmp0 (lnode_context_id, context_id)))
 		           || ((lnode_label != NULL ) && (g_strcmp0 (lnode_label, label)))
-			   || (request_link_record_insert (client, lnode,
+			   || (request_link_record_insert (client, arguments, lnode,
 						      dbname, NULL, context_id, code, &link_record, DP_LINK_TYPE_WEB_LINK) == FALSE))
         	        {
           		  g_list_free (snodes);
@@ -5685,8 +5708,8 @@ request_record_insert (DSHttpdClient * client, JsonNode * obj_node,
                           if (relationships_node != NULL)
                             json_node_free (relationships_node);
 
-  			  if (json_record_mvcc != NULL)
-    			    g_free (json_record_mvcc);
+  			  if (mvcc != NULL)
+    			    g_free (mvcc);
 
   			  dupin_database_unref (db);
       			  dupin_linkbase_unref (linkb);
@@ -5751,7 +5774,7 @@ g_message("request_record_insert: context_id=%s label=%s rnode_context_id=%s rno
 
 		      if ( ((rnode_context_id != NULL ) && (g_strcmp0 (rnode_context_id, context_id)))
 		           || ((rnode_label != NULL ) && (g_strcmp0 (rnode_label, label)))
-			   || (request_link_record_insert (client, rnode,
+			   || (request_link_record_insert (client, arguments, rnode,
 						      dbname, NULL, context_id, code, &relationship_record, DP_LINK_TYPE_RELATIONSHIP) == FALSE))
         	        {
           		  g_list_free (snodes);
@@ -5772,8 +5795,8 @@ g_message("request_record_insert: context_id=%s label=%s rnode_context_id=%s rno
                           if (relationships_node != NULL)
                             json_node_free (relationships_node);
 
-  			  if (json_record_mvcc != NULL)
-    			    g_free (json_record_mvcc);
+  			  if (mvcc != NULL)
+    			    g_free (mvcc);
 
   			  dupin_database_unref (db);
       			  dupin_linkbase_unref (linkb);
@@ -5804,8 +5827,8 @@ g_message("request_record_insert: context_id=%s label=%s rnode_context_id=%s rno
   if (relationships_node != NULL)
     json_node_free (relationships_node);
 
-  if (json_record_mvcc != NULL)
-    g_free (json_record_mvcc);
+  if (mvcc != NULL)
+    g_free (mvcc);
 
   dupin_database_unref (db);
 
@@ -5980,7 +6003,7 @@ request_link_record_insert_tag (JsonNode * obj_node)
 }
 
 static gboolean
-request_link_record_insert (DSHttpdClient * client, JsonNode * obj_node,
+request_link_record_insert (DSHttpdClient * client, GList * arguments, JsonNode * obj_node,
 		       	    gchar * linkbname, gchar * id, gchar * context_id,
 			    DSHttpStatusCode * code,
 		            DupinLinkRecord ** ret_record,
@@ -5990,9 +6013,8 @@ request_link_record_insert (DSHttpdClient * client, JsonNode * obj_node,
   DupinLinkRecord *record;
   DSHttpStatusCode retcode;
 
-  gchar * json_record_mvcc=NULL;
+  gchar * mvcc=NULL;
   gchar * json_record_id;
-
   gchar * json_record_label;
   gchar * json_record_href;
   gchar * json_record_rel;
@@ -6018,20 +6040,41 @@ request_link_record_insert (DSHttpdClient * client, JsonNode * obj_node,
     }
   /* else is auto, picked by the system */
 
+  /* fetch the _rev field in the record first, if there */
+  mvcc = request_record_insert_rev (obj_node);
+
+  /* otherwise check passed parameters */
+  if (mvcc == NULL)
+    {
+      GList * l=NULL;
+      for (l = arguments; l; l = l->next)
+        {
+          dupin_keyvalue_t *kv = l->data;
+
+          if (!g_strcmp0 (kv->key, REQUEST_RECORD_ARG_REV))
+            {
+              if (dupin_util_is_valid_mvcc (kv->value) == FALSE)
+                {
+                  *code = HTTP_STATUS_400;
+                  return FALSE;
+                }
+              mvcc = g_strdup (kv->value);
+            }
+        }
+    }
+
   if (!(linkb = dupin_linkbase_open (client->thread->data->dupin, linkbname, NULL)))
     {
       *code = HTTP_STATUS_400;
       return FALSE;
     }
 
-  json_record_mvcc = request_record_insert_rev (obj_node);
-
   if ((json_record_id = request_record_insert_id (obj_node)))
     {
       if (id && g_strcmp0 (id, json_record_id))
 	{
-          if (json_record_mvcc != NULL)
-	    g_free (json_record_mvcc);
+          if (mvcc != NULL)
+	    g_free (mvcc);
 	  g_free (json_record_id);
           dupin_linkbase_unref (linkb);
 	  *code = HTTP_STATUS_400;
@@ -6041,12 +6084,12 @@ request_link_record_insert (DSHttpdClient * client, JsonNode * obj_node,
       id = json_record_id;
     }
 
-  if (json_record_mvcc != NULL && !id)
+  if (mvcc != NULL && !id)
     {
       if (json_record_id != NULL)
         g_free (json_record_id);
-      if (json_record_mvcc != NULL)
-        g_free (json_record_mvcc);
+      if (mvcc != NULL)
+        g_free (mvcc);
       dupin_linkbase_unref (linkb);
       *code = HTTP_STATUS_400;
       return FALSE;
@@ -6062,13 +6105,13 @@ request_link_record_insert (DSHttpdClient * client, JsonNode * obj_node,
 //g_message("request_link_record_insert: json_record_rel=%s\n", json_record_rel);
 //g_message("request_link_record_insert: json_record_tag=%s\n", json_record_tag);
 
-  if (json_record_mvcc != NULL)
+  if (mvcc != NULL)
     {
       retcode = HTTP_STATUS_200;
 
       record = dupin_link_record_read (linkb, id, NULL);
 
-      if (!record || dupin_util_mvcc_revision_cmp (json_record_mvcc, dupin_link_record_get_last_revision (record))
+      if (!record || dupin_util_mvcc_revision_cmp (mvcc, dupin_link_record_get_last_revision (record))
 	  || dupin_link_record_update (record, obj_node, 
 				       json_record_label, json_record_href, json_record_rel, json_record_tag,
 					NULL) == FALSE)
@@ -6120,15 +6163,15 @@ request_link_record_insert (DSHttpdClient * client, JsonNode * obj_node,
 
   if (!record)
     {
-      if (json_record_mvcc != NULL)
-        g_free (json_record_mvcc);
+      if (mvcc != NULL)
+        g_free (mvcc);
       dupin_linkbase_unref (linkb);
       *code = HTTP_STATUS_409;
       return FALSE;
     }
 
-  if (json_record_mvcc != NULL)
-    g_free (json_record_mvcc);
+  if (mvcc != NULL)
+    g_free (mvcc);
   dupin_linkbase_unref (linkb);
 
   *ret_record = record;
@@ -6550,9 +6593,9 @@ request_link_record_response_single_error:
 
 static gboolean
 request_record_attachment_insert (DSHttpdClient * client,
+				  GList * arguments,
 				  gchar * dbname, gchar * id,
 				  GList * title_parts,
-				  GList * arguments,
 				  DSHttpStatusCode * code,
 				  DupinRecord ** ret_record)
 {
@@ -6655,23 +6698,13 @@ request_record_attachment_insert (DSHttpdClient * client,
   else
     {
       if (mvcc == NULL
-          || dupin_util_mvcc_revision_cmp (mvcc, dupin_record_get_last_revision (record)) > 0)
+          || dupin_util_mvcc_revision_cmp (mvcc, dupin_record_get_last_revision (record)))
         {
           g_free (title);
           dupin_record_close (record);
           dupin_attachment_db_unref (attachment_db);
           dupin_database_unref (db);
           *code = HTTP_STATUS_404;
-          return FALSE;
-        }
-
-      if (dupin_util_mvcc_revision_cmp (mvcc, dupin_record_get_last_revision (record)))
-        {
-          g_free (title);
-          dupin_record_close (record);
-          dupin_attachment_db_unref (attachment_db);
-          dupin_database_unref (db);
-          *code = HTTP_STATUS_409;
           return FALSE;
         }
 

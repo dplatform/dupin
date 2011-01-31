@@ -1580,9 +1580,33 @@ httpd_client_send (DSHttpdClient * client, DSHttpStatusCode code)
   /* The body: */
   if (client->output_type == DS_HTTPD_OUTPUT_NONE)
     {
+      client->output_mime = g_strdup (HTTP_MIME_JSON);
       client->output_type = DS_HTTPD_OUTPUT_STRING;
-      client->output_size = DSHttpStatusList[i].body_size;
-      client->output.string.string = g_strdup (DSHttpStatusList[i].body);
+
+      if (DSHttpStatusList[i].code >= HTTP_STATUS_400)
+        {
+          GString * json_err_msg_str = g_string_new ("{\"error\": ");
+          gchar *tmp = dupin_util_json_strescape (DSHttpStatusList[i].body);
+          g_string_append_printf (json_err_msg_str, " \"%s\" ", tmp);
+	  g_free (tmp);
+
+          if (client->dupin_error_msg != NULL)
+            {
+              tmp = dupin_util_json_strescape (client->dupin_error_msg);
+              g_string_append_printf (json_err_msg_str, ", \"reason\": \"%s\" }", tmp);
+	      g_free (tmp);
+            }
+          else
+            json_err_msg_str = g_string_append (json_err_msg_str, " }");
+
+          client->output_size = json_err_msg_str->len;
+	  client->output.string.string = g_string_free (json_err_msg_str, FALSE);
+        }
+      else
+        {
+          client->output_size = DSHttpStatusList[i].body_size;
+          client->output.string.string = g_strdup (DSHttpStatusList[i].body);
+        }
     }
 
   /* Header: */
@@ -1738,6 +1762,9 @@ httpd_client_free (DSHttpdClient * client)
 
   if (client->output_mime)
     g_free (client->output_mime);
+
+  if (client->dupin_error_msg)
+    g_free (client->dupin_error_msg);
 
   switch (client->output_type)
     {

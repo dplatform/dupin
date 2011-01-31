@@ -91,6 +91,8 @@ struct ds_httpd_client_t
 
   gsize		output_size;
 
+  gchar *	dupin_error_msg;
+
   union
   {
     struct

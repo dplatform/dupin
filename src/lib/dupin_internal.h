@@ -260,6 +260,14 @@ struct dupin_link_record_rev_t
   gboolean	is_weblink;
   gchar	*	tag; /* E.g. to tag named hierarchies */
 
+  JsonNode *	idspath;
+  gchar *	idspath_serialized;
+  gsize		idspath_serialized_len;
+
+  JsonNode *	labelspath;
+  gchar *	labelspath_serialized;
+  gsize		labelspath_serialized_len;
+
   gboolean	deleted;
 
   gsize		created;

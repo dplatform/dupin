@@ -16,19 +16,19 @@
 	"SELECT count(id) FROM Dupin WHERE id = '%q' "
 
 #define DUPIN_LINKB_SQL_INSERT \
-	"INSERT INTO Dupin (id, rev, hash, obj, tm, context_id, label, href, rel, tag, is_weblink) " \
-        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%q', %Q, %Q, '%q')"
+	"INSERT INTO Dupin (id, rev, hash, obj, tm, context_id, label, href, rel, tag, is_weblink, idspath, labelspath) " \
+        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%q', %Q, %Q, '%q','%q', '%q')"
 
 #define DUPIN_LINKB_SQL_UPDATE \
-	"INSERT OR REPLACE INTO Dupin (id, rev, hash, obj, tm, context_id, label, href, rel, tag, is_weblink) " \
-        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%q', %Q, %Q, '%q')"
+	"INSERT OR REPLACE INTO Dupin (id, rev, hash, obj, tm, context_id, label, href, rel, tag, is_weblink, idspath, labelspath) " \
+        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%q', %Q, %Q, '%q', '%q', '%q')"
 
 #define DUPIN_LINKB_SQL_READ \
-	"SELECT rev, hash, obj, deleted, tm, ROWID AS rowid, context_id, label, href, rel, tag, is_weblink FROM Dupin WHERE id='%q'"
+	"SELECT rev, hash, obj, deleted, tm, ROWID AS rowid, context_id, label, href, rel, tag, is_weblink, idspath, labelspath FROM Dupin WHERE id='%q'"
 
 #define DUPIN_LINKB_SQL_DELETE \
-	"INSERT OR REPLACE INTO Dupin (id, rev, deleted, hash, tm, context_id, label, href, rel, tag, is_weblink) " \
-        "VALUES('%q', '%" G_GSIZE_FORMAT "', 'TRUE', '%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%q', %Q, %Q, '%q')"
+	"INSERT OR REPLACE INTO Dupin (id, rev, deleted, hash, tm, context_id, label, href, rel, tag, is_weblink, idspath, labelspath) " \
+        "VALUES('%q', '%" G_GSIZE_FORMAT "', 'TRUE', '%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%q', %Q, %Q, '%q', '%q', '%q')"
 
 
 DSWeblinkingRelationRegistry DSWeblinkingRelationRegistryList[] = {
@@ -118,6 +118,8 @@ DSWeblinkingRelationRegistry DSWeblinkingRelationRegistryList[] = {
 
 #define DUPIN_LINKB_DEFAULT_REL	DSWeblinkingRelationRegistryList[WEBLINKING_RELNAME_ALTERNATE].rel
 
+#define DUPIN_LINKB_DEFAULT_IDSPATH	"[ ]"
+
 static DupinLinkRecord *dupin_link_record_create_with_id_real (DupinLinkB * linkb,
 						      JsonNode * obj_node,
 						      gchar * id,
@@ -143,6 +145,8 @@ static void dupin_link_record_add_revision_obj (DupinLinkRecord * record, guint 
                                            gchar * href,
                                            gchar * rel,
                                            gchar * tag,
+                                           JsonNode * idspath,
+                                           JsonNode * labelspath,
 					   gboolean delete,
 					   gsize created,
 					   gboolean is_weblink);
@@ -155,6 +159,8 @@ static void dupin_link_record_add_revision_str (DupinLinkRecord * record, guint 
                                            gchar * href,
                                            gchar * rel,
                                            gchar * tag,
+                                           gchar * idspath_serialized, gssize idspath_serialized_len, 
+                                           gchar * labelspath_serialized, gssize labelspath_serialized_len, 
 					   gboolean delete,
 					   gsize created,
 					   gsize rowid,
@@ -171,6 +177,14 @@ static gboolean
 			    		 gboolean delete,
 					 gboolean is_weblink,
 			    		 gchar ** hash, gsize * hash_len);
+
+JsonNode * dupin_link_record_util_generate_paths_node
+						(DupinLinkB * linkb,
+						 gchar * source_id,
+						 gchar * target_id,
+						 gchar * label,
+						 gchar * tag,
+						 GError ** error, gboolean lock);
 
 gboolean
 dupin_link_record_exists (DupinLinkB * linkb, gchar * id)
@@ -318,19 +332,31 @@ dupin_link_record_create_with_id_real (DupinLinkB * linkb, JsonNode * obj_node,
   gchar *tmp;
   gchar * md5=NULL;
 
+  JsonNode * paths = NULL;
+  JsonNode * idspath = NULL;
+  JsonNode * labelspath = NULL;
+  gchar * idspath_serialized = NULL;
+  gchar * labelspath_serialized = NULL;
+
+  paths = dupin_link_record_util_generate_paths_node (linkb,
+  						      context_id,
+						      href,
+						      label,
+						      tag,
+						      error, lock);
+  if (paths == NULL)
+    return NULL;
+
+  idspath = json_array_get_element (json_node_get_array (paths), 0);   
+  labelspath = json_array_get_element (json_node_get_array (paths), 1);   
+
+  idspath_serialized = dupin_util_json_serialize (idspath);
+  labelspath_serialized = dupin_util_json_serialize (labelspath);
+
   dupin_linkbase_ref (linkb);
 
   if (lock == TRUE)
     g_mutex_lock (linkb->mutex);
-
-/*
-  if (dupin_link_record_exists_real (linkb, id, FALSE) == TRUE)
-    {
-      g_mutex_unlock (linkb->mutex);
-      g_return_val_if_fail (dupin_link_record_exists (linkb, id) == FALSE, NULL);
-      return NULL;
-    }
-*/
 
   record = dupin_link_record_new (linkb, id);
 
@@ -338,14 +364,24 @@ dupin_link_record_create_with_id_real (DupinLinkB * linkb, JsonNode * obj_node,
 
   dupin_link_record_add_revision_obj (record, 1, &md5, obj_node,
 				      context_id, label, href, rel, tag,
+				      idspath,
+				      labelspath,
 				      FALSE, created,
 				      dupin_util_is_valid_absolute_uri (href));
+
+  if (paths != NULL)
+    json_node_free (paths);
 
   tmp =
     sqlite3_mprintf (DUPIN_LINKB_SQL_INSERT, id, 1, md5,
 		     record->last->obj_serialized, created,
 		     context_id, label, href, rel, tag,
-		     dupin_util_is_valid_absolute_uri (href) ? "TRUE" : "FALSE" );
+		     dupin_util_is_valid_absolute_uri (href) ? "TRUE" : "FALSE",
+		     idspath_serialized,
+		     labelspath_serialized);
+
+  g_free (idspath_serialized);
+  g_free (labelspath_serialized);
 
 //g_message("dupin_link_record_create_with_id_real: query=%s\n", tmp);
 
@@ -389,6 +425,8 @@ dupin_link_record_read_cb (void *data, int argc, char **argv, char **col)
   gchar *href = NULL;
   gchar *rel = NULL;
   gchar *tag = NULL;
+  gchar *idspath = NULL;
+  gchar *labelspath = NULL;
   gboolean is_weblink = FALSE;
 
   for (i = 0; i < argc; i++)
@@ -427,6 +465,12 @@ dupin_link_record_read_cb (void *data, int argc, char **argv, char **col)
       else if (!g_strcmp0 (col[i], "tag"))
 	tag = argv[i];
 
+      else if (!g_strcmp0 (col[i], "idspath"))
+	idspath = argv[i];
+
+      else if (!g_strcmp0 (col[i], "labelspath"))
+	labelspath = argv[i];
+
       else if (!g_strcmp0 (col[i], "is_weblink"))
 	is_weblink = !g_strcmp0 (argv[i], "TRUE") ? TRUE : FALSE;
     }
@@ -434,6 +478,8 @@ dupin_link_record_read_cb (void *data, int argc, char **argv, char **col)
   if (rev && hash !=NULL)
     dupin_link_record_add_revision_str (data, rev, hash, -1, obj, -1,
 					context_id, label, href, rel, tag,
+					idspath, -1,
+					labelspath, -1,
 					delete, tm, rowid, is_weblink);
 
   return 0;
@@ -909,18 +955,49 @@ dupin_link_record_update (DupinLinkRecord * record, JsonNode * obj_node,
 
   gsize created = dupin_util_timestamp_now ();
 
+  JsonNode * paths = NULL;
+  JsonNode * idspath = NULL;
+  JsonNode * labelspath = NULL;
+  gchar * idspath_serialized = NULL;
+  gchar * labelspath_serialized = NULL;
+
+  paths = dupin_link_record_util_generate_paths_node (record->linkb,
+                                                      (gchar *)dupin_link_record_get_context_id (record),
+                                                      href,
+                                                      label,
+                                                      tag,
+                                                      error, FALSE);
+  if (paths == NULL)
+    return FALSE;
+
+  idspath = json_array_get_element (json_node_get_array (paths), 0);     
+  labelspath = json_array_get_element (json_node_get_array (paths), 1);     
+
+  idspath_serialized = dupin_util_json_serialize (idspath);
+  labelspath_serialized = dupin_util_json_serialize (labelspath);
+
   dupin_link_record_add_revision_obj (record, rev, &md5, obj_node,
 				      (gchar *)dupin_link_record_get_context_id (record),
 				      label, href, rel, tag,
+				      idspath,
+				      labelspath,
 				      FALSE, created,
 				      dupin_util_is_valid_absolute_uri (href));
+
+  if (paths != NULL)
+    json_node_free (paths);
 
   tmp =
     sqlite3_mprintf (DUPIN_LINKB_SQL_INSERT, record->id, rev, md5,
 		     record->last->obj_serialized, created,
 		     (gchar *)dupin_link_record_get_context_id (record),
 		     label, href, rel, tag,
-		     dupin_util_is_valid_absolute_uri (href) ? "TRUE" : "FALSE" );
+		     dupin_util_is_valid_absolute_uri (href) ? "TRUE" : "FALSE",
+		     idspath_serialized,
+		     labelspath_serialized);
+
+  g_free (idspath_serialized);
+  g_free (labelspath_serialized);
 
 //g_message("dupin_link_record_update: record->last->revision = %d - new rev=%d - query=%s\n", (gint) record->last->revision, (gint) rev, tmp);
 
@@ -978,6 +1055,8 @@ dupin_link_record_delete (DupinLinkRecord * record, GError ** error)
 				      (gchar *)dupin_link_record_get_href (record),
 				      (gchar *)dupin_link_record_get_rel (record),
 				      (gchar *)dupin_link_record_get_tag (record),
+				      record->last->idspath,
+				      record->last->labelspath,
  				      TRUE, created,
 				      dupin_link_record_is_weblink (record));
 
@@ -987,7 +1066,9 @@ dupin_link_record_delete (DupinLinkRecord * record, GError ** error)
 				      (gchar *)dupin_link_record_get_href (record),
 				      (gchar *)dupin_link_record_get_rel (record),
 				      (gchar *)dupin_link_record_get_tag (record),
-				      dupin_link_record_is_weblink (record) ? "TRUE" : "FALSE" );
+				      dupin_link_record_is_weblink (record) ? "TRUE" : "FALSE",
+				      record->last->idspath_serialized,
+				      record->last->labelspath_serialized);
 
 //g_message("dupin_link_record_delete: query=%s\n", tmp);
 
@@ -1087,6 +1168,118 @@ dupin_link_record_get_tag (DupinLinkRecord * record)
   g_return_val_if_fail (record != NULL, 0);
 
   return record->last->tag;
+}
+
+JsonNode *
+dupin_link_record_get_revision_idspath_node (DupinLinkRecord * record, gchar * mvcc)
+{
+  g_return_val_if_fail (record != NULL, 0);
+
+  DupinLinkRecordRev *r;
+
+  g_return_val_if_fail (record != NULL, NULL);
+
+  if (mvcc != NULL)
+    g_return_val_if_fail (dupin_util_is_valid_mvcc (mvcc) == TRUE, NULL);
+
+  if (mvcc == NULL || (!dupin_util_mvcc_revision_cmp (mvcc, record->last->mvcc)))
+    r = record->last;
+  else
+    {
+      /* TODO - check if the following check does make any sense ? */
+      if (dupin_util_mvcc_revision_cmp (mvcc,record->last->mvcc) > 0)
+	g_return_val_if_fail (dupin_util_mvcc_revision_cmp (dupin_link_record_get_last_revision (record), mvcc) >= 0 , NULL);
+
+      if (!(r = g_hash_table_lookup (record->revisions, mvcc)))
+	return NULL;
+    }
+
+  /* TODO - check if the following is correct - we do not return an ids_path for deleted links ?! */
+
+  if (r->deleted == TRUE)
+    g_return_val_if_fail (dupin_link_record_is_deleted (record, mvcc) != FALSE,
+			  NULL);
+
+  /* r->idspath stays owernship of the record revision - the caller eventually need to json_node_copy() it */
+  if (r->idspath)
+    return r->idspath;
+
+  JsonParser * parser = json_parser_new();
+
+  /* we do not check any parsing error due we stored earlier, we assume it is sane */
+  if (json_parser_load_from_data (parser, r->idspath_serialized, r->idspath_serialized_len, NULL) == FALSE)
+    goto dupin_link_record_get_revision_idspath_node_error;
+
+  r->idspath = json_node_copy (json_parser_get_root (parser));
+
+  if (parser != NULL)
+    g_object_unref (parser);
+
+  /* r->idspath stays owernship of the record revision - the caller eventually need to json_node_copy() it */
+  return r->idspath;
+
+dupin_link_record_get_revision_idspath_node_error:
+
+  if (parser != NULL)
+    g_object_unref (parser);
+
+  return NULL;
+}
+
+JsonNode *
+dupin_link_record_get_revision_labelspath_node (DupinLinkRecord * record, gchar * mvcc)
+{
+  g_return_val_if_fail (record != NULL, 0);
+
+  DupinLinkRecordRev *r;
+
+  g_return_val_if_fail (record != NULL, NULL);
+
+  if (mvcc != NULL)
+    g_return_val_if_fail (dupin_util_is_valid_mvcc (mvcc) == TRUE, NULL);
+
+  if (mvcc == NULL || (!dupin_util_mvcc_revision_cmp (mvcc, record->last->mvcc)))
+    r = record->last;
+  else
+    {
+      /* TODO - check if the following check does make any sense ? */
+      if (dupin_util_mvcc_revision_cmp (mvcc,record->last->mvcc) > 0)
+	g_return_val_if_fail (dupin_util_mvcc_revision_cmp (dupin_link_record_get_last_revision (record), mvcc) >= 0 , NULL);
+
+      if (!(r = g_hash_table_lookup (record->revisions, mvcc)))
+	return NULL;
+    }
+
+  /* TODO - check if the following is correct - we do not return an labels_path for deleted links ?! */
+
+  if (r->deleted == TRUE)
+    g_return_val_if_fail (dupin_link_record_is_deleted (record, mvcc) != FALSE,
+			  NULL);
+
+  /* r->labelspath stays owernship of the record revision - the caller eventually need to json_node_copy() it */
+  if (r->labelspath)
+    return r->labelspath;
+
+  JsonParser * parser = json_parser_new();
+
+  /* we do not check any parsing error due we stored earlier, we assume it is sane */
+  if (json_parser_load_from_data (parser, r->labelspath_serialized, r->labelspath_serialized_len, NULL) == FALSE)
+    goto dupin_link_record_get_revision_labelspath_node_error;
+
+  r->labelspath = json_node_copy (json_parser_get_root (parser));
+
+  if (parser != NULL)
+    g_object_unref (parser);
+
+  /* r->labelspath stays owernship of the record revision - the caller eventually need to json_node_copy() it */
+  return r->labelspath;
+
+dupin_link_record_get_revision_labelspath_node_error:
+
+  if (parser != NULL)
+    g_object_unref (parser);
+
+  return NULL;
 }
 
 gboolean
@@ -1229,6 +1422,18 @@ dupin_link_record_rev_close (DupinLinkRecordRev * rev)
   if (rev->tag)
     g_free (rev->tag);
 
+  if (rev->idspath)
+    json_node_free (rev->idspath);
+
+  if (rev->idspath_serialized)
+    g_free (rev->idspath_serialized);
+
+  if (rev->labelspath)
+    json_node_free (rev->labelspath);
+
+  if (rev->labelspath_serialized)
+    g_free (rev->labelspath_serialized);
+
   g_free (rev);
 }
 
@@ -1241,6 +1446,8 @@ dupin_link_record_add_revision_obj (DupinLinkRecord * record, guint rev,
                                gchar * href,
                                gchar * rel,
                                gchar * tag,
+                               JsonNode * idspath,
+                               JsonNode * labelspath,
 			       gboolean delete,
 			       gsize created,
 			       gboolean is_weblink)
@@ -1294,6 +1501,32 @@ dupin_link_record_add_revision_obj (DupinLinkRecord * record, guint rev,
   r->rel = g_strdup (rel);
   r->tag = g_strdup (tag);
 
+  if (idspath != NULL)
+    {
+      JsonGenerator * gen = json_generator_new();
+
+      r->idspath = json_node_copy (idspath);
+
+      json_generator_set_root (gen, r->idspath );
+
+      r->idspath_serialized = json_generator_to_data (gen,&r->idspath_serialized_len);
+
+      g_object_unref (gen);
+    }
+
+  if (labelspath != NULL)
+    {
+      JsonGenerator * gen = json_generator_new();
+
+      r->labelspath = json_node_copy (labelspath);
+
+      json_generator_set_root (gen, r->labelspath );
+
+      r->labelspath_serialized = json_generator_to_data (gen,&r->labelspath_serialized_len);
+
+      g_object_unref (gen);
+    }
+
   /* TODO - double check that the revision record 'r' is freeded properly when hash table disposed */
 
   g_hash_table_insert (record->revisions, g_strdup (mvcc), r);
@@ -1310,6 +1543,8 @@ dupin_link_record_add_revision_str (DupinLinkRecord * record, guint rev, gchar *
                                     gchar * href,
                                     gchar * rel,
                                     gchar * tag,
+                                    gchar * idspath_serialized, gssize idspath_serialized_len,
+                                    gchar * labelspath_serialized, gssize labelspath_serialized_len,
 				    gboolean delete,
 				    gsize created,
 				    gsize rowid,
@@ -1354,6 +1589,24 @@ dupin_link_record_add_revision_str (DupinLinkRecord * record, guint rev, gchar *
   r->href = g_strdup (href);
   r->rel = g_strdup (rel);
   r->tag = g_strdup (tag);
+
+  if (idspath_serialized && *idspath_serialized)
+    {
+      if (idspath_serialized_len < 0)
+        idspath_serialized_len = strlen (idspath_serialized);
+
+      r->idspath_serialized = g_strndup (idspath_serialized, idspath_serialized_len);
+      r->idspath_serialized_len = idspath_serialized_len;
+    }
+
+  if (labelspath_serialized && *labelspath_serialized)
+    {
+      if (labelspath_serialized_len < 0)
+        labelspath_serialized_len = strlen (labelspath_serialized);
+
+      r->labelspath_serialized = g_strndup (labelspath_serialized, labelspath_serialized_len);
+      r->labelspath_serialized_len = labelspath_serialized_len;
+    }
 
   /* TODO - double check that the revision record 'r' is freeded properly when hash table disposed */
 
@@ -1453,6 +1706,319 @@ dupin_link_record_util_is_valid_rel (gchar * rel)
     }
 
   return TRUE;
+}
+
+struct dupin_link_record_util_generate_paths_node_t
+{
+  gchar * parent_idspath;
+  gchar * parent_labelspath;
+};
+
+static int
+dupin_link_record_util_generate_paths_node_cb (void *data, int argc, char **argv, char **col)
+{
+  struct dupin_link_record_util_generate_paths_node_t *s = data;
+
+  if (argv[0] && *argv[0])
+    s->parent_idspath = g_strdup (argv[0]);
+
+  if (argv[1] && *argv[1])
+    s->parent_labelspath = g_strdup (argv[1]);
+
+  return 0;
+}
+
+JsonNode *
+dupin_link_record_util_generate_paths_node (DupinLinkB * linkb,
+					    gchar * source_id,
+                                            gchar * target_id,
+                                            gchar * label,
+                                            gchar * tag,
+					    GError ** error, gboolean lock)
+{
+  g_return_val_if_fail (source_id != NULL, FALSE);
+  g_return_val_if_fail (dupin_link_record_util_is_valid_context_id (source_id), FALSE);
+
+  gchar *errmsg;
+  struct dupin_link_record_util_generate_paths_node_t parent;
+  memset (&parent, 0, sizeof (struct dupin_link_record_util_generate_paths_node_t));
+
+  JsonNode * idspath_node = NULL;
+  JsonArray * idspath_array = NULL;
+  JsonNode * labelspath_node = NULL;
+  JsonArray * labelspath_array = NULL;
+
+  gchar *query;
+  if (tag != NULL)
+    query = sqlite3_mprintf ("SELECT idspath, labelspath, max(rev) as rev FROM Dupin WHERE href = '%q' AND tag = %Q GROUP BY context_id", source_id, tag);
+  else
+    query = sqlite3_mprintf ("SELECT idspath, labelspath, max(rev) as rev FROM Dupin WHERE href = '%q' GROUP BY context_id", source_id);
+
+//g_message("dupin_link_record_util_generate_paths_node: source_id=%s target_id=%s label=%s tag=%s\n", source_id, target_id, label, tag);
+//g_message("dupin_link_record_util_generate_paths_node: query=%s\n", query);
+
+  if (lock == TRUE)
+    g_mutex_lock (linkb->mutex);
+
+  if (sqlite3_exec (linkb->db, query, dupin_link_record_util_generate_paths_node_cb, &parent, &errmsg)
+      != SQLITE_OK)
+    {
+      if (lock == TRUE)
+        g_mutex_unlock (linkb->mutex);
+
+      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
+                   errmsg);
+      sqlite3_free (errmsg);
+      sqlite3_free (query);
+      return NULL;
+    }
+
+  if (lock == TRUE)
+    g_mutex_unlock (linkb->mutex);
+
+  sqlite3_free (query);
+
+  JsonParser * parser = json_parser_new();
+
+  if (parent.parent_idspath != NULL)
+    {
+      if (json_parser_load_from_data (parser, parent.parent_idspath, -1, NULL) == FALSE)
+        {
+          if (parser != NULL)
+            g_object_unref (parser);
+          g_free (parent.parent_idspath);
+          g_free (parent.parent_labelspath);
+
+          return NULL;
+        }
+
+      idspath_node = json_node_copy (json_parser_get_root (parser));
+
+      if (json_node_get_node_type (idspath_node) != JSON_NODE_ARRAY)
+        {
+          if (parser != NULL)
+            g_object_unref (parser);
+          json_node_free (idspath_node);
+          g_free (parent.parent_idspath);
+          g_free (parent.parent_labelspath);
+
+          return NULL;
+        }
+
+      idspath_array = json_node_get_array (idspath_node);
+
+      if (json_array_get_length (idspath_array) == 0)
+        {
+          g_warning ("dupin_link_record_util_generate_paths_node: skipped idspath generation for source_id=%s target_id=%s lael=%s tag=%s - parent path was set to empty JSON array\n",
+			source_id, target_id, label, tag);
+
+          if (parser != NULL)
+            g_object_unref (parser);
+          json_node_free (idspath_node);
+          g_free (parent.parent_idspath);
+          g_free (parent.parent_labelspath);
+
+          return NULL;
+	}
+    }
+  else
+    {
+      idspath_node = json_node_new (JSON_NODE_ARRAY);
+      idspath_array = json_array_new ();
+      json_node_take_array (idspath_node, idspath_array);
+    }
+  
+  if (parent.parent_labelspath != NULL)
+    {
+      if (json_parser_load_from_data (parser, parent.parent_labelspath, -1, NULL) == FALSE)
+        {
+          if (parser != NULL)
+            g_object_unref (parser);
+          g_free (parent.parent_idspath);
+          g_free (parent.parent_labelspath);
+          json_node_free (idspath_node);
+
+          return NULL;
+        }
+
+      labelspath_node = json_node_copy (json_parser_get_root (parser));
+
+      if (json_node_get_node_type (labelspath_node) != JSON_NODE_ARRAY)
+        {
+          if (parser != NULL)
+            g_object_unref (parser);
+          json_node_free (labelspath_node);
+          g_free (parent.parent_idspath);
+          g_free (parent.parent_labelspath);
+          json_node_free (idspath_node);
+
+          return NULL;
+        }
+
+      labelspath_array = json_node_get_array (labelspath_node);
+
+      if (json_array_get_length (labelspath_array) == 0)
+        {
+          g_warning ("dupin_link_record_util_generate_paths_node: skipped labelspath generation for source_id=%s target_id=%s label=%s tag=%s - parent path was set to empty JSON array\n",
+			source_id, target_id, label, tag);
+
+          if (parser != NULL)
+            g_object_unref (parser);
+          json_node_free (labelspath_node);
+          g_free (parent.parent_idspath);
+          g_free (parent.parent_labelspath);
+          json_node_free (idspath_node);
+
+          return NULL;
+	}
+    }
+  else
+    {
+      labelspath_node = json_node_new (JSON_NODE_ARRAY);
+      labelspath_array = json_array_new ();
+      json_node_take_array (labelspath_node, labelspath_array);
+    }
+  
+  /* NOTE - try to avoid disasters pre-parse source_id, target_id, label and tag to make sure JSON will be sane
+ 	    even though note that the dupin_view_collation() and the dupin_util_get_collate_type do not use json-glib
+	    in any way. But here we might have the user posting nusty IDs */
+
+  /* ids path */
+
+  JsonNode * source_id_node = NULL;
+  JsonNode * target_id_node = NULL;
+  gchar * escaped_source_id = dupin_util_json_strescape (source_id);
+  gchar * escaped_target_id = dupin_util_json_strescape (target_id);
+
+  if (escaped_source_id == NULL || escaped_target_id == NULL)
+    {
+      if (parser != NULL)
+        g_object_unref (parser);
+      json_node_free (idspath_node);
+      json_node_free (labelspath_node);
+      g_free (parent.parent_idspath);
+      g_free (parent.parent_labelspath);
+
+      return NULL;
+    }
+
+  source_id_node = json_node_new (JSON_NODE_VALUE);
+  json_node_set_string (source_id_node, escaped_source_id);
+
+  target_id_node = json_node_new (JSON_NODE_VALUE);
+  json_node_set_string (target_id_node, escaped_target_id);
+
+  JsonNode * tag_node = NULL;
+  if (tag != NULL)
+    {
+      /* NOTE - not yet used, but we might want the tag to be a JSON structure too so collation works nicely too */
+
+      if (json_parser_load_from_data (parser, tag, -1, NULL) == FALSE)
+        {
+          /* NOTE - OK we parse the tag as a string */
+          tag_node = json_node_new (JSON_NODE_VALUE);
+          gchar * escaped_tag = dupin_util_json_strescape (tag);
+          json_node_set_string (tag_node, escaped_tag);
+          g_free (escaped_tag);
+        }
+      else
+        {
+          tag_node = json_node_copy (json_parser_get_root (parser));
+        }
+
+      /* [ [EXISTING-SOURCE_ID-IDSPATH-with-TAG], [ TAG, SOURCE_ID ], [ TAG, TARGET_ID] ] */
+      JsonArray * target_id_array = json_array_new ();
+      json_array_add_element (target_id_array, tag_node);
+      json_array_add_element (target_id_array, target_id_node);
+
+      if (json_array_get_length (idspath_array) == 0)
+        {
+          JsonNode * source_id_array_node = json_node_new (JSON_NODE_ARRAY);
+          JsonArray * source_id_array = json_array_new ();
+          json_node_take_array (source_id_array_node, source_id_array);
+          json_array_add_element (source_id_array, json_node_copy (tag_node));
+          json_array_add_element (source_id_array, source_id_node);
+
+          json_array_add_element (idspath_array, source_id_array_node);
+        }
+      else
+        {
+          json_node_free (source_id_node);
+        }
+
+      json_array_add_array_element (idspath_array, target_id_array);
+    }
+  else
+    {
+      /* [ [EXISTING-SOURCE_ID-IDSPATH], SOURCE_ID, TARGET_ID ] */
+      if (json_array_get_length (idspath_array) == 0)
+        json_array_add_element (idspath_array, source_id_node);
+      else
+        json_node_free (source_id_node);
+
+      json_array_add_element (idspath_array, target_id_node);
+    }
+
+  g_free (escaped_target_id);
+  g_free (escaped_source_id);
+
+  /* labels path */
+
+  JsonNode * label_node = NULL;
+  gchar * escaped_label = dupin_util_json_strescape (label);
+
+  if (escaped_label == NULL)
+    {
+      if (parser != NULL)
+        g_object_unref (parser);
+      json_node_free (idspath_node);
+      json_node_free (labelspath_node);
+      g_free (parent.parent_idspath);
+      g_free (parent.parent_labelspath);
+
+      return NULL;
+    }
+
+  label_node = json_node_new (JSON_NODE_VALUE);
+  json_node_set_string (label_node, escaped_label);
+
+  if (tag_node != NULL)
+    {
+      /* [ [EXISTING-SOURCE_ID-LABELSPATH-with-TAG], [ TAG, LABEL ] ] */
+      JsonArray * label_array = json_array_new ();
+      json_array_add_element (label_array, json_node_copy (tag_node));
+      json_array_add_element (label_array, label_node);
+
+      json_array_add_array_element (labelspath_array, label_array);
+    }
+  else
+    {
+      /* [ [EXISTING-SOURCE_ID-LABELSPATH], SOURCE_ID, TARGET_ID ] */
+      json_array_add_element (labelspath_array, label_node);
+    }
+
+  g_free (escaped_label);
+
+  g_free (parent.parent_idspath);
+  g_free (parent.parent_labelspath);
+
+  if (parser != NULL)
+    g_object_unref (parser);
+
+  JsonNode *  paths = json_node_new (JSON_NODE_ARRAY);
+  JsonArray * paths_array = json_array_new ();
+  json_node_take_array (paths, paths_array);
+
+  json_array_add_element (paths_array, idspath_node);
+  json_array_add_element (paths_array, labelspath_node);
+
+//{
+//gchar * string = dupin_util_json_serialize (paths);
+//g_message("dupin_link_record_util_generate_paths_node: paths = %s\n", string);
+//g_free (string);
+//}
+
+  return paths;
 }
 
 /* EOF */

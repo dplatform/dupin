@@ -70,6 +70,12 @@ void		dupin_view_sync_map_func (gpointer data, gpointer user_data);
 
 void		dupin_view_sync_reduce_func (gpointer data, gpointer user_data);
 
+int		dupin_view_collation	(void        * ref,
+					 int         left_len,
+					 const void  *left_void,
+					 int         right_len,
+					 const void  *right_void);
+
 G_END_DECLS
 
 #endif

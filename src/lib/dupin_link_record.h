@@ -164,6 +164,14 @@ gsize		dupin_link_record_get_created
 gchar *		dupin_link_record_get_last_revision
 					(DupinLinkRecord *		record);
 
+JsonNode *	dupin_link_record_get_revision_idspath_node
+					(DupinLinkRecord *		record,
+					 gchar *			mvcc);
+
+JsonNode *	dupin_link_record_get_revision_labelspath_node
+					(DupinLinkRecord *		record,
+					 gchar *			mvcc);
+
 JsonNode *
 		dupin_link_record_get_revision_node
 					(DupinLinkRecord *		record,

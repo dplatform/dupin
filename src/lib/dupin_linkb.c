@@ -6,6 +6,7 @@
 #include "dupin_utils.h"
 #include "dupin_linkb.h"
 #include "dupin_link_record.h"
+#include "dupin_view.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -24,6 +25,8 @@
   "  rel         TEXT DEFAULT NULL,\n" \
   "  is_weblink  BOOL DEFAULT FALSE,\n" \
   "  tag         TEXT DEFAULT NULL,\n" \
+  "  idspath     TEXT NOT NULL COLLATE dupincmp,\n" \
+  "  labelspath  TEXT NOT NULL COLLATE dupincmp,\n" \
   "  PRIMARY     KEY(id, rev, hash)\n" \
   ");"
 
@@ -557,6 +560,17 @@ dupin_linkb_create (Dupin * d, gchar * name, gchar * path, GError ** error)
     {
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
 		   "Linkbase error.");
+      dupin_linkb_free (linkb);
+      return NULL;
+    }
+
+  /* NOTE - set simple collation functions for path columns - see http://wiki.apache.org/couchdb/How_to_store_hierarchical_data */
+
+  if (sqlite3_create_collation (linkb->db, "dupincmp", SQLITE_UTF8,  linkb, dupin_view_collation) != SQLITE_OK)
+    {
+      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
+		   errmsg);
+      sqlite3_free (errmsg);
       dupin_linkb_free (linkb);
       return NULL;
     }

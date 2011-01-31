@@ -17,6 +17,7 @@ struct request_type_t
 };
 
 extern RequestType request_types[];
+extern DSHttpStatus DSHttpStatusList[];
 
 DSHttpStatusCode
 		request_global	(DSHttpdClient *	client,

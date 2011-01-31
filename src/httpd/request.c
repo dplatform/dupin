@@ -40,7 +40,6 @@
 #define RESPONSE_OBJ_RELATIONSHIPS	REQUEST_OBJ_RELATIONSHIPS
 #define RESPONSE_OBJ_CONTENT		REQUEST_OBJ_CONTENT
 #define RESPONSE_OBJ_DELETED		REQUEST_OBJ_DELETED
-#define RESPONSE_OBJ_ERROR		"error"
 
 #define RESPONSE_LINK_OBJ_ID		RESPONSE_OBJ_ID
 #define RESPONSE_LINK_OBJ_REV		RESPONSE_OBJ_REV
@@ -6215,7 +6214,8 @@ request_record_insert (DSHttpdClient * client, GList * arguments, JsonNode * obj
 			  g_string_append_printf (str, "Link record (%s, %s) has an invalid context_id, not a valid label or cannot be added to document",
 						lnode_context_id, lnode_label);
 			  gchar * error_msg = g_string_free (str, FALSE);
-			  json_object_set_string_member (error_obj, RESPONSE_OBJ_ERROR, error_msg);
+			  json_object_set_string_member (error_obj, RESPONSE_STATUS_REASON, error_msg);
+			  json_object_set_string_member (error_obj, RESPONSE_STATUS_ERROR, DSHttpStatusList[HTTP_STATUS_400].body);
 			  g_free (error_msg);
 			  json_array_add_object_element (record_response_links_label_array, error_obj);
 
@@ -6238,7 +6238,8 @@ request_record_insert (DSHttpdClient * client, GList * arguments, JsonNode * obj
 			      g_string_append_printf (str, "Link record (%s, %s) cannnot be inserted", lnode_context_id, lnode_label);
                             }
 			  gchar * error_msg = g_string_free (str, FALSE);
-                          json_object_set_string_member (error_obj, RESPONSE_OBJ_ERROR, error_msg);
+			  json_object_set_string_member (error_obj, RESPONSE_STATUS_REASON, error_msg);
+			  json_object_set_string_member (error_obj, RESPONSE_STATUS_ERROR, DSHttpStatusList[*code].body);
                           g_free (error_msg);
                           json_array_add_object_element (record_response_links_label_array, error_obj);
 
@@ -6343,7 +6344,8 @@ request_record_insert (DSHttpdClient * client, GList * arguments, JsonNode * obj
                           g_string_append_printf (str, "Relationship record (%s, %s) has an invalid context_id, not a valid label or cannot be added to document",
                                                 rnode_context_id, rnode_label);
                           gchar * error_msg = g_string_free (str, FALSE);
-                          json_object_set_string_member (error_obj, RESPONSE_OBJ_ERROR, error_msg);
+			  json_object_set_string_member (error_obj, RESPONSE_STATUS_REASON, error_msg);
+			  json_object_set_string_member (error_obj, RESPONSE_STATUS_ERROR, DSHttpStatusList[HTTP_STATUS_400].body);
                           g_free (error_msg);
                           json_array_add_object_element (record_response_relationships_label_array, error_obj);
 
@@ -6366,7 +6368,8 @@ request_record_insert (DSHttpdClient * client, GList * arguments, JsonNode * obj
 			      g_string_append_printf (str, "Relationship record (%s, %s) cannnot be inserted", rnode_context_id, rnode_label);
                             }
 			  gchar * error_msg = g_string_free (str, FALSE);
-                          json_object_set_string_member (error_obj, RESPONSE_OBJ_ERROR, error_msg);
+			  json_object_set_string_member (error_obj, RESPONSE_STATUS_REASON, error_msg);
+			  json_object_set_string_member (error_obj, RESPONSE_STATUS_ERROR, DSHttpStatusList[*code].body);
                           g_free (error_msg);
                           json_array_add_object_element (record_response_relationships_label_array, error_obj);
 

@@ -3259,9 +3259,7 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
 
       if (startkey != NULL)
         {
-          json_parser_load_from_data (parser, startkey, -1, &error);
-
-          if (error != NULL
+          if (!json_parser_load_from_data (parser, startkey, -1, &error)
               || (!(sn = dupin_util_json_serialize (json_parser_get_root (parser)))) )
             {
 	      if (error != NULL)
@@ -3298,9 +3296,7 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
 
       if (endkey != NULL)
         {
-          json_parser_load_from_data (parser, endkey, -1, &error);
-
-          if (error != NULL
+          if (!json_parser_load_from_data (parser, endkey, -1, &error)
               || (!(sn = dupin_util_json_serialize (json_parser_get_root (parser)))) )
             {
               if (error != NULL)
@@ -4067,8 +4063,7 @@ request_global_post_record (DSHttpdClient * client, GList * path,
             we currently read escaped JSON documents and stored them as UTF-8 - also check UTF-16 and UTF-32 encodings if needed/supported */
 
   /* TODO - add error checking and return any parsing error to client */
-  json_parser_load_from_data (parser, client->body, client->body_size, &error);
-  if (error != NULL)
+  if (!json_parser_load_from_data (parser, client->body, client->body_size, &error))
     {
       client->dupin_error_msg = g_strdup (error->message);
       g_error_free (error);
@@ -4146,8 +4141,7 @@ request_global_post_doc_link (DSHttpdClient * client, GList * path,
             we currently read escaped JSON documents and stored them as UTF-8 - also check UTF-16 and UTF-32 encodings if needed/supported */
 
   /* TODO - add error checking and return any parsing error to client */
-  json_parser_load_from_data (parser, client->body, client->body_size, &error);
-  if (error != NULL)
+  if (!json_parser_load_from_data (parser, client->body, client->body_size, &error))
     {
       client->dupin_error_msg = g_strdup (error->message);
       g_error_free (error);
@@ -4218,8 +4212,7 @@ request_global_post_bulk_docs (DSHttpdClient * client, GList * path,
     }
 
   /* TODO - check any parsing error */
-  json_parser_load_from_data (parser, client->body, client->body_size, &error);
-  if (error != NULL)
+  if (!json_parser_load_from_data (parser, client->body, client->body_size, &error))
     {
       client->dupin_error_msg = g_strdup (error->message);
       g_error_free (error);
@@ -4490,8 +4483,7 @@ request_global_put_view (DSHttpdClient * client, GList * path,
     }
 
   /* TODO - check any parsing error */
-  json_parser_load_from_data (parser, client->body, client->body_size, &error);
-  if (error != NULL)
+  if (!json_parser_load_from_data (parser, client->body, client->body_size, &error))
     {
       client->dupin_error_msg = g_strdup (error->message);
       g_error_free (error);
@@ -4733,8 +4725,7 @@ request_global_put_record (DSHttpdClient * client, GList * path,
     }
 
   /* TODO - check any parsing error */
-  json_parser_load_from_data (parser, client->body, client->body_size, &error);
-  if (error != NULL)
+  if (!json_parser_load_from_data (parser, client->body, client->body_size, &error))
     {
       client->dupin_error_msg = g_strdup (error->message);
       g_error_free (error);
@@ -4942,8 +4933,7 @@ request_global_put_link_record (DSHttpdClient * client, GList * path,
     }
 
   /* TODO - check any parsing error */
-  json_parser_load_from_data (parser, client->body, client->body_size, &error);
-  if (error != NULL)
+  if (!json_parser_load_from_data (parser, client->body, client->body_size, &error))
     {
       client->dupin_error_msg = g_strdup (error->message);
       g_error_free (error);

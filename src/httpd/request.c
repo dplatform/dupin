@@ -57,9 +57,9 @@
 #define DUPIN_REVISIONS_COUNT	    100
 #define DUPIN_DB_MAX_CHANGES_COUNT  100
 
-static JsonNode *request_record_obj (DupinRecord * record, gchar * id,
+static JsonNode *request_record_revision_obj (DupinRecord * record, gchar * id,
 					     gchar * mvcc);
-static JsonNode *request_link_record_obj (DupinLinkRecord * record, gchar * id,
+static JsonNode *request_link_record_revision_obj (DupinLinkRecord * record, gchar * id,
 					     gchar * mvcc);
 static JsonNode *request_view_record_obj (DupinViewRecord * record,
 						  gchar * id);
@@ -1225,7 +1225,7 @@ request_global_get_changes_database (DSHttpdClient * client, GList * path,
 
           JsonNode * doc = NULL;
 
-          if (! (doc = request_record_obj (db_record, record_id, record_mvcc)))
+          if (! (doc = request_record_revision_obj (db_record, record_id, record_mvcc)))
             {
               json_node_free (change);
               json_array_unref (array);
@@ -1382,7 +1382,7 @@ request_global_get_all_docs (DSHttpdClient * client, GList * path,
 
       if (!
 	  (on =
-	   request_record_obj (record, (gchar *) dupin_record_get_id (record),
+	   request_record_revision_obj (record, (gchar *) dupin_record_get_id (record),
 			       dupin_record_get_last_revision (record))))
         {
 	  json_array_unref (array); /* if here, array is not under obj responsability yet */
@@ -1839,6 +1839,15 @@ request_global_get_record (DSHttpdClient * client, GList * path,
       return HTTP_STATUS_404;
     }
 
+  if (dupin_record_is_deleted (record, NULL) == TRUE)
+    {
+      dupin_attachment_db_unref (attachment_db);
+      dupin_database_unref (db);
+      g_free (doc_id);
+      client->dupin_error_msg = g_strdup ("Record is deleted");
+      return HTTP_STATUS_404;
+    }
+
   for (list = arguments; list; list = list->next)
     {
       dupin_keyvalue_t *kv = list->data;
@@ -1982,7 +1991,7 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 
 	  if (!
 	      (on =
-	       request_record_obj (record,
+	       request_record_revision_obj (record,
 				   (gchar *) dupin_record_get_id (record),
 				   (gchar *) list->data)))
             {
@@ -2053,7 +2062,7 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 
       if (!
 	  (node_temp =
-	   request_record_obj (record, (gchar *) dupin_record_get_id (record),
+	   request_record_revision_obj (record, (gchar *) dupin_record_get_id (record),
 			       mvcc)))
 	{
 	  dupin_record_close (record);
@@ -2139,7 +2148,7 @@ request_global_get_record (DSHttpdClient * client, GList * path,
                     }
 
                   /* we do no never return deleted links */
-      		  if (!  (on = request_link_record_obj (link_record,
+      		  if (!  (on = request_link_record_revision_obj (link_record,
 				(gchar *) dupin_link_record_get_id (link_record),
                                dupin_link_record_get_last_revision (link_record))))
         	    {
@@ -2204,7 +2213,7 @@ request_global_get_record (DSHttpdClient * client, GList * path,
                     }
 
                   /* we do no never return deleted relationships */
-      		  if (!  (on = request_link_record_obj (link_record,
+      		  if (!  (on = request_link_record_revision_obj (link_record,
 				(gchar *) dupin_link_record_get_id (link_record),
                                dupin_link_record_get_last_revision (link_record))))
         	    {
@@ -2560,7 +2569,7 @@ request_global_get_all_links_linkbase (DSHttpdClient * client, GList * path,
 
       if (!
 	  (on =
-	   request_link_record_obj (record, (gchar *) dupin_link_record_get_id (record),
+	   request_link_record_revision_obj (record, (gchar *) dupin_link_record_get_id (record),
 			       dupin_link_record_get_last_revision (record))))
         {
 	  json_array_unref (array); /* if here, array is not under obj responsability yet */
@@ -2840,7 +2849,7 @@ request_global_get_changes_linkbase (DSHttpdClient * client, GList * path,
 
           JsonNode * link = NULL;
 
-          if (! (link = request_link_record_obj (link_record, record_id, record_mvcc)))
+          if (! (link = request_link_record_revision_obj (link_record, record_id, record_mvcc)))
             {
               json_node_free (change);
               json_array_unref (array);
@@ -3006,6 +3015,14 @@ request_global_get_record_linkbase (DSHttpdClient * client, GList * path,
       return HTTP_STATUS_404;
     }
 
+  if (dupin_link_record_is_deleted (record, NULL) == TRUE)
+    {   
+      dupin_linkbase_unref (linkb);
+      g_free (link_id);
+      client->dupin_error_msg = g_strdup ("Link record is deleted");
+      return HTTP_STATUS_404;
+    } 
+
   for (list = arguments; list; list = list->next)
     {
       dupin_keyvalue_t *kv = list->data;
@@ -3089,7 +3106,7 @@ request_global_get_record_linkbase (DSHttpdClient * client, GList * path,
 
 	  if (!
 	      (on =
-	       request_link_record_obj (record,
+	       request_link_record_revision_obj (record,
 				   (gchar *) dupin_link_record_get_id (record),
 				   (gchar *) list->data)))
             {
@@ -3150,7 +3167,7 @@ request_global_get_record_linkbase (DSHttpdClient * client, GList * path,
 
       if (!
 	  (node_temp =
-	   request_link_record_obj (record, (gchar *) dupin_link_record_get_id (record),
+	   request_link_record_revision_obj (record, (gchar *) dupin_link_record_get_id (record),
 			       mvcc)))
 	{
 	  dupin_link_record_close (record);
@@ -5742,7 +5759,7 @@ request_global_delete_record (DSHttpdClient * client, GList * path,
           return HTTP_STATUS_404;
         }
 
-      if (!(obj_node = request_record_obj (record, doc_id, mvcc)))
+      if (!(obj_node = request_record_revision_obj (record, doc_id, mvcc)))
         {
           if (title != NULL)
             g_free (title);
@@ -5980,7 +5997,7 @@ request_global_delete_link_record (DSHttpdClient * client, GList * path,
     {
       JsonNode * obj_node = NULL;
 
-      if (!(obj_node = request_link_record_obj (record, link_id, mvcc)))
+      if (!(obj_node = request_link_record_revision_obj (record, link_id, mvcc)))
         {
           dupin_link_record_close (record);
           dupin_linkbase_unref (linkb);
@@ -7434,7 +7451,7 @@ request_record_attachment_insert (DSHttpdClient * client,
 
       /* NOTE - need to touch/update the metadata record anyway */
 
-      if (!(obj_node = request_record_obj (record,
+      if (!(obj_node = request_record_revision_obj (record,
 		(gchar *) dupin_record_get_id (record), mvcc)))
         {
           g_free (title);
@@ -7497,7 +7514,7 @@ request_record_attachment_insert (DSHttpdClient * client,
 }
 
 static JsonNode *
-request_record_obj (DupinRecord * record, gchar * id, gchar * mvcc)
+request_record_revision_obj (DupinRecord * record, gchar * id, gchar * mvcc)
 {
   JsonNode *obj_node;
   JsonObject *obj;
@@ -7542,7 +7559,7 @@ request_record_obj (DupinRecord * record, gchar * id, gchar * mvcc)
 }
 
 static JsonNode *
-request_link_record_obj (DupinLinkRecord * record, gchar * id, gchar * mvcc)
+request_link_record_revision_obj (DupinLinkRecord * record, gchar * id, gchar * mvcc)
 {
   JsonNode *obj_node;
   JsonObject *obj;
@@ -7722,7 +7739,7 @@ request_get_changes_comet_database_next:
 
                   JsonNode * doc = NULL;
 
-                  if (! (doc = request_record_obj (db_record, record_id, record_mvcc)))
+                  if (! (doc = request_record_revision_obj (db_record, record_id, record_mvcc)))
                     {
                       json_node_free (change);
                       goto request_get_changes_comet_database_error;
@@ -7914,7 +7931,7 @@ request_get_changes_comet_linkbase_next:
 
                   JsonNode * link = NULL;
 
-                  if (! (link = request_link_record_obj (linkb_record, record_id, record_mvcc)))
+                  if (! (link = request_link_record_revision_obj (linkb_record, record_id, record_mvcc)))
                     {
                       json_node_free (change);
                       goto request_get_changes_comet_linkbase_error;

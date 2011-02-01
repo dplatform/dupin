@@ -1726,6 +1726,11 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 				dp_keyvalue_new (REQUEST_GET_ALL_LINKS_CONTEXT_ID,
 						 (gchar *)path->next->data));
 
+              if (path->next->next->next)
+                  arguments = g_list_append (arguments,
+				dp_keyvalue_new (REQUEST_GET_ALL_LINKS_LABELS,
+						 path->next->next->next->data));
+
               if (!g_strcmp0 (path->next->next->data, REQUEST_OBJ_LINKS))
                 {
                   arguments = g_list_append (arguments,

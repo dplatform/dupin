@@ -578,10 +578,15 @@ dupin_database_get_changes_list_cb (void *data, int argc, char **argv, char **co
 
       json_object_set_int_member (change, "created", tm);
 
+      JsonNode *change_details_node=json_node_new (JSON_NODE_ARRAY);
       JsonArray *change_details=json_array_new();
-      json_object_set_array_member (change, "changes", change_details);
+      json_node_take_array (change_details_node, change_details);
+      json_object_set_member (change, "changes", change_details_node);
 
+      JsonNode * node = json_node_new (JSON_NODE_OBJECT);
       JsonObject * node_obj = json_object_new ();
+      json_node_take_object (node, node_obj);
+      json_array_add_element (change_details, node);
 
       gchar mvcc[DUPIN_ID_MAX_LEN];
       dupin_util_mvcc_new (rev, hash, mvcc);
@@ -594,8 +599,6 @@ dupin_database_get_changes_list_cb (void *data, int argc, char **argv, char **co
       else if (s->style == DP_CHANGES_ALL_DOCS)
         {
         }
-
-      json_array_add_object_element (change_details, node_obj);
 
       s->list = g_list_append (s->list, change_node);
     }

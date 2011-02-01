@@ -57,12 +57,20 @@
 #define DUPIN_REVISIONS_COUNT	    100
 #define DUPIN_DB_MAX_CHANGES_COUNT  100
 
-static JsonNode *request_record_revision_obj (DupinRecord * record, gchar * id,
-					     gchar * mvcc);
-static JsonNode *request_link_record_revision_obj (DupinLinkRecord * record, gchar * id,
-					     gchar * mvcc);
-static JsonNode *request_view_record_obj (DupinViewRecord * record,
-						  gchar * id);
+static JsonNode *request_record_revision_obj (DSHttpdClient * client,
+					      GList * arguments,
+					      DupinRecord * record, gchar * id,
+					      gchar * mvcc);
+
+static JsonNode *request_link_record_revision_obj (DSHttpdClient * client,
+						   GList * arguments,
+						   DupinLinkRecord * record, gchar * id,
+						   gchar * mvcc);
+
+static JsonNode *request_view_record_obj (DSHttpdClient * client,
+					  GList * arguments,
+					  DupinViewRecord * record,
+				 	  gchar * id);
 
 static gboolean request_record_insert (DSHttpdClient * client,
 				       GList * arguments,
@@ -1226,7 +1234,8 @@ request_global_get_changes_database (DSHttpdClient * client, GList * path,
 
           JsonNode * doc = NULL;
 
-          if (! (doc = request_record_revision_obj (db_record, record_id, record_mvcc)))
+          if (! (doc = request_record_revision_obj (client, arguments,
+						    db_record, record_id, record_mvcc)))
             {
               json_node_free (change);
               json_array_unref (array);
@@ -1383,8 +1392,9 @@ request_global_get_all_docs (DSHttpdClient * client, GList * path,
 
       if (!
 	  (on =
-	   request_record_revision_obj (record, (gchar *) dupin_record_get_id (record),
-			       dupin_record_get_last_revision (record))))
+	   request_record_revision_obj (client, arguments,
+					record, (gchar *) dupin_record_get_id (record),
+					dupin_record_get_last_revision (record))))
         {
 	  json_array_unref (array); /* if here, array is not under obj responsability yet */
 	  goto request_global_get_all_docs_error;
@@ -1623,23 +1633,12 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 
   DupinDB *db=NULL;
   DupinAttachmentDB *attachment_db=NULL;
-  DupinLinkB *linkb=NULL;
   DupinRecord *record=NULL;
 
   gboolean descending = FALSE;
   guint count = DUPIN_REVISIONS_COUNT;
   guint offset = 0;
   
-  DupinLinksType include_links_type = DP_LINK_TYPE_NONE;
-  gchar * tag = NULL;
-  gchar ** link_labels=NULL;
-  gboolean include_links_weblinks_descending = FALSE;
-  guint include_links_weblinks_count = DUPIN_LINKB_MAX_LINKS_COUNT;
-  guint include_links_weblinks_offset = 0;
-  gboolean include_links_relationships_descending = FALSE;
-  guint include_links_relationships_count = DUPIN_LINKB_MAX_LINKS_COUNT;
-  guint include_links_relationships_offset = 0;
-
   JsonNode *node=NULL;
 
   gchar * doc_id=NULL;
@@ -1880,54 +1879,6 @@ request_global_get_record (DSHttpdClient * client, GList * path,
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_OFFSET))
 	offset = atoi (kv->value);
 
-      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TYPE))
-        {
-          if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TYPE_ALL_LINKS))
-            include_links_type = DP_LINK_TYPE_ANY;
-          else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TYPE_WEBLINKS))
-            include_links_type = DP_LINK_TYPE_WEB_LINK;
-          else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TYPE_RELATIONSHIPS))
-            include_links_type = DP_LINK_TYPE_RELATIONSHIP;
-        }
-
-      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_LABELS))
-        {
-          link_labels = g_strsplit (kv->value, ",", -1);
-        }
-
-      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TAG)
-	       && g_strcmp0 (kv->value, ""))
-        tag = kv->value;
-
-      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_WEBLINKS_DESCENDING)
-	  && !g_strcmp0 (kv->value, "true"))
-	include_links_weblinks_descending = TRUE;
-
-      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_WEBLINKS_COUNT))
-	include_links_weblinks_count = atoi (kv->value);
-
-      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_WEBLINKS_OFFSET))
-	include_links_weblinks_offset = atoi (kv->value);
-
-      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_RELATIONSHIPS_DESCENDING)
-	  && !g_strcmp0 (kv->value, "true"))
-	include_links_relationships_descending = TRUE;
-
-      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_RELATIONSHIPS_COUNT))
-	include_links_relationships_count = atoi (kv->value);
-
-      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_RELATIONSHIPS_OFFSET))
-	include_links_relationships_offset = atoi (kv->value);
-
-    }
-
-  if (! (linkb = dupin_linkbase_open (client->thread->data->dupin, dbname, NULL)))
-    {
-      dupin_database_unref (db);
-      dupin_attachment_db_unref (attachment_db);
-      g_free (doc_id);
-      client->dupin_error_msg = g_strdup ("Cannot connect to linkbase");
-      return HTTP_STATUS_404;
     }
 
   /* Show all revisions: */
@@ -1946,11 +1897,7 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 	  dupin_record_close (record);
 	  dupin_database_unref (db);
           dupin_attachment_db_unref (attachment_db);
-          if (linkb != NULL)
-            dupin_linkbase_unref (linkb);
           g_free (doc_id);
-	  if (link_labels)
-	    g_strfreev (link_labels);
           client->dupin_error_msg = g_strdup ("Cannot get list of record revisions");
 	  return HTTP_STATUS_500;
 	}
@@ -1977,11 +1924,7 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 	  dupin_record_close (record);
 	  dupin_database_unref (db);
           dupin_attachment_db_unref (attachment_db);
-	  if (linkb != NULL)
-            dupin_linkbase_unref (linkb);
           g_free (doc_id);
-	  if (link_labels)
-	    g_strfreev (link_labels);
           client->dupin_error_msg = g_strdup ("Cannot get list of record revisions");
 	  return HTTP_STATUS_500;
 	}
@@ -1992,9 +1935,10 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 
 	  if (!
 	      (on =
-	       request_record_revision_obj (record,
-				   (gchar *) dupin_record_get_id (record),
-				   (gchar *) list->data)))
+	       request_record_revision_obj (client, arguments,
+					    record,
+					    (gchar *) dupin_record_get_id (record),
+					    (gchar *) list->data)))
             {
               dupin_record_get_revisions_list_close (revisions);
 	      json_array_unref (array);
@@ -2012,11 +1956,7 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 	          dupin_record_close (record);
 	          dupin_database_unref (db);
                   dupin_attachment_db_unref (attachment_db);
-		  if (linkb != NULL)
-		    dupin_linkbase_unref (linkb);
                   g_free (doc_id);
-	          if (link_labels)
-	            g_strfreev (link_labels);
                   client->dupin_error_msg = g_strdup ("Cannot get field for record revisions list");
 	          return HTTP_STATUS_404;
                 }
@@ -2052,28 +1992,21 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 	  dupin_record_close (record);
 	  dupin_database_unref (db);
           dupin_attachment_db_unref (attachment_db);
-	  if (linkb != NULL)
-            dupin_linkbase_unref (linkb);
           g_free (doc_id);
-	  if (link_labels)
-	    g_strfreev (link_labels);
           client->dupin_error_msg = g_strdup ("Requested record MVCC revision newer that latest revision");
 	  return HTTP_STATUS_404;
 	}
 
       if (!
 	  (node_temp =
-	   request_record_revision_obj (record, (gchar *) dupin_record_get_id (record),
-			       mvcc)))
+	   request_record_revision_obj (client, arguments,
+					record, (gchar *) dupin_record_get_id (record),
+					mvcc)))
 	{
 	  dupin_record_close (record);
 	  dupin_database_unref (db);
           dupin_attachment_db_unref (attachment_db);
-	  if (linkb != NULL)
-            dupin_linkbase_unref (linkb);
           g_free (doc_id);
-	  if (link_labels)
-	    g_strfreev (link_labels);
           client->dupin_error_msg = g_strdup ("Cannot get record revision");
 	  return HTTP_STATUS_404;
 	}
@@ -2089,11 +2022,7 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 	      dupin_record_close (record);
 	      dupin_database_unref (db);
               dupin_attachment_db_unref (attachment_db);
-	      if (linkb != NULL)
-		dupin_linkbase_unref (linkb);
               g_free (doc_id);
-	      if (link_labels)
-	        g_strfreev (link_labels);
               client->dupin_error_msg = g_strdup ("Cannot get record revision field");
 	      return HTTP_STATUS_404;
             }
@@ -2106,147 +2035,6 @@ request_global_get_record (DSHttpdClient * client, GList * path,
         }
 
       json_node_free (node_temp);
-
-      if (request_fields == NULL
-	  && include_links_type != DP_LINK_TYPE_NONE
-	  && json_object_has_member (json_node_get_object (node), RESPONSE_OBJ_LINKS) == FALSE
-	  && json_object_has_member (json_node_get_object (node), RESPONSE_OBJ_RELATIONSHIPS) == FALSE)
-        {
-          GList *list;
-          GList *results;
-	  if (include_links_type == DP_LINK_TYPE_ANY
-	      || include_links_type == DP_LINK_TYPE_WEB_LINK)
-            {
-	      JsonNode * links_node = json_node_new (JSON_NODE_OBJECT);
-	      JsonObject * links_obj = json_object_new ();
-	      json_node_take_object (links_node, links_obj);
-
-              gsize total_links = dupin_linkbase_count (linkb, DP_LINK_TYPE_WEB_LINK, DP_COUNT_EXIST,
-					            (gchar *) dupin_record_get_id (record),
-					            link_labels, tag);
-
-              if (dupin_link_record_get_list (linkb, include_links_weblinks_count, include_links_weblinks_offset,
-					      0, 0, DP_LINK_TYPE_WEB_LINK, DP_COUNT_EXIST, DP_ORDERBY_ROWID,
-					      include_links_weblinks_descending,
-					      (gchar *) dupin_record_get_id (record), link_labels, tag, &results, NULL) == FALSE)
-                {
-		  // just log the error and reason into JSON
-                }
-
-              for (list = results; list; list = list->next)
-                {
-                  DupinLinkRecord *link_record = list->data;
-      		  JsonNode *on;
-
-		  gchar * label = (gchar *) dupin_link_record_get_label (link_record);
-
-		  if (json_object_has_member (links_obj, label) == FALSE)
-		    {
-	              JsonNode * links_label_node = json_node_new (JSON_NODE_ARRAY);
-	              JsonArray * links_label_array = json_array_new ();
-	              json_node_take_array (links_label_node, links_label_array);
-		      json_object_set_member (links_obj, label, links_label_node);
-                    }
-
-                  /* we do no never return deleted links */
-      		  if (!  (on = request_link_record_revision_obj (link_record,
-				(gchar *) dupin_link_record_get_id (link_record),
-                               dupin_link_record_get_last_revision (link_record))))
-        	    {
-		      // just log the error and reason into JSON
-        	    }
-
-                  // remove context_id and label due they are implied
-
-                  json_array_add_element( json_node_get_array (
-						json_object_get_member (links_obj, label)), on);
-                }
-
-	      if (json_object_get_size (links_obj) > 0
-		  && json_object_has_member (links_obj, RESPONSE_OBJ_LINKS_PAGING) == FALSE)
-                {
-                  JsonNode * paging_info_node = json_node_new (JSON_NODE_OBJECT);
-                  JsonObject * paging_info = json_object_new ();
-		  json_node_take_object (paging_info_node, paging_info);
-                  json_object_set_int_member (paging_info, "total_links", total_links);
-	          json_object_set_int_member (paging_info, "offset", include_links_weblinks_offset);
-	          json_object_set_int_member (paging_info, "links_per_document", include_links_weblinks_count);
-		  json_object_set_member (links_obj, RESPONSE_OBJ_LINKS_PAGING, paging_info_node);
-                }
-
-	      if (results)
-	        dupin_link_record_get_list_close (results);
-
-	      json_object_set_object_member (json_node_get_object (node), RESPONSE_OBJ_LINKS, links_obj);
-            }
-
-	  if (include_links_type == DP_LINK_TYPE_ANY
-	      || include_links_type == DP_LINK_TYPE_RELATIONSHIP)
-            {
-	      JsonNode * relationships_node = json_node_new (JSON_NODE_OBJECT);
-	      JsonObject * relationships_obj = json_object_new ();
-	      json_node_take_object (relationships_node, relationships_obj);
-
-              gsize total_relationships = dupin_linkbase_count (linkb, DP_LINK_TYPE_RELATIONSHIP,
-						    DP_COUNT_EXIST,
-					            (gchar *) dupin_record_get_id (record),
-					            link_labels, tag);
-
-              if (dupin_link_record_get_list (linkb, include_links_relationships_count, include_links_relationships_offset,
-					      0, 0, DP_LINK_TYPE_RELATIONSHIP, DP_COUNT_EXIST, DP_ORDERBY_ROWID,
-					      include_links_relationships_descending,
-					      (gchar *) dupin_record_get_id (record), link_labels, tag, &results, NULL) == FALSE)
-                {
-		  // just log the error and reason into JSON
-                }
-
-              for (list = results; list; list = list->next)
-                {
-                  DupinLinkRecord *link_record = list->data;
-      		  JsonNode *on;
-
-		  gchar * label = (gchar *) dupin_link_record_get_label (link_record);
-
-		  if (json_object_has_member (relationships_obj, label) == FALSE)
-		    {
-	              JsonNode * relationships_label_node = json_node_new (JSON_NODE_ARRAY);
-	              JsonArray * relationships_label_array = json_array_new ();
-	              json_node_take_array (relationships_label_node, relationships_label_array);
-		      json_object_set_member (relationships_obj, label, relationships_label_node);
-                    }
-
-                  /* we do no never return deleted relationships */
-      		  if (!  (on = request_link_record_revision_obj (link_record,
-				(gchar *) dupin_link_record_get_id (link_record),
-                               dupin_link_record_get_last_revision (link_record))))
-        	    {
-		      // just log the error and reason into JSON
-        	    }
-
-                  // remove context_id and label due they are implied
-
-                  json_array_add_element( json_node_get_array (
-						json_object_get_member (relationships_obj, label)), on);
-                }
-
-	      if (json_object_get_size (relationships_obj) > 0
-	          && json_object_has_member (relationships_obj, RESPONSE_OBJ_LINKS_PAGING) == FALSE)
-                {
-                  JsonNode * paging_info_node = json_node_new (JSON_NODE_OBJECT);
-                  JsonObject * paging_info = json_object_new ();
-		  json_node_take_object (paging_info_node, paging_info);
-                  json_object_set_int_member (paging_info, "total_relationships", total_relationships);
-	          json_object_set_int_member (paging_info, "offset", include_links_relationships_offset);
-	          json_object_set_int_member (paging_info, "relationships_per_document", include_links_relationships_count);
-		  json_object_set_member (relationships_obj, RESPONSE_OBJ_LINKS_PAGING, paging_info_node);
-                }
-
-	      if (results)
-	        dupin_link_record_get_list_close (results);
-
-	      json_object_set_object_member (json_node_get_object (node), RESPONSE_OBJ_RELATIONSHIPS, relationships_obj);
-            }
-        }
     }
 
   if (request_fields == NULL)
@@ -2264,11 +2052,7 @@ request_global_get_record (DSHttpdClient * client, GList * path,
           dupin_record_close (record);
           dupin_database_unref (db);
           dupin_attachment_db_unref (attachment_db);
-	  if (linkb != NULL)
-            dupin_linkbase_unref (linkb);
           g_free (doc_id);
-	  if (link_labels)
-	    g_strfreev (link_labels);
           client->dupin_error_msg = g_strdup ("Cannot get record list of attachments");
           return HTTP_STATUS_500;
         }
@@ -2286,11 +2070,7 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 	      dupin_record_close (record);
 	      dupin_database_unref (db);
               dupin_attachment_db_unref (attachment_db);
-	      if (linkb != NULL)
-		dupin_linkbase_unref (linkb);
               g_free (doc_id);
-	      if (link_labels)
-	        g_strfreev (link_labels);
               client->dupin_error_msg = g_strdup ("Cannot get record attachment");
 	      return HTTP_STATUS_500;
 	    }
@@ -2332,13 +2112,7 @@ request_global_get_record (DSHttpdClient * client, GList * path,
   dupin_database_unref (db);
   dupin_attachment_db_unref (attachment_db);
 
-  if (linkb != NULL)
-    dupin_linkbase_unref (linkb);
-
   g_free (doc_id);
-
-  if (link_labels)
-    g_strfreev (link_labels);
 
   return HTTP_STATUS_200;
 
@@ -2351,13 +2125,7 @@ request_global_get_record_error:
   dupin_database_unref (db);
   dupin_attachment_db_unref (attachment_db);
 
-  if (linkb != NULL)
-    dupin_linkbase_unref (linkb);
-
   g_free (doc_id);
-
-  if (link_labels)
-    g_strfreev (link_labels);
 
   client->dupin_error_msg = g_strdup ("Cannot get record");
 
@@ -2574,8 +2342,9 @@ request_global_get_all_links_linkbase (DSHttpdClient * client, GList * path,
 
       if (!
 	  (on =
-	   request_link_record_revision_obj (record, (gchar *) dupin_link_record_get_id (record),
-			       dupin_link_record_get_last_revision (record))))
+	   request_link_record_revision_obj (client, arguments,
+					     record, (gchar *) dupin_link_record_get_id (record),
+			       		     dupin_link_record_get_last_revision (record))))
         {
 	  json_array_unref (array); /* if here, array is not under obj responsability yet */
 	  goto request_global_get_all_docs_error;
@@ -2855,7 +2624,8 @@ request_global_get_changes_linkbase (DSHttpdClient * client, GList * path,
 
           JsonNode * link = NULL;
 
-          if (! (link = request_link_record_revision_obj (link_record, record_id, record_mvcc)))
+          if (! (link = request_link_record_revision_obj (client, arguments,
+							  link_record, record_id, record_mvcc)))
             {
               json_node_free (change);
               json_array_unref (array);
@@ -3112,9 +2882,10 @@ request_global_get_record_linkbase (DSHttpdClient * client, GList * path,
 
 	  if (!
 	      (on =
-	       request_link_record_revision_obj (record,
-				   (gchar *) dupin_link_record_get_id (record),
-				   (gchar *) list->data)))
+	       request_link_record_revision_obj (client, arguments,
+						 record,
+						 (gchar *) dupin_link_record_get_id (record),
+				   		 (gchar *) list->data)))
             {
               dupin_link_record_get_revisions_list_close (revisions);
 	      json_array_unref (array);
@@ -3173,8 +2944,9 @@ request_global_get_record_linkbase (DSHttpdClient * client, GList * path,
 
       if (!
 	  (node_temp =
-	   request_link_record_revision_obj (record, (gchar *) dupin_link_record_get_id (record),
-			       mvcc)))
+	   request_link_record_revision_obj (client, arguments,
+					     record, (gchar *) dupin_link_record_get_id (record),
+					     mvcc)))
 	{
 	  dupin_link_record_close (record);
 	  dupin_linkbase_unref (linkb);
@@ -3712,7 +3484,8 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
 
       if (!
 	  (on =
-	   request_view_record_obj (record,
+	   request_view_record_obj (client, arguments,
+				    record,
 				    (gchar *)
 				    dupin_view_record_get_id (record))))
         {
@@ -3900,7 +3673,7 @@ request_global_get_record_view (DSHttpdClient * client, GList * path,
 
   if (!
       (node =
-       request_view_record_obj (record,
+       request_view_record_obj (client, arguments, record,
 				(gchar *) dupin_view_record_get_id (record))))
     {
       dupin_view_record_close (record);
@@ -5765,7 +5538,8 @@ request_global_delete_record (DSHttpdClient * client, GList * path,
           return HTTP_STATUS_404;
         }
 
-      if (!(obj_node = request_record_revision_obj (record, doc_id, mvcc)))
+      if (!(obj_node = request_record_revision_obj (client, arguments,
+						    record, doc_id, mvcc)))
         {
           if (title != NULL)
             g_free (title);
@@ -6003,7 +5777,8 @@ request_global_delete_link_record (DSHttpdClient * client, GList * path,
     {
       JsonNode * obj_node = NULL;
 
-      if (!(obj_node = request_link_record_revision_obj (record, link_id, mvcc)))
+      if (!(obj_node = request_link_record_revision_obj (client, arguments,
+							 record, link_id, mvcc)))
         {
           dupin_link_record_close (record);
           dupin_linkbase_unref (linkb);
@@ -7457,8 +7232,9 @@ request_record_attachment_insert (DSHttpdClient * client,
 
       /* NOTE - need to touch/update the metadata record anyway */
 
-      if (!(obj_node = request_record_revision_obj (record,
-		(gchar *) dupin_record_get_id (record), mvcc)))
+      if (!(obj_node = request_record_revision_obj (client, arguments,
+						    record,
+						    (gchar *) dupin_record_get_id (record), mvcc)))
         {
           g_free (title);
           dupin_record_close (record);
@@ -7520,8 +7296,14 @@ request_record_attachment_insert (DSHttpdClient * client,
 }
 
 static JsonNode *
-request_record_revision_obj (DupinRecord * record, gchar * id, gchar * mvcc)
+request_record_revision_obj (DSHttpdClient * client,
+                             GList * arguments,
+			     DupinRecord * record,
+			     gchar * id, gchar * mvcc)
 {
+  g_return_val_if_fail (client != NULL, NULL);
+  g_return_val_if_fail (record != NULL, NULL);
+
   JsonNode *obj_node;
   JsonObject *obj;
 
@@ -7561,11 +7343,237 @@ request_record_revision_obj (DupinRecord * record, gchar * id, gchar * mvcc)
   json_object_set_string_member (obj, REQUEST_OBJ_ID, id);
   json_object_set_string_member (obj, REQUEST_OBJ_REV, mvcc);
 
+  /* Setting links and relationships if requested */
+  if (arguments != NULL)
+    {
+      DupinLinkB * linkb=NULL;
+
+      DupinLinksType include_links_type = DP_LINK_TYPE_NONE;
+      gchar * tag = NULL;
+      gchar ** link_labels=NULL;
+      gboolean include_links_weblinks_descending = FALSE;
+      guint include_links_weblinks_count = DUPIN_LINKB_MAX_LINKS_COUNT;
+      guint include_links_weblinks_offset = 0;
+      gboolean include_links_relationships_descending = FALSE;
+      guint include_links_relationships_count = DUPIN_LINKB_MAX_LINKS_COUNT;
+      guint include_links_relationships_offset = 0;
+      GList * list = NULL;
+
+      for (list = arguments; list; list = list->next)
+        {
+          dupin_keyvalue_t *kv = list->data;
+
+          if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TYPE))
+            {
+              if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TYPE_ALL_LINKS))
+                include_links_type = DP_LINK_TYPE_ANY;
+              else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TYPE_WEBLINKS))
+                include_links_type = DP_LINK_TYPE_WEB_LINK;
+              else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TYPE_RELATIONSHIPS))
+                include_links_type = DP_LINK_TYPE_RELATIONSHIP;
+            }
+
+          else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_LABELS))
+            {
+              link_labels = g_strsplit (kv->value, ",", -1);
+            }
+
+          else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TAG)
+	           && g_strcmp0 (kv->value, ""))
+            tag = kv->value;
+
+          else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_WEBLINKS_DESCENDING)
+	           && !g_strcmp0 (kv->value, "true"))
+	    include_links_weblinks_descending = TRUE;
+
+          else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_WEBLINKS_COUNT))
+	    include_links_weblinks_count = atoi (kv->value);
+
+          else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_WEBLINKS_OFFSET))
+	    include_links_weblinks_offset = atoi (kv->value);
+
+          else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_RELATIONSHIPS_DESCENDING)
+	           && !g_strcmp0 (kv->value, "true"))
+	    include_links_relationships_descending = TRUE;
+
+          else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_RELATIONSHIPS_COUNT))
+	    include_links_relationships_count = atoi (kv->value);
+
+          else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_RELATIONSHIPS_OFFSET))
+	    include_links_relationships_offset = atoi (kv->value);
+        }
+
+      if (include_links_type != DP_LINK_TYPE_NONE
+	  && json_object_has_member (json_node_get_object (obj_node), RESPONSE_OBJ_LINKS) == FALSE
+	  && json_object_has_member (json_node_get_object (obj_node), RESPONSE_OBJ_RELATIONSHIPS) == FALSE)
+        {
+          GList *list;
+          GList *results;
+
+          if (! (linkb = dupin_linkbase_open (client->thread->data->dupin, record->db->name, NULL)))
+            {
+	      if (obj_node != NULL)
+	        json_node_free (obj_node);
+
+              if (link_labels)
+                g_strfreev (link_labels);
+
+              client->dupin_error_msg = g_strdup ("Cannot connect to linkbase");
+
+	      /* TODO - pass the ret code here as well ? */
+              return NULL;
+            }
+
+	  if (include_links_type == DP_LINK_TYPE_ANY
+	      || include_links_type == DP_LINK_TYPE_WEB_LINK)
+            {
+	      JsonNode * links_node = json_node_new (JSON_NODE_OBJECT);
+	      JsonObject * links_obj = json_object_new ();
+	      json_node_take_object (links_node, links_obj);
+
+              gsize total_links = dupin_linkbase_count (linkb, DP_LINK_TYPE_WEB_LINK, DP_COUNT_EXIST,
+					            (gchar *) dupin_record_get_id (record),
+					            link_labels, tag);
+
+              if (dupin_link_record_get_list (linkb, include_links_weblinks_count, include_links_weblinks_offset,
+					      0, 0, DP_LINK_TYPE_WEB_LINK, DP_COUNT_EXIST, DP_ORDERBY_ROWID,
+					      include_links_weblinks_descending,
+					      (gchar *) dupin_record_get_id (record), link_labels, tag, &results, NULL) == FALSE)
+                {
+		  // just log the error and reason into JSON
+                }
+
+              for (list = results; list; list = list->next)
+                {
+                  DupinLinkRecord *link_record = list->data;
+      		  JsonNode *on;
+
+		  gchar * label = (gchar *) dupin_link_record_get_label (link_record);
+
+		  if (json_object_has_member (links_obj, label) == FALSE)
+		    {
+	              JsonNode * links_label_node = json_node_new (JSON_NODE_ARRAY);
+	              JsonArray * links_label_array = json_array_new ();
+	              json_node_take_array (links_label_node, links_label_array);
+		      json_object_set_member (links_obj, label, links_label_node);
+                    }
+
+                  /* we do no never return deleted links */
+      		  if (!  (on = request_link_record_revision_obj (client, arguments,
+								 link_record,
+								 (gchar *) dupin_link_record_get_id (link_record),
+								 dupin_link_record_get_last_revision (link_record))))
+        	    {
+		      // just log the error and reason into JSON
+        	    }
+
+                  // remove context_id and label due they are implied
+
+                  json_array_add_element( json_node_get_array (
+						json_object_get_member (links_obj, label)), on);
+                }
+
+	      if (json_object_get_size (links_obj) > 0
+		  && json_object_has_member (links_obj, RESPONSE_OBJ_LINKS_PAGING) == FALSE)
+                {
+                  JsonNode * paging_info_node = json_node_new (JSON_NODE_OBJECT);
+                  JsonObject * paging_info = json_object_new ();
+		  json_node_take_object (paging_info_node, paging_info);
+                  json_object_set_int_member (paging_info, "total_links", total_links);
+	          json_object_set_int_member (paging_info, "offset", include_links_weblinks_offset);
+	          json_object_set_int_member (paging_info, "links_per_document", include_links_weblinks_count);
+		  json_object_set_member (links_obj, RESPONSE_OBJ_LINKS_PAGING, paging_info_node);
+                }
+
+	      if (results)
+	        dupin_link_record_get_list_close (results);
+
+	      json_object_set_member (json_node_get_object (obj_node), RESPONSE_OBJ_LINKS, links_node);
+            }
+
+	  if (include_links_type == DP_LINK_TYPE_ANY
+	      || include_links_type == DP_LINK_TYPE_RELATIONSHIP)
+            {
+	      JsonNode * relationships_node = json_node_new (JSON_NODE_OBJECT);
+	      JsonObject * relationships_obj = json_object_new ();
+	      json_node_take_object (relationships_node, relationships_obj);
+
+              gsize total_relationships = dupin_linkbase_count (linkb, DP_LINK_TYPE_RELATIONSHIP,
+						    DP_COUNT_EXIST,
+					            (gchar *) dupin_record_get_id (record),
+					            link_labels, tag);
+
+              if (dupin_link_record_get_list (linkb, include_links_relationships_count, include_links_relationships_offset,
+					      0, 0, DP_LINK_TYPE_RELATIONSHIP, DP_COUNT_EXIST, DP_ORDERBY_ROWID,
+					      include_links_relationships_descending,
+					      (gchar *) dupin_record_get_id (record), link_labels, tag, &results, NULL) == FALSE)
+                {
+		  // just log the error and reason into JSON
+                }
+
+              for (list = results; list; list = list->next)
+                {
+                  DupinLinkRecord *link_record = list->data;
+      		  JsonNode *on;
+
+		  gchar * label = (gchar *) dupin_link_record_get_label (link_record);
+
+		  if (json_object_has_member (relationships_obj, label) == FALSE)
+		    {
+	              JsonNode * relationships_label_node = json_node_new (JSON_NODE_ARRAY);
+	              JsonArray * relationships_label_array = json_array_new ();
+	              json_node_take_array (relationships_label_node, relationships_label_array);
+		      json_object_set_member (relationships_obj, label, relationships_label_node);
+                    }
+
+                  /* we do no never return deleted relationships */
+      		  if (!  (on = request_link_record_revision_obj (client, arguments,
+								 link_record,
+								 (gchar *) dupin_link_record_get_id (link_record),
+								 dupin_link_record_get_last_revision (link_record))))
+        	    {
+		      // just log the error and reason into JSON
+        	    }
+
+                  // remove context_id and label due they are implied
+
+                  json_array_add_element( json_node_get_array (
+						json_object_get_member (relationships_obj, label)), on);
+                }
+
+	      if (json_object_get_size (relationships_obj) > 0
+	          && json_object_has_member (relationships_obj, RESPONSE_OBJ_LINKS_PAGING) == FALSE)
+                {
+                  JsonNode * paging_info_node = json_node_new (JSON_NODE_OBJECT);
+                  JsonObject * paging_info = json_object_new ();
+		  json_node_take_object (paging_info_node, paging_info);
+                  json_object_set_int_member (paging_info, "total_relationships", total_relationships);
+	          json_object_set_int_member (paging_info, "offset", include_links_relationships_offset);
+	          json_object_set_int_member (paging_info, "relationships_per_document", include_links_relationships_count);
+		  json_object_set_member (relationships_obj, RESPONSE_OBJ_LINKS_PAGING, paging_info_node);
+                }
+
+	      if (results)
+	        dupin_link_record_get_list_close (results);
+
+	      json_object_set_member (json_node_get_object (obj_node), RESPONSE_OBJ_RELATIONSHIPS, relationships_node);
+            }
+
+          if (linkb != NULL)
+            dupin_linkbase_unref (linkb);
+        }
+
+      if (link_labels)
+        g_strfreev (link_labels);
+    }
+
   return obj_node;
 }
 
 static JsonNode *
-request_link_record_revision_obj (DupinLinkRecord * record, gchar * id, gchar * mvcc)
+request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
+				  DupinLinkRecord * record,
+				  gchar * id, gchar * mvcc)
 {
   JsonNode *obj_node;
   JsonObject *obj;
@@ -7624,7 +7632,9 @@ request_link_record_revision_obj (DupinLinkRecord * record, gchar * id, gchar * 
 }
 
 static JsonNode *
-request_view_record_obj (DupinViewRecord * record, gchar * id)
+request_view_record_obj (DSHttpdClient * client,
+			 GList * arguments,
+			 DupinViewRecord * record, gchar * id)
 {
   JsonNode * node = dupin_view_record_get (record);
 
@@ -7745,7 +7755,8 @@ request_get_changes_comet_database_next:
 
                   JsonNode * doc = NULL;
 
-                  if (! (doc = request_record_revision_obj (db_record, record_id, record_mvcc)))
+                  if (! (doc = request_record_revision_obj (client, client->request_arguments,
+							    db_record, record_id, record_mvcc)))
                     {
                       json_node_free (change);
                       goto request_get_changes_comet_database_error;
@@ -7944,7 +7955,8 @@ request_get_changes_comet_linkbase_next:
 
                   JsonNode * link = NULL;
 
-                  if (! (link = request_link_record_revision_obj (linkb_record, record_id, record_mvcc)))
+                  if (! (link = request_link_record_revision_obj (client, client->request_arguments,
+								  linkb_record, record_id, record_mvcc)))
                     {
                       json_node_free (change);
                       goto request_get_changes_comet_linkbase_error;

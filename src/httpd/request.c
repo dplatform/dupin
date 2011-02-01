@@ -30,6 +30,7 @@
 #define REQUEST_LINK_OBJ_TAG		"_tag"
 #define REQUEST_LINK_OBJ_LABEL		"_label"
 
+#define REQUEST_OBJ_INLINE_ATTACHMENTS_STUB	"stub"
 #define REQUEST_OBJ_INLINE_ATTACHMENTS_DATA	"data"
 #define REQUEST_OBJ_INLINE_ATTACHMENTS_TYPE	"content_type"
 
@@ -6165,29 +6166,60 @@ request_record_insert (DSHttpdClient * client, GList * arguments, JsonNode * obj
 
           JsonObject *inline_attachment_obj = json_node_get_object (inline_attachment_node);
 
-          gchar * content_type = (gchar *) json_object_get_string_member (inline_attachment_obj, REQUEST_OBJ_INLINE_ATTACHMENTS_TYPE);
-          gchar * data = (gchar *) json_object_get_string_member (inline_attachment_obj, REQUEST_OBJ_INLINE_ATTACHMENTS_DATA);
+          gboolean to_delete = FALSE;
+          if (json_object_has_member (inline_attachment_obj, REQUEST_OBJ_DELETED) == TRUE)
+	    to_delete = json_object_get_boolean_member (inline_attachment_obj, REQUEST_OBJ_DELETED);
 
-          /* decode base64 assuming data is a single (even if long) line/string */
+          gboolean stub = FALSE;
+          if (json_object_has_member (inline_attachment_obj, REQUEST_OBJ_INLINE_ATTACHMENTS_STUB) == TRUE)
+            stub = json_object_get_boolean_member (inline_attachment_obj, REQUEST_OBJ_INLINE_ATTACHMENTS_STUB);
+
+	  if (stub == TRUE)
+	    {
+              if (to_delete == TRUE)
+                {
+                  // TODO - warning we used _deleted: true while we meant to ingnore attachment ? */
+		  continue;
+                }
+	      else
+                {
+                  // do we need to update attachment metadata in any way ? */
+	          continue;
+                }
+            }
+
+          gchar * content_type = NULL;
+          guchar * buff = NULL;
           gsize buff_size;
-          guchar * buff = g_base64_decode ((const gchar *)data, &buff_size);
-
-          if (content_type == NULL
-              || data == NULL
-              || buff == NULL)
+          if (to_delete == FALSE)
             {
-              if (buff != NULL)
-                g_free (buff);
+              content_type = (gchar *) json_object_get_string_member (inline_attachment_obj, REQUEST_OBJ_INLINE_ATTACHMENTS_TYPE);
+              gchar * data = (gchar *) json_object_get_string_member (inline_attachment_obj, REQUEST_OBJ_INLINE_ATTACHMENTS_DATA);
 
-              /* TODO - should log something or fail ? */
-              continue;
+              /* decode base64 assuming data is a single (even if long) line/string */
+	      if (data != NULL)
+	        buff = g_base64_decode ((const gchar *)data, &buff_size);
+
+	      if (content_type == NULL
+                  || data == NULL
+                  || buff == NULL)
+                {
+                  if (buff != NULL)
+                    g_free (buff);
+
+                  /* TODO - should log something or fail ? */
+                  continue;
+                }
             }
 
           /* NOTE - store inline attachment as normal one - correct? */
-          if (dupin_attachment_record_delete (attachment_db, (gchar *) dupin_record_get_id (record), member_name) == FALSE
-               || dupin_attachment_record_insert (attachment_db, (gchar *) dupin_record_get_id (record), member_name,
+          if ( (to_delete == TRUE
+                && dupin_attachment_record_exists (attachment_db, (gchar *) dupin_record_get_id (record), member_name) == FALSE)
+	      || dupin_attachment_record_delete (attachment_db, (gchar *) dupin_record_get_id (record), member_name) == FALSE
+              || (to_delete == FALSE
+		  && dupin_attachment_record_insert (attachment_db, (gchar *) dupin_record_get_id (record), member_name,
                                           buff_size, content_type, NULL,
-                                          (const void *)buff) == FALSE)
+                                          (const void *)buff) == FALSE))
             {
               if (buff != NULL)
                 g_free (buff);
@@ -6207,7 +6239,7 @@ request_record_insert (DSHttpdClient * client, GList * arguments, JsonNode * obj
               *code = HTTP_STATUS_404;
               if (client->dupin_error_msg != NULL)
                 g_free (client->dupin_error_msg);
-              client->dupin_error_msg = g_strdup ("Cannot insert or update attachment");
+              client->dupin_error_msg = g_strdup ("Cannot insert, update or delete attachment");
 
               if (record_response_node != NULL)
                 json_node_free (record_response_node);

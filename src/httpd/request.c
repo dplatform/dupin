@@ -2165,11 +2165,13 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 	      if (json_object_get_size (links_obj) > 0
 		  && json_object_has_member (links_obj, RESPONSE_OBJ_LINKS_PAGING) == FALSE)
                 {
+                  JsonNode * paging_info_node = json_node_new (JSON_NODE_OBJECT);
                   JsonObject * paging_info = json_object_new ();
+		  json_node_take_object (paging_info_node, paging_info);
                   json_object_set_int_member (paging_info, "total_links", total_links);
 	          json_object_set_int_member (paging_info, "offset", include_links_weblinks_offset);
 	          json_object_set_int_member (paging_info, "links_per_document", include_links_weblinks_count);
-		  json_object_set_object_member (links_obj, RESPONSE_OBJ_LINKS_PAGING, paging_info);
+		  json_object_set_member (links_obj, RESPONSE_OBJ_LINKS_PAGING, paging_info_node);
                 }
 
 	      if (results)
@@ -2230,11 +2232,13 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 	      if (json_object_get_size (relationships_obj) > 0
 	          && json_object_has_member (relationships_obj, RESPONSE_OBJ_LINKS_PAGING) == FALSE)
                 {
+                  JsonNode * paging_info_node = json_node_new (JSON_NODE_OBJECT);
                   JsonObject * paging_info = json_object_new ();
+		  json_node_take_object (paging_info_node, paging_info);
                   json_object_set_int_member (paging_info, "total_relationships", total_relationships);
 	          json_object_set_int_member (paging_info, "offset", include_links_relationships_offset);
 	          json_object_set_int_member (paging_info, "relationships_per_document", include_links_relationships_count);
-		  json_object_set_object_member (relationships_obj, RESPONSE_OBJ_LINKS_PAGING, paging_info);
+		  json_object_set_member (relationships_obj, RESPONSE_OBJ_LINKS_PAGING, paging_info_node);
                 }
 
 	      if (results)

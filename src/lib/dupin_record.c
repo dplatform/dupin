@@ -378,7 +378,7 @@ dupin_record_get_list (DupinDB * db, guint count, guint offset,
   memset (&s, 0, sizeof (s));
   s.db = db;
 
-  str = g_string_new ("SELECT * FROM Dupin as d WHERE d.rev = (select max(rev) as rev FROM Dupin WHERE id=d.id) ");
+  str = g_string_new ("SELECT *, ROWID as rowid FROM Dupin as d WHERE d.rev = (select max(rev) as rev FROM Dupin WHERE id=d.id) ");
 
   if (count_type == DP_COUNT_EXIST)
     check_deleted = " d.deleted = 'FALSE' ";

@@ -162,15 +162,6 @@ dupin_record_create_with_id_real (DupinDB * db, JsonNode * obj_node,
   if (lock == TRUE)
     g_mutex_lock (db->mutex);
 
-/*
-  if (dupin_record_exists_real (db, id, FALSE) == TRUE)
-    {
-      g_mutex_unlock (db->mutex);
-      g_return_val_if_fail (dupin_record_exists (db, id) == FALSE, NULL);
-      return NULL;
-    }
-*/
-
   record = dupin_record_new (db, id);
 
   gsize created = dupin_util_timestamp_now ();
@@ -347,21 +338,32 @@ dupin_record_get_list (DupinDB * db, guint count, guint offset,
   memset (&s, 0, sizeof (s));
   s.db = db;
 
-  str = g_string_new ("SELECT id FROM Dupin as d");
+  str = g_string_new ("SELECT id as record_id FROM Dupin as d WHERE d.rev = (select max(rev) as rev FROM Dupin WHERE id=record_id) ");
 
   if (count_type == DP_COUNT_EXIST)
     check_deleted = " d.deleted = 'FALSE' ";
   else if (count_type == DP_COUNT_DELETE)
     check_deleted = " d.deleted = 'TRUE' ";
 
+  gchar * op = "AND";
+
   if (rowid_start > 0 && rowid_end > 0)
-    g_string_append_printf (str, " WHERE %s %s d.ROWID >= %d AND d.ROWID <= %d ", check_deleted, (g_strcmp0 (check_deleted, "")) ? "AND" : "", (gint)rowid_start, (gint)rowid_end);
+    {
+      g_string_append_printf (str, " %s d.ROWID >= %d AND d.ROWID <= %d ", op, (gint)rowid_start, (gint)rowid_end);
+    }
   else if (rowid_start > 0)
-    g_string_append_printf (str, " WHERE %s %s d.ROWID >= %d ", check_deleted, (g_strcmp0 (check_deleted, "")) ? "AND" : "", (gint)rowid_start);
+    {
+      g_string_append_printf (str, " %s d.ROWID >= %d ", op, (gint)rowid_start);
+    }
   else if (rowid_end > 0)
-    g_string_append_printf (str, " WHERE %s %s d.ROWID <= %d ", check_deleted, (g_strcmp0 (check_deleted, "")) ? "AND" : "", (gint)rowid_end);
-  else if (g_strcmp0 (check_deleted, ""))
-    g_string_append_printf (str, " WHERE %s ", check_deleted);
+    {
+      g_string_append_printf (str, " %s d.ROWID <= %d ", op, (gint)rowid_end);
+    }
+
+  if (g_strcmp0 (check_deleted, ""))
+    {
+      g_string_append_printf (str, " %s %s ", op, check_deleted);
+    }
 
   if (orderby_type == DP_ORDERBY_ROWID)
     str = g_string_append (str, " GROUP BY id ORDER BY d.ROWID");

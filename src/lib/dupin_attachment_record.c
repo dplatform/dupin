@@ -25,7 +25,7 @@
         "DELETE FROM Dupin WHERE id = '%q' AND title = '%q' "
 
 #define DUPIN_ATTACHMENT_DB_SQL_HASHES \
-	"select group_concat(hash,'') AS h from Dupin where id = '%q' "
+	"SELECT group_concat(hash,'') AS h from Dupin where id = '%q' "
 
 static DupinAttachmentRecord *dupin_attachment_record_read_real
 							(DupinAttachmentDB * attachment_db,

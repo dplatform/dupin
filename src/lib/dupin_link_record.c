@@ -569,7 +569,7 @@ dupin_link_record_get_list (DupinLinkB * linkb, guint count, guint offset,
                             DupinOrderByType       orderby_type,
                             gboolean               descending,
                             gchar *                context_id,
-                            gchar *                label,
+                            gchar **               labels,
                             gchar *                tag,
 		            GList ** list, GError ** error)
 {
@@ -578,6 +578,7 @@ dupin_link_record_get_list (DupinLinkB * linkb, guint count, guint offset,
   gchar *errmsg;
   gchar *check_deleted="";
   gchar *check_linktype="";
+  gint i=0;
 
   struct dupin_link_record_get_list_t s;
 
@@ -587,13 +588,18 @@ dupin_link_record_get_list (DupinLinkB * linkb, guint count, guint offset,
   if (context_id != NULL)
     g_return_val_if_fail (dupin_link_record_util_is_valid_context_id (context_id) == TRUE, FALSE);
 
-  if (label != NULL)
-    g_return_val_if_fail (dupin_link_record_util_is_valid_label (label) == TRUE, FALSE);
+  if (labels != NULL)
+    {
+      for (i = 0; labels[i]; i++)
+        {
+          g_return_val_if_fail (dupin_link_record_util_is_valid_label (labels[i]) == TRUE, FALSE);
+        }
+    }
 
   memset (&s, 0, sizeof (s));
   s.linkb = linkb;
 
-  str = g_string_new ("SELECT id FROM Dupin as d");
+  str = g_string_new ("SELECT id as record_id FROM Dupin as d WHERE d.rev = (select max(rev) as rev FROM Dupin WHERE id=record_id) ");
 
   if (count_type == DP_COUNT_EXIST)
     check_deleted = " d.deleted = 'FALSE' ";
@@ -605,69 +611,62 @@ dupin_link_record_get_list (DupinLinkB * linkb, guint count, guint offset,
   else if (links_type == DP_LINK_TYPE_RELATIONSHIP)
     check_linktype = " d.is_weblink = 'FALSE' ";
 
-  gchar * op = "";
+  gchar * op = "AND";
 
   if (rowid_start > 0 && rowid_end > 0)
     {
-      g_string_append_printf (str, " WHERE d.ROWID >= %d AND d.ROWID <= %d ", (gint)rowid_start, (gint)rowid_end);
-      op = "AND";
+      g_string_append_printf (str, " %s d.ROWID >= %d AND d.ROWID <= %d ", op, (gint)rowid_start, (gint)rowid_end);
     }
   else if (rowid_start > 0)
     {
-      g_string_append_printf (str, " WHERE d.ROWID >= %d ", (gint)rowid_start);
-      op = "AND";
+      g_string_append_printf (str, " %s d.ROWID >= %d ", op, (gint)rowid_start);
     }
   else if (rowid_end > 0)
     {
-      g_string_append_printf (str, " WHERE d.ROWID <= %d ", (gint)rowid_end);
-      op = "AND";
+      g_string_append_printf (str, " %s d.ROWID <= %d ", op, (gint)rowid_end);
     }
 
   if (g_strcmp0 (check_deleted, ""))
     {
-      if (!g_strcmp0 (op, ""))
-        op = "WHERE";
-
       g_string_append_printf (str, " %s %s ", op, check_deleted);
-      op = "AND";
     }
 
   if (g_strcmp0 (check_linktype, ""))
     {
-      if (!g_strcmp0 (op, ""))
-        op = "WHERE";
-
       g_string_append_printf (str, " %s %s ", op, check_linktype);
-      op = "AND";
     }
 
   if (context_id != NULL)
     {
-      if (!g_strcmp0 (op, ""))
-        op = "WHERE";
-
       gchar * tmp2 = sqlite3_mprintf (" %s d.context_id = '%q' ", op, context_id);
       str = g_string_append (str, tmp2);
       sqlite3_free (tmp2);
-      op = "AND";
     }
 
-  if (label != NULL)
+  if (labels != NULL)
     {
-      if (!g_strcmp0 (op, ""))
-        op = "WHERE";
+      if (labels[0])
+        {
+          gchar * tmp2 = sqlite3_mprintf (" %s ( ", op);
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+	}
 
-      gchar * tmp2 = sqlite3_mprintf (" %s d.label = '%q' ", op, label);
-      str = g_string_append (str, tmp2);
-      sqlite3_free (tmp2);
-      op = "AND";
+      for (i = 0; labels[i]; i++)
+        {
+          gchar * tmp2 = sqlite3_mprintf (" d.label = '%q' ", labels[i]);
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+          if (labels[i+1])
+            str = g_string_append (str, " OR ");
+        }
+
+      if (labels[0])
+        str = g_string_append (str, " ) ");
     }
 
   if (tag != NULL)
     {
-      if (!g_strcmp0 (op, ""))
-        op = "WHERE";
-
       gchar * tmp2 = sqlite3_mprintf (" %s d.tag = '%q' ", op, tag);
       str = g_string_append (str, tmp2);
       sqlite3_free (tmp2);
@@ -1750,9 +1749,9 @@ dupin_link_record_util_generate_paths_node (DupinLinkB * linkb,
 
   gchar *query;
   if (tag != NULL)
-    query = sqlite3_mprintf ("SELECT idspath, labelspath, max(rev) as rev FROM Dupin WHERE href = '%q' AND tag = %Q GROUP BY context_id", source_id, tag);
+    query = sqlite3_mprintf ("SELECT idspath, labelspath, id as link_record_id FROM Dupin WHERE rev = (select max(rev) as rev FROM Dupin WHERE id=link_record_id) AND href = '%q' AND tag = %Q GROUP BY context_id", source_id, tag);
   else
-    query = sqlite3_mprintf ("SELECT idspath, labelspath, max(rev) as rev FROM Dupin WHERE href = '%q' GROUP BY context_id", source_id);
+    query = sqlite3_mprintf ("SELECT idspath, labelspath, id as link_record_id FROM Dupin WHERE rev = (select max(rev) as rev FROM Dupin WHERE id=link_record_id) AND href = '%q' GROUP BY context_id", source_id);
 
 //g_message("dupin_link_record_util_generate_paths_node: source_id=%s target_id=%s label=%s tag=%s\n", source_id, target_id, label, tag);
 //g_message("dupin_link_record_util_generate_paths_node: query=%s\n", query);

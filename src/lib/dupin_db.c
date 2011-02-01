@@ -29,7 +29,7 @@
   ");"
 
 #define DUPIN_DB_SQL_TOTAL \
-        "SELECT count(*) AS c FROM Dupin AS d"
+        "SELECT count(*) AS c, max(rev) as rev FROM Dupin AS d"
 
 #define DUPIN_DB_COMPACT_COUNT 100
 
@@ -629,7 +629,7 @@ dupin_database_get_changes_list (DupinDB *              db,
   memset (&s, 0, sizeof (s));
   s.style = changes_type;
 
-  str = g_string_new ("SELECT id, rev, hash, obj, deleted, tm, ROWID AS rowid FROM Dupin as d");
+  str = g_string_new ("SELECT id, rev, hash, obj, deleted, tm, ROWID AS rowid FROM Dupin as d WHERE d.rev = (select max(rev) as rev FROM Dupin WHERE id=d.id) ");
 
   if (count_type == DP_COUNT_EXIST)
     check_deleted = " d.deleted = 'FALSE' ";
@@ -637,13 +637,15 @@ dupin_database_get_changes_list (DupinDB *              db,
     check_deleted = " d.deleted = 'TRUE' ";
 
   if (since > 0 && to > 0)
-    g_string_append_printf (str, " WHERE %s %s d.ROWID >= %d AND d.ROWID <= %d ", check_deleted, (g_strcmp0 (check_deleted, "")) ? "AND" : "", (gint)since, (gint)to);
+    g_string_append_printf (str, " AND %s %s d.ROWID >= %d AND d.ROWID <= %d ", check_deleted, (g_strcmp0 (check_deleted, "")) ? "AND" : "", (gint)since, (gint)to);
   else if (since > 0)
-    g_string_append_printf (str, " WHERE %s %s d.ROWID >= %d ", check_deleted, (g_strcmp0 (check_deleted, "")) ? "AND" : "", (gint)since);
+    g_string_append_printf (str, " AND %s %s d.ROWID >= %d ", check_deleted, (g_strcmp0 (check_deleted, "")) ? "AND" : "", (gint)since);
   else if (to > 0)
-    g_string_append_printf (str, " WHERE %s %s d.ROWID <= %d ", check_deleted, (g_strcmp0 (check_deleted, "")) ? "AND" : "", (gint)to);
+    g_string_append_printf (str, " AND %s %s d.ROWID <= %d ", check_deleted, (g_strcmp0 (check_deleted, "")) ? "AND" : "", (gint)to);
   else if (g_strcmp0 (check_deleted, ""))
-    g_string_append_printf (str, " WHERE %s ", check_deleted);
+    g_string_append_printf (str, " AND %s ", check_deleted);
+
+  str = g_string_append (str, " GROUP BY d.id ");
 
   str = g_string_append (str, " ORDER BY d.ROWID");
 
@@ -709,7 +711,7 @@ dupin_database_get_total_changes_cb
   gsize *numb = data;
 
   if (argv[0])
-    *numb = atoi (argv[0]);
+    *numb += 1;
 
   return 0;
 }
@@ -750,11 +752,15 @@ dupin_database_get_total_changes
   else if (g_strcmp0 (check_deleted, ""))
     g_string_append_printf (str, " WHERE %s ", check_deleted);
 
+  str = g_string_append (str, " GROUP BY d.id ");
+
   tmp = g_string_free (str, FALSE);
 
 //g_message("dupin_database_get_total_changes() query=%s\n",tmp);
 
   g_mutex_lock (db->mutex);
+
+  *total = 0;
 
   if (sqlite3_exec (db->db, tmp, dupin_database_get_total_changes_cb, total, &errmsg) !=
       SQLITE_OK)

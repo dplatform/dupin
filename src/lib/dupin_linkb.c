@@ -45,7 +45,7 @@
   ");"
 
 #define DUPIN_LINKB_SQL_TOTAL \
-        "SELECT count(*) AS c FROM Dupin AS d"
+        "SELECT count(*) AS c, max(rev) as rev FROM Dupin AS d"
 
 #define DUPIN_LINKB_COMPACT_COUNT 100
 
@@ -631,21 +631,27 @@ dupin_linkbase_count (DupinLinkB * linkb,
 		      DupinLinksType links_type,
 	              DupinCountType count_type,
                       gchar * context_id,
-                      gchar * label,
+                      gchar ** labels,
                       gchar * tag)
 {
   struct dupin_linkbase_dp_count_t count;
   GString * str;
   gchar *query;
   gchar *check_linktype="";
+  gint i=0;
 
   g_return_val_if_fail (linkb != NULL, 0);
 
   if (context_id != NULL)
     g_return_val_if_fail (dupin_link_record_util_is_valid_context_id (context_id) == TRUE, FALSE);
 
-  if (label != NULL)
-    g_return_val_if_fail (dupin_link_record_util_is_valid_label (label) == TRUE, FALSE);
+  if (labels != NULL)
+    {
+      for (i = 0; labels[i]; i++)
+        {
+          g_return_val_if_fail (dupin_link_record_util_is_valid_label (labels[i]) == TRUE, FALSE);
+        }
+    }
 
   count.ret = 0;
   count.count_type = count_type;
@@ -679,14 +685,30 @@ dupin_linkbase_count (DupinLinkB * linkb,
       op = "AND";
     }
 
-  if (label != NULL)
+  if (labels != NULL)
     {
       if (!g_strcmp0 (op, ""))
         op = "WHERE";
 
-      gchar * tmp2 = sqlite3_mprintf (" %s label = '%q' ", op, label);
-      str = g_string_append (str, tmp2);
-      sqlite3_free (tmp2);
+      if (labels[0])
+        {
+          gchar * tmp2 = sqlite3_mprintf (" %s ( ", op);
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+        }
+
+      for (i = 0; labels[i]; i++)
+        {
+          gchar * tmp2 = sqlite3_mprintf (" d.label = '%q' ", labels[i]);
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+          if (labels[i+1])
+            str = g_string_append (str, " OR ");
+        }
+
+      if (labels[0])
+        str = g_string_append (str, " ) ");
+
       op = "AND";
     }
 
@@ -912,7 +934,7 @@ dupin_linkbase_get_changes_list (DupinLinkB *              linkb,
   memset (&s, 0, sizeof (s));
   s.style = changes_type;
 
-  str = g_string_new ("SELECT id, rev, hash, obj, deleted, tm, ROWID AS rowid, context_id, href, rel, is_weblink, tag, label FROM Dupin as d");
+  str = g_string_new ("SELECT id, max(rev) as rev, hash, obj, deleted, tm, ROWID AS rowid, context_id, href, rel, is_weblink, tag, label FROM Dupin as d WHERE d.rev = (select max(rev) as rev FROM Dupin WHERE id=d.id) ");
 
   if (count_type == DP_COUNT_EXIST)
     check_deleted = " d.deleted = 'FALSE' ";
@@ -924,62 +946,46 @@ dupin_linkbase_get_changes_list (DupinLinkB *              linkb,
   else if (changes_type == DP_CHANGES_RELATIONSHIPS)
     check_linktype = " d.is_weblink = 'FALSE' ";
 
-  gchar * op = "";
+  gchar * op = "AND";
 
   if (since > 0 && to > 0)
     {
-      g_string_append_printf (str, " WHERE d.ROWID >= %d AND d.ROWID <= %d ", (gint)since, (gint)to);
-      op = "AND";
+      g_string_append_printf (str, " %s d.ROWID >= %d AND d.ROWID <= %d ", op, (gint)since, (gint)to);
     }
   else if (since > 0)
     {
-      g_string_append_printf (str, " WHERE d.ROWID >= %d ", (gint)since);
-      op = "AND";
+      g_string_append_printf (str, " %s d.ROWID >= %d ", op, (gint)since);
     }
   else if (to > 0)
     {
-      g_string_append_printf (str, " WHERE d.ROWID <= %d ", (gint)to);
-      op = "AND";
+      g_string_append_printf (str, " %s d.ROWID <= %d ", op, (gint)to);
     }
 
   if (g_strcmp0 (check_deleted, ""))
     {
-      if (!g_strcmp0 (op, ""))
-        op = "WHERE";
-
       g_string_append_printf (str, " %s %s ", op, check_deleted);
-      op = "AND";
     }
 
   if (g_strcmp0 (check_linktype, ""))
     {
-      if (!g_strcmp0 (op, ""))
-        op = "WHERE";
-
       g_string_append_printf (str, " %s %s ", op, check_linktype);
-      op = "AND";
     }
 
   if (context_id != NULL)
     {
-      if (!g_strcmp0 (op, ""))
-        op = "WHERE";
-
       gchar * tmp2 = sqlite3_mprintf (" %s d.context_id = '%q' ", op, context_id);
       str = g_string_append (str, tmp2);
       sqlite3_free (tmp2);
-      op = "AND";
     }
 
   if (tag != NULL)
     {
-      if (!g_strcmp0 (op, ""))
-        op = "WHERE";
-
       gchar * tmp2 = sqlite3_mprintf (" %s d.tag = '%q' ", op, tag);
       str = g_string_append (str, tmp2);
       sqlite3_free (tmp2);
     }
+
+  str = g_string_append (str, " GROUP BY d.id "); 
 
   str = g_string_append (str, " ORDER BY d.ROWID");
 
@@ -1045,7 +1051,7 @@ dupin_linkbase_get_total_changes_cb
   gsize *numb = data;
 
   if (argv[0])
-    *numb = atoi (argv[0]);
+    *numb += 1;
 
   return 0;
 }
@@ -1146,11 +1152,15 @@ dupin_linkbase_get_total_changes
       sqlite3_free (tmp2);
     }
 
+  str = g_string_append (str, " GROUP BY d.id "); 
+
   tmp = g_string_free (str, FALSE);
 
 //g_message("dupin_linkbase_get_total_changes() query=%s\n",tmp);
 
   g_mutex_lock (linkb->mutex);
+
+  *total = 0;
 
   if (sqlite3_exec (linkb->db, tmp, dupin_linkbase_get_total_changes_cb, total, &errmsg) !=
       SQLITE_OK)

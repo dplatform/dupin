@@ -27,6 +27,7 @@ typedef enum
 /* Get Links type: */
 typedef enum
 {
+  DP_LINK_TYPE_NONE,
   DP_LINK_TYPE_ANY,
   DP_LINK_TYPE_WEB_LINK,
   DP_LINK_TYPE_RELATIONSHIP

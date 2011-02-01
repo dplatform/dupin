@@ -109,7 +109,7 @@ gboolean	dupin_link_record_get_list
 					 DupinOrderByType	orderby_type,
 					 gboolean		descending,
 					 gchar *                context_id,
-					 gchar *                label,
+					 gchar **               labels,
                                          gchar *                tag,
 					 GList **		list,
 					 GError **		error);

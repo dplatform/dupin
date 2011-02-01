@@ -141,7 +141,8 @@ struct ds_httpd_client_t
       gboolean 		   change_generated;
       guint		   change_errors;
       gsize		   change_last_seq;
-      gsize		   change_total_changes;
+      gsize		   change_max_rowid;
+      gsize		   change_results_offset;
 
       guint		   param_heartbeat;
       guint		   param_timeout;

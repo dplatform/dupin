@@ -1550,7 +1550,29 @@ httpd_client_write_body_timeout (DSHttpdClient * client)
   g_source_destroy (client->channel_source);
   g_source_unref (client->channel_source);
 
-  client->channel_source = g_io_create_watch (client->channel, G_IO_OUT);
+  /*
+	we get a nusty error sometimes when accessing feed=continuous as follow: 
+
+Program received signal EXC_BAD_ACCESS, Could not access memory.
+Reason: KERN_INVALID_ADDRESS at address: 0x0000000000000000
+0x0000000000000000 in ?? ()
+(gdb) 
+(gdb) 
+(gdb) 
+(gdb) bt
+#0  0x0000000000000000 in ?? ()
+#1  0x000000010000567a in httpd_client_write_body_timeout (client=0x101865600) at httpd.c:1553
+#2  0x00000001014771fd in g_timeout_dispatch ()
+#3  0x000000010147a5e9 in g_main_context_dispatch ()
+#4  0x000000010147ac36 in g_main_context_iterate ()
+#5  0x000000010147b015 in g_main_loop_run ()
+#6  0x00000001000072ec in main (argc=1, argv=0x7fff5fbff680) at main.c:127
+
+	we are trying to set G_IO_ERR | G_IO_HUP | G_IO_OUT condition on watch
+
+   */
+  //client->channel_source = g_io_create_watch (client->channel, G_IO_OUT);
+  client->channel_source = g_io_create_watch (client->channel, G_IO_ERR | G_IO_HUP | G_IO_OUT );
   g_source_set_callback (client->channel_source,
 			 (GSourceFunc) httpd_client_write_body, client, NULL);
   g_source_attach (client->channel_source, g_main_context_default ());

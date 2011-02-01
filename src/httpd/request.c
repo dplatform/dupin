@@ -7783,9 +7783,6 @@ request_get_changes_comet_database_next:
       if (results)
         dupin_database_get_changes_list_close (results);
 
-      if (client->output.changes_comet.change_string != NULL)
-        g_free (client->output.changes_comet.change_string);
-
       client->output.changes_comet.change_string = g_string_free (str, FALSE);
       client->output.changes_comet.change_size = strlen (client->output.changes_comet.change_string);
 
@@ -7837,6 +7834,15 @@ request_get_changes_comet_database_next:
   *bytes_read = count;
 
 //g_message("request_get_changes_comet_database: bytes_read=%d (=count)\n", (gint)*bytes_read);
+
+  if (left == count)
+    {
+//g_message("request_get_changes_comet_database: freeing string generated buffer of bytes=%d\n", (gint)client->output.changes_comet.change_size);
+
+      if (client->output.changes_comet.change_string != NULL)
+        g_free (client->output.changes_comet.change_string);
+      client->output.changes_comet.change_string = NULL;
+    }
 
   return ret;
 
@@ -7976,11 +7982,6 @@ request_get_changes_comet_linkbase_next:
       if (results)
         dupin_linkbase_get_changes_list_close (results);
 
-      if (client->output.changes_comet.change_string != NULL)
-        g_free (client->output.changes_comet.change_string);
-
-      client->output.changes_comet.change_string = NULL;
-
       client->output.changes_comet.change_string = g_string_free (str, FALSE);
       client->output.changes_comet.change_size = strlen (client->output.changes_comet.change_string);
 
@@ -8023,7 +8024,7 @@ request_get_changes_comet_linkbase_next:
 
   /* copy count bytes to buf from change_string starting from offset */
 
-//g_message("request_get_changes_comet_linkbase: memcpy %d bytes from change_string of len %d to buf starting at %d\n",(gint)count, (gint)client->output.changes_comet.change_size, (gint)offset);
+//g_message("request_get_changes_comet_linkbase: memcpy %d bytes from change_string %s of len %d to buf starting at %d --> %s \n",(gint)count, client->output.changes_comet.change_string, (gint)client->output.changes_comet.change_size, (gint)offset, client->output.changes_comet.change_string+offset);
 
 /* TODO - we get garbage copied over !! probably when string is bigger than buffer and need to chunk it up I.e. cursoring */
 
@@ -8032,6 +8033,15 @@ request_get_changes_comet_linkbase_next:
   *bytes_read = count;
 
 //g_message("request_get_changes_comet_linkbase: bytes_read=%d (=count)\n", (gint)*bytes_read);
+
+  if (left == count)
+    {
+//g_message("request_get_changes_comet_linkbase: freeing string generated buffer of bytes=%d\n", (gint)client->output.changes_comet.change_size);
+
+      if (client->output.changes_comet.change_string != NULL)
+        g_free (client->output.changes_comet.change_string);
+      client->output.changes_comet.change_string = NULL;
+    }
 
   return ret;
 

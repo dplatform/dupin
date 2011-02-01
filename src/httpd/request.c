@@ -1645,7 +1645,7 @@ request_global_get_record (DSHttpdClient * client, GList * path,
   gchar * doc_id=NULL;
   GList * title_parts=NULL;
 
-  gchar * dbname = path->data;
+  gchar * dbname = (gchar *) path->data;
 
   /* check if special document name/id */
   gunichar ch = g_utf8_get_char (path->next->data);
@@ -1718,33 +1718,35 @@ request_global_get_record (DSHttpdClient * client, GList * path,
           else if ((!g_strcmp0 (path->next->next->data, REQUEST_OBJ_LINKS))
                   || (!g_strcmp0 (path->next->next->data, REQUEST_OBJ_RELATIONSHIPS)))
             {
-	      /* never override users parameters */
-              arguments = g_list_append (arguments,
+	      if (client->request_arguments == NULL)
+	        client->request_arguments = NULL;
+
+              client->request_arguments = g_list_prepend (client->request_arguments,
 				dp_keyvalue_new (REQUEST_GET_ALL_LINKS_LINKBASE,
 						 dbname));
-              arguments = g_list_append (arguments,
+              client->request_arguments = g_list_prepend (client->request_arguments,
 				dp_keyvalue_new (REQUEST_GET_ALL_LINKS_CONTEXT_ID,
 						 (gchar *)path->next->data));
 
               if (path->next->next->next)
-                  arguments = g_list_append (arguments,
+                  client->request_arguments = g_list_prepend (client->request_arguments,
 				dp_keyvalue_new (REQUEST_GET_ALL_LINKS_LABELS,
-						 path->next->next->next->data));
+						 (gchar *)path->next->next->next->data));
 
               if (!g_strcmp0 (path->next->next->data, REQUEST_OBJ_LINKS))
                 {
-                  arguments = g_list_append (arguments,
+                  client->request_arguments = g_list_prepend (client->request_arguments,
 				dp_keyvalue_new (REQUEST_GET_ALL_LINKS_LINK_TYPE,
 						 REQUEST_GET_ALL_LINKS_LINK_TYPE_WEBLINKS));
                 }
               else
                 {
-                  arguments = g_list_append (arguments,
+                  client->request_arguments = g_list_prepend (client->request_arguments,
 				dp_keyvalue_new (REQUEST_GET_ALL_LINKS_LINK_TYPE,
 						 REQUEST_GET_ALL_LINKS_LINK_TYPE_RELATIONSHIPS));
                 }
 
-	      return request_global_get_all_links_linkbase (client, path, arguments);
+	      return request_global_get_all_links_linkbase (client, path, client->request_arguments);
 	    }
           else
             {
@@ -2335,6 +2337,20 @@ request_global_get_all_links_linkbase (DSHttpdClient * client, GList * path,
   json_object_set_int_member (obj, "total_rows", total_rows);
   json_object_set_int_member (obj, "offset", offset);
   json_object_set_int_member (obj, "rows_per_page", count);
+
+  /* add base */
+  if (link_type == DP_LINK_TYPE_ANY
+      || link_type == DP_LINK_TYPE_RELATIONSHIP)
+    {
+      /* NOTE - we assume that the linkbase is named after the documents database */
+      gchar * escaped_base = g_uri_escape_string (linkbase_name, NULL, TRUE);
+      GString * str = g_string_new (NULL);
+      g_string_append_printf (str, "/%s/", escaped_base);
+      g_free (escaped_base);
+      gchar * tmp = g_string_free (str, FALSE);
+      json_object_set_string_member (obj, "base", tmp);
+      g_free (tmp);
+    }
 
   array = json_array_new ();
 
@@ -7587,6 +7603,16 @@ request_record_revision_obj (DSHttpdClient * client,
                   json_object_set_int_member (paging_info, "total_relationships", total_relationships);
 	          json_object_set_int_member (paging_info, "offset", include_links_relationships_offset);
 	          json_object_set_int_member (paging_info, "relationships_per_document", include_links_relationships_count);
+
+		  /* add base */
+		  gchar * escaped_base = g_uri_escape_string (record->db->name, NULL, TRUE);
+                  GString * str = g_string_new (NULL);
+                  g_string_append_printf (str, "/%s/", escaped_base);
+		  g_free (escaped_base);
+		  gchar * tmp = g_string_free (str, FALSE);
+	          json_object_set_string_member (paging_info, "base", tmp);
+		  g_free (tmp);
+
 		  json_object_set_member (relationships_obj, RESPONSE_OBJ_LINKS_PAGING, paging_info_node);
                 }
 

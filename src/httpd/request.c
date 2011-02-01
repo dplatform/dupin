@@ -5816,36 +5816,6 @@ request_global_delete_record (DSHttpdClient * client, GList * path,
 
       if (title != NULL)
         g_free (title);
-
-      JsonNode * record_response_node = json_node_new (JSON_NODE_OBJECT);
-      JsonObject * record_response_obj = json_object_new ();
-      json_node_take_object (record_response_node, record_response_obj);
-
-      json_object_set_string_member (record_response_obj, RESPONSE_OBJ_ID, (gchar *) dupin_record_get_id (record));
-      json_object_set_string_member (record_response_obj, RESPONSE_OBJ_REV, dupin_record_get_last_revision (record));
-
-      GList * response_list = NULL;
-      response_list = g_list_prepend (response_list, record_response_node);
-
-      if (request_record_response (client, response_list) == FALSE)
-        {
-          while (response_list)
-            {
-              json_node_free (response_list->data);
-              response_list = g_list_remove (response_list, response_list->data);
-            }
-          dupin_record_close (record);
-          dupin_database_unref (db);
-          g_free (doc_id);
-          client->dupin_error_msg = g_strdup ("Cannot generate JSON output response");
-          return HTTP_STATUS_500;
-        }
-
-      while (response_list)
-        {
-          json_node_free (response_list->data);
-          response_list = g_list_remove (response_list, response_list->data);
-        }
     }
   else
     {
@@ -5859,6 +5829,36 @@ request_global_delete_record (DSHttpdClient * client, GList * path,
         }
 
       /* NOTE - we do *NOT* delete all attachments to document - which can be individually deleted with above fetch revs=true of deleted records */
+    }
+
+  JsonNode * record_response_node = json_node_new (JSON_NODE_OBJECT);
+  JsonObject * record_response_obj = json_object_new ();
+  json_node_take_object (record_response_node, record_response_obj);
+
+  json_object_set_string_member (record_response_obj, RESPONSE_OBJ_ID, (gchar *) dupin_record_get_id (record));
+  json_object_set_string_member (record_response_obj, RESPONSE_OBJ_REV, dupin_record_get_last_revision (record));
+
+  GList * response_list = NULL;
+  response_list = g_list_prepend (response_list, record_response_node);
+
+  if (request_record_response (client, response_list) == FALSE)
+    {
+      while (response_list)
+        {
+          json_node_free (response_list->data);
+          response_list = g_list_remove (response_list, response_list->data);
+        }
+      dupin_record_close (record);
+      dupin_database_unref (db);
+      g_free (doc_id);
+      client->dupin_error_msg = g_strdup ("Cannot generate JSON output response");
+      return HTTP_STATUS_500;
+    }
+
+  while (response_list)
+    {
+      json_node_free (response_list->data);
+      response_list = g_list_remove (response_list, response_list->data);
     }
 
   dupin_record_close (record);
@@ -6023,36 +6023,6 @@ request_global_delete_link_record (DSHttpdClient * client, GList * path,
 
       if (obj_node != NULL)
         json_node_free (obj_node);
-
-      JsonNode * record_response_node = json_node_new (JSON_NODE_OBJECT);
-      JsonObject * record_response_obj = json_object_new ();
-      json_node_take_object (record_response_node, record_response_obj);
-
-      json_object_set_string_member (record_response_obj, RESPONSE_OBJ_ID, (gchar *) dupin_link_record_get_id (record));
-      json_object_set_string_member (record_response_obj, RESPONSE_OBJ_REV, dupin_link_record_get_last_revision (record));
-
-      GList * response_list = NULL;
-      response_list = g_list_prepend (response_list, record_response_node);
-
-      if (request_record_response (client, response_list) == FALSE)
-        {
-          while (response_list)
-            {
-              json_node_free (response_list->data);
-              response_list = g_list_remove (response_list, response_list->data);
-            }
-          dupin_link_record_close (record);
-          dupin_linkbase_unref (linkb);
-          g_free (link_id);
-          client->dupin_error_msg = g_strdup ("Cannot generate JSON output response");
-          return HTTP_STATUS_500;
-        }
-
-      while (response_list)
-        {
-          json_node_free (response_list->data);
-          response_list = g_list_remove (response_list, response_list->data);
-        }
     }
   else
     {
@@ -6064,6 +6034,36 @@ request_global_delete_link_record (DSHttpdClient * client, GList * path,
 	  client->dupin_error_msg = g_strdup ("Cannot delete link record");
           return HTTP_STATUS_400;
         }
+    }
+
+  JsonNode * record_response_node = json_node_new (JSON_NODE_OBJECT);
+  JsonObject * record_response_obj = json_object_new ();
+  json_node_take_object (record_response_node, record_response_obj);
+
+  json_object_set_string_member (record_response_obj, RESPONSE_OBJ_ID, (gchar *) dupin_link_record_get_id (record));
+  json_object_set_string_member (record_response_obj, RESPONSE_OBJ_REV, dupin_link_record_get_last_revision (record));
+
+  GList * response_list = NULL;
+  response_list = g_list_prepend (response_list, record_response_node);
+
+  if (request_record_response (client, response_list) == FALSE)
+    {
+      while (response_list)
+        {
+          json_node_free (response_list->data);
+          response_list = g_list_remove (response_list, response_list->data);
+        }
+      dupin_link_record_close (record);
+      dupin_linkbase_unref (linkb);
+      g_free (link_id);
+      client->dupin_error_msg = g_strdup ("Cannot generate JSON output response");
+      return HTTP_STATUS_500;
+    }
+
+  while (response_list)
+    {
+      json_node_free (response_list->data);
+      response_list = g_list_remove (response_list, response_list->data);
     }
 
   dupin_link_record_close (record);

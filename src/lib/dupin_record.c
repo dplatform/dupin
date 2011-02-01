@@ -312,8 +312,48 @@ dupin_record_get_list_cb (void *data, int argc, char **argv, char **col)
   struct dupin_record_get_list_t *s = data;
   DupinRecord *record;
 
-  if ((record = dupin_record_read_real (s->db, argv[0], NULL, FALSE)))
-    s->list = g_list_append (s->list, record);
+  gchar *id = NULL;
+  guint rev = 0;
+  gsize tm = 0;
+  gchar *hash = NULL;
+  gchar *obj = NULL;
+  gboolean delete = FALSE;
+  gsize rowid=0;
+  gint i;
+
+  for (i = 0; i < argc; i++)
+    {
+      /* shouldn't this be double and use atof() ?!? */
+      if (!g_strcmp0 (col[i], "rev"))
+        rev = atoi (argv[i]);
+
+      else if (!g_strcmp0 (col[i], "tm"))
+        tm = (gsize)atof (argv[i]);
+
+      else if (!g_strcmp0 (col[i], "hash"))
+        hash = argv[i];
+
+      else if (!g_strcmp0 (col[i], "obj"))
+        obj = argv[i];
+
+      else if (!g_strcmp0 (col[i], "deleted"))
+        delete = !g_strcmp0 (argv[i], "TRUE") ? TRUE : FALSE;
+
+      else if (!g_strcmp0 (col[i], "rowid"))
+        rowid = (gsize)atof(argv[i]);
+
+      else if (!g_strcmp0 (col[i], "id"))
+        id = argv[i];
+    }
+
+  if (rev && hash !=NULL)
+    {
+      record = dupin_record_new (s->db, id);
+
+      dupin_record_add_revision_str (record, rev, hash, -1, obj, -1, delete, tm, rowid);
+
+      s->list = g_list_append (s->list, record);
+    }
 
   return 0;
 }
@@ -338,7 +378,7 @@ dupin_record_get_list (DupinDB * db, guint count, guint offset,
   memset (&s, 0, sizeof (s));
   s.db = db;
 
-  str = g_string_new ("SELECT id as record_id FROM Dupin as d WHERE d.rev = (select max(rev) as rev FROM Dupin WHERE id=record_id) ");
+  str = g_string_new ("SELECT * FROM Dupin as d WHERE d.rev = (select max(rev) as rev FROM Dupin WHERE id=d.id) ");
 
   if (count_type == DP_COUNT_EXIST)
     check_deleted = " d.deleted = 'FALSE' ";
@@ -350,14 +390,17 @@ dupin_record_get_list (DupinDB * db, guint count, guint offset,
   if (rowid_start > 0 && rowid_end > 0)
     {
       g_string_append_printf (str, " %s d.ROWID >= %d AND d.ROWID <= %d ", op, (gint)rowid_start, (gint)rowid_end);
+      op = "AND";
     }
   else if (rowid_start > 0)
     {
       g_string_append_printf (str, " %s d.ROWID >= %d ", op, (gint)rowid_start);
+      op = "AND";
     }
   else if (rowid_end > 0)
     {
       g_string_append_printf (str, " %s d.ROWID <= %d ", op, (gint)rowid_end);
+      op = "AND";
     }
 
   if (g_strcmp0 (check_deleted, ""))

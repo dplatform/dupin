@@ -555,8 +555,84 @@ dupin_link_record_get_list_cb (void *data, int argc, char **argv, char **col)
   struct dupin_link_record_get_list_t *s = data;
   DupinLinkRecord *record;
 
-  if ((record = dupin_link_record_read_real (s->linkb, argv[0], NULL, FALSE)))
-    s->list = g_list_append (s->list, record);
+  guint rev = 0;
+  gsize tm = 0;
+  gchar *hash = NULL;
+  gchar *obj = NULL;
+  gboolean delete = FALSE;
+  gsize rowid=0;
+  gint i;
+  gchar *context_id = NULL;
+  gchar *label = NULL;
+  gchar *href = NULL;
+  gchar *rel = NULL;
+  gchar *tag = NULL;
+  gchar *idspath = NULL;
+  gchar *labelspath = NULL;
+  gboolean is_weblink = FALSE;
+  gchar *id = NULL;
+
+  for (i = 0; i < argc; i++)
+    {
+      /* shouldn't this be double and use atof() ?!? */
+      if (!g_strcmp0 (col[i], "rev"))
+	rev = atoi (argv[i]);
+
+      else if (!g_strcmp0 (col[i], "tm"))
+	tm = (gsize)atof (argv[i]);
+
+      else if (!g_strcmp0 (col[i], "hash"))
+	hash = argv[i];
+
+      else if (!g_strcmp0 (col[i], "obj"))
+	obj = argv[i];
+
+      else if (!g_strcmp0 (col[i], "deleted"))
+	delete = !g_strcmp0 (argv[i], "TRUE") ? TRUE : FALSE;
+
+      else if (!g_strcmp0 (col[i], "rowid"))
+	rowid = (gsize)atof(argv[i]);
+
+      else if (!g_strcmp0 (col[i], "context_id"))
+	context_id = argv[i];
+
+      else if (!g_strcmp0 (col[i], "label"))
+	label = argv[i];
+
+      else if (!g_strcmp0 (col[i], "href"))
+	href = argv[i];
+
+      else if (!g_strcmp0 (col[i], "rel"))
+	rel = argv[i];
+
+      else if (!g_strcmp0 (col[i], "tag"))
+	tag = argv[i];
+
+      else if (!g_strcmp0 (col[i], "idspath"))
+	idspath = argv[i];
+
+      else if (!g_strcmp0 (col[i], "labelspath"))
+	labelspath = argv[i];
+
+      else if (!g_strcmp0 (col[i], "is_weblink"))
+	is_weblink = !g_strcmp0 (argv[i], "TRUE") ? TRUE : FALSE;
+
+      else if (!g_strcmp0 (col[i], "id"))
+	id = argv[i];
+    }
+
+  if (rev && hash !=NULL)
+    {
+      record = dupin_link_record_new (s->linkb, id);
+
+      dupin_link_record_add_revision_str (record, rev, hash, -1, obj, -1,
+					  context_id, label, href, rel, tag,
+					  idspath, -1,
+					  labelspath, -1,
+					  delete, tm, rowid, is_weblink);
+
+      s->list = g_list_append (s->list, record);
+    }
 
   return 0;
 }
@@ -599,7 +675,7 @@ dupin_link_record_get_list (DupinLinkB * linkb, guint count, guint offset,
   memset (&s, 0, sizeof (s));
   s.linkb = linkb;
 
-  str = g_string_new ("SELECT id as record_id FROM Dupin as d WHERE d.rev = (select max(rev) as rev FROM Dupin WHERE id=record_id) ");
+  str = g_string_new ("SELECT * FROM Dupin as d WHERE d.rev = (select max(rev) as rev FROM Dupin WHERE id=d.id) ");
 
   if (count_type == DP_COUNT_EXIST)
     check_deleted = " d.deleted = 'FALSE' ";
@@ -616,24 +692,29 @@ dupin_link_record_get_list (DupinLinkB * linkb, guint count, guint offset,
   if (rowid_start > 0 && rowid_end > 0)
     {
       g_string_append_printf (str, " %s d.ROWID >= %d AND d.ROWID <= %d ", op, (gint)rowid_start, (gint)rowid_end);
+      op = "AND";
     }
   else if (rowid_start > 0)
     {
       g_string_append_printf (str, " %s d.ROWID >= %d ", op, (gint)rowid_start);
+      op = "AND";
     }
   else if (rowid_end > 0)
     {
       g_string_append_printf (str, " %s d.ROWID <= %d ", op, (gint)rowid_end);
+      op = "AND";
     }
 
   if (g_strcmp0 (check_deleted, ""))
     {
       g_string_append_printf (str, " %s %s ", op, check_deleted);
+      op = "AND";
     }
 
   if (g_strcmp0 (check_linktype, ""))
     {
       g_string_append_printf (str, " %s %s ", op, check_linktype);
+      op = "AND";
     }
 
   if (context_id != NULL)
@@ -641,6 +722,7 @@ dupin_link_record_get_list (DupinLinkB * linkb, guint count, guint offset,
       gchar * tmp2 = sqlite3_mprintf (" %s d.context_id = '%q' ", op, context_id);
       str = g_string_append (str, tmp2);
       sqlite3_free (tmp2);
+      op = "AND";
     }
 
   if (labels != NULL)
@@ -663,6 +745,8 @@ dupin_link_record_get_list (DupinLinkB * linkb, guint count, guint offset,
 
       if (labels[0])
         str = g_string_append (str, " ) ");
+
+      op = "AND";
     }
 
   if (tag != NULL)

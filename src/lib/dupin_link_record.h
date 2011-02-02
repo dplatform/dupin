@@ -165,6 +165,9 @@ const gchar *	dupin_link_record_get_tag
 gboolean	dupin_link_record_is_weblink
 					(DupinLinkRecord *		record);
 
+gboolean	dupin_link_record_is_reflexive
+					(DupinLinkRecord *		record);
+
 gsize 	        dupin_link_record_get_rowid
 					(DupinLinkRecord *		record);
 

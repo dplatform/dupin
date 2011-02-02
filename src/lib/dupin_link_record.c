@@ -1398,6 +1398,17 @@ dupin_link_record_is_weblink (DupinLinkRecord * record)
   return record->last->is_weblink;
 }
 
+gboolean
+dupin_link_record_is_reflexive (DupinLinkRecord * record)
+{
+  g_return_val_if_fail (record != NULL, 0);
+
+  // TODO - make this stronger eventually
+
+  return (!g_strcmp0 (dupin_link_record_get_context_id (record),
+		      dupin_link_record_get_href (record))) ? TRUE : FALSE;
+}
+
 gchar *
 dupin_link_record_get_last_revision (DupinLinkRecord * record)
 {

@@ -113,6 +113,31 @@ DSWeblinkingRelationRegistry DSWeblinkingRelationRegistryList[] = {
   {WEBLINKING_RELNAME_WORKING_COPY_OF, "working-copy-of", "Points to the versioned resource from which this working copy was obtained."}
   ,
 
+  /* HTML5 rel extra ones - see http://www.whatwg.org/specs/web-apps/current-work/multipage/links.html#linkTypes */
+
+  {WEBLINKING_RELNAME_ARCHIVES, "archives", "Provides a link to a collection of records, documents, or other materials of historical interest."}
+  ,
+  {WEBLINKING_RELNAME_AUTHOR, "author", "Gives a link to the current document's author."}
+  ,
+  {WEBLINKING_RELNAME_EXTERNAL, "external", "Indicates that the referenced document is not part of the same site as the current document."}
+  ,
+  {WEBLINKING_RELNAME_ICON, "icon", "Imports an icon to represent the current document."}
+  ,
+  {WEBLINKING_RELNAME_NOFOLLOW, "nofollow", "Indicates that the current document's original author or publisher does not endorse the referenced document."}
+  ,
+  {WEBLINKING_RELNAME_NOREFERRER, "noreferrer", "Requires that the user agent not send an HTTP Referer (sic) header if the user follows the hyperlink."}
+  ,
+  {WEBLINKING_RELNAME_PINGBACK, "pingback", "Gives the address of the pingback server that handles pingbacks to the current document."}
+  ,
+  {WEBLINKING_RELNAME_PREFETCH, "prefetch", "Specifies that the target resource should be preemptively cached."}
+  ,
+  {WEBLINKING_RELNAME_SEARCH, "search", "Gives a link to a resource that can be used to search through the current document and its related pages."}
+  ,
+  {WEBLINKING_RELNAME_SIDEBAR, "sidebar", "Specifies that the referenced document, if retrieved, is intended to be shown in the browser's sidebar (if it has one)."}
+  ,
+  {WEBLINKING_RELNAME_TAG, "tag", "Gives a tag (identified by the given address) that applies to the current document."}
+  ,
+
   {WEBLINKING_RELNAME__END, NULL, NULL}
 };
 

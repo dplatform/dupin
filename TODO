@@ -48,4 +48,3 @@
 - When _compact database and linkbase should copy over the very first revision _created value
   as _published to the latest record, unless already set. This allows to know when record was
   originally "published" put into the system.
-- Add HTML5 rels to links registry

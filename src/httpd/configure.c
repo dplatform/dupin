@@ -503,6 +503,18 @@ configure_limit_parser (xmlDocPtr xml, DSGlobal * data, GError ** error)
 			  xmlFree (tmp);
 			}
 		    }
+
+		  /* CheckLinksMaxThreads: */
+		  else
+		    if (!xmlStrcmp
+			(cur->name, (xmlChar *) DS_LIMIT_CHECKLINKS_MAXTHREADS_TAG))
+		    {
+		      if ((tmp = xmlNodeGetContent (cur)))
+			{
+			  data->limit_checklinks_max_threads = atoi ((char *) tmp);
+			  xmlFree (tmp);
+			}
+		    }
 		}
 	    }
 
@@ -530,6 +542,9 @@ configure_limit_parser (xmlDocPtr xml, DSGlobal * data, GError ** error)
 
   if (!data->limit_compact_max_threads)
     data->limit_compact_max_threads = DS_LIMIT_COMPACT_MAXTHREADS_DEFAULT;
+
+  if (!data->limit_checklinks_max_threads)
+    data->limit_checklinks_max_threads = DS_LIMIT_CHECKLINKS_MAXTHREADS_DEFAULT;
 
   return TRUE;
 }

@@ -2189,6 +2189,7 @@ request_global_get_linkbase (DSHttpdClient * client, GList * path,
   json_object_set_int_member (obj, "disk_size", dupin_linkbase_get_size (linkb));
 
   json_object_set_boolean_member (obj, "compact_running", dupin_linkbase_is_compacting (linkb));
+  json_object_set_boolean_member (obj, "check_running", dupin_linkbase_is_checking (linkb));
 
   node = json_node_new (JSON_NODE_OBJECT);
 
@@ -4040,6 +4041,7 @@ request_global_get_view_query_error:
 #define REQUEST_POST_BULK_LINKS		"_bulk_links"
 #define REQUEST_POST_BULK_LINKS_LINKS	"links"
 #define REQUEST_POST_COMPACT_LINKBASE	REQUEST_POST_COMPACT_DATABASE
+#define REQUEST_POST_CHECK_LINKBASE	"_check"
 
 static DSHttpStatusCode request_global_post_record (DSHttpdClient * client,
 						    GList * path,
@@ -4058,6 +4060,10 @@ static DSHttpStatusCode request_global_post_compact_database (DSHttpdClient * cl
 static DSHttpStatusCode request_global_post_compact_linkbase (DSHttpdClient * client,
 						     	      GList * path,
 						     	      GList * arguments);
+
+static DSHttpStatusCode request_global_post_check_linkbase (DSHttpdClient * client,
+						     	    GList * path,
+						     	    GList * arguments);
 
 /* NOTE - we use the following also for linkbase records to set/get id and rev */
 
@@ -4085,7 +4091,11 @@ request_global_post (DSHttpdClient * client, GList * path, GList * arguments)
       if (!g_strcmp0 (path->next->next->data, REQUEST_POST_COMPACT_LINKBASE))
         return request_global_post_compact_linkbase (client, path->next, arguments);
 
-      client->dupin_error_msg = g_strdup ("POST /_linkbs allowed commands are: /_linkbs/linkbase/_compact");
+      /* POST /_linkbs/linkbase/_check */
+      if (!g_strcmp0 (path->next->next->data, REQUEST_POST_CHECK_LINKBASE))
+        return request_global_post_check_linkbase (client, path->next, arguments);
+
+      client->dupin_error_msg = g_strdup ("POST /_linkbs allowed commands are: /_linkbs/linkbase/_compact and /_linkbs/linkbase/_check");
 
       return HTTP_STATUS_400;
     }
@@ -4441,6 +4451,27 @@ request_global_post_compact_linkbase (DSHttpdClient * client, GList * path,
     }
 
   dupin_linkbase_compact (linkb);
+
+  dupin_linkbase_unref (linkb);
+
+  return HTTP_STATUS_200;
+}
+
+static DSHttpStatusCode
+request_global_post_check_linkbase (DSHttpdClient * client, GList * path,
+				    GList * arguments)
+{
+  DupinLinkB *linkb;
+
+  if (!
+      (linkb =
+       dupin_linkbase_open (client->thread->data->dupin, path->data, NULL)))
+    {
+      client->dupin_error_msg = g_strdup ("Cannot connect to linkbase");
+      return HTTP_STATUS_404;
+    }
+
+  dupin_linkbase_check (linkb);
 
   dupin_linkbase_unref (linkb);
 

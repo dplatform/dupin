@@ -213,6 +213,8 @@ gboolean	dupin_link_record_is_deleted
 					(DupinLinkRecord *		record,
 					 gchar *		mvcc);
 
+/* Utility functions - mainly internal */
+
 gboolean	dupin_link_record_util_is_valid_context_id
 					(gchar * id);
 

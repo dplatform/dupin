@@ -88,6 +88,8 @@ gboolean	dupin_linkbase_thread_compact
 					(DupinLinkB * linkb,
 					 gsize count);
 
+/* Compaction */
+
 void		dupin_linkbase_compact_func
 					(gpointer data,
 					gpointer user_data);
@@ -99,6 +101,21 @@ gboolean	dupin_linkbase_is_compacting
 
 gboolean	dupin_linkbase_is_compacted
 					(DupinLinkB * linkb);
+
+/* Links checking */
+
+void		dupin_linkbase_check_func
+					(gpointer data,
+					gpointer user_data);
+
+void		dupin_linkbase_check 	(DupinLinkB * linkb);
+
+gboolean	dupin_linkbase_is_checking
+					(DupinLinkB * linkb);
+
+gboolean	dupin_linkbase_is_checked
+					(DupinLinkB * linkb);
+
 
 gboolean        dupin_linkbase_get_parent_is_db
                                         (DupinLinkB * linkb);

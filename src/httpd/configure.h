@@ -28,20 +28,21 @@
 
 #define DS_HTTPD_LISTEN_DEFAULT	5
 
-#define DS_LIMIT_TAG			"Limits"
-#define DS_LIMIT_MAXHEADERS_TAG 	"MaxHeaders"
-#define DS_LIMIT_MAXCLIENTS_TAG 	"MaxClients"
-#define DS_LIMIT_MAXCONTENTLENGTH_TAG 	"MaxContentLength"
-#define DS_LIMIT_CLIENTSFORTHREAD_TAG	"ClientsForThread"
-#define DS_LIMIT_THREADNUMB_TAG		"ThreadNumb"
-#define DS_LIMIT_TIMEOUT_TAG		"Timeout"
-#define DS_LIMIT_TIMEOUTFORTHREAD_TAG	"TimeoutForThread"
-#define DS_LIMIT_CACHESIZE_TAG		"CacheSize"
-#define DS_LIMIT_CACHEMAXFILE_TAG	"CacheMaxFileSize"
-#define DS_LIMIT_MAP_MAXTHREADS_TAG 	"MapMaxThreads"
-#define DS_LIMIT_REDUCE_MAXTHREADS_TAG 	"ReduceMaxThreads"
-#define DS_LIMIT_SYNC_INTERVAL_TAG	"SyncInterval"
-#define DS_LIMIT_COMPACT_MAXTHREADS_TAG	"CompactMaxThreads"
+#define DS_LIMIT_TAG				"Limits"
+#define DS_LIMIT_MAXHEADERS_TAG 		"MaxHeaders"
+#define DS_LIMIT_MAXCLIENTS_TAG 		"MaxClients"
+#define DS_LIMIT_MAXCONTENTLENGTH_TAG 		"MaxContentLength"
+#define DS_LIMIT_CLIENTSFORTHREAD_TAG		"ClientsForThread"
+#define DS_LIMIT_THREADNUMB_TAG			"ThreadNumb"
+#define DS_LIMIT_TIMEOUT_TAG			"Timeout"
+#define DS_LIMIT_TIMEOUTFORTHREAD_TAG		"TimeoutForThread"
+#define DS_LIMIT_CACHESIZE_TAG			"CacheSize"
+#define DS_LIMIT_CACHEMAXFILE_TAG		"CacheMaxFileSize"
+#define DS_LIMIT_MAP_MAXTHREADS_TAG 		"MapMaxThreads"
+#define DS_LIMIT_REDUCE_MAXTHREADS_TAG 		"ReduceMaxThreads"
+#define DS_LIMIT_SYNC_INTERVAL_TAG		"SyncInterval"
+#define DS_LIMIT_COMPACT_MAXTHREADS_TAG		"CompactMaxThreads"
+#define DS_LIMIT_CHECKLINKS_MAXTHREADS_TAG	"CheckLinksMaxThreads"
 
 #define DS_LIMIT_TIMEOUT_DEFAULT		5
 #define DS_LIMIT_CLIENTSFORTHREAD_DEFAULT	5
@@ -50,6 +51,7 @@
 #define DS_LIMIT_REDUCE_MAXTHREADS_DEFAULT	4
 #define DS_LIMIT_SYNC_INTERVAL_DEFAULT		60 /* every minute */
 #define DS_LIMIT_COMPACT_MAXTHREADS_DEFAULT	2
+#define DS_LIMIT_CHECKLINKS_MAXTHREADS_DEFAULT	2
 
 typedef enum {
   LOG_VERBOSE_ERROR,
@@ -103,6 +105,8 @@ struct ds_global_t
   guint         limit_cachemaxfilesize;
 
   guint         limit_compact_max_threads;
+
+  guint         limit_checklinks_max_threads;
 
   guint         limit_map_max_threads;
   guint         limit_reduce_max_threads;

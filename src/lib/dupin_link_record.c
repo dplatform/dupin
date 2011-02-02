@@ -1724,6 +1724,8 @@ dupin_link_record_add_revision_str (DupinLinkRecord * record, guint rev, gchar *
     record->last = r;
 }
 
+/* Utility functions */
+
 /* NOTE - compute DUPIN_ID_HASH_ALGO hash of JSON + deleted flag + context_id + label + href + rel + tag + is_weblink */
 
 static gboolean

@@ -4249,7 +4249,7 @@ request_global_post_doc_link (DSHttpdClient * client, GList * path,
     }
 
   /* NOTE - this code is more generic than needed, we will possibly use this in future ... */
-  gboolean document_exists = TRUE;
+  gboolean document_deleted = FALSE;
 
   if (dupin_linkbase_get_parent_is_db (linkb) == TRUE )
     {
@@ -4270,7 +4270,7 @@ request_global_post_doc_link (DSHttpdClient * client, GList * path,
 
       if (dupin_record_is_deleted (doc_id_record, NULL) == TRUE)
         {
-          document_exists = FALSE;
+          document_deleted = TRUE;
         }
       dupin_record_close (doc_id_record);
       dupin_database_unref (parent_db);
@@ -4293,7 +4293,7 @@ request_global_post_doc_link (DSHttpdClient * client, GList * path,
 
       if (dupin_link_record_is_deleted (link_id_record, NULL) == TRUE)
         {
-          document_exists = FALSE;
+          document_deleted = TRUE;
         }
       dupin_link_record_close (link_id_record);
       dupin_linkbase_unref (parent_linkb);
@@ -4301,7 +4301,7 @@ request_global_post_doc_link (DSHttpdClient * client, GList * path,
 
   dupin_linkbase_unref (linkb);
 
-  if (document_exists == FALSE )
+  if (document_deleted == TRUE )
     {
       request_set_error (client, "Cannot add a link to an unexisting document");
       return HTTP_STATUS_404;

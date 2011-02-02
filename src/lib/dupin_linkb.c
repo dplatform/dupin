@@ -1536,6 +1536,7 @@ dupin_linkbase_thread_check (DupinLinkB * linkb, gsize count)
              dupin_record_close (doc_id_record);
 	     continue;
            }
+         dupin_record_close (doc_id_record);
        }
      else
        {
@@ -1552,6 +1553,7 @@ dupin_linkbase_thread_check (DupinLinkB * linkb, gsize count)
              dupin_link_record_close (link_id_record);
 	     continue;
            }
+         dupin_link_record_close (link_id_record);
        }
 
      /* STEP B - delete (update) the record */

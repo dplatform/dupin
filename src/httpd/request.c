@@ -1849,6 +1849,7 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 
   if (dupin_record_is_deleted (record, NULL) == TRUE)
     {
+      dupin_record_close (record);
       dupin_attachment_db_unref (attachment_db);
       dupin_database_unref (db);
       g_free (doc_id);
@@ -2818,6 +2819,7 @@ request_global_get_record_linkbase (DSHttpdClient * client, GList * path,
 
   if (dupin_link_record_is_deleted (record, NULL) == TRUE)
     {   
+      dupin_link_record_close (record);
       dupin_linkbase_unref (linkb);
       g_free (link_id);
       client->dupin_error_msg = g_strdup ("Link record is deleted");
@@ -4211,6 +4213,9 @@ request_global_post_doc_link (DSHttpdClient * client, GList * path,
   DSHttpStatusCode code;
   GError *error = NULL;
   GList * response_list = NULL;
+  DupinDB * parent_db=NULL;
+  DupinLinkB * parent_linkb=NULL;
+  DupinLinkB * linkb=NULL;
 
   if (!client->body
       || !path->next)
@@ -4220,6 +4225,73 @@ request_global_post_doc_link (DSHttpdClient * client, GList * path,
     }
 
   gchar * context_id = path->next->data;
+
+  /* check if the context_id document exists */
+
+  if (!(linkb = dupin_linkbase_open (client->thread->data->dupin, path->data, NULL)))
+    {
+      client->dupin_error_msg = g_strdup ("Cannot connect to linkbase");
+      return HTTP_STATUS_400;
+    }
+
+  /* NOTE - this code is more generic than needed, we will possibly use this in future ... */
+  gboolean document_exists = TRUE;
+
+  if (dupin_linkbase_get_parent_is_db (linkb) == TRUE )
+    {
+      if (! (parent_db = dupin_database_open (linkb->d, dupin_linkbase_get_parent (linkb), NULL)))
+        {
+          client->dupin_error_msg = g_strdup ("Cannot connect to parent database");
+          return HTTP_STATUS_400;
+        }
+
+      DupinRecord * doc_id_record = NULL;
+
+      if (!(doc_id_record = dupin_record_read (parent_db, context_id, NULL)))
+        {
+          dupin_database_unref (parent_db);
+          client->dupin_error_msg = g_strdup ("Cannot read record from parent database");
+          return HTTP_STATUS_400;
+        }
+
+      if (dupin_record_is_deleted (doc_id_record, NULL) == TRUE)
+        {
+          document_exists = FALSE;
+        }
+      dupin_record_close (doc_id_record);
+      dupin_database_unref (parent_db);
+    }
+  else
+    {
+      if (!(parent_linkb = dupin_linkbase_open (linkb->d, dupin_linkbase_get_parent (linkb), NULL)))
+        {
+          client->dupin_error_msg = g_strdup ("Cannot connect to parent linkbase");
+          return HTTP_STATUS_400;
+        }
+      DupinLinkRecord * link_id_record = NULL;
+
+      if (!(link_id_record = dupin_link_record_read (parent_linkb, context_id, NULL)))
+        {
+          dupin_linkbase_unref (parent_linkb);
+          client->dupin_error_msg = g_strdup ("Cannot read record from parent linkbase");
+          return HTTP_STATUS_400;
+        }
+
+      if (dupin_link_record_is_deleted (link_id_record, NULL) == TRUE)
+        {
+          document_exists = FALSE;
+        }
+      dupin_link_record_close (link_id_record);
+      dupin_linkbase_unref (parent_linkb);
+    }
+
+  dupin_linkbase_unref (linkb);
+
+  if (document_exists == FALSE )
+    {
+      client->dupin_error_msg = g_strdup ("Cannot add a link to an unexisting document");
+      return HTTP_STATUS_404;
+    }
 
   JsonParser *parser = json_parser_new ();
 

@@ -1226,6 +1226,155 @@ dupin_view_sync_thread_map_db (DupinView * view, gsize count)
   return ret;
 }
 
+static gboolean
+dupin_view_sync_thread_map_linkb (DupinView * view, gsize count)
+{
+  gchar * sync_map_id = NULL;
+  gsize rowid;
+  gchar * errmsg;
+  DupinLinkB *linkb;
+  GList *results, *list;
+
+  GList *l = NULL;
+  gboolean ret = TRUE;
+
+  gchar *str;
+
+  if (!(linkb = dupin_linkbase_open (view->d, view->parent, NULL)))
+    return FALSE;
+
+  /* get last position we reduced and get anything up to count after that */
+  gchar * query = "SELECT sync_map_id as c FROM DupinView";
+  g_mutex_lock (view->mutex);
+
+  if (sqlite3_exec (view->db, query, dupin_view_sync_cb, &sync_map_id, &errmsg) != SQLITE_OK)
+    {
+      g_mutex_unlock (view->mutex);
+
+      g_error("dupin_view_sync_thread_map_linkb: %s", errmsg);
+      sqlite3_free (errmsg);
+
+      dupin_linkbase_unref (linkb);
+      return FALSE;
+    }
+
+  g_mutex_unlock (view->mutex);
+
+  gsize start_rowid = (sync_map_id != NULL) ? atoi(sync_map_id)+1 : 1;
+
+  if (dupin_link_record_get_list (linkb, count, 0, start_rowid, 0, DP_LINK_TYPE_ANY, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE, NULL, NULL, NULL, &results, NULL) ==
+      FALSE || !results)
+    {
+      if (sync_map_id != NULL)
+        g_free(sync_map_id);
+      dupin_linkbase_unref (linkb);
+      return FALSE;
+    }
+
+  if (g_list_length (results) != count)
+    ret = FALSE;
+
+//g_message("dupin_view_sync_thread_map_linkb(%p)    g_list_length (results) = %d start_rowid=%d - mapped %d\n", g_thread_self (), (gint) g_list_length (results), (gint)start_rowid, (gint)view->sync_map_processed_count);
+
+  for (list = results; list; list = list->next)
+    {
+      /* NOTE - we do *not* count deleted records are processed */
+
+      struct dupin_view_sync_t *data =
+	g_malloc0 (sizeof (struct dupin_view_sync_t));
+
+      JsonNode * obj_node = dupin_link_record_get_revision_node (list->data, NULL);
+
+      if (obj_node)
+        {
+          /* Setting _id, _rev and _created fields - we do not store them into serialized object */
+          JsonObject * obj = json_node_get_object (obj_node);
+          json_object_set_string_member (obj, "_id", (gchar *) dupin_link_record_get_id (list->data));
+          json_object_set_string_member (obj, "_rev", dupin_link_record_get_last_revision (list->data));
+          json_object_set_int_member (obj, "_created", dupin_link_record_get_created (list->data));
+
+          json_object_set_string_member (obj, "_context_id", (gchar *)dupin_link_record_get_context_id (list->data));
+          json_object_set_string_member (obj, "_href", (gchar *)dupin_link_record_get_href (list->data));
+          json_object_set_string_member (obj, "_label", (gchar *)dupin_link_record_get_label (list->data));
+          json_object_set_string_member (obj, "_rel", (gchar *)dupin_link_record_get_rel (list->data));
+          json_object_set_string_member (obj, "_tag", (gchar *)dupin_link_record_get_tag (list->data));
+          json_object_set_boolean_member (obj, "_is_weblink", dupin_link_record_is_weblink (list->data));
+
+          /* special path ones */
+          JsonNode * ids_path = dupin_link_record_get_revision_idspath_node (list->data, NULL);
+          if (ids_path != NULL)
+            json_object_set_member (obj, "_idspath", json_node_copy (ids_path));
+          JsonNode * labels_path = dupin_link_record_get_revision_labelspath_node (list->data, NULL);
+          if (labels_path != NULL)
+            json_object_set_member (obj, "_labelspath", json_node_copy (labels_path));
+
+          data->obj = json_node_copy (obj_node);
+        }
+
+      data->pid = json_node_new (JSON_NODE_ARRAY);
+      JsonArray *pid_array=json_array_new ();
+
+      rowid = dupin_link_record_get_rowid (list->data);
+
+      if (sync_map_id != NULL)
+        g_free(sync_map_id);
+        
+      sync_map_id = g_strdup_printf ("%i", (gint)rowid);
+
+//g_message("dupin_view_sync_thread_map_linkb(%p) sync_map_id=%s as fetched",g_thread_self (), sync_map_id);
+
+      json_array_add_string_element (pid_array, (gchar *) dupin_link_record_get_id (list->data));
+      json_node_take_array (data->pid, pid_array);
+
+      /* NOTE - key not set for dupin_view_sync_thread_map_linkb() - see dupin_view_sync_thread_map_view() instead */
+
+      l = g_list_append (l, data);
+    }
+
+  dupin_view_sync_thread_real_map (view, l);
+
+  for (list=l; list; list = list->next)
+    {
+      struct dupin_view_sync_t *data = list->data;
+      if (data->obj)
+        json_node_free (data->obj);
+      json_node_free (data->pid);
+    }
+  g_list_foreach (l, (GFunc) g_free, NULL);
+  g_list_free (l);
+  dupin_link_record_get_list_close (results);
+
+//g_message("dupin_view_sync_thread_map_linkb() sync_map_id=%s as to be stored",sync_map_id);
+
+//g_message("dupin_view_sync_thread_map_linkb(%p)  finished last_map_rowid=%s - mapped %d\n", g_thread_self (), sync_map_id, (gint)view->sync_map_processed_count);
+
+  str = sqlite3_mprintf ("UPDATE DupinView SET sync_map_id = '%q'", sync_map_id);
+
+  if (sync_map_id != NULL)
+    g_free (sync_map_id);
+
+  g_mutex_lock (view->mutex);
+
+  if (sqlite3_exec (view->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
+    {
+      g_mutex_unlock (view->mutex);
+      sqlite3_free (str);
+
+      dupin_linkbase_unref (linkb);
+
+      g_error("dupin_view_sync_thread_map_linkb: %s", errmsg);
+      sqlite3_free (errmsg);
+
+      return FALSE;
+    }
+
+  g_mutex_unlock (view->mutex);
+
+  sqlite3_free (str);
+
+  dupin_linkbase_unref (linkb);
+  return ret;
+}
 
 static gboolean
 dupin_view_sync_thread_map_view (DupinView * view, gsize count)
@@ -1376,7 +1525,7 @@ dupin_view_sync_thread_map (DupinView * view, gsize count)
 
   /* TODO - unimplemented */
   if (view->parent_is_linkb == TRUE)
-    return FALSE;
+    return dupin_view_sync_thread_map_linkb (view, count);
 
   return dupin_view_sync_thread_map_view (view, count);
 }

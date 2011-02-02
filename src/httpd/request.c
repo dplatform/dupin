@@ -990,20 +990,21 @@ request_global_get_all_views:
   return HTTP_STATUS_500;
 }
 
-#define REQUEST_GET_ALL_DOCS_DESCENDING	   "descending"
-#define REQUEST_GET_ALL_DOCS_COUNT	   "count"
-#define REQUEST_GET_ALL_DOCS_OFFSET	   "offset"
-#define REQUEST_GET_ALL_DOCS_KEY	   "key"
-#define REQUEST_GET_ALL_DOCS_STARTKEY	   "startkey"
-#define REQUEST_GET_ALL_DOCS_ENDKEY	   "endkey"
-#define REQUEST_GET_ALL_DOCS_INCLUSIVEEND  "inclusive_end"
-#define REQUEST_GET_ALL_DOCS_INCLUDE_DOCS  "include_docs"
+#define REQUEST_GET_ALL_DOCS_DESCENDING	   	  "descending"
+#define REQUEST_GET_ALL_DOCS_COUNT	   	  "count"
+#define REQUEST_GET_ALL_DOCS_OFFSET	   	  "offset"
+#define REQUEST_GET_ALL_DOCS_KEY	   	  "key"
+#define REQUEST_GET_ALL_DOCS_STARTKEY	   	  "startkey"
+#define REQUEST_GET_ALL_DOCS_ENDKEY	   	  "endkey"
+#define REQUEST_GET_ALL_DOCS_INCLUSIVEEND  	  "inclusive_end"
+#define REQUEST_GET_ALL_DOCS_INCLUDE_DOCS  	  "include_docs"
+#define REQUEST_GET_ALL_DOCS_INCLUDE_PARENT_DOCS  "include_parent_docs"
 
 #define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TYPE			"include_links"
-#define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TAG			"include_links_tag"
 #define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TYPE_ALL_LINKS	REQUEST_GET_ALL_LINKS_LINK_TYPE_ALL_LINKS
 #define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TYPE_WEBLINKS	REQUEST_GET_ALL_LINKS_LINK_TYPE_WEBLINKS
 #define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TYPE_RELATIONSHIPS	REQUEST_GET_ALL_LINKS_LINK_TYPE_RELATIONSHIPS
+#define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TAG			"include_links_tag"
 #define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_LABELS		"include_links_labels"
 #define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_WEBLINKS_DESCENDING	"include_links_weblinks_descending"
 #define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_WEBLINKS_COUNT	"include_links_weblinks_count"
@@ -3210,9 +3211,9 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
 				  GList * arguments)
 {
   DupinView *view=NULL;
-  DupinDB *parent_db=NULL;
-  DupinLinkB *parent_linkb=NULL;
-  DupinView *parent_view=NULL;
+  DupinDB *docs_db=NULL;
+  DupinLinkB *docs_linkb=NULL;
+  DupinView *docs_view=NULL;
 
   GList *list;
   GList *results;
@@ -3225,6 +3226,7 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
   gchar * endkey = NULL;
   gboolean inclusive_end = TRUE;
   gboolean include_docs = FALSE;
+  gboolean include_parent_docs = FALSE;
 
   JsonObject *obj;
   JsonNode *node=NULL;
@@ -3253,9 +3255,12 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_OFFSET))
 	offset = atoi (kv->value);
 
-      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_DOCS))
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_DOCS)
+      	       || !g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_PARENT_DOCS))
         {
-          if ( view->reduce != NULL
+          if (view->reduce != NULL
+             || (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_PARENT_DOCS) && 
+		 dupin_view_get_parent_is_db (view) == TRUE)
              || (g_strcmp0 (kv->value,"false") && g_strcmp0 (kv->value,"FALSE") &&
                  g_strcmp0 (kv->value,"true") && g_strcmp0 (kv->value,"TRUE")))
             {
@@ -3267,13 +3272,26 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
 
               dupin_view_unref (view);
 	      
-              request_set_error (client, "Invalid " REQUEST_GET_ALL_DOCS_INCLUDE_DOCS " parameter. Allowed values are: true, false");
+      	      if (view->reduce != NULL)
+                request_set_error (client, "The " REQUEST_GET_ALL_DOCS_INCLUDE_PARENT_DOCS " and " REQUEST_GET_ALL_DOCS_INCLUDE_PARENT_DOCS " parameters can only be used on map only views.");
+              else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_PARENT_DOCS) && 
+		       dupin_view_get_parent_is_db (view) == TRUE)
+                request_set_error (client, "The " REQUEST_GET_ALL_DOCS_INCLUDE_PARENT_DOCS " parameter can only be used on views about linkbases or views of views.");
+      	      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_PARENT_DOCS))
+                request_set_error (client, "Invalid " REQUEST_GET_ALL_DOCS_INCLUDE_PARENT_DOCS " parameter. Allowed values are: true, false");
+              else
+                request_set_error (client, "Invalid " REQUEST_GET_ALL_DOCS_INCLUDE_DOCS " parameter. Allowed values are: true, false");
 
               return HTTP_STATUS_400;
             }
 
           if (view->reduce == NULL)
-            include_docs = (!g_strcmp0 (kv->value,"false") || !g_strcmp0 (kv->value,"FALSE")) ? FALSE : TRUE;
+            {
+      	       if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_PARENT_DOCS))
+                include_parent_docs = (!g_strcmp0 (kv->value,"false") || !g_strcmp0 (kv->value,"FALSE")) ? FALSE : TRUE;
+	       else
+                include_docs = (!g_strcmp0 (kv->value,"false") || !g_strcmp0 (kv->value,"FALSE")) ? FALSE : TRUE;
+            }
         }
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUSIVEEND))
@@ -3314,11 +3332,83 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
         }
     }
 
-  if (include_docs == TRUE)
+  if (include_parent_docs == TRUE)
+    {
+      gchar * parent_of_parent_name = NULL;
+      gboolean parent_of_parent_is_db = FALSE;
+      gboolean parent_of_parent_is_linkb = FALSE;
+      DupinLinkB * parent_linkb = NULL;
+      DupinView *  parent_view = NULL;
+
+      if (dupin_view_get_parent_is_linkb (view) == TRUE)
+        {
+          if (!(parent_linkb = dupin_linkbase_open (view->d, view->parent, NULL)))
+            {
+              dupin_view_unref (view);
+              request_set_error (client, "Cannot connect to parent linkbase");
+              return HTTP_STATUS_404;
+            }
+
+          parent_of_parent_name = (gchar *)dupin_linkbase_get_parent (parent_linkb);
+
+          dupin_linkbase_unref (parent_linkb);
+
+          if (!(docs_db = dupin_database_open (view->d, parent_of_parent_name, NULL)))
+            {
+              dupin_view_unref (view);
+              request_set_error (client, "Cannot connect to linkbase parent database to fetch linked documents");
+              return HTTP_STATUS_404;
+            }
+        }
+      else if (dupin_view_get_parent_is_db (view) == FALSE)
+        {
+          if (!(parent_view = dupin_view_open (view->d, view->parent, NULL)))
+            {
+              dupin_view_unref (view);
+              request_set_error (client, "Cannot connect to parent view");
+    	      return HTTP_STATUS_404;
+            }
+
+          parent_of_parent_name = (gchar *)dupin_view_get_parent (parent_view);
+	  parent_of_parent_is_db = dupin_view_get_parent_is_db (parent_view);
+	  parent_of_parent_is_linkb = dupin_view_get_parent_is_linkb (parent_view);
+
+          dupin_view_unref (parent_view);
+
+          if (parent_of_parent_is_db == TRUE)
+            {
+              if (!(docs_db = dupin_database_open (view->d, parent_of_parent_name, NULL)))
+                {
+                  dupin_view_unref (view);
+                  request_set_error (client, "Cannot connect to parent of parent database to fetch linked documents");
+                  return HTTP_STATUS_404;
+                }
+            }
+          else if (parent_of_parent_is_linkb == TRUE)
+            {
+              if (!(docs_linkb = dupin_linkbase_open (view->d, parent_of_parent_name, NULL)))
+                {
+                  dupin_view_unref (view);
+                  request_set_error (client, "Cannot connect to parent of parent linkbase to fetch linked documents");
+                  return HTTP_STATUS_404;
+                }
+            }
+          else
+            {
+              if (!(docs_view = dupin_view_open (view->d, parent_of_parent_name, NULL)))
+                {
+                  dupin_view_unref (view);
+                  request_set_error (client, "Cannot connect to parent of parent view to fetch linked documents");
+    	          return HTTP_STATUS_404;
+                }
+            }
+        }
+    }
+  else if (include_docs == TRUE)
     {
       if (dupin_view_get_parent_is_db (view) == TRUE)
         {
-          if (!(parent_db = dupin_database_open (view->d, view->parent, NULL)))
+          if (!(docs_db = dupin_database_open (view->d, view->parent, NULL)))
             {
               dupin_view_unref (view);
               request_set_error (client, "Cannot connect to parent database");
@@ -3327,7 +3417,7 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
         }
       else if (dupin_view_get_parent_is_linkb (view) == TRUE)
         {
-          if (!(parent_linkb = dupin_linkbase_open (view->d, view->parent, NULL)))
+          if (!(docs_linkb = dupin_linkbase_open (view->d, view->parent, NULL)))
             {
               dupin_view_unref (view);
               request_set_error (client, "Cannot connect to parent linkbase");
@@ -3336,7 +3426,7 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
         }
       else
         {
-          if (!(parent_view = dupin_view_open (view->d, view->parent, NULL)))
+          if (!(docs_view = dupin_view_open (view->d, view->parent, NULL)))
             {
               dupin_view_unref (view);
               request_set_error (client, "Cannot connect to parent view");
@@ -3369,14 +3459,14 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
               if (endkey != NULL)
                 g_free (endkey);
 
-              if (parent_db != NULL)
-                dupin_database_unref (parent_db);
+              if (docs_db != NULL)
+                dupin_database_unref (docs_db);
 
-              if (parent_linkb != NULL)
-                dupin_linkbase_unref (parent_linkb);
+              if (docs_linkb != NULL)
+                dupin_linkbase_unref (docs_linkb);
 
-              if (parent_view != NULL)
-                dupin_view_unref (parent_view);
+              if (docs_view != NULL)
+                dupin_view_unref (docs_view);
 
               dupin_view_unref (view);
 
@@ -3406,14 +3496,14 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
 
               g_free (endkey);
 
-              if (parent_db != NULL)
-                dupin_database_unref (parent_db);
+              if (docs_db != NULL)
+                dupin_database_unref (docs_db);
 
-              if (parent_linkb != NULL)
-                dupin_linkbase_unref (parent_linkb);
+              if (docs_linkb != NULL)
+                dupin_linkbase_unref (docs_linkb);
 
-              if (parent_view != NULL)
-                dupin_view_unref (parent_view);
+              if (docs_view != NULL)
+                dupin_view_unref (docs_view);
 
               dupin_view_unref (view);
 
@@ -3438,14 +3528,14 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
       if (endkey != NULL)
         g_free (endkey);
 
-      if (parent_db != NULL)
-        dupin_database_unref (parent_db);
+      if (docs_db != NULL)
+        dupin_database_unref (docs_db);
 
-      if (parent_linkb != NULL)
-        dupin_linkbase_unref (parent_linkb);
+      if (docs_linkb != NULL)
+        dupin_linkbase_unref (docs_linkb);
 
-      if (parent_view != NULL)
-        dupin_view_unref (parent_view);
+      if (docs_view != NULL)
+        dupin_view_unref (docs_view);
 
       dupin_view_unref (view);
 
@@ -3464,14 +3554,14 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
       if (endkey != NULL)
         g_free (endkey);
 
-      if (parent_db != NULL)
-        dupin_database_unref (parent_db);
+      if (docs_db != NULL)
+        dupin_database_unref (docs_db);
 
-      if (parent_linkb != NULL)
-        dupin_linkbase_unref (parent_linkb);
+      if (docs_linkb != NULL)
+        dupin_linkbase_unref (docs_linkb);
 
-      if (parent_view != NULL)
-        dupin_view_unref (parent_view);
+      if (docs_view != NULL)
+        dupin_view_unref (docs_view);
 
       dupin_view_unref (view);
 
@@ -3484,14 +3574,14 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
 
   if (obj == NULL)
     {
-      if (parent_db != NULL)
-        dupin_database_unref (parent_db);
+      if (docs_db != NULL)
+        dupin_database_unref (docs_db);
 
-      if (parent_linkb != NULL)
-        dupin_linkbase_unref (parent_linkb);
+      if (docs_linkb != NULL)
+        dupin_linkbase_unref (docs_linkb);
 
-      if (parent_view != NULL)
-        dupin_view_unref (parent_view);
+      if (docs_view != NULL)
+        dupin_view_unref (docs_view);
 
       if( results )
         dupin_view_record_get_list_close(results);
@@ -3534,7 +3624,8 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
 	  goto request_global_get_all_docs_view_error;
         }
 
-      if (include_docs == TRUE)
+      if (include_docs == TRUE
+          || include_parent_docs == TRUE)
         {
           gchar * record_id;
 	  JsonNode * doc = NULL;
@@ -3552,10 +3643,10 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
           else
             record_id = (gchar *) json_object_get_string_member (on_obj, RESPONSE_OBJ_ID);
 
-          if (dupin_view_get_parent_is_db (view) == TRUE)
+          if (docs_db != NULL)
             {
 	      DupinRecord * db_record=NULL;
-              if (!(db_record = dupin_record_read (parent_db, record_id, NULL)))
+              if (!(db_record = dupin_record_read (docs_db, record_id, NULL)))
                 {
                   doc = json_node_new (JSON_NODE_NULL);
                 }
@@ -3566,10 +3657,10 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
 	          dupin_record_close (db_record);
                 }
             }
-          else if (dupin_view_get_parent_is_linkb (view) == TRUE)
+          else if (docs_linkb != NULL)
             {
 	      DupinLinkRecord * linkb_record=NULL;
-              if (!(linkb_record = dupin_link_record_read (parent_linkb, record_id, NULL)))
+              if (!(linkb_record = dupin_link_record_read (docs_linkb, record_id, NULL)))
                 {
                   doc = json_node_new (JSON_NODE_NULL);
                 }
@@ -3580,10 +3671,10 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
 	          dupin_link_record_close (linkb_record);
                 }
             }
-          else
+          else if (docs_view != NULL)
             {
               DupinViewRecord * view_record=NULL;
-              if (!(view_record = dupin_view_record_read (parent_view, record_id, NULL)))
+              if (!(view_record = dupin_view_record_read (docs_view, record_id, NULL)))
                 {
                   doc = json_node_new (JSON_NODE_NULL);
                 }
@@ -3638,14 +3729,14 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
   if (endkey != NULL)
     g_free (endkey);
 
-  if (parent_db != NULL)
-    dupin_database_unref (parent_db);
+  if (docs_db != NULL)
+    dupin_database_unref (docs_db);
 
-  if (parent_linkb != NULL)
-    dupin_linkbase_unref (parent_linkb);
+  if (docs_linkb != NULL)
+    dupin_linkbase_unref (docs_linkb);
 
-  if (parent_view != NULL)
-    dupin_view_unref (parent_view);
+  if (docs_view != NULL)
+    dupin_view_unref (docs_view);
 
   if( results )
     dupin_view_record_get_list_close(results);
@@ -3668,14 +3759,14 @@ request_global_get_all_docs_view_error:
   if (endkey != NULL)
     g_free (endkey);
 
-  if (parent_db != NULL)
-    dupin_database_unref (parent_db);
+  if (docs_db != NULL)
+    dupin_database_unref (docs_db);
 
-  if (parent_linkb != NULL)
-    dupin_linkbase_unref (parent_linkb);
+  if (docs_linkb != NULL)
+    dupin_linkbase_unref (docs_linkb);
 
-  if (parent_view != NULL)
-    dupin_view_unref (parent_view);
+  if (docs_view != NULL)
+    dupin_view_unref (docs_view);
 
   if( results )
     dupin_view_record_get_list_close(results);

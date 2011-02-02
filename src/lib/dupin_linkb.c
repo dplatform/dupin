@@ -726,12 +726,17 @@ dupin_linkbase_count (DupinLinkB * linkb,
 
   query = g_string_free (str, FALSE);
 
+//g_message("dupin_linkbase_count: query=%s\n", query);
+
   g_mutex_lock (linkb->mutex);
 
   if (sqlite3_exec (linkb->db, query, dupin_linkbase_count_cb, &count, NULL) !=
       SQLITE_OK)
     {
       g_mutex_unlock (linkb->mutex);
+
+      g_free (query);
+
       return 0;
     }
 

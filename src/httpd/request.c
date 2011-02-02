@@ -2263,6 +2263,8 @@ request_global_get_all_links_linkbase (DSHttpdClient * client, GList * path,
     {
       dupin_keyvalue_t *kv = list->data;
 
+//g_message("request_global_get_all_links_linkbase: k=%s v=%s\n", (gchar *)kv->key, (gchar *)kv->value);
+
       if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_DESCENDING)
 	  && !g_strcmp0 (kv->value, "true"))
 	descending = TRUE;

@@ -3648,11 +3648,20 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
 	      DupinRecord * db_record=NULL;
               if (!(db_record = dupin_record_read (docs_db, record_id, NULL)))
                 {
+                  // TODO - log error
                   doc = json_node_new (JSON_NODE_NULL);
                 }
               else
                 {
-                  doc = json_node_copy (dupin_record_get_revision_node (db_record, NULL));
+                  if (! (doc = request_record_revision_obj (client,
+                                                           arguments,
+                                                           db_record,
+                                                           record_id,
+                                                           (gchar *)dupin_record_get_last_revision (db_record))))
+                    {
+                      // TODO - log error
+                      doc = json_node_new (JSON_NODE_NULL);
+                    }
 
 	          dupin_record_close (db_record);
                 }
@@ -3662,11 +3671,19 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
 	      DupinLinkRecord * linkb_record=NULL;
               if (!(linkb_record = dupin_link_record_read (docs_linkb, record_id, NULL)))
                 {
+                  // TODO - log error
                   doc = json_node_new (JSON_NODE_NULL);
                 }
               else
                 {
-                  doc = json_node_copy (dupin_link_record_get_revision_node (linkb_record, NULL));
+                  if (!(doc = request_link_record_revision_obj (client, arguments,
+                                                                linkb_record,
+								record_id,
+								(gchar *)dupin_link_record_get_last_revision (linkb_record))))
+                    {
+                      // TODO - log error
+                      doc = json_node_new (JSON_NODE_NULL);
+                    }
 
 	          dupin_link_record_close (linkb_record);
                 }
@@ -3676,11 +3693,18 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
               DupinViewRecord * view_record=NULL;
               if (!(view_record = dupin_view_record_read (docs_view, record_id, NULL)))
                 {
+                  // TODO - log error
                   doc = json_node_new (JSON_NODE_NULL);
                 }
               else
                 {
-                  doc = json_node_copy (dupin_view_record_get (view_record));
+                  if (!  (node = request_view_record_obj (client, arguments,
+							  view_record,
+							  (gchar *) dupin_view_record_get_id (view_record))))
+                    {
+                      // TODO - log error
+                      doc = json_node_new (JSON_NODE_NULL);
+                    }
 
 	          dupin_view_record_close (view_record);
                 }

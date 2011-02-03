@@ -5,6 +5,12 @@
 
 G_BEGIN_DECLS
 
+#define DUPIN_UTIL_DUMP_JSON(node) do { \
+        gchar * string = dupin_util_json_serialize (node); \
+	g_message ("%s", string); \
+	g_free (string); \
+        } while (0)
+
 gboolean	dupin_util_is_valid_db_name	(gchar *	db);
 
 gboolean	dupin_util_is_valid_linkb_name	(gchar *	linkb);

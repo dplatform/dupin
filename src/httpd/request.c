@@ -4198,6 +4198,11 @@ static DSHttpStatusCode request_global_post_doc_link (DSHttpdClient * client,
 						      GList * path,
 						      GList * arguments,
 						      DupinLinksType link_type);
+
+static DSHttpStatusCode request_global_post_bulk_doc_links (DSHttpdClient * client,
+						            GList * path,
+						            GList * arguments);
+
 static DSHttpStatusCode request_global_post_compact_database (DSHttpdClient * client,
 						     	      GList * path,
 						     	      GList * arguments);
@@ -4269,7 +4274,18 @@ request_global_post (DSHttpdClient * client, GList * path, GList * arguments)
       && !path->next->next->next)
     return request_global_post_doc_link (client, path, arguments, DP_LINK_TYPE_RELATIONSHIP);
 
-  request_set_error (client, "POST /database allowed commands are: /database, /database/_bulk_docs, /database/_compact, /database/doc_id/_links, /database/doc_id/_relationships");
+  /* POST /database/doc_id */
+  if (path->next
+      && !path->next->next )
+    return request_global_post_doc_link (client, path, arguments, DP_LINK_TYPE_ANY);
+
+  /* POST /database/doc_id/_bulk_links */
+  if (path->next
+      && path->next->next && !g_strcmp0 (path->next->next->data, REQUEST_POST_BULK_LINKS)
+      && !path->next->next->next)
+    return request_global_post_bulk_doc_links (client, path, arguments);
+
+  request_set_error (client, "POST /database allowed commands are: /database, /database/_bulk_docs, /database/_compact, /database/doc_id, /database/doc_id/_bulk_links, /database/doc_id/_links, /database/doc_id/_relationships");
 
   return HTTP_STATUS_400;
 }
@@ -4356,8 +4372,6 @@ request_global_post_doc_link (DSHttpdClient * client, GList * path,
   DSHttpStatusCode code;
   GError *error = NULL;
   GList * response_list = NULL;
-  DupinDB * parent_db=NULL;
-  DupinLinkB * parent_linkb=NULL;
   DupinLinkB * linkb=NULL;
 
   if (!client->body
@@ -4379,60 +4393,67 @@ request_global_post_doc_link (DSHttpdClient * client, GList * path,
 
   /* NOTE - this code is more generic than needed, we will possibly use this in future ... */
   gboolean document_deleted = FALSE;
+  gboolean document_exists = TRUE;
 
   if (dupin_linkbase_get_parent_is_db (linkb) == TRUE )
     {
+      DupinDB * parent_db=NULL;
+
       if (! (parent_db = dupin_database_open (linkb->d, dupin_linkbase_get_parent (linkb), NULL)))
         {
+          dupin_linkbase_unref (linkb);
           request_set_error (client, "Cannot connect to parent database");
           return HTTP_STATUS_400;
         }
 
-      DupinRecord * doc_id_record = NULL;
+      DupinRecord * doc_id_record = dupin_record_read (parent_db, context_id, NULL);
 
-      if (!(doc_id_record = dupin_record_read (parent_db, context_id, NULL)))
+      if (doc_id_record == NULL)
+        document_exists = FALSE;
+      else
         {
-          dupin_database_unref (parent_db);
-          request_set_error (client, "Cannot read record from parent database");
-          return HTTP_STATUS_400;
+          if (dupin_record_is_deleted (doc_id_record, NULL) == TRUE)
+            document_deleted = TRUE;
+
+          dupin_record_close (doc_id_record);
         }
 
-      if (dupin_record_is_deleted (doc_id_record, NULL) == TRUE)
-        {
-          document_deleted = TRUE;
-        }
-      dupin_record_close (doc_id_record);
       dupin_database_unref (parent_db);
     }
   else
     {
+      DupinLinkB * parent_linkb=NULL;
+
       if (!(parent_linkb = dupin_linkbase_open (linkb->d, dupin_linkbase_get_parent (linkb), NULL)))
         {
+          dupin_linkbase_unref (linkb);
           request_set_error (client, "Cannot connect to parent linkbase");
           return HTTP_STATUS_400;
         }
-      DupinLinkRecord * link_id_record = NULL;
 
-      if (!(link_id_record = dupin_link_record_read (parent_linkb, context_id, NULL)))
-        {
-          dupin_linkbase_unref (parent_linkb);
-          request_set_error (client, "Cannot read record from parent linkbase");
-          return HTTP_STATUS_400;
-        }
+      DupinLinkRecord * link_id_record = dupin_link_record_read (parent_linkb, context_id, NULL);
 
-      if (dupin_link_record_is_deleted (link_id_record, NULL) == TRUE)
+      if (link_id_record == NULL)
+        document_exists = FALSE;
+      else
         {
-          document_deleted = TRUE;
+          if (dupin_link_record_is_deleted (link_id_record, NULL) == TRUE)
+            document_deleted = TRUE;
+
+          dupin_link_record_close (link_id_record);
         }
-      dupin_link_record_close (link_id_record);
       dupin_linkbase_unref (parent_linkb);
     }
 
   dupin_linkbase_unref (linkb);
 
-  if (document_deleted == TRUE )
+  if (document_exists == FALSE )
     {
-      request_set_error (client, "Cannot add a link to an unexisting document");
+      // g_warning ("request_global_post_doc_link: adding a link to a non existing document");
+    }
+  else if (document_deleted == TRUE )
+    {
+      request_set_error (client, "Cannot add a link to a document which is marked as deleted.");
       return HTTP_STATUS_404;
     }
 
@@ -4624,6 +4645,223 @@ request_global_post_bulk_docs (DSHttpdClient * client, GList * path,
   return code;
 
 request_global_post_bulk_docs_error:
+
+  if (parser != NULL)
+    g_object_unref (parser);
+  return code;
+}
+
+static DSHttpStatusCode
+request_global_post_bulk_doc_links (DSHttpdClient * client, GList * path,
+			            GList * arguments)
+{
+  JsonObject *obj;
+  JsonNode *node;
+  JsonArray *array;
+  GList *nodes, *n;
+  GError *error = NULL;
+  GList *response_list=NULL;
+  DupinLinkB * linkb = NULL;
+
+  DSHttpStatusCode code;
+
+  if (!client->body
+      || !path->next)
+    {
+      request_set_error (client, "POST body or path missing");
+      return HTTP_STATUS_400;
+    }
+
+  gchar * context_id = path->next->data;
+
+  /* check if the context_id document exists */
+
+  if (!(linkb = dupin_linkbase_open (client->thread->data->dupin, path->data, NULL)))
+    {
+      request_set_error (client, "Cannot connect to linkbase");
+      return HTTP_STATUS_400;
+    }
+
+  /* NOTE - this code is more generic than needed, we will possibly use this in future ... */
+  gboolean document_deleted = FALSE;
+  gboolean document_exists = TRUE;
+
+  if (dupin_linkbase_get_parent_is_db (linkb) == TRUE )
+    {
+      DupinDB * parent_db=NULL;
+
+      if (! (parent_db = dupin_database_open (linkb->d, dupin_linkbase_get_parent (linkb), NULL)))
+        {
+          dupin_linkbase_unref (linkb);
+          request_set_error (client, "Cannot connect to parent database");
+          return HTTP_STATUS_400;
+        }
+
+      DupinRecord * doc_id_record = dupin_record_read (parent_db, context_id, NULL);
+
+      if (doc_id_record == NULL)
+        document_exists = FALSE;
+      else
+        {
+          if (dupin_record_is_deleted (doc_id_record, NULL) == TRUE)
+            document_deleted = TRUE;
+
+          dupin_record_close (doc_id_record);
+        }
+
+      dupin_database_unref (parent_db);
+    }
+  else
+    {
+      DupinLinkB * parent_linkb=NULL;
+
+      if (!(parent_linkb = dupin_linkbase_open (linkb->d, dupin_linkbase_get_parent (linkb), NULL)))
+        {
+          dupin_linkbase_unref (linkb);
+          request_set_error (client, "Cannot connect to parent linkbase");
+          return HTTP_STATUS_400;
+        }
+
+      DupinLinkRecord * link_id_record = dupin_link_record_read (parent_linkb, context_id, NULL);
+
+      if (link_id_record == NULL)
+        document_exists = FALSE;
+      else
+        {
+          if (dupin_link_record_is_deleted (link_id_record, NULL) == TRUE)
+            document_deleted = TRUE;
+
+          dupin_link_record_close (link_id_record);
+        }
+      dupin_linkbase_unref (parent_linkb);
+    }
+
+  dupin_linkbase_unref (linkb);
+
+  if (document_exists == FALSE )
+    {
+      // g_warning ("request_global_post_bulk_doc_links: adding links to a non existing document");
+    }
+  else if (document_deleted == TRUE )
+    {
+      request_set_error (client, "Cannot add links to a document which is marked as deleted.");
+      return HTTP_STATUS_404;
+    }
+
+  JsonParser *parser = json_parser_new ();
+
+  if (parser == NULL)
+    {
+      request_set_error (client, "Cannot parse POST body");
+      code = HTTP_STATUS_400;
+      goto request_global_post_bulk_doc_links_error;
+    }
+
+  /* TODO - check any parsing error */
+  if (!json_parser_load_from_data (parser, client->body, client->body_size, &error))
+    {
+      request_set_error (client, error->message);
+      g_error_free (error);
+      code = HTTP_STATUS_400;
+      goto request_global_post_bulk_doc_links_error;
+    }
+
+  node = json_parser_get_root (parser);
+
+  if (node == NULL)
+    {
+      request_set_error (client, "Cannot parse POST body");
+      code = HTTP_STATUS_400;
+      goto request_global_post_bulk_doc_links_error;
+    }
+
+  if (json_node_get_node_type (node) != JSON_NODE_OBJECT)
+    {
+      request_set_error (client, "POST body must be a JSON object");
+      code = HTTP_STATUS_400;
+      goto request_global_post_bulk_doc_links_error;
+    }
+
+  obj = json_node_get_object (node); /* it is a volatile object part of parser as well as node - see docs */
+
+  if (json_object_has_member (obj, REQUEST_POST_BULK_LINKS_LINKS) == FALSE)
+    {
+      request_set_error (client, "POST body does not contain a mandatory " REQUEST_POST_BULK_LINKS_LINKS " object memeber");
+      code = HTTP_STATUS_400;
+      goto request_global_post_bulk_doc_links_error;
+    }
+
+  node = json_object_get_member (obj, REQUEST_POST_BULK_LINKS_LINKS);
+
+  if (node == NULL)
+    {
+      request_set_error (client, "POST body does not contain a valid " REQUEST_POST_BULK_LINKS_LINKS " object memeber");
+      code = HTTP_STATUS_400;
+      goto request_global_post_bulk_doc_links_error;
+    }
+
+  if (json_node_get_node_type (node) != JSON_NODE_ARRAY)
+    {
+      request_set_error (client, "POST body " REQUEST_POST_BULK_LINKS_LINKS " object memeber is not an array");
+      code = HTTP_STATUS_400;
+      goto request_global_post_bulk_doc_links_error;
+    }
+
+  array = json_node_get_array (node);
+
+  if (array == NULL)
+    {
+      request_set_error (client, "POST body " REQUEST_POST_BULK_LINKS_LINKS " object memeber is not a valid array");
+      code = HTTP_STATUS_500;
+      goto request_global_post_bulk_doc_links_error;
+    }
+
+  /* scan JSON array */
+  nodes = json_array_get_elements (array);
+
+  for (n = nodes; n != NULL; n = n->next)
+    {
+      JsonNode *element_node = (JsonNode*)n->data;
+
+      if (json_node_get_node_type (element_node) != JSON_NODE_OBJECT)
+        {
+          request_set_error (client, "POST body " REQUEST_POST_BULK_LINKS_LINKS " array memebr is not a valid JSON object");
+          g_list_free (nodes);
+          code = HTTP_STATUS_500;
+          goto request_global_post_bulk_doc_links_error;
+        }
+
+      if (request_link_record_insert (client, arguments, element_node, path->data, NULL, context_id, &code,
+            	DP_LINK_TYPE_ANY, &response_list) == FALSE)
+        {
+          while (response_list)
+            {
+              json_node_free (response_list->data);
+              response_list = g_list_remove (response_list, response_list->data);
+            }
+          g_list_free (nodes);
+          code = HTTP_STATUS_400;
+          goto request_global_post_bulk_doc_links_error;
+	}
+    }
+  g_list_free (nodes);
+
+  if (request_record_response (client, response_list) == FALSE)
+    {
+      code = HTTP_STATUS_500;
+      request_set_error (client, "Cannot generate JSON output response");
+    }
+  while (response_list)
+    {
+      json_node_free (response_list->data);
+      response_list = g_list_remove (response_list, response_list->data);
+    }
+
+  if (parser != NULL)
+    g_object_unref (parser);
+  return code;
+
+request_global_post_bulk_doc_links_error:
 
   if (parser != NULL)
     g_object_unref (parser);
@@ -7074,8 +7312,16 @@ request_link_record_insert (DSHttpdClient * client, GList * arguments, JsonNode 
   /* NOTE - context_id is purely internal and can not be set in any way by the user if not via
             the document is being linked from */
 
-  g_return_val_if_fail (json_object_has_member (json_node_get_object (obj_node),
-				REQUEST_LINK_OBJ_CONTEXT_ID) == FALSE, FALSE);
+ if (json_object_has_member (json_node_get_object (obj_node), REQUEST_LINK_OBJ_CONTEXT_ID) == TRUE)
+   {
+     request_set_error (client, "Link context can not be explicitly set.");
+     return FALSE;
+   }
+ else if (context_id == NULL)
+   {
+     request_set_error (client, "The link context is missing.");
+     return FALSE;
+   }
 
   gboolean to_delete = request_record_insert_deleted (obj_node);
 

@@ -75,17 +75,20 @@ gchar * request_get_error (DSHttpdClient * client);
 static JsonNode *request_record_revision_obj (DSHttpdClient * client,
 					      GList * arguments,
 					      DupinRecord * record, gchar * id,
-					      gchar * mvcc);
+					      gchar * mvcc,
+				              gboolean visit_links);
 
 static JsonNode *request_link_record_revision_obj (DSHttpdClient * client,
 						   GList * arguments,
 						   DupinLinkRecord * record, gchar * id,
-						   gchar * mvcc);
+						   gchar * mvcc,
+						   gboolean visit_docs);
 
 static JsonNode *request_view_record_obj (DSHttpdClient * client,
 					  GList * arguments,
 					  DupinViewRecord * record,
-				 	  gchar * id);
+				 	  gchar * id,
+					  gboolean visit_docs);
 
 static gboolean request_record_insert (DSHttpdClient * client,
 				       GList * arguments,
@@ -1251,7 +1254,7 @@ request_global_get_changes_database (DSHttpdClient * client, GList * path,
           JsonNode * doc = NULL;
 
           if (! (doc = request_record_revision_obj (client, arguments,
-						    db_record, record_id, record_mvcc)))
+						    db_record, record_id, record_mvcc, TRUE)))
             {
               json_node_free (change);
               json_array_unref (array);
@@ -1410,7 +1413,7 @@ request_global_get_all_docs (DSHttpdClient * client, GList * path,
 	  (on =
 	   request_record_revision_obj (client, arguments,
 					record, (gchar *) dupin_record_get_id (record),
-					dupin_record_get_last_revision (record))))
+					dupin_record_get_last_revision (record), TRUE)))
         {
 	  json_array_unref (array); /* if here, array is not under obj responsability yet */
 	  goto request_global_get_all_docs_error;
@@ -1962,7 +1965,8 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 	       request_record_revision_obj (client, arguments,
 					    record,
 					    (gchar *) dupin_record_get_id (record),
-					    (gchar *) list->data)))
+					    (gchar *) list->data,
+					    TRUE)))
             {
               dupin_record_get_revisions_list_close (revisions);
 	      json_array_unref (array);
@@ -2025,7 +2029,8 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 	  (node_temp =
 	   request_record_revision_obj (client, arguments,
 					record, (gchar *) dupin_record_get_id (record),
-					mvcc)))
+					mvcc,
+					TRUE)))
 	{
 	  dupin_record_close (record);
 	  dupin_database_unref (db);
@@ -2385,7 +2390,8 @@ request_global_get_all_links_linkbase (DSHttpdClient * client, GList * path,
 	  (on =
 	   request_link_record_revision_obj (client, arguments,
 					     record, (gchar *) dupin_link_record_get_id (record),
-			       		     dupin_link_record_get_last_revision (record))))
+			       		     dupin_link_record_get_last_revision (record),
+					     TRUE)))
         {
 	  json_array_unref (array); /* if here, array is not under obj responsability yet */
 	  goto request_global_get_all_docs_error;
@@ -2666,7 +2672,8 @@ request_global_get_changes_linkbase (DSHttpdClient * client, GList * path,
           JsonNode * link = NULL;
 
           if (! (link = request_link_record_revision_obj (client, arguments,
-							  link_record, record_id, record_mvcc)))
+							  link_record, record_id, record_mvcc,
+							  TRUE)))
             {
               json_node_free (change);
               json_array_unref (array);
@@ -2927,7 +2934,8 @@ request_global_get_record_linkbase (DSHttpdClient * client, GList * path,
 	       request_link_record_revision_obj (client, arguments,
 						 record,
 						 (gchar *) dupin_link_record_get_id (record),
-				   		 (gchar *) list->data)))
+				   		 (gchar *) list->data,
+						 TRUE)))
             {
               dupin_link_record_get_revisions_list_close (revisions);
 	      json_array_unref (array);
@@ -2988,7 +2996,8 @@ request_global_get_record_linkbase (DSHttpdClient * client, GList * path,
 	  (node_temp =
 	   request_link_record_revision_obj (client, arguments,
 					     record, (gchar *) dupin_link_record_get_id (record),
-					     mvcc)))
+					     mvcc,
+					     TRUE)))
 	{
 	  dupin_link_record_close (record);
 	  dupin_linkbase_unref (linkb);
@@ -3618,7 +3627,8 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
 	   request_view_record_obj (client, arguments,
 				    record,
 				    (gchar *)
-				    dupin_view_record_get_id (record))))
+				    dupin_view_record_get_id (record),
+				    TRUE)))
         {
           json_array_unref (array);
 	  goto request_global_get_all_docs_view_error;
@@ -3657,7 +3667,8 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
                                                            arguments,
                                                            db_record,
                                                            record_id,
-                                                           (gchar *)dupin_record_get_last_revision (db_record))))
+                                                           (gchar *)dupin_record_get_last_revision (db_record),
+							   TRUE)))
                     {
                       // TODO - log error
                       doc = json_node_new (JSON_NODE_NULL);
@@ -3679,7 +3690,8 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
                   if (!(doc = request_link_record_revision_obj (client, arguments,
                                                                 linkb_record,
 								record_id,
-								(gchar *)dupin_link_record_get_last_revision (linkb_record))))
+								(gchar *)dupin_link_record_get_last_revision (linkb_record),
+								TRUE)))
                     {
                       // TODO - log error
                       doc = json_node_new (JSON_NODE_NULL);
@@ -3700,7 +3712,8 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
                 {
                   if (!  (node = request_view_record_obj (client, arguments,
 							  view_record,
-							  (gchar *) dupin_view_record_get_id (view_record))))
+							  (gchar *) dupin_view_record_get_id (view_record),
+							  TRUE)))
                     {
                       // TODO - log error
                       doc = json_node_new (JSON_NODE_NULL);
@@ -3830,7 +3843,8 @@ request_global_get_record_view (DSHttpdClient * client, GList * path,
   if (!
       (node =
        request_view_record_obj (client, arguments, record,
-				(gchar *) dupin_view_record_get_id (record))))
+				(gchar *) dupin_view_record_get_id (record),
+				TRUE)))
     {
       dupin_view_record_close (record);
       dupin_view_unref (view);
@@ -5791,7 +5805,7 @@ request_global_delete_record (DSHttpdClient * client, GList * path,
         }
 
       if (!(obj_node = request_record_revision_obj (client, arguments,
-						    record, doc_id, mvcc)))
+						    record, doc_id, mvcc, FALSE)))
         {
           if (title != NULL)
             g_free (title);
@@ -6030,7 +6044,7 @@ request_global_delete_link_record (DSHttpdClient * client, GList * path,
       JsonNode * obj_node = NULL;
 
       if (!(obj_node = request_link_record_revision_obj (client, arguments,
-							 record, link_id, mvcc)))
+							 record, link_id, mvcc, FALSE)))
         {
           dupin_link_record_close (record);
           dupin_linkbase_unref (linkb);
@@ -7470,7 +7484,8 @@ request_record_attachment_insert (DSHttpdClient * client,
 
       if (!(obj_node = request_record_revision_obj (client, arguments,
 						    record,
-						    (gchar *) dupin_record_get_id (record), mvcc)))
+						    (gchar *) dupin_record_get_id (record), mvcc,
+						    FALSE))) // set this to TRUE when needs to fetch links for _content
         {
           g_free (title);
           dupin_record_close (record);
@@ -7531,7 +7546,8 @@ static JsonNode *
 request_record_revision_obj (DSHttpdClient * client,
                              GList * arguments,
 			     DupinRecord * record,
-			     gchar * id, gchar * mvcc)
+			     gchar * id, gchar * mvcc,
+			     gboolean visit_links)
 {
   g_return_val_if_fail (client != NULL, NULL);
   g_return_val_if_fail (record != NULL, NULL);
@@ -7576,7 +7592,8 @@ request_record_revision_obj (DSHttpdClient * client,
   json_object_set_string_member (obj, REQUEST_OBJ_REV, mvcc);
 
   /* Setting links and relationships if requested */
-  if (arguments != NULL)
+  if (visit_links == TRUE
+      || arguments != NULL)
     {
       DupinLinkB * linkb=NULL;
 
@@ -7694,7 +7711,8 @@ request_record_revision_obj (DSHttpdClient * client,
       		  if (!  (on = request_link_record_revision_obj (client, arguments,
 								 link_record,
 								 (gchar *) dupin_link_record_get_id (link_record),
-								 dupin_link_record_get_last_revision (link_record))))
+								 dupin_link_record_get_last_revision (link_record),
+								 FALSE)))
         	    {
 		      // just log the error and reason into JSON
         	    }
@@ -7763,7 +7781,8 @@ request_record_revision_obj (DSHttpdClient * client,
       		  if (!  (on = request_link_record_revision_obj (client, arguments,
 								 link_record,
 								 (gchar *) dupin_link_record_get_id (link_record),
-								 dupin_link_record_get_last_revision (link_record))))
+								 dupin_link_record_get_last_revision (link_record),
+								 FALSE)))
         	    {
 		      // just log the error and reason into JSON
         	    }
@@ -7817,7 +7836,8 @@ request_record_revision_obj (DSHttpdClient * client,
 static JsonNode *
 request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
 				  DupinLinkRecord * record,
-				  gchar * id, gchar * mvcc)
+				  gchar * id, gchar * mvcc,
+			          gboolean visit_docs)
 {
   JsonNode *obj_node;
   JsonObject *obj;
@@ -7874,7 +7894,8 @@ request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
 
   /* Include any docs if requested */
 
-  if (dupin_link_record_is_weblink (record) == FALSE
+  if (visit_docs == TRUE
+      && dupin_link_record_is_weblink (record) == FALSE
       && dupin_link_record_is_reflexive (record) == FALSE
       && arguments != NULL)
     {
@@ -7939,7 +7960,8 @@ request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
 							   arguments,
 							   doc_id_record,
 							   href,
-							   (gchar *)dupin_record_get_last_revision (doc_id_record))))
+							   (gchar *)dupin_record_get_last_revision (doc_id_record),
+							   FALSE)))
                       {
 	                if (obj_node != NULL)
 	                  json_node_free (obj_node);
@@ -7983,7 +8005,8 @@ request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
 							   arguments,
 							   link_id_record,
 							   href,
-							   (gchar *)dupin_link_record_get_last_revision (link_id_record))))
+							   (gchar *)dupin_link_record_get_last_revision (link_id_record),
+							   FALSE)))
                       {
 	                if (obj_node != NULL)
 	                  json_node_free (obj_node);
@@ -8030,7 +8053,8 @@ request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
 static JsonNode *
 request_view_record_obj (DSHttpdClient * client,
 			 GList * arguments,
-			 DupinViewRecord * record, gchar * id)
+			 DupinViewRecord * record, gchar * id,
+			 gboolean visit_docs)
 {
   JsonNode * node = dupin_view_record_get (record);
 
@@ -8152,7 +8176,8 @@ request_get_changes_comet_database_next:
                   JsonNode * doc = NULL;
 
                   if (! (doc = request_record_revision_obj (client, client->request_arguments,
-							    db_record, record_id, record_mvcc)))
+							    db_record, record_id, record_mvcc,
+							    TRUE)))
                     {
                       json_node_free (change);
                       goto request_get_changes_comet_database_error;
@@ -8352,7 +8377,8 @@ request_get_changes_comet_linkbase_next:
                   JsonNode * link = NULL;
 
                   if (! (link = request_link_record_revision_obj (client, client->request_arguments,
-								  linkb_record, record_id, record_mvcc)))
+								  linkb_record, record_id, record_mvcc,
+								  TRUE)))
                     {
                       json_node_free (change);
                       goto request_get_changes_comet_linkbase_error;

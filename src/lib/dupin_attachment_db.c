@@ -350,6 +350,9 @@ dupin_attachment_db_unref (DupinAttachmentDB * attachment_db)
   if (attachment_db->ref >= 0)
     attachment_db->ref--;
 
+  if (attachment_db->ref != 0 && attachment_db->todelete == TRUE)
+    g_warning ("dupin_attachment_db_unref: (thread=%p) attachment database %s flagged for deletion but can't free it due ref is %d\n", g_thread_self (), attachment_db->name, (gint) attachment_db->ref);
+
   if (attachment_db->ref == 0 && attachment_db->todelete == TRUE)
     g_hash_table_remove (d->attachment_dbs, attachment_db->name);
 

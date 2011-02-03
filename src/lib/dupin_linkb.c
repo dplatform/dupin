@@ -379,6 +379,9 @@ dupin_linkbase_unref (DupinLinkB * linkb)
     linkb->ref--;
     };
 
+  if (linkb->ref != 0 && linkb->todelete == TRUE)
+    g_warning ("dupin_linkbase_unref: (thread=%p) linkbase %s flagged for deletion but can't free it due ref is %d\n", g_thread_self (), linkb->name, (gint) linkb->ref);
+
   if (linkb->ref == 0 && linkb->todelete == TRUE)
     g_hash_table_remove (d->linkbs, linkb->name);
 

@@ -659,6 +659,9 @@ dupin_view_unref (DupinView * view)
   if (view->ref >= 0)
     view->ref--;
 
+  if (view->ref != 0 && view->todelete == TRUE)
+    g_warning ("dupin_view_unref: (thread=%p) view %s flagged for deletion but can't free it due ref is %d\n", g_thread_self (), view->name, (gint) view->ref);
+
   if (view->ref == 0 && view->todelete == TRUE)
     g_hash_table_remove (d->views, view->name);
 

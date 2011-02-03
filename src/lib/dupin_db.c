@@ -217,7 +217,7 @@ dupin_database_unref (DupinDB * db)
     };
 
   if (db->ref != 0 && db->todelete == TRUE)
-    g_warning ("dupin_database_unref: (thread=%p) database flagged for deletion but can't free it due ref still %d\n", g_thread_self (), (gint) db->ref);
+    g_warning ("dupin_database_unref: (thread=%p) database %s flagged for deletion but can't free it due ref is %d\n", g_thread_self (), db->name, (gint) db->ref);
 
   if (db->ref == 0 && db->todelete == TRUE)
     g_hash_table_remove (d->dbs, db->name);

@@ -669,29 +669,8 @@ gboolean
 dupin_view_delete (DupinView * view, GError ** error)
 {
   Dupin *d;
-  DupinViewP * p_views;
-  gsize i;
 
   g_return_val_if_fail (view != NULL, FALSE);
-
-  /* trigger delete on all views attached */
-
-  p_views = &view->views;
-  for (i = 0; i < p_views->numb; i++)
-    {
-      DupinView *view;
-
-      if (!  (view = dupin_view_open (view->d, (gchar *)dupin_view_get_name (p_views->views[i]), error)))
-        return FALSE;
-
-      if (dupin_view_delete (view, error) == FALSE)
-        {
-          dupin_view_unref (view);
-          return FALSE;
-        }
-
-      dupin_view_unref (view);
-    }
 
   d = view->d;
 
@@ -798,13 +777,13 @@ dupin_view_get_size (DupinView * view)
 void
 dupin_view_free (DupinView * view)
 {
+  if (view->db)
+    sqlite3_close (view->db);
+
   if (view->todelete == TRUE)
     g_unlink (view->path);
 
   g_cond_free(view->sync_map_has_new_work);
-
-  if (view->db)
-    sqlite3_close (view->db);
 
   if (view->name)
     g_free (view->name);

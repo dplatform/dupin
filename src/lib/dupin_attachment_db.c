@@ -404,11 +404,11 @@ dupin_attachment_db_get_size (DupinAttachmentDB * attachment_db)
 void
 dupin_attachment_db_free (DupinAttachmentDB * attachment_db)
 {
-  if (attachment_db->todelete == TRUE)
-    g_unlink (attachment_db->path);
-
   if (attachment_db->db)
     sqlite3_close (attachment_db->db);
+
+  if (attachment_db->todelete == TRUE)
+    g_unlink (attachment_db->path);
 
   if (attachment_db->name)
     g_free (attachment_db->name);

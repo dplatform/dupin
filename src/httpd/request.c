@@ -5587,6 +5587,48 @@ request_global_delete_database (DSHttpdClient * client, GList * path,
 				GList * arguments)
 {
   DupinDB *db;
+  DupinLinkB *linkb;
+  DupinAttachmentDB *attachment_db;
+
+  /* NOTE - delete default linkbase */
+
+  if (!
+      (linkb =
+       dupin_linkbase_open (client->thread->data->dupin, path->data, NULL)))
+    {
+      request_set_error (client, "Cannot connect to linkbase");
+      return HTTP_STATUS_404;
+    }
+
+  if (dupin_linkbase_delete (linkb, NULL) == FALSE)
+    {
+      request_set_error (client, "Cannot delete linkbase");
+      dupin_linkbase_unref (linkb);
+      return HTTP_STATUS_409;
+    }
+
+  dupin_linkbase_unref (linkb);
+
+  /* NOTE - delete default attachments database */
+
+  if (!
+      (attachment_db =
+       dupin_attachment_db_open (client->thread->data->dupin, path->data, NULL)))
+    {
+      request_set_error (client, "Cannot connect to attacchemtns database");
+      return HTTP_STATUS_404;
+    }
+
+  if (dupin_attachment_db_delete (attachment_db, NULL) == FALSE)
+    {
+      request_set_error (client, "Cannot delete attacchemtns database");
+      dupin_attachment_db_unref (attachment_db);
+      return HTTP_STATUS_409;
+    }
+
+  dupin_attachment_db_unref (attachment_db);
+
+  /* NOTE - delete main database */
 
   if (!
       (db =

@@ -348,6 +348,8 @@ dupin_record_get_list_cb (void *data, int argc, char **argv, char **col)
 
   if (rev && hash !=NULL)
     {
+      dupin_database_ref (s->db);
+
       record = dupin_record_new (s->db, id);
 
       dupin_record_add_revision_str (record, rev, hash, -1, obj, -1, delete, tm, rowid);

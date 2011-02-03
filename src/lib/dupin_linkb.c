@@ -389,48 +389,8 @@ gboolean
 dupin_linkbase_delete (DupinLinkB * linkb, GError ** error)
 {
   Dupin *d;
-  DupinViewP * p_views;
-  DupinLinkBP * p_linkbases;
-  gsize i;
 
   g_return_val_if_fail (linkb != NULL, FALSE);
-
-
-  /* trigger delete on all views and link bases attached */
-
-  p_views = &linkb->views;
-  for (i = 0; i < p_views->numb; i++)
-    {
-      DupinView *view;
-
-      if (!  (view = dupin_view_open (linkb->d, (gchar *)dupin_view_get_name (p_views->views[i]), error)))
-        return FALSE;
-
-      if (dupin_view_delete (view, error) == FALSE)
-        {
-          dupin_view_unref (view);
-          return FALSE;
-        }
-
-      dupin_view_unref (view);
-    }
-
-  p_linkbases = &linkb->linkbs;
-  for (i = 0; i < p_linkbases->numb; i++)
-    {
-      DupinLinkB *linkb2;
-
-      if (!  (linkb2 = dupin_linkbase_open (linkb->d, (gchar *)dupin_linkbase_get_name (p_linkbases->linkbs[i]), error)))
-        return FALSE;
-
-      if (dupin_linkbase_delete (linkb2, error) == FALSE)
-        {
-          dupin_linkbase_unref (linkb2);
-          return FALSE;
-        }
-
-      dupin_linkbase_unref (linkb2);
-    }
 
   d = linkb->d;
 

@@ -93,8 +93,9 @@ dupin_database_open (Dupin * d, gchar * db, GError ** error)
 		 "Database '%s' doesn't exist.", db);
 
   else {
-    /* fprintf(stderr,"ref++\n"); */
+     //fprintf(stderr,"dupin_database_open: (%p) ref++\n", g_thread_self ());
     ret->ref++;
+     //fprintf(stderr,"dupin_database_open: (%p) \t ref=%d\n", g_thread_self (), (gint) ret->ref);
 	};
 
   g_mutex_unlock (d->mutex);
@@ -141,8 +142,9 @@ dupin_database_new (Dupin * d, gchar * db, GError ** error)
 
   g_free (path);
 
-  /* fprintf(stderr,"ref++\n"); */
+    //fprintf(stderr,"dupin_database_new: (%p) ref++\n", g_thread_self ());
   ret->ref++;
+    //fprintf(stderr,"dupin_database_new: (%p) \t ref=%d\n", g_thread_self (), (gint) ret->ref);
 
   g_hash_table_insert (d->dbs, g_strdup (db), ret);
 
@@ -192,8 +194,9 @@ dupin_database_ref (DupinDB * db)
   d = db->d;
 
   g_mutex_lock (d->mutex);
-  /* fprintf(stderr,"ref++\n"); */
+   //fprintf(stderr,"dupin_database_ref: (%p) ref++\n", g_thread_self ());
   db->ref++;
+   //fprintf(stderr,"dupin_database_ref: (%p) \t ref=%d\n", g_thread_self (), (gint) db->ref);
   g_mutex_unlock (d->mutex);
 }
 
@@ -208,9 +211,13 @@ dupin_database_unref (DupinDB * db)
   g_mutex_lock (d->mutex);
 
   if (db->ref >= 0) {
-    /* fprintf(stderr,"ref--\n"); */
+     //fprintf(stderr,"dupin_database_unref: (%p) ref--\n", g_thread_self ());
     db->ref--;
+     //fprintf(stderr,"dupin_database_unref: (%p) \t ref=%d\n", g_thread_self (), (gint) db->ref);
     };
+
+  if (db->ref != 0 && db->todelete == TRUE)
+    g_warning ("dupin_database_unref: (thread=%p) database flagged for deletion but can't free it due ref still %d\n", g_thread_self (), (gint) db->ref);
 
   if (db->ref == 0 && db->todelete == TRUE)
     g_hash_table_remove (d->dbs, db->name);
@@ -222,66 +229,9 @@ gboolean
 dupin_database_delete (DupinDB * db, GError ** error)
 {
   Dupin *d;
-  DupinViewP * p_views;
-  DupinLinkBP * p_linkbases;
-  DupinAttachmentDBP * p_attachments;
-  gsize i;
 
   g_return_val_if_fail (db != NULL, FALSE);
 
-  /* trigger delete on all views, link bases and attachment databases attached */
-
-  p_views = &db->views;
-  for (i = 0; i < p_views->numb; i++)
-    {
-      DupinView *view;
-
-      if (!  (view = dupin_view_open (db->d, (gchar *)dupin_view_get_name (p_views->views[i]), error)))
-        return FALSE;
-
-      if (dupin_view_delete (view, error) == FALSE)
-        {
-          dupin_view_unref (view);
-          return FALSE;
-        }
-
-      dupin_view_unref (view);
-    }
-
-  p_linkbases = &db->linkbs;
-  for (i = 0; i < p_linkbases->numb; i++)
-    {
-      DupinLinkB *linkb;
-
-      if (!  (linkb = dupin_linkbase_open (db->d, (gchar *)dupin_linkbase_get_name (p_linkbases->linkbs[i]), error)))
-        return FALSE;
-
-      if (dupin_linkbase_delete (linkb, error) == FALSE)
-        {
-          dupin_linkbase_unref (linkb);
-          return FALSE;
-        }
-
-      dupin_linkbase_unref (linkb); 
-    }
-
-  p_attachments = &db->attachment_dbs;
-  for (i = 0; i < p_attachments->numb; i++)
-    {
-      DupinAttachmentDB *attachment_db;
-
-      if (!  (attachment_db = dupin_attachment_db_open (db->d, (gchar *)dupin_attachment_db_get_name (p_attachments->attachment_dbs[i]), error)))
-        return FALSE;
-
-      if (dupin_attachment_db_delete (attachment_db, error) == FALSE)
-        {
-          dupin_attachment_db_unref (attachment_db);
-          return FALSE;
-        }
-
-      dupin_attachment_db_unref (attachment_db); 
-    }
- 
   d = db->d;
 
   g_mutex_lock (d->mutex);

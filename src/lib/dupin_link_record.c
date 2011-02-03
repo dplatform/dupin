@@ -648,6 +648,8 @@ dupin_link_record_get_list_cb (void *data, int argc, char **argv, char **col)
 
   if (rev && hash !=NULL)
     {
+      dupin_linkbase_ref (s->linkb);
+
       record = dupin_link_record_new (s->linkb, id);
 
       dupin_link_record_add_revision_str (record, rev, hash, -1, obj, -1,

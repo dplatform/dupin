@@ -72,6 +72,10 @@ void request_set_error (DSHttpdClient * client, gchar * msg);
 void request_clear_error (DSHttpdClient * client);
 gchar * request_get_error (DSHttpdClient * client);
 
+void request_set_warning (DSHttpdClient * client, gchar * msg);
+void request_clear_warning (DSHttpdClient * client);
+gchar * request_get_warning (DSHttpdClient * client);
+
 static JsonNode *request_record_revision_obj (DSHttpdClient * client,
 					      GList * arguments,
 					      DupinRecord * record, gchar * id,
@@ -116,6 +120,7 @@ static gboolean request_record_attachment_insert (DSHttpdClient * client,
 
 #define	RESPONSE_STATUS_OK			"ok"
 #define	RESPONSE_STATUS_ERROR			"error"
+#define	RESPONSE_STATUS_WARNING			"warning"
 #define	RESPONSE_STATUS_REASON			"reason"
 
 static gboolean request_record_response (DSHttpdClient * client,
@@ -4217,14 +4222,14 @@ static DSHttpStatusCode request_global_post_check_linkbase (DSHttpdClient * clie
 
 /* NOTE - we use the following also for linkbase records to set/get id and rev */
 
-static gchar *  request_record_insert_rev (JsonNode * obj_node);
-static gchar *  request_record_insert_id (JsonNode * obj_node);
-static gboolean request_record_insert_deleted (JsonNode * obj_node);
+static gchar *  request_record_insert_rev (DSHttpdClient * client, JsonNode * obj_node);
+static gchar *  request_record_insert_id (DSHttpdClient * client, JsonNode * obj_node);
+static gboolean request_record_insert_deleted (DSHttpdClient * client, JsonNode * obj_node);
 
-static gchar * request_link_record_insert_label (JsonNode * obj_node);
-static gchar * request_link_record_insert_href (JsonNode * obj_node);
-static gchar * request_link_record_insert_rel (JsonNode * obj_node);
-static gchar * request_link_record_insert_tag (JsonNode * obj_node);
+static gchar * request_link_record_insert_label (DSHttpdClient * client, JsonNode * obj_node);
+static gchar * request_link_record_insert_href (DSHttpdClient * client, JsonNode * obj_node);
+static gchar * request_link_record_insert_rel (DSHttpdClient * client, JsonNode * obj_node);
+static gchar * request_link_record_insert_tag (DSHttpdClient * client, JsonNode * obj_node);
 
 static DSHttpStatusCode
 request_global_post (DSHttpdClient * client, GList * path, GList * arguments)
@@ -4605,6 +4610,8 @@ request_global_post_bulk_docs (DSHttpdClient * client, GList * path,
   for (n = nodes; n != NULL; n = n->next)
     {
       JsonNode *element_node = (JsonNode*)n->data;
+      gchar * id = NULL;
+      gchar * rev = NULL;
 
       if (json_node_get_node_type (element_node) != JSON_NODE_OBJECT)
         {
@@ -4614,18 +4621,46 @@ request_global_post_bulk_docs (DSHttpdClient * client, GList * path,
           goto request_global_post_bulk_docs_error;
         }
 
+      if (json_object_has_member (json_node_get_object (element_node), REQUEST_OBJ_ID) == TRUE)
+        id = g_strdup ((gchar *)json_object_get_string_member (json_node_get_object (element_node), REQUEST_OBJ_ID));
+
+      if (json_object_has_member (json_node_get_object (element_node), REQUEST_OBJ_REV) == TRUE)
+        rev = g_strdup ((gchar *)json_object_get_string_member (json_node_get_object (element_node), REQUEST_OBJ_REV));
+
       if (request_record_insert
 	  (client, arguments, element_node, path->data, NULL, &code, &response_list) == FALSE)
 	{
-          while (response_list)
-            {
-              json_node_free (response_list->data);
-              response_list = g_list_remove (response_list, response_list->data);
-            }
-          g_list_free (nodes);
-          code = HTTP_STATUS_400;
-          goto request_global_post_bulk_docs_error;
+          /* NOTE - we report errors inline in the JSON response */
+
+          JsonNode * error_node = json_node_new (JSON_NODE_OBJECT);
+	  JsonObject * error_obj = json_object_new ();
+  	  json_node_take_object (error_node, error_obj);
+
+          json_object_set_string_member (error_obj, RESPONSE_STATUS_ERROR, DSHttpStatusList[HTTP_STATUS_400].body);
+          json_object_set_string_member (error_obj, RESPONSE_STATUS_REASON, request_get_error (client));
+
+          if (id != NULL)
+            json_object_set_string_member (error_obj, RESPONSE_OBJ_ID,id);
+
+          if (rev != NULL)
+            json_object_set_string_member (error_obj, RESPONSE_OBJ_REV,rev);
+
+          response_list = g_list_prepend (response_list, error_node);
 	}
+      else
+        {
+          JsonNode * generated_node = response_list->data;
+	  JsonObject * generated_obj = json_node_get_object (generated_node);
+
+          if (request_get_warning (client) != NULL)
+            json_object_set_string_member (generated_obj, RESPONSE_STATUS_WARNING, request_get_warning (client));
+        }
+
+      if (id != NULL)
+        g_free (id);
+
+      if (rev!= NULL)
+        g_free (rev);
     }
   g_list_free (nodes);
 
@@ -4821,7 +4856,16 @@ request_global_post_bulk_doc_links (DSHttpdClient * client, GList * path,
 
   for (n = nodes; n != NULL; n = n->next)
     {
+      gchar * id = NULL;
+      gchar * rev = NULL;
+
       JsonNode *element_node = (JsonNode*)n->data;
+
+      if (json_object_has_member (json_node_get_object (element_node), REQUEST_OBJ_ID) == TRUE)
+        id = g_strdup ((gchar *)json_object_get_string_member (json_node_get_object (element_node), REQUEST_OBJ_ID));
+
+      if (json_object_has_member (json_node_get_object (element_node), REQUEST_OBJ_REV) == TRUE)
+        rev = g_strdup ((gchar *)json_object_get_string_member (json_node_get_object (element_node), REQUEST_OBJ_REV));
 
       if (json_node_get_node_type (element_node) != JSON_NODE_OBJECT)
         {
@@ -4834,15 +4878,37 @@ request_global_post_bulk_doc_links (DSHttpdClient * client, GList * path,
       if (request_link_record_insert (client, arguments, element_node, path->data, NULL, context_id, &code,
             	DP_LINK_TYPE_ANY, &response_list) == FALSE)
         {
-          while (response_list)
-            {
-              json_node_free (response_list->data);
-              response_list = g_list_remove (response_list, response_list->data);
-            }
-          g_list_free (nodes);
-          code = HTTP_STATUS_400;
-          goto request_global_post_bulk_doc_links_error;
-	}
+          /* NOTE - we report errors inline in the JSON response */
+
+          JsonNode * error_node = json_node_new (JSON_NODE_OBJECT);
+          JsonObject * error_obj = json_object_new ();
+          json_node_take_object (error_node, error_obj);
+
+          json_object_set_string_member (error_obj, RESPONSE_STATUS_ERROR, DSHttpStatusList[HTTP_STATUS_400].body);
+          json_object_set_string_member (error_obj, RESPONSE_STATUS_REASON, request_get_error (client));
+
+          if (id != NULL)
+            json_object_set_string_member (error_obj, RESPONSE_OBJ_ID,id);
+
+          if (rev != NULL)
+            json_object_set_string_member (error_obj, RESPONSE_OBJ_REV,rev);
+
+          response_list = g_list_prepend (response_list, error_node);
+        }
+      else
+        {
+          JsonNode * generated_node = response_list->data;
+          JsonObject * generated_obj = json_node_get_object (generated_node);
+
+          if (request_get_warning (client) != NULL)
+            json_object_set_string_member (generated_obj, RESPONSE_STATUS_WARNING, request_get_warning (client));
+        }
+
+      if (id != NULL)
+        g_free (id);
+
+      if (rev!= NULL)
+        g_free (rev);
     }
   g_list_free (nodes);
 
@@ -6456,14 +6522,14 @@ request_record_insert (DSHttpdClient * client, GList * arguments, JsonNode * obj
 
   g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, FALSE);
 
-  gboolean to_delete = request_record_insert_deleted (obj_node);
+  gboolean to_delete = request_record_insert_deleted (client, obj_node);
 
   JsonNode * record_response_node = json_node_new (JSON_NODE_OBJECT);
   JsonObject * record_response_obj = json_object_new ();
   json_node_take_object (record_response_node, record_response_obj);
 
   /* fetch the _rev field in the record first, if there */
-  mvcc = request_record_insert_rev (obj_node);
+  mvcc = request_record_insert_rev (client, obj_node);
 
   /* otherwise check passed parameters */
   if (mvcc == NULL)
@@ -6497,14 +6563,14 @@ request_record_insert (DSHttpdClient * client, GList * arguments, JsonNode * obj
       return FALSE;
     }
 
-  if ((json_record_id = request_record_insert_id (obj_node)))
+  if ((json_record_id = request_record_insert_id (client, obj_node)))
     {
       if (id && g_strcmp0 (id, json_record_id))
 	{
           if (mvcc != NULL)
 	    g_free (mvcc);
 	  g_free (json_record_id);
-          dupin_database_unref (db); /* added by AR 2010-10-05 */
+          dupin_database_unref (db);
 	  *code = HTTP_STATUS_400;
           request_set_error (client, "Specified record id does not match");
           if (record_response_node != NULL)
@@ -7099,7 +7165,7 @@ request_record_insert (DSHttpdClient * client, GList * arguments, JsonNode * obj
 }
 
 static gchar *
-request_record_insert_rev (JsonNode * obj_node)
+request_record_insert_rev (DSHttpdClient * client, JsonNode * obj_node)
 {
   gchar * mvcc=NULL;
   JsonNode *node;
@@ -7127,7 +7193,7 @@ request_record_insert_rev (JsonNode * obj_node)
 }
 
 static gchar *
-request_record_insert_id (JsonNode * obj_node)
+request_record_insert_id (DSHttpdClient * client, JsonNode * obj_node)
 {
   gchar *id = NULL;
   JsonNode *node;
@@ -7147,6 +7213,14 @@ request_record_insert_id (JsonNode * obj_node)
 
   if (json_node_get_value_type (node) == G_TYPE_STRING) /* check this is correct type */
     id = g_strdup (json_node_get_string (node));
+  else
+    {
+      GString * str = g_string_new (NULL);
+      g_string_append_printf (str, "Identifier is of type %s and not string. The system has generated a new ID automaticlaly.", json_node_type_name (node));
+      gchar * tmp = g_string_free (str, FALSE);
+      request_set_warning (client, tmp);  
+      g_free (tmp);
+    }
 
   json_object_remove_member (obj, REQUEST_OBJ_ID); 
 
@@ -7154,7 +7228,7 @@ request_record_insert_id (JsonNode * obj_node)
 }
 
 static gboolean
-request_record_insert_deleted (JsonNode * obj_node)
+request_record_insert_deleted (DSHttpdClient * client, JsonNode * obj_node)
 {
   gboolean deleted=FALSE;
   JsonNode *node;
@@ -7182,7 +7256,7 @@ request_record_insert_deleted (JsonNode * obj_node)
 }
 
 static gchar *
-request_link_record_insert_label (JsonNode * obj_node)
+request_link_record_insert_label (DSHttpdClient * client, JsonNode * obj_node)
 {
   gchar *ret = NULL;
   JsonNode *node;
@@ -7209,7 +7283,7 @@ request_link_record_insert_label (JsonNode * obj_node)
 }
 
 static gchar *
-request_link_record_insert_href (JsonNode * obj_node)
+request_link_record_insert_href (DSHttpdClient * client, JsonNode * obj_node)
 {
   gchar *ret = NULL;
   JsonNode *node;
@@ -7236,7 +7310,7 @@ request_link_record_insert_href (JsonNode * obj_node)
 }
 
 static gchar *
-request_link_record_insert_rel (JsonNode * obj_node)
+request_link_record_insert_rel (DSHttpdClient * client, JsonNode * obj_node)
 {
   gchar *ret = NULL;
   JsonNode *node;
@@ -7263,7 +7337,7 @@ request_link_record_insert_rel (JsonNode * obj_node)
 }
 
 static gchar *
-request_link_record_insert_tag (JsonNode * obj_node)
+request_link_record_insert_tag (DSHttpdClient * client, JsonNode * obj_node)
 {
   gchar *ret = NULL;
   JsonNode *node;
@@ -7323,9 +7397,9 @@ request_link_record_insert (DSHttpdClient * client, GList * arguments, JsonNode 
      return FALSE;
    }
 
-  gboolean to_delete = request_record_insert_deleted (obj_node);
+  gboolean to_delete = request_record_insert_deleted (client, obj_node);
 
-  json_record_href = request_link_record_insert_href (obj_node);
+  json_record_href = request_link_record_insert_href (client, obj_node);
 
   if (json_record_href != NULL)
     {
@@ -7353,7 +7427,7 @@ request_link_record_insert (DSHttpdClient * client, GList * arguments, JsonNode 
   json_node_take_object (record_response_node, record_response_obj);
 
   /* fetch the _rev field in the record first, if there */
-  mvcc = request_record_insert_rev (obj_node);
+  mvcc = request_record_insert_rev (client, obj_node);
 
   /* otherwise check passed parameters */
   if (mvcc == NULL)
@@ -7392,7 +7466,7 @@ request_link_record_insert (DSHttpdClient * client, GList * arguments, JsonNode 
       return FALSE;
     }
 
-  if ((json_record_id = request_record_insert_id (obj_node)))
+  if ((json_record_id = request_record_insert_id (client, obj_node)))
     {
       if (id && g_strcmp0 (id, json_record_id))
 	{
@@ -7428,9 +7502,9 @@ request_link_record_insert (DSHttpdClient * client, GList * arguments, JsonNode 
       return FALSE;
     }
 
-  json_record_label = request_link_record_insert_label (obj_node);
-  json_record_rel = request_link_record_insert_rel (obj_node);
-  json_record_tag = request_link_record_insert_tag (obj_node);
+  json_record_label = request_link_record_insert_label (client, obj_node);
+  json_record_rel = request_link_record_insert_rel (client, obj_node);
+  json_record_tag = request_link_record_insert_tag (client, obj_node);
 
 //g_message("request_link_record_insert: context_id=%s\n", context_id);
 //g_message("request_link_record_insert: json_record_label=%s\n", json_record_label);
@@ -7589,7 +7663,8 @@ request_record_response (DSHttpdClient * client,
  
       response_node = json_node_copy (response_node);
 
-      json_object_set_boolean_member (json_node_get_object (response_node), "ok", TRUE);
+      if (json_object_has_member (json_node_get_object (response_node), RESPONSE_STATUS_ERROR) == FALSE)
+        json_object_set_boolean_member (json_node_get_object (response_node), "ok", TRUE);
     }
   else
     {
@@ -8814,6 +8889,39 @@ request_get_error (DSHttpdClient * client)
   g_return_val_if_fail (client != NULL, NULL);
 
   return client->dupin_error_msg;
+}
+
+void request_set_warning (DSHttpdClient * client,
+			gchar * msg)
+{
+  g_return_if_fail (client != NULL);
+  g_return_if_fail (msg != NULL);
+
+  request_clear_warning (client);
+
+  client->dupin_warning_msg = g_strdup ( msg );
+
+  return;
+}
+
+void request_clear_warning (DSHttpdClient * client)
+{
+  g_return_if_fail (client != NULL);
+
+  if (client->dupin_warning_msg != NULL)
+    g_free (client->dupin_warning_msg);
+
+  client->dupin_warning_msg = NULL;
+
+  return;
+}
+
+gchar *
+request_get_warning (DSHttpdClient * client)
+{
+  g_return_val_if_fail (client != NULL, NULL);
+
+  return client->dupin_warning_msg;
 }
 
 /* EOF */

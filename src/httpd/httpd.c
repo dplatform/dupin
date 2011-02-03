@@ -1788,6 +1788,9 @@ httpd_client_free (DSHttpdClient * client)
   if (client->dupin_error_msg)
     g_free (client->dupin_error_msg);
 
+  if (client->dupin_warning_msg)
+    g_free (client->dupin_warning_msg);
+
   switch (client->output_type)
     {
     case DS_HTTPD_OUTPUT_NONE:

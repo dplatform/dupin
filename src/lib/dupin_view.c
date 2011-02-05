@@ -780,6 +780,8 @@ dupin_view_get_size (DupinView * view)
 void
 dupin_view_free (DupinView * view)
 {
+  g_message("dupin_view_free: total number of changes for '%s' view database: %d\n", view->name, (gint)sqlite3_total_changes (view->db));
+
   if (view->db)
     sqlite3_close (view->db);
 

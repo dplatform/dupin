@@ -170,16 +170,18 @@ dupin_database_new (Dupin * d, gchar * db, GError ** error)
 
   /* NOTE - create one default link base and attachment database named after the main database */
 
-  if (!  (linkb = dupin_linkbase_new (d, db, db, TRUE, NULL)))
+  if (!  (linkb = dupin_linkbase_new (d, ret->default_linkbase_name, db, TRUE, NULL)))
     return NULL;
 
-  dupin_linkbase_unref (linkb);
+  // keep a ref to default linkbase so it can not be accidentally deleted
+  //dupin_linkbase_unref (linkb);
 
   if (!  (attachment_db =
-       dupin_attachment_db_new (d, db, db, NULL)))
+       dupin_attachment_db_new (d, ret->default_attachment_db_name, db, NULL)))
     return NULL;
 
-  dupin_attachment_db_unref (attachment_db);
+  // keep a ref to default attachments db so it can not be accidentally deleted
+  //dupin_attachment_db_unref (attachment_db);
 
   return ret;
 }
@@ -229,10 +231,56 @@ gboolean
 dupin_database_delete (DupinDB * db, GError ** error)
 {
   Dupin *d;
+  DupinLinkB *linkb;
+  DupinAttachmentDB *attachment_db;
 
   g_return_val_if_fail (db != NULL, FALSE);
 
   d = db->d;
+
+  /* NOTE - delete default link base and attachment database named after the main database */
+
+  /* NOTE - the following "repeats" of "unref" must be left due we kept a ref to those since we first created this DB
+            of course, this will not survive stop/start of server - we will need to prob have
+            linkbases and attachment dbs to be only deleted via the main DB 
+	    Note we do the second unref after open to make sure the linkbase and 
+	    attachment dbs can be open, and the later deleted, and garbage collection can be done correctly */
+
+  if (!
+      (linkb =
+       dupin_linkbase_open (d, db->default_linkbase_name, NULL)))
+    {
+      dupin_database_set_error (db, "Cannot connect to default linkbase");
+      return FALSE;
+    }
+
+  dupin_linkbase_unref (linkb); // default ref (see dupin_database_new() above)
+
+  if (dupin_linkbase_delete (linkb, NULL) == FALSE)
+    {
+      dupin_database_set_error (db, "Cannot delete default linkbase");
+      return FALSE;
+    }
+
+  dupin_linkbase_unref (linkb);
+
+  if (!
+      (attachment_db =
+       dupin_attachment_db_open (d, db->default_attachment_db_name, NULL)))
+    {
+      dupin_database_set_error (db, "Cannot connect to default attachments database");
+      return FALSE;
+    }
+
+  dupin_attachment_db_unref (attachment_db); // default ref (see dupin_database_new() above)
+
+  if (dupin_attachment_db_delete (attachment_db, NULL) == FALSE)
+    {
+      dupin_database_set_error (db, "Cannot delete default attachments database");
+      return FALSE;
+    }
+
+  dupin_attachment_db_unref (attachment_db);
 
   g_mutex_lock (d->mutex);
   db->todelete = TRUE;
@@ -299,6 +347,8 @@ dupin_database_generate_id (DupinDB * db, GError ** error)
 void
 dupin_db_free (DupinDB * db)
 {
+  g_message("dupin_db_free: total number of changes for '%s' database: %d\n", db->name, (gint)sqlite3_total_changes (db->db));
+
   if (db->db)
     sqlite3_close (db->db);
 

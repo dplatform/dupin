@@ -475,6 +475,8 @@ dupin_linkbase_get_parent_is_db (DupinLinkB * linkb)
 void
 dupin_linkb_free (DupinLinkB * linkb)
 {
+  g_message("dupin_linkb_free: total number of changes for '%s' linkbase: %d\n", linkb->name, (gint)sqlite3_total_changes (linkb->db));
+
   if (linkb->db)
     sqlite3_close (linkb->db);
 

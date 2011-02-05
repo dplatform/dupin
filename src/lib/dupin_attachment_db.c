@@ -406,6 +406,8 @@ dupin_attachment_db_get_size (DupinAttachmentDB * attachment_db)
 void
 dupin_attachment_db_free (DupinAttachmentDB * attachment_db)
 {
+  g_message("dupin_attachment_db_free: total number of changes for '%s' attachments database: %d\n", attachment_db->name, (gint)sqlite3_total_changes (attachment_db->db));
+
   if (attachment_db->db)
     sqlite3_close (attachment_db->db);
 

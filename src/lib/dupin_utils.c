@@ -826,4 +826,36 @@ dupin_util_get_collate_type (gchar * json_raw_string)
     }
 }
 
+/* k/v pairs management functions for arguments list */
+
+dupin_keyvalue_t *
+dupin_keyvalue_new (gchar * key, gchar * value)
+{
+  dupin_keyvalue_t *new;
+
+  g_return_val_if_fail (key != NULL, NULL);
+  g_return_val_if_fail (value != NULL, NULL);
+
+  new = g_malloc0 (sizeof (dupin_keyvalue_t));
+  new->key = g_strdup (key);
+  new->value = g_strdup (value);
+
+  return new;
+}
+
+void
+dupin_keyvalue_destroy (dupin_keyvalue_t * data)
+{
+  if (!data)
+    return;
+
+  if (data->key)
+    g_free (data->key);
+
+  if (data->value)
+    g_free (data->value);
+
+  g_free (data);
+}
+
 /* EOF */

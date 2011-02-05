@@ -76,6 +76,26 @@ int		dupin_view_collation	(void        * ref,
 					 int         right_len,
 					 const void  *right_void);
 
+void            dupin_view_set_error
+                                        (DupinView * view,
+                                         gchar * msg);
+
+void            dupin_view_clear_error
+                                        (DupinView * view);
+
+gchar *         dupin_view_get_error
+                                        (DupinView * view);
+
+void            dupin_view_set_warning
+                                        (DupinView * view,
+                                         gchar * msg);
+
+void            dupin_view_clear_warning
+                                        (DupinView * view);
+
+gchar *         dupin_view_get_warning
+                                        (DupinView * view);
+
 G_END_DECLS
 
 #endif

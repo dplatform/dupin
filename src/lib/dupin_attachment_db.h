@@ -40,6 +40,20 @@ gsize		dupin_attachment_db_get_size		(DupinAttachmentDB *	attachment_db);
 
 gsize		dupin_attachment_db_count		(DupinAttachmentDB *	attachment_db);
 
+void		dupin_attachment_db_set_error		(DupinAttachmentDB * 	attachment_db,
+							 gchar * msg);
+
+void		dupin_attachment_db_clear_error		(DupinAttachmentDB * attachment_db);
+
+gchar * 	dupin_attachment_db_get_error 		(DupinAttachmentDB * attachment_db);
+
+void 		dupin_attachment_db_set_warning 	(DupinAttachmentDB * attachment_db,
+							 gchar * msg);
+
+void 		dupin_attachment_db_clear_warning 	(DupinAttachmentDB * attachment_db);
+
+gchar * 	dupin_attachment_db_get_warning 	(DupinAttachmentDB * attachment_db);
+
 G_END_DECLS
 
 #endif

@@ -2,10 +2,12 @@
 #define _DUPIN_RECORD_H_
 
 #include <dupin.h>
-#include <tb_json.h>
 
 #include <json-glib/json-glib.h>
 #include <json-glib/json-gobject.h>
+
+/* TODO - avoid using DSHttpStatusCode to report insert and request records */
+#include "../httpd/httpd.h"
 
 G_BEGIN_DECLS
 
@@ -89,6 +91,18 @@ void		dupin_record_get_revisions_list_close
 
 gboolean	dupin_record_is_deleted	(DupinRecord *		record,
 					 gchar *		mvcc);
+
+/* insert = create or update */
+
+gboolean	dupin_record_insert	(DupinDB * db,
+                                         JsonNode * obj_node,
+                                         gchar * id, gchar * caller_mvcc,
+                                         GList ** response_list);
+
+gboolean	dupin_record_insert_bulk
+					(DupinDB * db,
+					 JsonNode * bulk_node,
+                                         GList ** response_list);
 
 G_END_DECLS
 

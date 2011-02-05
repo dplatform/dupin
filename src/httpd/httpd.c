@@ -957,6 +957,15 @@ httpd_client_request (DSHttpdClient * client)
       status = request_global (client, client->request_path,
 		      client->request_arguments);
 
+      /*
+         Valgrind returns around here:
+
+       Conditional jump or move depends on uninitialised value(s)
+==49190==    at 0x100004C5F: httpd_client_send (in src/httpd/dupin_server)
+==49190==    by 0x100003BBE: httpd_client_request (in src/httpd/dupin_server)
+==49190==    by 0x1000039C7: httpd_client_read_body (in src/httpd/dupin_server)
+       */
+
       httpd_client_send (client, status);
       return;
     }

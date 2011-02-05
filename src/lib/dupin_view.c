@@ -809,6 +809,12 @@ dupin_view_free (DupinView * view)
   if (view->reduce)
     g_free (view->reduce);
 
+  if (view->error_msg)
+    g_free (view->error_msg);
+
+  if (view->warning_msg)
+    g_free (view->warning_msg);
+
   g_free (view);
 }
 
@@ -2312,6 +2318,72 @@ dupin_view_is_sync (DupinView * view)
 
   /* TODO - distinguish between tosync because of insert / update or because of explicit view/_sync method call */
   return view->tosync ? FALSE : TRUE;
+}
+
+void
+dupin_view_set_error (DupinView * view,
+                      gchar * msg)
+{
+  g_return_if_fail (view != NULL);
+  g_return_if_fail (msg != NULL);
+
+  dupin_view_clear_error (view);
+
+  view->error_msg = g_strdup ( msg );
+
+  return;
+}
+
+void
+dupin_view_clear_error (DupinView * view)
+{
+  g_return_if_fail (view != NULL);
+
+  if (view->error_msg != NULL)
+    g_free (view->error_msg);
+
+  view->error_msg = NULL;
+
+  return;
+}
+
+gchar * dupin_view_get_error (DupinView * view)
+{
+  g_return_val_if_fail (view != NULL, NULL);
+
+  return view->error_msg;
+}
+
+void dupin_view_set_warning (DupinView * view,
+                                 gchar * msg)
+{
+  g_return_if_fail (view != NULL);
+  g_return_if_fail (msg != NULL);
+
+  dupin_view_clear_warning (view);
+
+  view->warning_msg = g_strdup ( msg );
+
+  return;
+}
+
+void dupin_view_clear_warning (DupinView * view)
+{
+  g_return_if_fail (view != NULL);
+
+  if (view->warning_msg != NULL)
+    g_free (view->warning_msg);
+
+  view->warning_msg = NULL;
+
+  return;
+}
+
+gchar * dupin_view_get_warning (DupinView * view)
+{
+  g_return_val_if_fail (view != NULL, NULL);
+
+  return view->warning_msg;
 }
 
 /* EOF */

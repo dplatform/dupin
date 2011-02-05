@@ -120,6 +120,26 @@ gboolean	dupin_linkbase_is_checked
 gboolean        dupin_linkbase_get_parent_is_db
                                         (DupinLinkB * linkb);
 
+void            dupin_linkbase_set_error
+                                        (DupinLinkB * linkb,
+                                         gchar * msg);
+
+void            dupin_linkbase_clear_error
+                                        (DupinLinkB * linkb);
+
+gchar *         dupin_linkbase_get_error
+                                        (DupinLinkB * linkb);
+
+void            dupin_linkbase_set_warning
+                                        (DupinLinkB * linkb,
+                                         gchar * msg);
+
+void            dupin_linkbase_clear_warning
+                                        (DupinLinkB * linkb);
+
+gchar *         dupin_linkbase_get_warning
+                                        (DupinLinkB * linkb);
+
 G_END_DECLS
 
 #endif

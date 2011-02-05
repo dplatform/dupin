@@ -43,6 +43,20 @@ DupinView *	dupin_database_get_view	(DupinDB *	db,
 gsize		dupin_database_count	(DupinDB *	db,
 					 DupinCountType	type);
 
+gboolean	dupin_database_set_default_attachment_db_name
+					(DupinDB *	db,
+					 gchar *	attachment_db_name);
+
+gchar *		dupin_database_get_default_attachment_db_name
+					(DupinDB *	db);
+
+gboolean	dupin_database_set_default_linkbase_name
+					(DupinDB *	db,
+					 gchar *	linkbase_name);
+
+gchar *		dupin_database_get_default_linkbase_name
+					(DupinDB *	db);
+
 gboolean	dupin_database_get_max_rowid	(DupinDB *	db,
 					         gsize * max_rowid);
 
@@ -85,6 +99,26 @@ gboolean	dupin_database_is_compacting
 					(DupinDB * db);
 
 gboolean	dupin_database_is_compacted
+					(DupinDB * db);
+
+void		dupin_database_set_error
+					(DupinDB * db,
+					 gchar * msg);
+
+void		dupin_database_clear_error
+					(DupinDB * db);
+
+gchar *		dupin_database_get_error
+					(DupinDB * db);
+
+void		dupin_database_set_warning
+					(DupinDB * db,
+					 gchar * msg);
+
+void		dupin_database_clear_warning
+					(DupinDB * db);
+
+gchar *		dupin_database_get_warning
 					(DupinDB * db);
 
 G_END_DECLS

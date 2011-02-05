@@ -7,6 +7,9 @@
 #include <json-glib/json-glib.h>
 #include <json-glib/json-gobject.h>
 
+/* TODO - avoid using DSHttpStatusCode to report insert and request records */
+#include "../httpd/httpd.h"
+
 G_BEGIN_DECLS
 
 /* see RFC 5988 - Web Linking  spec */
@@ -215,6 +218,24 @@ void		dupin_link_record_get_revisions_list_close
 gboolean	dupin_link_record_is_deleted
 					(DupinLinkRecord *		record,
 					 gchar *		mvcc);
+
+/* insert = create or update */
+
+gboolean	dupin_link_record_insert
+					(DupinLinkB * linkb,
+                                         JsonNode * obj_node,
+                                         gchar * id, gchar * caller_mvcc,
+					 gchar * context_id,
+                                         DupinLinksType link_type,
+                                         GList ** response_list,
+					 gboolean strict_links);
+
+gboolean	dupin_link_record_insert_bulk
+					(DupinLinkB * linkb,
+					 JsonNode * bulk_node,
+					 gchar * context_id,
+					 GList ** response_list,
+					 gboolean strict_links);
 
 /* Utility functions - mainly internal */
 

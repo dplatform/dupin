@@ -6,6 +6,8 @@
 
 #include <glib.h>
 
+G_BEGIN_DECLS
+
 typedef struct request_type_t RequestType;
 struct request_type_t
 {
@@ -41,21 +43,6 @@ gboolean
                            	 gsize offset, 
                            	 gsize *bytes_read, 
                            	 GError **       error);
-
-G_BEGIN_DECLS
-
-typedef struct dupin_keyvalue_t    dupin_keyvalue_t;
-
-struct dupin_keyvalue_t
-{
-  gchar *       key;
-  gchar *       value;
-};
-
-dupin_keyvalue_t * dupin_keyvalue_new         (gchar *        key,
-                                         gchar *        value) G_GNUC_WARN_UNUSED_RESULT;
-
-void            dupin_keyvalue_destroy     (dupin_keyvalue_t * data);
 
 G_END_DECLS
 

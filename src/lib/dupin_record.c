@@ -1070,4 +1070,830 @@ dupin_record_generate_hash (DupinRecord * record,
   return TRUE;
 }
 
+/* Insert */
+
+static gchar *
+dupin_record_insert_extract_rev (DupinDB * db, JsonNode * obj_node)
+{
+  g_return_val_if_fail (db != NULL, FALSE);
+
+  gchar * mvcc=NULL;
+  JsonNode *node;
+  JsonObject *obj;
+
+  g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, NULL);
+
+  obj = json_node_get_object (obj_node);
+
+  if (json_object_has_member (obj, REQUEST_OBJ_REV) == FALSE)
+    return NULL;
+
+  node = json_object_get_member (obj, REQUEST_OBJ_REV);
+
+  if (node == NULL
+      || json_node_get_node_type  (node) != JSON_NODE_VALUE
+      || json_node_get_value_type (node) != G_TYPE_STRING)
+    return NULL;
+
+  mvcc = g_strdup (json_node_get_string (node));
+
+  json_object_remove_member (obj, REQUEST_OBJ_REV);
+
+  return mvcc;
+}
+
+static gchar *
+dupin_record_insert_extract_id (DupinDB * db, JsonNode * obj_node)
+{
+  g_return_val_if_fail (db != NULL, FALSE);
+
+  gchar *id = NULL;
+  JsonNode *node;
+  JsonObject *obj;
+
+  g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, NULL);
+
+  obj = json_node_get_object (obj_node);
+
+  if (json_object_has_member (obj, REQUEST_OBJ_ID) == FALSE)
+    return NULL;
+
+  node = json_object_get_member (obj, REQUEST_OBJ_ID);
+
+  if (node == NULL)
+    return NULL;
+
+  if (json_node_get_value_type (node) == G_TYPE_STRING) /* check this is correct type */
+    id = g_strdup (json_node_get_string (node));
+  else
+    {
+      GString * str = g_string_new (NULL);
+      g_string_append_printf (str, "Identifier is of type %s and not string. The system has generated a new ID automaticlaly.", json_node_type_name (node));
+      gchar * tmp = g_string_free (str, FALSE);
+      dupin_database_set_warning (db, tmp);
+      g_free (tmp);
+    }
+
+  json_object_remove_member (obj, REQUEST_OBJ_ID);
+
+  return id;
+}
+
+static gboolean
+dupin_record_insert_extract_deleted (DupinDB * db, JsonNode * obj_node)
+{
+  g_return_val_if_fail (db != NULL, FALSE);
+
+  gboolean deleted=FALSE;
+  JsonNode *node;
+  JsonObject *obj;
+
+  g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, FALSE);
+
+  obj = json_node_get_object (obj_node);
+
+  if (json_object_has_member (obj, REQUEST_OBJ_DELETED) == FALSE)
+    return FALSE;
+
+  node = json_object_get_member (obj, REQUEST_OBJ_DELETED);
+
+  if (node == NULL
+      || json_node_get_node_type  (node) != JSON_NODE_VALUE
+      || json_node_get_value_type (node) != G_TYPE_BOOLEAN)
+    return FALSE;
+
+  deleted = json_node_get_boolean (node);
+
+  json_object_remove_member (obj, REQUEST_OBJ_DELETED);
+
+  return deleted;
+}
+
+/* insert = create or update */
+
+gboolean
+dupin_record_insert (DupinDB * db,
+		     JsonNode * obj_node,
+                     gchar * id,
+		     gchar * caller_mvcc,
+                     GList ** response_list)
+{
+  g_return_val_if_fail (db != NULL, FALSE);
+
+  DupinLinkB *linkb;
+  DupinAttachmentDB *attachment_db;
+  DupinRecord *record;
+
+  gchar * mvcc=NULL;
+  gchar * json_record_id=NULL;
+
+  JsonNode * links_node=NULL;
+  JsonNode * relationships_node=NULL;
+  JsonNode * attachments_node=NULL;
+
+  if (caller_mvcc != NULL)
+    g_return_val_if_fail (dupin_util_is_valid_mvcc (caller_mvcc) == TRUE, FALSE);
+
+  if (json_node_get_node_type (obj_node) != JSON_NODE_OBJECT)
+    {
+      dupin_database_set_error (db, "Input must be a JSON object");
+      return FALSE;
+    }
+
+  gboolean to_delete = dupin_record_insert_extract_deleted (db, obj_node);
+
+  JsonNode * record_response_node = json_node_new (JSON_NODE_OBJECT);
+  JsonObject * record_response_obj = json_object_new ();
+  json_node_take_object (record_response_node, record_response_obj);
+
+  /* fetch the _rev field in the record first, if there */
+  mvcc = dupin_record_insert_extract_rev (db, obj_node);
+
+  /* otherwise check passed parameters */
+  if (mvcc == NULL
+      && caller_mvcc != NULL)
+    mvcc = g_strdup (caller_mvcc);
+
+  if ((json_record_id = dupin_record_insert_extract_id (db, obj_node)))
+    {
+      if (id && g_strcmp0 (id, json_record_id))
+        {
+          if (mvcc != NULL)
+            g_free (mvcc);
+          g_free (json_record_id);
+          
+          dupin_database_set_error (db, "Specified record id does not match");
+          if (record_response_node != NULL)
+            json_node_free (record_response_node);
+          return FALSE;
+        }
+
+      id = json_record_id;
+    }
+
+  if (mvcc != NULL && !id)
+    {
+      if (json_record_id != NULL)
+        g_free (json_record_id);
+      if (mvcc != NULL)
+        g_free (mvcc);
+      
+      dupin_database_set_error (db, "No valid record id or MVCC specified");
+      if (record_response_node != NULL)
+        json_node_free (record_response_node);
+      return FALSE;
+    }
+
+  /* get and remove inline _attachments element */
+  attachments_node = json_object_get_member (json_node_get_object (obj_node), REQUEST_OBJ_ATTACHMENTS);
+  if (attachments_node != NULL)
+    {
+      attachments_node = json_node_copy (attachments_node);
+      json_object_remove_member (json_node_get_object (obj_node), REQUEST_OBJ_ATTACHMENTS);
+    }
+
+  /* get and remove inline _links element */
+  links_node = json_object_get_member (json_node_get_object (obj_node), REQUEST_OBJ_LINKS);
+  if (links_node != NULL)
+    {
+      links_node = json_node_copy (links_node);
+      json_object_remove_member (json_node_get_object (obj_node), REQUEST_OBJ_LINKS);
+    }
+
+  /* get and remove inline _relationships element */
+  relationships_node = json_object_get_member (json_node_get_object (obj_node), REQUEST_OBJ_RELATIONSHIPS);
+  if (relationships_node != NULL)
+    {
+      relationships_node = json_node_copy (relationships_node);
+      json_object_remove_member (json_node_get_object (obj_node), REQUEST_OBJ_RELATIONSHIPS);
+    }
+
+  if (mvcc != NULL)
+    {
+      record = dupin_record_read (db, id, NULL);
+
+      if ( to_delete == TRUE )
+        {
+          if (!record || dupin_util_mvcc_revision_cmp (mvcc, dupin_record_get_last_revision (record))
+              || dupin_record_delete (record, NULL) == FALSE)
+            {
+              if (record)
+                dupin_record_close (record);
+              record = NULL;
+            }
+        }
+      else
+        {
+          if (!record || dupin_util_mvcc_revision_cmp (mvcc, dupin_record_get_last_revision (record))
+              || dupin_record_update (record, obj_node, NULL) == FALSE)
+            {
+              if (record)
+                dupin_record_close (record);
+              record = NULL;
+            }
+        }
+    }
+
+  else if (!id)
+    {
+      if ( to_delete == TRUE )
+        {
+          if (record)
+            dupin_record_close (record);
+          record = NULL;
+        }
+      else
+        {
+          record = dupin_record_create (db, obj_node, NULL);
+        }
+    }
+
+  else
+    {
+      if ( to_delete == TRUE )
+        {
+          if (record)
+            dupin_record_close (record);
+          record = NULL;
+        }
+      else
+        {
+          if (dupin_record_exists (db, id) == FALSE)
+            record = dupin_record_create_with_id (db, obj_node, id, NULL);
+          else
+            record = NULL;
+        }
+    }
+
+  if (json_record_id)
+    g_free (json_record_id);
+
+  if (!record)
+    {
+      if (attachments_node != NULL)
+        json_node_free (attachments_node);
+      if (links_node != NULL)
+        json_node_free (links_node);
+      if (relationships_node != NULL)
+        json_node_free (relationships_node);
+      
+      if (to_delete == TRUE)
+        {
+          if (mvcc == NULL)
+            dupin_database_set_error (db, "Deleted flag not allowed on record creation");
+          else
+            dupin_database_set_error (db, "Cannot delete record");
+        }
+      else if (mvcc != NULL)
+        dupin_database_set_error (db, "Cannot update record");
+      else
+        dupin_database_set_error (db, "Cannot insert record");
+
+      if (mvcc != NULL)
+        g_free (mvcc);
+
+      if (record_response_node != NULL)
+        json_node_free (record_response_node);
+
+      return FALSE;
+    }
+
+  /* process _attachments object for inline attachments */
+
+  if (attachments_node != NULL
+      && json_node_get_node_type (attachments_node) == JSON_NODE_OBJECT)
+    {
+//g_message("process _attachments object for inline attachments\n");
+
+      if (!  (attachment_db =
+               dupin_attachment_db_open (db->d, dupin_database_get_default_attachment_db_name (db), NULL)))
+        {
+          if (attachments_node != NULL)
+            json_node_free (attachments_node);
+          if (links_node != NULL)
+            json_node_free (links_node);
+          if (relationships_node != NULL)
+            json_node_free (relationships_node);
+          if (mvcc != NULL)
+            g_free (mvcc);
+          
+          dupin_database_set_error (db, "Cannot connect to attachments database");
+
+          if (record_response_node != NULL)
+            json_node_free (record_response_node);
+
+          return FALSE;
+        }
+
+      JsonObject * attachments_obj = json_node_get_object (attachments_node);
+
+      GList *n;
+      GList *nodes = json_object_get_members (attachments_obj);
+
+      for (n = nodes; n != NULL; n = n->next)
+        {
+          gchar *member_name = (gchar *) n->data;
+          JsonNode *inline_attachment_node = json_object_get_member (attachments_obj, member_name);
+
+          if (json_node_get_node_type (inline_attachment_node) != JSON_NODE_OBJECT)
+            {
+              /* TODO - should log something or fail ? */
+              continue;
+            }
+
+          JsonObject *inline_attachment_obj = json_node_get_object (inline_attachment_node);
+
+          gboolean to_delete = FALSE;
+          if (json_object_has_member (inline_attachment_obj, REQUEST_OBJ_DELETED) == TRUE)
+            to_delete = json_object_get_boolean_member (inline_attachment_obj, REQUEST_OBJ_DELETED);
+
+          gboolean stub = FALSE;
+          if (json_object_has_member (inline_attachment_obj, REQUEST_OBJ_INLINE_ATTACHMENTS_STUB) == TRUE)
+            stub = json_object_get_boolean_member (inline_attachment_obj, REQUEST_OBJ_INLINE_ATTACHMENTS_STUB);
+
+          if (stub == TRUE)
+            {
+              if (to_delete == TRUE)
+                {
+                  // TODO - warning we used _deleted: true while we meant to ingnore attachment ? */
+                  continue;
+                }
+              else
+                {
+                  // do we need to update attachment metadata in any way ? */
+                  continue;
+                }
+            }
+
+          gchar * content_type = NULL;
+          guchar * buff = NULL;
+          const void * buff_ref = (const void *) buff;
+          gsize buff_size;
+          if (to_delete == FALSE)
+            {
+              content_type = (gchar *) json_object_get_string_member (inline_attachment_obj, REQUEST_OBJ_INLINE_ATTACHMENTS_TYPE);
+              gchar * data = (gchar *) json_object_get_string_member (inline_attachment_obj, REQUEST_OBJ_INLINE_ATTACHMENTS_DATA);
+
+              /* decode base64 assuming data is a single (even if long) line/string */
+              if (data != NULL)
+                buff = g_base64_decode ((const gchar *)data, &buff_size);
+
+              if (content_type == NULL
+                  || data == NULL
+                  || buff == NULL)
+                {
+                  if (buff != NULL)
+                    g_free (buff);
+
+                  /* TODO - should log something or fail ? */
+                  continue;
+                }
+            }
+
+          /* NOTE - store inline attachment as normal one - correct? */
+          if ( (to_delete == TRUE
+                && dupin_attachment_record_exists (attachment_db, (gchar *) dupin_record_get_id (record), member_name) == FALSE)
+              || dupin_attachment_record_delete (attachment_db, (gchar *) dupin_record_get_id (record), member_name) == FALSE
+              || (to_delete == FALSE
+                  && dupin_attachment_record_create (attachment_db, (gchar *) dupin_record_get_id (record),
+						     member_name, buff_size, content_type,
+                                          	     &buff_ref) == FALSE))
+            {
+              if (buff != NULL)
+                g_free (buff);
+              dupin_attachment_db_unref (attachment_db);
+
+              dupin_record_close (record);
+
+              if (attachments_node != NULL)
+                json_node_free (attachments_node);
+              if (links_node != NULL)
+                json_node_free (links_node);
+              if (relationships_node != NULL)
+                json_node_free (relationships_node);
+              if (mvcc != NULL)
+                g_free (mvcc);
+              
+              dupin_database_set_error (db, "Cannot insert, update or delete attachment");
+
+              if (record_response_node != NULL)
+                json_node_free (record_response_node);
+
+              return FALSE;
+            }
+
+          g_free (buff);
+        }
+
+      g_list_free (nodes);
+
+      dupin_attachment_db_unref (attachment_db);
+    }
+
+  /* process _links object for inline links */
+
+  if ((to_delete == FALSE)
+      && (links_node != NULL || relationships_node != NULL))
+    {
+      GList *n, *nodes;
+      gchar * context_id = (gchar *)dupin_record_get_id (record);
+
+      if (!  (linkb =
+               dupin_linkbase_open (db->d, dupin_database_get_default_linkbase_name (db), NULL)))
+        {
+          dupin_record_close (record);
+
+          if (attachments_node != NULL)
+            json_node_free (attachments_node);
+          if (links_node != NULL)
+            json_node_free (links_node);
+          if (relationships_node != NULL)
+            json_node_free (relationships_node);
+          if (mvcc != NULL)
+            g_free (mvcc);
+          
+          dupin_database_set_error (db, "Cannot connect to linkbase");
+          if (record_response_node != NULL)
+            json_node_free (record_response_node);
+
+          return FALSE;
+        }
+
+      if (links_node != NULL && json_node_get_node_type (links_node) == JSON_NODE_OBJECT)
+        {
+          JsonNode * record_response_links_node = json_node_new (JSON_NODE_OBJECT);
+          JsonObject * record_response_links_object = json_object_new ();
+          json_node_take_object (record_response_links_node, record_response_links_object);
+
+          JsonObject * links_obj = json_node_get_object (links_node);
+          nodes = json_object_get_members (links_obj);
+          for (n = nodes; n != NULL; n = n->next)
+            {
+              gchar *label = (gchar *) n->data;
+              JsonNode *inline_link_node = json_object_get_member (links_obj, label);
+
+              JsonNode * record_response_links_label_node = json_node_new (JSON_NODE_ARRAY);
+              JsonArray * record_response_links_label_array = json_array_new ();
+              json_node_take_array (record_response_links_label_node, record_response_links_label_array);
+
+              if (json_node_get_node_type (inline_link_node) == JSON_NODE_ARRAY)
+                {
+                  GList *sn, *snodes;
+                  snodes = json_array_get_elements (json_node_get_array (inline_link_node));
+                  for (sn = snodes; sn != NULL; sn = sn->next)
+                    {
+                      GList * links_response_list = NULL;
+                      JsonNode * lnode = (JsonNode *) sn->data;
+                      gchar * lnode_label = NULL;
+
+                      if (json_node_get_node_type (lnode) != JSON_NODE_OBJECT)
+                        {
+                          /* TODO - should log something or fail ? */
+                          continue;
+                        }
+
+                      /* add each link with context_id and label */
+
+                      JsonObject * lobj = json_node_get_object (lnode);
+
+                      if (json_object_has_member (lobj, REQUEST_LINK_OBJ_LABEL) == TRUE)
+                        lnode_label = (gchar *)json_object_get_string_member (lobj, REQUEST_LINK_OBJ_LABEL);
+                      else
+                        json_object_set_string_member (lobj, REQUEST_LINK_OBJ_LABEL, label);
+
+//g_message("dupin_record_insert: context_id=%s label=%s lnode_label=%s\n", context_id, label, lnode_label);
+
+                      /* TODO - rework this to report errors to poort user ! perhaps using contextual logging if useful */
+
+                      if ((lnode_label != NULL ) && (g_strcmp0 (lnode_label, label)))
+                        {
+                          JsonObject * error_obj = json_object_new ();
+                          GString * str = g_string_new("");
+                          g_string_append_printf (str, "Link record (%s) has an invalid valid label or cannot be added to document", lnode_label);
+                          gchar * error_msg = g_string_free (str, FALSE);
+                          json_object_set_string_member (error_obj, RESPONSE_STATUS_REASON, error_msg);
+                          json_object_set_string_member (error_obj, RESPONSE_STATUS_ERROR, "bad_request");
+                          g_free (error_msg);
+                          json_array_add_object_element (record_response_links_label_array, error_obj);
+
+                          continue;
+                        }
+
+                      if (dupin_link_record_insert (linkb, lnode, NULL, NULL, context_id, DP_LINK_TYPE_WEB_LINK, &links_response_list, FALSE) == FALSE)
+                        {
+                          JsonObject * error_obj = json_object_new ();
+                          GString * str = g_string_new("");
+                          if (dupin_linkbase_get_error (linkb) != NULL)
+                            {
+                              g_string_append_printf (str, "%s", dupin_linkbase_get_error (linkb));
+                              dupin_linkbase_clear_error (linkb);
+                            }
+                          else
+                            {
+                              g_string_append_printf (str, "Link record (%s) cannnot be inserted", lnode_label);
+                            }
+                          gchar * error_msg = g_string_free (str, FALSE);
+                          json_object_set_string_member (error_obj, RESPONSE_STATUS_REASON, error_msg);
+                          json_object_set_string_member (error_obj, RESPONSE_STATUS_ERROR, "bad_request");
+                          g_free (error_msg);
+                          json_array_add_object_element (record_response_links_label_array, error_obj);
+
+                          while (links_response_list)
+                            {
+                              json_node_free (links_response_list->data);
+                              links_response_list = g_list_remove (links_response_list, links_response_list->data);
+                            }
+
+                          continue;
+                        }
+
+//g_message("dupin_record_insert: DONE link context_id=%s label=%s lnode_label=%s\n", context_id, label, lnode_label);
+
+                      while (links_response_list)
+                        {
+                          json_array_add_element (record_response_links_label_array, (JsonNode *)links_response_list->data);
+                          links_response_list = g_list_remove (links_response_list, links_response_list->data);
+                        }
+                    }
+                  g_list_free (snodes);
+                }
+
+              if (json_array_get_length (record_response_links_label_array) == 0)
+                {
+                  json_node_free (record_response_links_label_node);
+                }
+              else
+                {
+                  json_object_set_member (record_response_links_object, label, record_response_links_label_node);
+                }
+            }
+          g_list_free (nodes);
+
+          if (json_object_get_size (record_response_links_object) == 0)
+            {
+              json_node_free (record_response_links_node);
+            }
+          else
+            {
+              json_object_set_member (record_response_obj, RESPONSE_OBJ_LINKS, record_response_links_node);
+            }
+        }
+
+      nodes = NULL;
+
+      if (relationships_node != NULL && json_node_get_node_type (relationships_node) == JSON_NODE_OBJECT)
+        {
+          JsonNode * record_response_relationships_node = json_node_new (JSON_NODE_OBJECT);
+          JsonObject * record_response_relationships_object = json_object_new ();
+          json_node_take_object (record_response_relationships_node, record_response_relationships_object);
+
+          JsonObject * relationships_obj = json_node_get_object (relationships_node);
+          nodes = json_object_get_members (relationships_obj);
+          for (n = nodes; n != NULL; n = n->next)
+            {
+              gchar *label = (gchar *) n->data;
+              JsonNode *inline_relationship_node = json_object_get_member (relationships_obj, label);
+
+              JsonNode * record_response_relationships_label_node = json_node_new (JSON_NODE_ARRAY);
+              JsonArray * record_response_relationships_label_array = json_array_new ();
+              json_node_take_array (record_response_relationships_label_node, record_response_relationships_label_array);
+
+              if (json_node_get_node_type (inline_relationship_node) == JSON_NODE_ARRAY)
+                {
+                  GList *sn, *snodes;
+                  snodes = json_array_get_elements (json_node_get_array (inline_relationship_node));
+                  for (sn = snodes; sn != NULL; sn = sn->next)
+                    {
+                      GList * relationships_response_list = NULL;
+                      JsonNode * rnode = (JsonNode *) sn->data;
+                      gchar * rnode_label = NULL;
+
+                      if (json_node_get_node_type (rnode) != JSON_NODE_OBJECT)
+                        {
+                          /* TODO - should log something or fail ? */
+                          continue;
+                        }
+
+                      /* add each relationship with context_id and label */
+
+                      JsonObject * robj = json_node_get_object (rnode);
+
+                      if (json_object_has_member (robj, REQUEST_LINK_OBJ_LABEL) == TRUE)
+                        rnode_label = (gchar *)json_object_get_string_member (robj, REQUEST_LINK_OBJ_LABEL);
+                      else
+                        json_object_set_string_member (robj, REQUEST_LINK_OBJ_LABEL, label);
+
+//g_message("dupin_record_insert: context_id=%s label=%s rnode_label=%s\n", context_id, label, rnode_label);
+
+                      /* TODO - rework this to report errors to poort user ! perhaps using contextual logging if useful */
+
+                      if ((rnode_label != NULL ) && (g_strcmp0 (rnode_label, label)))
+                        {
+                          JsonObject * error_obj = json_object_new ();
+                          GString * str = g_string_new("");
+                          g_string_append_printf (str, "Relationship record (%s) has an invalid valid label or cannot be added to document", rnode_label);
+                          gchar * error_msg = g_string_free (str, FALSE);
+                          json_object_set_string_member (error_obj, RESPONSE_STATUS_REASON, error_msg);
+                          json_object_set_string_member (error_obj, RESPONSE_STATUS_ERROR, "bad_request");
+                          g_free (error_msg);
+                          json_array_add_object_element (record_response_relationships_label_array, error_obj);
+
+                          continue;
+                        }
+
+                      if (dupin_link_record_insert (linkb, rnode, NULL, NULL, context_id, DP_LINK_TYPE_RELATIONSHIP, &relationships_response_list, FALSE) == FALSE)
+                        {
+                          JsonObject * error_obj = json_object_new ();
+                          GString * str = g_string_new("");
+                          if (dupin_linkbase_get_error (linkb) != NULL)
+                            {
+                              g_string_append_printf (str, "%s", dupin_linkbase_get_error (linkb));
+                              dupin_linkbase_clear_error (linkb);
+                            }
+                          else
+                            {
+                              g_string_append_printf (str, "Relationship record (%s) cannnot be inserted", rnode_label);
+                            }
+                          gchar * error_msg = g_string_free (str, FALSE);
+                          json_object_set_string_member (error_obj, RESPONSE_STATUS_REASON, error_msg);
+                          json_object_set_string_member (error_obj, RESPONSE_STATUS_ERROR, "bad_request");
+                          g_free (error_msg);
+                          json_array_add_object_element (record_response_relationships_label_array, error_obj);
+
+                          while (relationships_response_list)
+                            {
+                              json_node_free (relationships_response_list->data);
+                              relationships_response_list = g_list_remove (relationships_response_list, relationships_response_list->data);
+                            }
+
+                          continue;
+                        }
+
+//g_message("dupin_record_insert: DONE relationship context_id=%s label=%s rnode_label=%s\n", context_id, label, rnode_label);
+
+                      while (relationships_response_list)
+                        {
+                          json_array_add_element (record_response_relationships_label_array, (JsonNode *)relationships_response_list->data);
+                          relationships_response_list = g_list_remove (relationships_response_list, relationships_response_list->data);
+                        }
+                    }
+                  g_list_free (snodes);
+                }
+
+              if (json_array_get_length (record_response_relationships_label_array) == 0)
+                {
+                  json_node_free (record_response_relationships_label_node);
+                }
+              else
+                {
+                  json_object_set_member (record_response_relationships_object, label, record_response_relationships_label_node);
+                }
+            }
+          g_list_free (nodes);
+
+          if (json_object_get_size (record_response_relationships_object) == 0)
+            {
+              json_node_free (record_response_relationships_node);
+            }
+          else
+            {
+              json_object_set_member (record_response_obj, RESPONSE_OBJ_RELATIONSHIPS, record_response_relationships_node);
+            }
+        }
+
+      dupin_linkbase_unref (linkb);
+    }
+
+  if (attachments_node != NULL)
+    json_node_free (attachments_node);
+
+  if (links_node != NULL)
+    json_node_free (links_node);
+
+  if (relationships_node != NULL)
+    json_node_free (relationships_node);
+
+  if (mvcc != NULL)
+    g_free (mvcc);
+
+  json_object_set_string_member (record_response_obj, RESPONSE_OBJ_ID, (gchar *) dupin_record_get_id (record));
+  json_object_set_string_member (record_response_obj, RESPONSE_OBJ_REV, dupin_record_get_last_revision (record));
+
+  dupin_record_close (record);
+  
+  *response_list = g_list_prepend (*response_list, record_response_node);
+
+  return TRUE;
+}
+
+/* NOTE - receive an object containing an array of objects, and return an array of objects as result */
+
+gboolean
+dupin_record_insert_bulk (DupinDB * db,
+			  JsonNode * bulk_node,
+			  GList ** response_list)
+{
+  g_return_val_if_fail (db != NULL, FALSE);
+
+  JsonObject *obj;
+  JsonNode *node;
+  JsonArray *array;
+  GList *nodes, *n;
+
+  if (json_node_get_node_type (bulk_node) != JSON_NODE_OBJECT)
+    {
+      dupin_database_set_error (db, "Bulk body must be a JSON object");
+      return FALSE;
+    }
+
+  obj = json_node_get_object (bulk_node);
+
+  if (json_object_has_member (obj, REQUEST_POST_BULK_DOCS_DOCS) == FALSE)
+    {
+      dupin_database_set_error (db, "Bulk body does not contain a mandatory " REQUEST_POST_BULK_DOCS_DOCS " object memeber");
+      return FALSE;
+    }
+
+  node = json_object_get_member (obj, REQUEST_POST_BULK_DOCS_DOCS);
+
+  if (node == NULL)
+    {
+      dupin_database_set_error (db, "Bulk body does not contain a valid " REQUEST_POST_BULK_DOCS_DOCS " object memeber");
+      return FALSE;
+    }
+
+  if (json_node_get_node_type (node) != JSON_NODE_ARRAY)
+    {
+      dupin_database_set_error (db, "Bulk body " REQUEST_POST_BULK_DOCS_DOCS " object memeber is not an array");
+      return FALSE;
+    }
+
+  array = json_node_get_array (node);
+
+  if (array == NULL)
+    {
+      dupin_database_set_error (db, "Bulk body " REQUEST_POST_BULK_DOCS_DOCS " object memeber is not a valid array");
+      return FALSE;
+    }
+
+  /* scan JSON array */
+  nodes = json_array_get_elements (array);
+
+  for (n = nodes; n != NULL; n = n->next)
+    {
+      JsonNode *element_node = (JsonNode*)n->data;
+      gchar * id = NULL;
+      gchar * rev = NULL;
+
+      if (json_node_get_node_type (element_node) != JSON_NODE_OBJECT)
+        {
+          dupin_database_set_error (db, "Bulk body " REQUEST_POST_BULK_DOCS_DOCS " array memebr is not a valid JSON object");
+          g_list_free (nodes);
+          return FALSE;
+        }
+
+      if (json_object_has_member (json_node_get_object (element_node), REQUEST_OBJ_ID) == TRUE)
+        id = g_strdup ((gchar *)json_object_get_string_member (json_node_get_object (element_node), REQUEST_OBJ_ID));
+
+      if (json_object_has_member (json_node_get_object (element_node), REQUEST_OBJ_REV) == TRUE)
+        rev = g_strdup ((gchar *)json_object_get_string_member (json_node_get_object (element_node), REQUEST_OBJ_REV));
+
+      if (dupin_record_insert (db, element_node, NULL, NULL, response_list) == FALSE)
+        {
+          /* NOTE - we report errors inline in the JSON response */
+
+          JsonNode * error_node = json_node_new (JSON_NODE_OBJECT);
+          JsonObject * error_obj = json_object_new ();
+          json_node_take_object (error_node, error_obj);
+
+          json_object_set_string_member (error_obj, RESPONSE_STATUS_ERROR, "bad_request");
+          json_object_set_string_member (error_obj, RESPONSE_STATUS_REASON, dupin_database_get_error (db));
+
+          if (id != NULL)
+            json_object_set_string_member (error_obj, RESPONSE_OBJ_ID,id);
+
+          if (rev != NULL)
+            json_object_set_string_member (error_obj, RESPONSE_OBJ_REV,rev);
+
+          *response_list = g_list_prepend (*response_list, error_node);
+        }
+      else
+        {
+          JsonNode * generated_node = (*response_list)->data;
+          JsonObject * generated_obj = json_node_get_object (generated_node);
+
+          if (dupin_database_get_warning (db) != NULL)
+            json_object_set_string_member (generated_obj, RESPONSE_STATUS_WARNING, dupin_database_get_warning (db));
+        }
+      if (id != NULL)
+        g_free (id);
+
+      if (rev!= NULL)
+        g_free (rev);
+    }
+  g_list_free (nodes); 
+
+  return TRUE;
+}
+
 /* EOF */

@@ -278,8 +278,7 @@ dupin_attachment_db_p_record_insert (DupinAttachmentDBP * p,
 				     gchar *       title,
   				     gsize         length,
   				     gchar *       type,
-  				     gchar *       hash,
-			    	     const void *  content)
+			    	     const void ** content)
 {
   g_return_if_fail (p != NULL);
   g_return_if_fail (id != NULL);
@@ -294,7 +293,7 @@ dupin_attachment_db_p_record_insert (DupinAttachmentDBP * p,
     {
       DupinAttachmentDB *attachment_db = p->attachment_dbs[i];
 
-      if (dupin_attachment_record_insert (attachment_db, id, title, length, type, hash, content) == FALSE)
+      if (dupin_attachment_record_create (attachment_db, id, title, length, type, content) == FALSE)
         {
 	  return;
         }
@@ -425,6 +424,12 @@ dupin_attachment_db_free (DupinAttachmentDB * attachment_db)
   if (attachment_db->mutex)
     g_mutex_free (attachment_db->mutex);
 
+  if (attachment_db->error_msg)
+    g_free (attachment_db->error_msg);
+
+  if (attachment_db->warning_msg)
+    g_free (attachment_db->warning_msg);
+
   g_free (attachment_db);
 }
 
@@ -526,6 +531,72 @@ dupin_attachment_db_count (DupinAttachmentDB * attachment_db)
 
   g_mutex_unlock (attachment_db->mutex);
   return size;
+}
+
+void
+dupin_attachment_db_set_error (DupinAttachmentDB * attachment_db,
+                          gchar * msg)
+{
+  g_return_if_fail (attachment_db != NULL);
+  g_return_if_fail (msg != NULL);
+
+  dupin_attachment_db_clear_error (attachment_db);
+
+  attachment_db->error_msg = g_strdup ( msg );
+
+  return;
+}
+
+void
+dupin_attachment_db_clear_error (DupinAttachmentDB * attachment_db)
+{
+  g_return_if_fail (attachment_db != NULL);
+
+  if (attachment_db->error_msg != NULL)
+    g_free (attachment_db->error_msg);
+
+  attachment_db->error_msg = NULL;
+
+  return;
+}
+
+gchar * dupin_attachment_db_get_error (DupinAttachmentDB * attachment_db)
+{
+  g_return_val_if_fail (attachment_db != NULL, NULL);
+
+  return attachment_db->error_msg;
+}
+
+void dupin_attachment_db_set_warning (DupinAttachmentDB * attachment_db,
+                                 gchar * msg)
+{
+  g_return_if_fail (attachment_db != NULL);
+  g_return_if_fail (msg != NULL);
+
+  dupin_attachment_db_clear_warning (attachment_db);
+
+  attachment_db->warning_msg = g_strdup ( msg );
+
+  return;
+}
+
+void dupin_attachment_db_clear_warning (DupinAttachmentDB * attachment_db)
+{
+  g_return_if_fail (attachment_db != NULL);
+
+  if (attachment_db->warning_msg != NULL)
+    g_free (attachment_db->warning_msg);
+
+  attachment_db->warning_msg = NULL;
+
+  return;
+}
+
+gchar * dupin_attachment_db_get_warning (DupinAttachmentDB * attachment_db)
+{
+  g_return_val_if_fail (attachment_db != NULL, NULL);
+
+  return attachment_db->warning_msg;
 }
 
 /* EOF */

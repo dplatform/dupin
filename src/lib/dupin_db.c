@@ -308,6 +308,12 @@ dupin_db_free (DupinDB * db)
   if (db->name)
     g_free (db->name);
 
+  if (db->default_attachment_db_name)
+    g_free (db->default_attachment_db_name);
+
+  if (db->default_linkbase_name)
+    g_free (db->default_linkbase_name);
+
   if (db->path)
     g_free (db->path);
 
@@ -322,6 +328,12 @@ dupin_db_free (DupinDB * db)
 
   if (db->attachment_dbs.attachment_dbs)
     g_free (db->attachment_dbs.attachment_dbs);
+
+  if (db->error_msg)
+    g_free (db->error_msg);
+
+  if (db->warning_msg)
+    g_free (db->warning_msg);
 
   g_free (db);
 }
@@ -341,6 +353,10 @@ dupin_db_create (Dupin * d, gchar * name, gchar * path, GError ** error)
 
   db->tocompact = FALSE;
   db->compact_processed_count = 0;
+
+  /* NOTE - default attachement db and linkbase - unchangable at the moment */
+  db->default_attachment_db_name = g_strdup (name);
+  db->default_linkbase_name = g_strdup (name);
 
   if (sqlite3_open (db->path, &db->db) != SQLITE_OK)
     {
@@ -966,6 +982,115 @@ dupin_database_is_compacted (DupinDB * db)
     return FALSE;
 
   return db->tocompact ? FALSE : TRUE;
+}
+
+void
+dupin_database_set_error (DupinDB * db,
+			  gchar * msg)
+{
+  g_return_if_fail (db != NULL);
+  g_return_if_fail (msg != NULL);
+
+  dupin_database_clear_error (db);
+
+  db->error_msg = g_strdup ( msg );
+
+  return;
+}
+
+void
+dupin_database_clear_error (DupinDB * db)
+{
+  g_return_if_fail (db != NULL);
+
+  if (db->error_msg != NULL)
+    g_free (db->error_msg);
+
+  db->error_msg = NULL;
+
+  return;
+}
+
+gchar * dupin_database_get_error (DupinDB * db)
+{
+  g_return_val_if_fail (db != NULL, NULL);
+
+  return db->error_msg;
+}
+
+void dupin_database_set_warning (DupinDB * db,
+				 gchar * msg)
+{
+  g_return_if_fail (db != NULL);
+  g_return_if_fail (msg != NULL);
+
+  dupin_database_clear_warning (db);
+
+  db->warning_msg = g_strdup ( msg );
+
+  return;
+}
+
+void dupin_database_clear_warning (DupinDB * db)
+{
+  g_return_if_fail (db != NULL);
+
+  if (db->warning_msg != NULL)
+    g_free (db->warning_msg);
+
+  db->warning_msg = NULL;
+
+  return;
+}
+
+gchar * dupin_database_get_warning (DupinDB * db)
+{
+  g_return_val_if_fail (db != NULL, NULL);
+
+  return db->warning_msg;
+}
+
+/* TODO - select current attachment db and linkbase to use for insert and retrieve operations
+          in dupin_record API - we just set and force the dbname as default, full stop */
+
+gboolean        dupin_database_set_default_attachment_db_name
+                                        (DupinDB *      db,
+                                         gchar *        attachment_db_name)
+{
+  g_return_val_if_fail (db != NULL, FALSE);
+  g_return_val_if_fail (!g_strcmp0 (attachment_db_name, db->name), FALSE);
+
+  /* TODO */
+ 
+  return TRUE;
+}
+
+gchar *         dupin_database_get_default_attachment_db_name
+                                        (DupinDB *      db)
+{
+  g_return_val_if_fail (db != NULL, NULL);
+
+  return db->default_attachment_db_name;
+}
+
+gboolean        dupin_database_set_default_linkbase_name
+                                        (DupinDB *      db,
+                                         gchar *        linkbase_name)
+{
+  g_return_val_if_fail (db != NULL, FALSE);
+  g_return_val_if_fail (!g_strcmp0 (linkbase_name, db->name), FALSE);
+
+  /* TODO */
+
+  return TRUE;
+}
+
+gchar *         dupin_database_get_default_linkbase_name
+                                        (DupinDB *      db)
+{
+  g_return_val_if_fail (db != NULL, NULL);
+
+  return db->default_linkbase_name;
 }
 
 /* EOF */

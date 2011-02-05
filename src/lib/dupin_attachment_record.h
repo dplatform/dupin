@@ -5,14 +5,17 @@
 
 G_BEGIN_DECLS
 
-gboolean	dupin_attachment_record_insert
+/* TODO - check, bug ? shouldn't be DupinAttachmentRecord ?
+          at the moment it is a special case due we need to access DupinRecord revision
+          information when adding/updating the attachment - we just been lazy? */
+
+gboolean	dupin_attachment_record_create
 					(DupinAttachmentDB * attachment_db,
-					 gchar *       id,
-                                         gchar *       title,
-                                         gsize         length,
-                                         gchar *       type,
-                                         gchar *       hash,
-                                         const void *  content);
+                                	 gchar *       id,
+                                	 gchar *       title,
+                                	 gsize         length,
+                                	 gchar *       type,
+                                	 const void ** content);
 
 gboolean	dupin_attachment_record_delete
 					(DupinAttachmentDB * attachment_db,
@@ -115,6 +118,18 @@ gboolean	dupin_attachment_record_blob_write
 gchar *		dupin_attachment_record_get_aggregated_hash
 					(DupinAttachmentDB * attachment_db,
                                          gchar *        id);
+
+/* insert = create or update */
+
+gboolean	dupin_attachment_record_insert
+					(DupinAttachmentDB * attachment_db,
+                                	 gchar * id,
+                                	 gchar * caller_mvcc,
+                                	 GList * title_parts,
+                                	 gsize  attachment_body_size,
+                                	 gchar * attachment_input_mime,
+                                	 const void ** attachment_body, // try to avoid to pass megabytes on stack
+                                	 GList ** response_list);
 
 G_END_DECLS
 

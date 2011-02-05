@@ -50,23 +50,23 @@ gboolean dupin_attachment_record_get_aggregated_hash_real (DupinAttachmentDB * a
                                                   	   gboolean       lock);
 
 /* NOTE - this is completely inefficient due we pass the whole BLOB in RAM and on the stack */
+
 gboolean
-dupin_attachment_record_insert (DupinAttachmentDB * attachment_db,
+dupin_attachment_record_create (DupinAttachmentDB * attachment_db,
                                 gchar *       id,
                                 gchar *       title,
                                 gsize         length,
                                 gchar *       type,
-                                gchar *       hash,
-                                const void *  content)
+                                const void ** content) // try to avoid to pass megabytes on stack
 {
   g_return_val_if_fail (attachment_db != NULL, FALSE);
   g_return_val_if_fail (id != NULL, FALSE);
   g_return_val_if_fail (title != NULL, FALSE);
   g_return_val_if_fail (length >= 0, FALSE);
   g_return_val_if_fail (type != NULL, FALSE);
-  g_return_val_if_fail (content != NULL, FALSE);
+  g_return_val_if_fail (*content != NULL, FALSE);
 
-//g_message("dupin_attachment_record_insert:\n\tid=%s\n\ttitle=%s\n\tlength=%d\n\ttype=%s\n\thash=%s",id, title, (gint)length, type, hash);
+//g_message("dupin_attachment_record_create:\n\tid=%s\n\ttitle=%s\n\tlength=%d\n\ttype=%s\n",id, title, (gint)length, type);
 
   gchar *query;
   sqlite3_stmt *insertstmt;
@@ -79,7 +79,7 @@ dupin_attachment_record_insert (DupinAttachmentDB * attachment_db,
   if (sqlite3_prepare(attachment_db->db, query, strlen(query), &insertstmt, NULL) != SQLITE_OK)
     {
       g_mutex_unlock (attachment_db->mutex);
-      g_error("dupin_attachment_record_insert: %s", sqlite3_errmsg (attachment_db->db));
+      g_error("dupin_attachment_record_create: %s", sqlite3_errmsg (attachment_db->db));
       sqlite3_free (query);
       return FALSE;
     }
@@ -88,9 +88,9 @@ dupin_attachment_record_insert (DupinAttachmentDB * attachment_db,
   sqlite3_bind_text (insertstmt, 2, title, strlen(title), SQLITE_STATIC);
   sqlite3_bind_text (insertstmt, 3, type, strlen(type), SQLITE_STATIC);
   sqlite3_bind_int  (insertstmt, 4, length);
-  md5 = g_compute_checksum_for_string (DUPIN_ID_HASH_ALGO, content, length); // inefficient of course
+  md5 = g_compute_checksum_for_string (DUPIN_ID_HASH_ALGO, *content, length); // inefficient of course
   sqlite3_bind_text (insertstmt, 5, md5, strlen(md5), SQLITE_STATIC);
-  sqlite3_bind_blob (insertstmt, 6, (const void*)content, length, SQLITE_STATIC);
+  sqlite3_bind_blob (insertstmt, 6, (const void*)(*content), length, SQLITE_STATIC);
 
   if (sqlite3_step (insertstmt) != SQLITE_DONE)
     {
@@ -900,6 +900,150 @@ dupin_attachment_record_blob_write (DupinAttachmentRecord * record,
     }
 
   g_mutex_unlock (record->attachment_db->mutex);
+
+  return TRUE;
+}
+
+/* Insert */
+
+gboolean
+dupin_attachment_record_insert (DupinAttachmentDB * attachment_db,
+				gchar * id,
+				gchar * caller_mvcc,
+				GList * title_parts,
+			        gsize  attachment_body_size,	
+			        gchar * attachment_input_mime,
+                                const void ** attachment_body, // try to avoid to pass megabytes on stack
+                                GList ** response_list)
+{
+  g_return_val_if_fail (attachment_db != NULL, FALSE);
+
+  DupinDB *db;
+  DupinRecord *record=NULL;
+  JsonNode * obj_node=NULL;
+
+  GString *str;
+  gchar * title = NULL;
+  GList * l=NULL;
+
+  if (caller_mvcc != NULL)
+    g_return_val_if_fail (dupin_util_is_valid_mvcc (caller_mvcc) == TRUE, FALSE);
+
+  /* process input attachment name parameter */
+
+  str = g_string_new (title_parts->data);
+
+  for (l=title_parts->next ; l != NULL ; l=l->next)
+    {
+      g_string_append_printf (str, "/%s", (gchar *)l->data);
+    }
+
+  title = g_string_free (str, FALSE);
+
+  if (title == NULL)
+    {
+      dupin_attachment_db_set_error (attachment_db, "Missing attachment name");
+      return FALSE;
+    }
+
+//g_message("dupin_attachment_record_insert: title=%s\n", title);
+
+  if (!(db = dupin_database_open (attachment_db->d, attachment_db->parent, NULL)))
+    {
+      g_free (title);
+      dupin_attachment_db_set_error (attachment_db, "Cannot connect to record database");
+      return FALSE;
+    }
+
+  record = dupin_record_read (db, id, NULL);
+
+  if (caller_mvcc == NULL && record != NULL)
+    {
+      g_free (title);
+      dupin_record_close (record);
+      
+      dupin_database_unref (db);
+      dupin_attachment_db_set_error (attachment_db, "Record found but MVCC revision number is missing");
+      return FALSE;
+    }
+
+  if (record == NULL)
+    {
+      /* TODO - create new record instead */
+     obj_node = json_node_new (JSON_NODE_OBJECT);
+     JsonObject * obj = json_object_new ();
+     json_node_take_object (obj_node, obj);
+
+     if ( dupin_attachment_record_create (attachment_db, id, title,
+                                          attachment_body_size,
+                                          attachment_input_mime,
+                                          attachment_body) == FALSE
+         || (!( record = dupin_record_create_with_id (db, obj_node, id, NULL))))
+        {
+          g_free (title);
+          json_node_free (obj_node);
+          
+          dupin_database_unref (db);
+          dupin_attachment_db_set_error (attachment_db, "Cannot insert attachment or create record to contain attachment");
+          return FALSE;
+        }
+    }
+  else
+    {
+      if (caller_mvcc == NULL
+          || dupin_util_mvcc_revision_cmp (caller_mvcc, dupin_record_get_last_revision (record)))
+        {
+          g_free (title);
+          dupin_record_close (record);
+          
+          dupin_database_unref (db);
+          dupin_attachment_db_set_error (attachment_db, "No record MVCC revision found or record revision not matching latest");
+          return FALSE;
+        }
+
+      /* NOTE - need to "touch" (update) the metadata record anyway */
+
+      if (!(obj_node = dupin_record_get_revision_node (record, caller_mvcc)))
+        {
+          g_free (title);
+          dupin_record_close (record);
+          
+          dupin_database_unref (db);
+          dupin_attachment_db_set_error (attachment_db, "Cannot fetch record for update");
+          return FALSE;
+        }
+
+      if ( dupin_attachment_record_delete (attachment_db, id, title) == FALSE
+          || dupin_attachment_record_create (attachment_db, id, title,
+                                             attachment_body_size,
+                                             attachment_input_mime,
+                                             attachment_body) == FALSE
+          || dupin_record_update (record, obj_node, NULL) == FALSE)
+        {
+          g_free (title);
+          dupin_record_close (record);
+          
+          dupin_database_unref (db);
+          json_node_free (obj_node);
+          dupin_attachment_db_set_error (attachment_db, "Cannot replace attachment");
+          return FALSE;
+        }
+    }
+
+  JsonNode * record_response_node = json_node_new (JSON_NODE_OBJECT);
+  JsonObject * record_response_obj = json_object_new ();
+  json_node_take_object (record_response_node, record_response_obj);
+
+  json_object_set_string_member (record_response_obj, RESPONSE_OBJ_ID, (gchar *) dupin_record_get_id (record));
+  json_object_set_string_member (record_response_obj, RESPONSE_OBJ_REV, dupin_record_get_last_revision (record));
+
+  dupin_record_close (record);
+  
+  dupin_database_unref (db);
+  g_free (title);
+  json_node_free (obj_node);
+
+  *response_list = g_list_prepend (*response_list, record_response_node);
 
   return TRUE;
 }

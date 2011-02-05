@@ -16,58 +16,6 @@
 #include <string.h>
 #include <stdlib.h>
 
-#define REQUEST_OBJ_ID			"_id"
-#define REQUEST_OBJ_REV			"_rev"
-#define REQUEST_OBJ_ATTACHMENTS		"_attachments"
-#define REQUEST_OBJ_LINKS		"_links"
-#define REQUEST_OBJ_RELATIONSHIPS	"_relationships"
-#define REQUEST_OBJ_CONTENT		"_content"
-#define REQUEST_OBJ_DELETED		"_deleted"
-
-#define REQUEST_LINK_OBJ_CONTEXT_ID	"_context_id"
-#define REQUEST_LINK_OBJ_HREF		"_href"
-#define REQUEST_LINK_OBJ_REL		"_rel"
-#define REQUEST_LINK_OBJ_TAG		"_tag"
-#define REQUEST_LINK_OBJ_LABEL		"_label"
-
-#define REQUEST_OBJ_INLINE_ATTACHMENTS_STUB	"stub"
-#define REQUEST_OBJ_INLINE_ATTACHMENTS_DATA	"data"
-#define REQUEST_OBJ_INLINE_ATTACHMENTS_TYPE	"content_type"
-
-#define RESPONSE_OBJ_ID			"id"
-#define RESPONSE_OBJ_REV		"rev"
-#define RESPONSE_OBJ_ATTACHMENTS	REQUEST_OBJ_ATTACHMENTS
-#define RESPONSE_OBJ_LINKS		REQUEST_OBJ_LINKS
-#define RESPONSE_OBJ_RELATIONSHIPS	REQUEST_OBJ_RELATIONSHIPS
-#define RESPONSE_OBJ_CONTENT		REQUEST_OBJ_CONTENT
-#define RESPONSE_OBJ_DELETED		REQUEST_OBJ_DELETED
-#define RESPONSE_OBJ_EMPTY		"_empty"
-#define RESPONSE_OBJ_LINKS_PAGING	"_paging"
-#define RESPONSE_OBJ_DOC		"doc"
-
-#define RESPONSE_LINK_OBJ_ID		RESPONSE_OBJ_ID
-#define RESPONSE_LINK_OBJ_REV		RESPONSE_OBJ_REV
-#define RESPONSE_LINK_OBJ_CONTEXT_ID	REQUEST_LINK_OBJ_CONTEXT_ID
-#define RESPONSE_LINK_OBJ_HREF		"href"
-#define RESPONSE_LINK_OBJ_REL		"rel"
-#define RESPONSE_LINK_OBJ_TAG		"tag"
-#define RESPONSE_LINK_OBJ_LABEL		REQUEST_LINK_OBJ_LABEL
-#define RESPONSE_LINK_OBJ_DOC		RESPONSE_OBJ_DOC
-#define RESPONSE_LINK_OBJ_LINK		"link"
-#define RESPONSE_LINK_OBJ_EMPTY		RESPONSE_OBJ_EMPTY
-
-#define RESPONSE_VIEW_OBJ_DOC		RESPONSE_LINK_OBJ_DOC
-
-#define REQUEST_STRICT			"strict"
-#define REQUEST_STRICT_REFS		"refs"
-
-#define DUPIN_DB_MAX_DOCS_COUNT     50
-#define DUPIN_LINKB_MAX_LINKS_COUNT 50
-#define DUPIN_VIEW_MAX_DOCS_COUNT   50
-#define DUPIN_ATTACHMENTS_COUNT	    100
-#define DUPIN_REVISIONS_COUNT	    100
-#define DUPIN_DB_MAX_CHANGES_COUNT  100
-
 void request_set_error (DSHttpdClient * client, gchar * msg);
 void request_clear_error (DSHttpdClient * client);
 gchar * request_get_error (DSHttpdClient * client);
@@ -93,35 +41,6 @@ static JsonNode *request_view_record_obj (DSHttpdClient * client,
 					  DupinViewRecord * record,
 				 	  gchar * id,
 					  gboolean visit_docs);
-
-static gboolean request_record_insert (DSHttpdClient * client,
-				       GList * arguments,
-				       JsonNode * obj_node, gchar * dbname,
-				       gchar * id, DSHttpStatusCode * code,
-		       		       GList ** response_list);
-
-static gboolean request_link_record_insert (DSHttpdClient * client,
-					    GList * arguments,
-				            JsonNode * obj_node, gchar * dbname,
-				            gchar * id, gchar * context_id, DSHttpStatusCode * code,
-					    DupinLinksType link_type,
-		       			    GList ** response_list);
-
-/* TODO - check, bug ? shouldn't be DupinAttachmentRecord ? 
-          at the moment it is a special case due we need to access DupinRecord revision
-	  information when adding/updating the attachment - we just been lazy? */
-
-static gboolean request_record_attachment_insert (DSHttpdClient * client,
-						  GList * arguments,
-				                  gchar * dbname, gchar * id,
-						  GList * title_parts,
-						  DSHttpStatusCode * code,
-		       			          GList ** response_list);
-
-#define	RESPONSE_STATUS_OK			"ok"
-#define	RESPONSE_STATUS_ERROR			"error"
-#define	RESPONSE_STATUS_WARNING			"warning"
-#define	RESPONSE_STATUS_REASON			"reason"
 
 static gboolean request_record_response (DSHttpdClient * client,
 					 GList * response_list);
@@ -442,19 +361,6 @@ request_global (DSHttpdClient * client, GList * path, GList * arguments)
 }
 
 /* GET *********************************************************************/
-#define REQUEST_ALL_DBS		"_all_dbs"
-#define REQUEST_ALL_LINKBS	"_all_linkbs"
-#define REQUEST_ALL_ATTACH_DBS	"_all_attachment_dbs"
-#define REQUEST_ALL_VIEWS	"_all_views"
-#define REQUEST_ALL_CHANGES	"_changes"
-#define REQUEST_ALL_DOCS	"_all_docs"
-#define REQUEST_ATTACH_DBS	"_attach_dbs"
-#define REQUEST_ALL_LINKS	"_all_links"
-#define REQUEST_LINKBS		"_linkbs"
-#define REQUEST_VIEWS		"_views"
-#define REQUEST_SYNC		"_sync"
-#define REQUEST_UUIDS		"_uuids"
-#define REQUEST_UUIDS_COUNT	"count"
 
 static DSHttpStatusCode request_global_get_server_info (DSHttpdClient * client,
 							GList * path,
@@ -998,70 +904,6 @@ request_global_get_all_views:
   return HTTP_STATUS_500;
 }
 
-#define REQUEST_GET_ALL_DOCS_DESCENDING	   	  "descending"
-#define REQUEST_GET_ALL_DOCS_COUNT	   	  "count"
-#define REQUEST_GET_ALL_DOCS_OFFSET	   	  "offset"
-#define REQUEST_GET_ALL_DOCS_KEY	   	  "key"
-#define REQUEST_GET_ALL_DOCS_STARTKEY	   	  "startkey"
-#define REQUEST_GET_ALL_DOCS_ENDKEY	   	  "endkey"
-#define REQUEST_GET_ALL_DOCS_INCLUSIVEEND  	  "inclusive_end"
-#define REQUEST_GET_ALL_DOCS_INCLUDE_DOCS  	  "include_docs"
-#define REQUEST_GET_ALL_DOCS_INCLUDE_PARENT_DOCS  "include_parent_docs"
-
-#define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TYPE			"include_links"
-#define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TYPE_ALL_LINKS	REQUEST_GET_ALL_LINKS_LINK_TYPE_ALL_LINKS
-#define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TYPE_WEBLINKS	REQUEST_GET_ALL_LINKS_LINK_TYPE_WEBLINKS
-#define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TYPE_RELATIONSHIPS	REQUEST_GET_ALL_LINKS_LINK_TYPE_RELATIONSHIPS
-#define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TAG			"include_links_tag"
-#define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_LABELS		"include_links_labels"
-#define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_WEBLINKS_DESCENDING	"include_links_weblinks_descending"
-#define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_WEBLINKS_COUNT	"include_links_weblinks_count"
-#define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_WEBLINKS_OFFSET	"include_links_weblinks_offset"
-#define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_RELATIONSHIPS_DESCENDING	"include_links_relationships_descending"
-#define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_RELATIONSHIPS_COUNT		"include_links_relationships_count"
-#define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_RELATIONSHIPS_OFFSET		"include_links_relationships_offset"
-
-#define REQUEST_GET_ALL_LINKS_DESCENDING   	REQUEST_GET_ALL_DOCS_DESCENDING
-#define REQUEST_GET_ALL_LINKS_COUNT	   	REQUEST_GET_ALL_DOCS_COUNT
-#define REQUEST_GET_ALL_LINKS_OFFSET	   	REQUEST_GET_ALL_DOCS_OFFSET
-#define REQUEST_GET_ALL_LINKS_KEY	   	REQUEST_GET_ALL_DOCS_KEY
-#define REQUEST_GET_ALL_LINKS_STARTKEY	   	REQUEST_GET_ALL_DOCS_STARTKEY
-#define REQUEST_GET_ALL_LINKS_ENDKEY	   	REQUEST_GET_ALL_DOCS_ENDKEY
-#define REQUEST_GET_ALL_LINKS_INCLUSIVEEND 	REQUEST_GET_ALL_DOCS_INCLUSIVEEND
-
-#define REQUEST_GET_ALL_LINKS_LINKBASE			"linkbase"
-
-#define REQUEST_GET_ALL_LINKS_CONTEXT_ID 		"context_id"
-#define REQUEST_GET_ALL_LINKS_TAG	 		"tag"
-#define REQUEST_GET_ALL_LINKS_LABELS	 		"labels"
-#define REQUEST_GET_ALL_LINKS_LINK_TYPE			"link_type"
-#define REQUEST_GET_ALL_LINKS_LINK_TYPE_ALL_LINKS	"all_links"
-#define REQUEST_GET_ALL_LINKS_LINK_TYPE_WEBLINKS	"web_links"
-#define REQUEST_GET_ALL_LINKS_LINK_TYPE_RELATIONSHIPS	"relationships"
-
-#define REQUEST_GET_ALL_CHANGES_SINCE	      "since"
-#define REQUEST_GET_ALL_CHANGES_STYLE	      "style"
-#define REQUEST_GET_ALL_CHANGES_FEED	      "feed"
-#define REQUEST_GET_ALL_CHANGES_INCLUDE_DOCS  REQUEST_GET_ALL_DOCS_INCLUDE_DOCS
-#define REQUEST_GET_ALL_CHANGES_HEARTBEAT     "heartbeat"
-#define REQUEST_GET_ALL_CHANGES_TIMEOUT       "timeout"
-#define REQUEST_GET_ALL_CHANGES_INCLUDE_LINKS "include_links"
-#define REQUEST_GET_ALL_CHANGES_CONTEXT_ID    REQUEST_GET_ALL_LINKS_CONTEXT_ID
-#define REQUEST_GET_ALL_CHANGES_TAG	      REQUEST_GET_ALL_LINKS_TAG
-
-#define REQUEST_GET_ALL_CHANGES_HEARTBEAT_DEFAULT  30000
-#define REQUEST_GET_ALL_CHANGES_TIMEOUT_DEFAULT    60000
-
-#define REQUEST_GET_ALL_CHANGES_STYLE_DEFAULT	   "main_only"
-
-#define REQUEST_GET_ALL_CHANGES_STYLE_ALL_LINKS	   	REQUEST_GET_ALL_LINKS_LINK_TYPE_ALL_LINKS
-#define REQUEST_GET_ALL_CHANGES_STYLE_WEBLINKS	   	REQUEST_GET_ALL_LINKS_LINK_TYPE_WEBLINKS
-#define REQUEST_GET_ALL_CHANGES_STYLE_RELATIONSHIPS	REQUEST_GET_ALL_LINKS_LINK_TYPE_RELATIONSHIPS
-
-#define REQUEST_GET_ALL_CHANGES_FEED_POLL	"poll"
-#define REQUEST_GET_ALL_CHANGES_FEED_LONGPOLL	"longpoll"
-#define REQUEST_GET_ALL_CHANGES_FEED_CONTINUOUS	"continuous"
-
 static DSHttpStatusCode
 request_global_get_changes_database (DSHttpdClient * client, GList * path,
 			    GList * arguments)
@@ -1481,8 +1323,6 @@ request_global_get_all_docs_error:
   return HTTP_STATUS_500;
 }
 
-#define REQUEST_QUERY		"_query"
-
 static DSHttpStatusCode
 request_global_get_server_info (DSHttpdClient * client, GList * path,
 			     GList * arguments)
@@ -1637,13 +1477,6 @@ request_global_get_database_error:
 
   return HTTP_STATUS_500;
 }
-
-#define REQUEST_RECORD_ARG_REV	"rev"
-#define REQUEST_RECORD_ARG_REVS	"revs"
-
-#define REQUEST_RECORD_ARG_LINKS_TAG	"links_tag"
-
-#define REQUEST_FIELDS		"_fields"
 
 static DSHttpStatusCode
 request_global_get_record (DSHttpdClient * client, GList * path,
@@ -4184,14 +4017,6 @@ request_global_get_view_query_error:
 }
 
 /* POST ********************************************************************/
-#define REQUEST_POST_BULK_DOCS		"_bulk_docs"
-#define REQUEST_POST_BULK_DOCS_DOCS	"docs"
-#define REQUEST_POST_COMPACT_DATABASE	"_compact"
-
-#define REQUEST_POST_BULK_LINKS		"_bulk_links"
-#define REQUEST_POST_BULK_LINKS_LINKS	"links"
-#define REQUEST_POST_COMPACT_LINKBASE	REQUEST_POST_COMPACT_DATABASE
-#define REQUEST_POST_CHECK_LINKBASE	"_check"
 
 static DSHttpStatusCode request_global_post_record (DSHttpdClient * client,
 						    GList * path,
@@ -4219,17 +4044,6 @@ static DSHttpStatusCode request_global_post_compact_linkbase (DSHttpdClient * cl
 static DSHttpStatusCode request_global_post_check_linkbase (DSHttpdClient * client,
 						     	    GList * path,
 						     	    GList * arguments);
-
-/* NOTE - we use the following also for linkbase records to set/get id and rev */
-
-static gchar *  request_record_insert_rev (DSHttpdClient * client, JsonNode * obj_node);
-static gchar *  request_record_insert_id (DSHttpdClient * client, JsonNode * obj_node);
-static gboolean request_record_insert_deleted (DSHttpdClient * client, JsonNode * obj_node);
-
-static gchar * request_link_record_insert_label (DSHttpdClient * client, JsonNode * obj_node);
-static gchar * request_link_record_insert_href (DSHttpdClient * client, JsonNode * obj_node);
-static gchar * request_link_record_insert_rel (DSHttpdClient * client, JsonNode * obj_node);
-static gchar * request_link_record_insert_tag (DSHttpdClient * client, JsonNode * obj_node);
 
 static DSHttpStatusCode
 request_global_post (DSHttpdClient * client, GList * path, GList * arguments)
@@ -4299,6 +4113,7 @@ static DSHttpStatusCode
 request_global_post_record (DSHttpdClient * client, GList * path,
 			    GList * arguments)
 {
+  DupinDB * db=NULL;
   DSHttpStatusCode code;
   GList *response_list=NULL;
   GError *error = NULL;
@@ -4321,7 +4136,6 @@ request_global_post_record (DSHttpdClient * client, GList * path,
   /* TODO - add options to GET methods to pass escape/unescape Unicode if needed by client accordingly to RFC4627
             we currently read escaped JSON documents and stored them as UTF-8 - also check UTF-16 and UTF-32 encodings if needed/supported */
 
-  /* TODO - add error checking and return any parsing error to client */
   if (!json_parser_load_from_data (parser, client->body, client->body_size, &error))
     {
       request_set_error (client, error->message);
@@ -4339,21 +4153,27 @@ request_global_post_record (DSHttpdClient * client, GList * path,
       goto request_global_post_record_end;
     }
 
-  if (json_node_get_node_type (node) != JSON_NODE_OBJECT)
+  if (!
+      (db =
+       dupin_database_open (client->thread->data->dupin, path->data, NULL)))
     {
-      request_set_error (client, "POST body must be a JSON object");
-      code = HTTP_STATUS_400;
+      request_set_error (client, "Cannot connect to database");
+      code = HTTP_STATUS_404;
       goto request_global_post_record_end;
     }
 
-  if (request_record_insert
-      (client, arguments, node, path->data, NULL, &code, &response_list) == TRUE)
+  if (dupin_record_insert (db, node, NULL, NULL, &response_list) == TRUE)
     {
       if (request_record_response (client, response_list) == FALSE)
         {
 	  code = HTTP_STATUS_500;
           request_set_error (client, "Cannot generate JSON output response");
         }
+    }
+  else
+    {
+      code = HTTP_STATUS_400;
+      request_set_error (client, dupin_database_get_error (db));
     }
 
   while (response_list)
@@ -4362,10 +4182,13 @@ request_global_post_record (DSHttpdClient * client, GList * path,
       response_list = g_list_remove (response_list, response_list->data);
     }
 
+  dupin_database_unref (db);
+
 request_global_post_record_end:
 
   if (parser != NULL)
     g_object_unref (parser);
+
   return code;
 }
 
@@ -4377,7 +4200,10 @@ request_global_post_doc_link (DSHttpdClient * client, GList * path,
   DSHttpStatusCode code;
   GError *error = NULL;
   GList * response_list = NULL;
+  DupinDB * db=NULL; 
   DupinLinkB * linkb=NULL;
+  gboolean strict_links = FALSE;
+  GList * l=NULL;
 
   if (!client->body
       || !path->next)
@@ -4386,81 +4212,20 @@ request_global_post_doc_link (DSHttpdClient * client, GList * path,
       return HTTP_STATUS_400;
     }
 
+  for (l = arguments; l; l = l->next)
+    {
+      dupin_keyvalue_t *kv = l->data;
+
+      if (!g_strcmp0 (kv->key, REQUEST_STRICT))
+        {
+	  if (!g_strcmp0 (kv->value, REQUEST_STRICT_LINKS))
+            {
+	      strict_links = true;
+            }
+        }
+    }
+
   gchar * context_id = path->next->data;
-
-  /* check if the context_id document exists */
-
-  if (!(linkb = dupin_linkbase_open (client->thread->data->dupin, path->data, NULL)))
-    {
-      request_set_error (client, "Cannot connect to linkbase");
-      return HTTP_STATUS_400;
-    }
-
-  /* NOTE - this code is more generic than needed, we will possibly use this in future ... */
-  gboolean document_deleted = FALSE;
-  gboolean document_exists = TRUE;
-
-  if (dupin_linkbase_get_parent_is_db (linkb) == TRUE )
-    {
-      DupinDB * parent_db=NULL;
-
-      if (! (parent_db = dupin_database_open (linkb->d, dupin_linkbase_get_parent (linkb), NULL)))
-        {
-          dupin_linkbase_unref (linkb);
-          request_set_error (client, "Cannot connect to parent database");
-          return HTTP_STATUS_400;
-        }
-
-      DupinRecord * doc_id_record = dupin_record_read (parent_db, context_id, NULL);
-
-      if (doc_id_record == NULL)
-        document_exists = FALSE;
-      else
-        {
-          if (dupin_record_is_deleted (doc_id_record, NULL) == TRUE)
-            document_deleted = TRUE;
-
-          dupin_record_close (doc_id_record);
-        }
-
-      dupin_database_unref (parent_db);
-    }
-  else
-    {
-      DupinLinkB * parent_linkb=NULL;
-
-      if (!(parent_linkb = dupin_linkbase_open (linkb->d, dupin_linkbase_get_parent (linkb), NULL)))
-        {
-          dupin_linkbase_unref (linkb);
-          request_set_error (client, "Cannot connect to parent linkbase");
-          return HTTP_STATUS_400;
-        }
-
-      DupinLinkRecord * link_id_record = dupin_link_record_read (parent_linkb, context_id, NULL);
-
-      if (link_id_record == NULL)
-        document_exists = FALSE;
-      else
-        {
-          if (dupin_link_record_is_deleted (link_id_record, NULL) == TRUE)
-            document_deleted = TRUE;
-
-          dupin_link_record_close (link_id_record);
-        }
-      dupin_linkbase_unref (parent_linkb);
-    }
-
-  dupin_linkbase_unref (linkb);
-
-  if (document_exists == FALSE )
-    {
-      // g_warning ("request_global_post_doc_link: adding a link to a non existing document");
-    }
-  else if (document_deleted == TRUE )
-    {
-      request_set_error (client, "Cannot add a link to a document which is marked as deleted.");
-      return HTTP_STATUS_404;
-    }
 
   JsonParser *parser = json_parser_new ();
 
@@ -4468,19 +4233,18 @@ request_global_post_doc_link (DSHttpdClient * client, GList * path,
     {
       request_set_error (client, "Cannot parse POST body");
       code = HTTP_STATUS_500;
-      goto request_global_post_doc_links_end;
+      goto request_global_post_doc_link_end;
     }
 
   /* TODO - add options to GET methods to pass escape/unescape Unicode if needed by client accordingly to RFC4627
             we currently read escaped JSON documents and stored them as UTF-8 - also check UTF-16 and UTF-32 encodings if needed/supported */
 
-  /* TODO - add error checking and return any parsing error to client */
   if (!json_parser_load_from_data (parser, client->body, client->body_size, &error))
     {
       request_set_error (client, error->message);
       g_error_free (error);
       code = HTTP_STATUS_400;
-      goto request_global_post_doc_links_end;
+      goto request_global_post_doc_link_end;
     }
 
   JsonNode * node = json_parser_get_root (parser);
@@ -4489,25 +4253,39 @@ request_global_post_doc_link (DSHttpdClient * client, GList * path,
     {
       request_set_error (client, "Cannot parse POST body");
       code = HTTP_STATUS_500;
-      goto request_global_post_doc_links_end;
+      goto request_global_post_doc_link_end;
     }
 
-  if (json_node_get_node_type (node) != JSON_NODE_OBJECT)
+  /* NOTE - need to get the right linkbase to post to */
+  if (!  (db = dupin_database_open (client->thread->data->dupin, path->data, NULL)))
     {
-      request_set_error (client, "POST body must be a JSON object");
-      code = HTTP_STATUS_400;
-      goto request_global_post_doc_links_end;
+      request_set_error (client, "Cannot connect to database");
+      code = HTTP_STATUS_404;
+      goto request_global_post_doc_link_end;
     }
 
-  if (request_link_record_insert
-      (client, arguments, node, path->data, NULL, context_id, &code,
-            link_type, &response_list) == TRUE)
+  if (!(linkb = dupin_linkbase_open (client->thread->data->dupin, dupin_database_get_default_linkbase_name (db), NULL)))
+    {
+      dupin_database_unref (db);
+      request_set_error (client, "Cannot connect to linkbase");
+      code = HTTP_STATUS_404;
+      goto request_global_post_doc_link_end;
+    }
+
+  dupin_database_unref (db);
+
+  if (dupin_link_record_insert (linkb, node, NULL, NULL, context_id, link_type, &response_list, strict_links) == TRUE)
     {
       if (request_record_response (client, response_list) == FALSE)
         {
           code = HTTP_STATUS_500;
           request_set_error (client, "Cannot generate JSON output response");
         }
+    }
+  else
+    {
+      code = HTTP_STATUS_400;
+      request_set_error (client, dupin_linkbase_get_error (linkb));
     }
 
   while (response_list)
@@ -4516,10 +4294,13 @@ request_global_post_doc_link (DSHttpdClient * client, GList * path,
       response_list = g_list_remove (response_list, response_list->data);
     }
 
-request_global_post_doc_links_end:
+  dupin_linkbase_unref (linkb);
+
+request_global_post_doc_link_end:
 
   if (parser != NULL)
     g_object_unref (parser);
+
   return code;
 }
 
@@ -4527,12 +4308,10 @@ static DSHttpStatusCode
 request_global_post_bulk_docs (DSHttpdClient * client, GList * path,
 			       GList * arguments)
 {
-  JsonObject *obj;
   JsonNode *node;
-  JsonArray *array;
-  GList *nodes, *n;
   GError *error = NULL;
   GList *response_list=NULL;
+  DupinDB * db=NULL;
 
   DSHttpStatusCode code;
 
@@ -4542,7 +4321,7 @@ request_global_post_bulk_docs (DSHttpdClient * client, GList * path,
     {
       request_set_error (client, "Cannot parse POST body");
       code = HTTP_STATUS_400;
-      goto request_global_post_bulk_docs_error;
+      goto request_global_post_bulk_docs_end;
     }
 
   /* TODO - check any parsing error */
@@ -4551,7 +4330,7 @@ request_global_post_bulk_docs (DSHttpdClient * client, GList * path,
       request_set_error (client, error->message);
       g_error_free (error);
       code = HTTP_STATUS_400;
-      goto request_global_post_bulk_docs_error;
+      goto request_global_post_bulk_docs_end;
     }
 
   node = json_parser_get_root (parser);
@@ -4560,129 +4339,45 @@ request_global_post_bulk_docs (DSHttpdClient * client, GList * path,
     {
       request_set_error (client, "Cannot parse POST body");
       code = HTTP_STATUS_400;
-      goto request_global_post_bulk_docs_error;
+      goto request_global_post_bulk_docs_end;
     }
 
-  if (json_node_get_node_type (node) != JSON_NODE_OBJECT)
+  if (!
+      (db =
+       dupin_database_open (client->thread->data->dupin, path->data, NULL)))
     {
-      request_set_error (client, "POST body must be a JSON object");
-      code = HTTP_STATUS_400;
-      goto request_global_post_bulk_docs_error;
+      request_set_error (client, "Cannot connect to database");
+      code = HTTP_STATUS_404;
+      goto request_global_post_bulk_docs_end;
     }
 
-  obj = json_node_get_object (node); /* it is a volatile object part of parser as well as node - see docs */
-
-  if (json_object_has_member (obj, REQUEST_POST_BULK_DOCS_DOCS) == FALSE)
+  if (dupin_record_insert_bulk (db, node, &response_list) == TRUE)
     {
-      request_set_error (client, "POST body does not contain a mandatory " REQUEST_POST_BULK_DOCS_DOCS " object memeber");
-      code = HTTP_STATUS_400;
-      goto request_global_post_bulk_docs_error;
-    }
-
-  node = json_object_get_member (obj, REQUEST_POST_BULK_DOCS_DOCS);
-
-  if (node == NULL)
-    {
-      request_set_error (client, "POST body does not contain a valid " REQUEST_POST_BULK_DOCS_DOCS " object memeber");
-      code = HTTP_STATUS_400;
-      goto request_global_post_bulk_docs_error;
-    }
-
-  if (json_node_get_node_type (node) != JSON_NODE_ARRAY)
-    {
-      request_set_error (client, "POST body " REQUEST_POST_BULK_DOCS_DOCS " object memeber is not an array");
-      code = HTTP_STATUS_400;
-      goto request_global_post_bulk_docs_error;
-    }
-
-  array = json_node_get_array (node);
-
-  if (array == NULL)
-    {
-      request_set_error (client, "POST body " REQUEST_POST_BULK_DOCS_DOCS " object memeber is not a valid array");
-      code = HTTP_STATUS_500;
-      goto request_global_post_bulk_docs_error;
-    }
-
-  /* scan JSON array */
-  nodes = json_array_get_elements (array);
-
-  for (n = nodes; n != NULL; n = n->next)
-    {
-      JsonNode *element_node = (JsonNode*)n->data;
-      gchar * id = NULL;
-      gchar * rev = NULL;
-
-      if (json_node_get_node_type (element_node) != JSON_NODE_OBJECT)
+      if (request_record_response (client, response_list) == FALSE)
         {
-          request_set_error (client, "POST body " REQUEST_POST_BULK_DOCS_DOCS " array memebr is not a valid JSON object");
-          g_list_free (nodes);
-          code = HTTP_STATUS_500;
-          goto request_global_post_bulk_docs_error;
+	  code = HTTP_STATUS_500;
+          request_set_error (client, "Cannot generate JSON output response");
         }
-
-      if (json_object_has_member (json_node_get_object (element_node), REQUEST_OBJ_ID) == TRUE)
-        id = g_strdup ((gchar *)json_object_get_string_member (json_node_get_object (element_node), REQUEST_OBJ_ID));
-
-      if (json_object_has_member (json_node_get_object (element_node), REQUEST_OBJ_REV) == TRUE)
-        rev = g_strdup ((gchar *)json_object_get_string_member (json_node_get_object (element_node), REQUEST_OBJ_REV));
-
-      if (request_record_insert
-	  (client, arguments, element_node, path->data, NULL, &code, &response_list) == FALSE)
-	{
-          /* NOTE - we report errors inline in the JSON response */
-
-          JsonNode * error_node = json_node_new (JSON_NODE_OBJECT);
-	  JsonObject * error_obj = json_object_new ();
-  	  json_node_take_object (error_node, error_obj);
-
-          json_object_set_string_member (error_obj, RESPONSE_STATUS_ERROR, DSHttpStatusList[HTTP_STATUS_400].body);
-          json_object_set_string_member (error_obj, RESPONSE_STATUS_REASON, request_get_error (client));
-
-          if (id != NULL)
-            json_object_set_string_member (error_obj, RESPONSE_OBJ_ID,id);
-
-          if (rev != NULL)
-            json_object_set_string_member (error_obj, RESPONSE_OBJ_REV,rev);
-
-          response_list = g_list_prepend (response_list, error_node);
-	}
-      else
-        {
-          JsonNode * generated_node = response_list->data;
-	  JsonObject * generated_obj = json_node_get_object (generated_node);
-
-          if (request_get_warning (client) != NULL)
-            json_object_set_string_member (generated_obj, RESPONSE_STATUS_WARNING, request_get_warning (client));
-        }
-
-      if (id != NULL)
-        g_free (id);
-
-      if (rev!= NULL)
-        g_free (rev);
     }
-  g_list_free (nodes);
-
-  if (request_record_response (client, response_list) == FALSE)
+  else
     {
-      code = HTTP_STATUS_500;
-      request_set_error (client, "Cannot generate JSON output response");
+      code = HTTP_STATUS_400;
+      request_set_error (client, dupin_database_get_error (db));
     }
+
   while (response_list)
     {
       json_node_free (response_list->data);
       response_list = g_list_remove (response_list, response_list->data);
     }
 
-  if (parser != NULL)
-    g_object_unref (parser);
-  return code;
+  dupin_database_unref (db);
 
-request_global_post_bulk_docs_error:
+request_global_post_bulk_docs_end:
 
   if (parser != NULL)
     g_object_unref (parser);
+
   return code;
 }
 
@@ -4690,13 +4385,13 @@ static DSHttpStatusCode
 request_global_post_bulk_doc_links (DSHttpdClient * client, GList * path,
 			            GList * arguments)
 {
-  JsonObject *obj;
   JsonNode *node;
-  JsonArray *array;
-  GList *nodes, *n;
   GError *error = NULL;
   GList *response_list=NULL;
+  DupinDB * db=NULL; 
   DupinLinkB * linkb = NULL;
+  gboolean strict_links = FALSE;
+  GList * l=NULL;
 
   DSHttpStatusCode code;
 
@@ -4707,81 +4402,20 @@ request_global_post_bulk_doc_links (DSHttpdClient * client, GList * path,
       return HTTP_STATUS_400;
     }
 
+  for (l = arguments; l; l = l->next)
+    {
+      dupin_keyvalue_t *kv = l->data;
+
+      if (!g_strcmp0 (kv->key, REQUEST_STRICT))
+        {
+          if (!g_strcmp0 (kv->value, REQUEST_STRICT_LINKS))
+            {
+              strict_links = true;
+            }
+        }
+    }
+
   gchar * context_id = path->next->data;
-
-  /* check if the context_id document exists */
-
-  if (!(linkb = dupin_linkbase_open (client->thread->data->dupin, path->data, NULL)))
-    {
-      request_set_error (client, "Cannot connect to linkbase");
-      return HTTP_STATUS_400;
-    }
-
-  /* NOTE - this code is more generic than needed, we will possibly use this in future ... */
-  gboolean document_deleted = FALSE;
-  gboolean document_exists = TRUE;
-
-  if (dupin_linkbase_get_parent_is_db (linkb) == TRUE )
-    {
-      DupinDB * parent_db=NULL;
-
-      if (! (parent_db = dupin_database_open (linkb->d, dupin_linkbase_get_parent (linkb), NULL)))
-        {
-          dupin_linkbase_unref (linkb);
-          request_set_error (client, "Cannot connect to parent database");
-          return HTTP_STATUS_400;
-        }
-
-      DupinRecord * doc_id_record = dupin_record_read (parent_db, context_id, NULL);
-
-      if (doc_id_record == NULL)
-        document_exists = FALSE;
-      else
-        {
-          if (dupin_record_is_deleted (doc_id_record, NULL) == TRUE)
-            document_deleted = TRUE;
-
-          dupin_record_close (doc_id_record);
-        }
-
-      dupin_database_unref (parent_db);
-    }
-  else
-    {
-      DupinLinkB * parent_linkb=NULL;
-
-      if (!(parent_linkb = dupin_linkbase_open (linkb->d, dupin_linkbase_get_parent (linkb), NULL)))
-        {
-          dupin_linkbase_unref (linkb);
-          request_set_error (client, "Cannot connect to parent linkbase");
-          return HTTP_STATUS_400;
-        }
-
-      DupinLinkRecord * link_id_record = dupin_link_record_read (parent_linkb, context_id, NULL);
-
-      if (link_id_record == NULL)
-        document_exists = FALSE;
-      else
-        {
-          if (dupin_link_record_is_deleted (link_id_record, NULL) == TRUE)
-            document_deleted = TRUE;
-
-          dupin_link_record_close (link_id_record);
-        }
-      dupin_linkbase_unref (parent_linkb);
-    }
-
-  dupin_linkbase_unref (linkb);
-
-  if (document_exists == FALSE )
-    {
-      // g_warning ("request_global_post_bulk_doc_links: adding links to a non existing document");
-    }
-  else if (document_deleted == TRUE )
-    {
-      request_set_error (client, "Cannot add links to a document which is marked as deleted.");
-      return HTTP_STATUS_404;
-    }
 
   JsonParser *parser = json_parser_new ();
 
@@ -4789,7 +4423,7 @@ request_global_post_bulk_doc_links (DSHttpdClient * client, GList * path,
     {
       request_set_error (client, "Cannot parse POST body");
       code = HTTP_STATUS_400;
-      goto request_global_post_bulk_doc_links_error;
+      goto request_global_post_bulk_doc_links_end;
     }
 
   /* TODO - check any parsing error */
@@ -4798,7 +4432,7 @@ request_global_post_bulk_doc_links (DSHttpdClient * client, GList * path,
       request_set_error (client, error->message);
       g_error_free (error);
       code = HTTP_STATUS_400;
-      goto request_global_post_bulk_doc_links_error;
+      goto request_global_post_bulk_doc_links_end;
     }
 
   node = json_parser_get_root (parser);
@@ -4807,130 +4441,54 @@ request_global_post_bulk_doc_links (DSHttpdClient * client, GList * path,
     {
       request_set_error (client, "Cannot parse POST body");
       code = HTTP_STATUS_400;
-      goto request_global_post_bulk_doc_links_error;
+      goto request_global_post_bulk_doc_links_end;
     }
 
-  if (json_node_get_node_type (node) != JSON_NODE_OBJECT)
+  /* NOTE - need to get the right linkbase to post to */
+  if (!  (db = dupin_database_open (client->thread->data->dupin, path->data, NULL)))
     {
-      request_set_error (client, "POST body must be a JSON object");
-      code = HTTP_STATUS_400;
-      goto request_global_post_bulk_doc_links_error;
+      request_set_error (client, "Cannot connect to database");
+      code = HTTP_STATUS_404;
+      goto request_global_post_bulk_doc_links_end;
     }
 
-  obj = json_node_get_object (node); /* it is a volatile object part of parser as well as node - see docs */
-
-  if (json_object_has_member (obj, REQUEST_POST_BULK_LINKS_LINKS) == FALSE)
+  if (!(linkb = dupin_linkbase_open (client->thread->data->dupin, dupin_database_get_default_linkbase_name (db), NULL)))
     {
-      request_set_error (client, "POST body does not contain a mandatory " REQUEST_POST_BULK_LINKS_LINKS " object memeber");
-      code = HTTP_STATUS_400;
-      goto request_global_post_bulk_doc_links_error;
+      dupin_database_unref (db);
+      request_set_error (client, "Cannot connect to linkbase");
+      code = HTTP_STATUS_404;
+      goto request_global_post_bulk_doc_links_end;
     }
 
-  node = json_object_get_member (obj, REQUEST_POST_BULK_LINKS_LINKS);
+  dupin_database_unref (db);
 
-  if (node == NULL)
+  if (dupin_link_record_insert_bulk (linkb, node, context_id, &response_list, strict_links) == TRUE)
     {
-      request_set_error (client, "POST body does not contain a valid " REQUEST_POST_BULK_LINKS_LINKS " object memeber");
-      code = HTTP_STATUS_400;
-      goto request_global_post_bulk_doc_links_error;
-    }
-
-  if (json_node_get_node_type (node) != JSON_NODE_ARRAY)
-    {
-      request_set_error (client, "POST body " REQUEST_POST_BULK_LINKS_LINKS " object memeber is not an array");
-      code = HTTP_STATUS_400;
-      goto request_global_post_bulk_doc_links_error;
-    }
-
-  array = json_node_get_array (node);
-
-  if (array == NULL)
-    {
-      request_set_error (client, "POST body " REQUEST_POST_BULK_LINKS_LINKS " object memeber is not a valid array");
-      code = HTTP_STATUS_500;
-      goto request_global_post_bulk_doc_links_error;
-    }
-
-  /* scan JSON array */
-  nodes = json_array_get_elements (array);
-
-  for (n = nodes; n != NULL; n = n->next)
-    {
-      gchar * id = NULL;
-      gchar * rev = NULL;
-
-      JsonNode *element_node = (JsonNode*)n->data;
-
-      if (json_object_has_member (json_node_get_object (element_node), REQUEST_OBJ_ID) == TRUE)
-        id = g_strdup ((gchar *)json_object_get_string_member (json_node_get_object (element_node), REQUEST_OBJ_ID));
-
-      if (json_object_has_member (json_node_get_object (element_node), REQUEST_OBJ_REV) == TRUE)
-        rev = g_strdup ((gchar *)json_object_get_string_member (json_node_get_object (element_node), REQUEST_OBJ_REV));
-
-      if (json_node_get_node_type (element_node) != JSON_NODE_OBJECT)
+      if (request_record_response (client, response_list) == FALSE)
         {
-          request_set_error (client, "POST body " REQUEST_POST_BULK_LINKS_LINKS " array memebr is not a valid JSON object");
-          g_list_free (nodes);
-          code = HTTP_STATUS_500;
-          goto request_global_post_bulk_doc_links_error;
+	  code = HTTP_STATUS_500;
+          request_set_error (client, "Cannot generate JSON output response");
         }
-
-      if (request_link_record_insert (client, arguments, element_node, path->data, NULL, context_id, &code,
-            	DP_LINK_TYPE_ANY, &response_list) == FALSE)
-        {
-          /* NOTE - we report errors inline in the JSON response */
-
-          JsonNode * error_node = json_node_new (JSON_NODE_OBJECT);
-          JsonObject * error_obj = json_object_new ();
-          json_node_take_object (error_node, error_obj);
-
-          json_object_set_string_member (error_obj, RESPONSE_STATUS_ERROR, DSHttpStatusList[HTTP_STATUS_400].body);
-          json_object_set_string_member (error_obj, RESPONSE_STATUS_REASON, request_get_error (client));
-
-          if (id != NULL)
-            json_object_set_string_member (error_obj, RESPONSE_OBJ_ID,id);
-
-          if (rev != NULL)
-            json_object_set_string_member (error_obj, RESPONSE_OBJ_REV,rev);
-
-          response_list = g_list_prepend (response_list, error_node);
-        }
-      else
-        {
-          JsonNode * generated_node = response_list->data;
-          JsonObject * generated_obj = json_node_get_object (generated_node);
-
-          if (request_get_warning (client) != NULL)
-            json_object_set_string_member (generated_obj, RESPONSE_STATUS_WARNING, request_get_warning (client));
-        }
-
-      if (id != NULL)
-        g_free (id);
-
-      if (rev!= NULL)
-        g_free (rev);
     }
-  g_list_free (nodes);
-
-  if (request_record_response (client, response_list) == FALSE)
+  else
     {
-      code = HTTP_STATUS_500;
-      request_set_error (client, "Cannot generate JSON output response");
+      code = HTTP_STATUS_400;
+      request_set_error (client, dupin_linkbase_get_error (linkb));
     }
+
   while (response_list)
     {
       json_node_free (response_list->data);
       response_list = g_list_remove (response_list, response_list->data);
     }
 
-  if (parser != NULL)
-    g_object_unref (parser);
-  return code;
+  dupin_linkbase_unref (linkb);
 
-request_global_post_bulk_doc_links_error:
+request_global_post_bulk_doc_links_end:
 
   if (parser != NULL)
     g_object_unref (parser);
+
   return code;
 }
 
@@ -5268,6 +4826,9 @@ request_global_put_record (DSHttpdClient * client, GList * path,
   gchar * request_fields=NULL;
   GList *response_list=NULL;
   GError *error = NULL;
+  DupinDB *db;
+  gchar * mvcc=NULL;
+  GList * l=NULL;
  
   if (!client->body
       || !path->next->data)
@@ -5354,7 +4915,7 @@ request_global_put_record (DSHttpdClient * client, GList * path,
     {
       request_set_error (client, "Cannot parse PUT body");
       code = HTTP_STATUS_500;
-      goto request_global_put_record_error;
+      goto request_global_put_record_end;
     }
 
   /* TODO - check any parsing error */
@@ -5363,7 +4924,7 @@ request_global_put_record (DSHttpdClient * client, GList * path,
       request_set_error (client, error->message);
       g_error_free (error);
       code = HTTP_STATUS_400;
-      goto request_global_put_record_error;
+      goto request_global_put_record_end;
     }
 
   node = json_parser_get_root (parser);
@@ -5372,56 +4933,52 @@ request_global_put_record (DSHttpdClient * client, GList * path,
     {
       request_set_error (client, "Cannot parse PUT body");
       code = HTTP_STATUS_400;
-      goto request_global_put_record_error;
+      goto request_global_put_record_end;
+    }
+
+  for (l = arguments; l; l = l->next)
+    {
+      dupin_keyvalue_t *kv = l->data;
+
+      if (!g_strcmp0 (kv->key, REQUEST_RECORD_ARG_REV))
+        {
+          if (dupin_util_is_valid_mvcc (kv->value) == FALSE)
+            {
+              request_set_error (client, "Invalid record MVCC revision");
+              code = HTTP_STATUS_400;
+              goto request_global_put_record_end;
+            }
+          mvcc = kv->value;
+        }
+    }
+
+  if (mvcc == NULL)
+    {
+      request_set_error (client, "Record MVCC revision is missing");
+      code = HTTP_STATUS_400;
+      goto request_global_put_record_end;
+    }
+
+  if (!  (db = dupin_database_open (client->thread->data->dupin, path->data, NULL)))
+    {
+      request_set_error (client, "Cannot open database");
+      code = HTTP_STATUS_404;
+      goto request_global_put_record_end;
     }
 
   if (request_fields != NULL)
     {
-      gchar * mvcc=NULL;
-      DupinDB *db;
       JsonNode * node1=NULL;
       JsonObject * node1_obj=NULL;
       DupinRecord *record;
 
-      GList * l=NULL;
-      for (l = arguments; l; l = l->next)
-        {
-          dupin_keyvalue_t *kv = l->data;
-
-          if (!g_strcmp0 (kv->key, REQUEST_RECORD_ARG_REV))
-            {
-              if (dupin_util_is_valid_mvcc (kv->value) == FALSE)
-                {
-                  request_set_error (client, "Invalid record MVCC revision");
-                  code = HTTP_STATUS_400;
-                  goto request_global_put_record_error;
-                }
-              mvcc = kv->value;
-            }
-        }
-
-      if (mvcc == NULL)
-        {
-          request_set_error (client, "Record MVCC revision is missing");
-          code = HTTP_STATUS_400;
-          goto request_global_put_record_error;
-        }
-
       /* fetch last revision */
-      if (!  (db =
-       		dupin_database_open (client->thread->data->dupin, path->data, NULL)))
-        {
-          request_set_error (client, "Cannot open database");
-          code = HTTP_STATUS_404;
-          goto request_global_put_record_error;
-        }
-
       if (!(record = dupin_record_read (db, doc_id, NULL)))
         {
           request_set_error (client, "Cannot read record from database");
           dupin_database_unref (db);
           code = HTTP_STATUS_404;
-          goto request_global_put_record_error;
+          goto request_global_put_record_end;
         }
 
       if (dupin_record_is_deleted (record, mvcc) == TRUE)
@@ -5430,7 +4987,7 @@ request_global_put_record (DSHttpdClient * client, GList * path,
 	  dupin_record_close (record);
           dupin_database_unref (db);
           code = HTTP_STATUS_404;
-          goto request_global_put_record_error;
+          goto request_global_put_record_end;
         }
 
       node1 = dupin_record_get_revision_node (record, mvcc);
@@ -5441,7 +4998,7 @@ request_global_put_record (DSHttpdClient * client, GList * path,
           dupin_record_close (record);
           dupin_database_unref (db);
           code = HTTP_STATUS_404;
-          goto request_global_put_record_error;
+          goto request_global_put_record_end;
         }
 
       node1 = json_node_copy (node1);
@@ -5458,28 +5015,22 @@ request_global_put_record (DSHttpdClient * client, GList * path,
       json_object_set_member (node1_obj, (const gchar *)request_fields, json_node_copy (node));
 
       dupin_record_close (record);
-      dupin_database_unref (db);
 
       node = node1;
     }
-  else
-    {
-      if (json_node_get_node_type (node) != JSON_NODE_OBJECT)
-        {
-	  request_set_error (client, "PUT body must be a JSON object");
-          code = HTTP_STATUS_400;
-          goto request_global_put_record_error;
-        }
-    }
 
-  if (request_record_insert
-      (client, arguments, node, path->data, doc_id, &code, &response_list) == TRUE)
+  if (dupin_record_insert (db, node, doc_id, mvcc, &response_list) == TRUE)
     {
       if (request_record_response (client, response_list) == FALSE)
         {
           code = HTTP_STATUS_500;
           request_set_error (client, "Cannot generate JSON output response");
         }
+    }
+  else
+    {
+      code = HTTP_STATUS_400;
+      request_set_error (client, dupin_database_get_error (db));
     }
 
   while (response_list)
@@ -5488,7 +5039,9 @@ request_global_put_record (DSHttpdClient * client, GList * path,
       response_list = g_list_remove (response_list, response_list->data);
     }
 
-request_global_put_record_error:
+  dupin_database_unref (db);
+
+request_global_put_record_end:
 
   if (request_fields != NULL
       && node)
@@ -5513,6 +5066,11 @@ request_global_put_link_record (DSHttpdClient * client, GList * path,
   gchar * request_fields=NULL;
   GError *error = NULL;
   GList * response_list = NULL;
+  DupinDB * db=NULL;
+  DupinLinkB * linkb=NULL;
+  gchar * mvcc=NULL;
+  gboolean strict_links = FALSE;
+  GList * l=NULL;
  
   if (!client->body
       || !path->next->data)
@@ -5584,7 +5142,7 @@ request_global_put_link_record (DSHttpdClient * client, GList * path,
     {
       request_set_error (client, "Cannot parse PUT body");
       code = HTTP_STATUS_500;
-      goto request_global_put_link_record_error;
+      goto request_global_put_link_record_end;
     }
 
   /* TODO - check any parsing error */
@@ -5593,7 +5151,7 @@ request_global_put_link_record (DSHttpdClient * client, GList * path,
       request_set_error (client, error->message);
       g_error_free (error);
       code = HTTP_STATUS_400;
-      goto request_global_put_link_record_error;
+      goto request_global_put_link_record_end;
     }
 
   node = json_parser_get_root (parser);
@@ -5602,56 +5160,71 @@ request_global_put_link_record (DSHttpdClient * client, GList * path,
     {
       request_set_error (client, "Cannot parse PUT body");
       code = HTTP_STATUS_400;
-      goto request_global_put_link_record_error;
+      goto request_global_put_link_record_end;
     }
+
+  for (l = arguments; l; l = l->next)
+    {
+      dupin_keyvalue_t *kv = l->data;
+
+      if (!g_strcmp0 (kv->key, REQUEST_RECORD_ARG_REV))
+        {
+          if (dupin_util_is_valid_mvcc (kv->value) == FALSE)
+            {
+              request_set_error (client, "Invalid record MVCC revision");
+              code = HTTP_STATUS_404;
+              goto request_global_put_link_record_end;
+            }
+          mvcc = kv->value;
+        }
+      else if (!g_strcmp0 (kv->key, REQUEST_STRICT))
+        {
+          if (!g_strcmp0 (kv->value, REQUEST_STRICT_LINKS))
+            {
+              strict_links = true;
+            }
+        }
+    }
+
+  if (mvcc == NULL)
+    {
+      request_set_error (client, "Link record MVCC revision is missing");
+      code = HTTP_STATUS_404;
+      goto request_global_put_link_record_end;
+    }
+
+  /* NOTE - need to get the right linkbase to put/update to */
+  if (!  (db = dupin_database_open (client->thread->data->dupin, path->data, NULL)))
+    {
+      request_set_error (client, "Cannot connect to database");
+      code = HTTP_STATUS_404;
+      goto request_global_put_link_record_end;
+    }
+
+  if (!(linkb = dupin_linkbase_open (client->thread->data->dupin, dupin_database_get_default_linkbase_name (db), NULL)))
+    {
+      dupin_database_unref (db);
+      request_set_error (client, "Cannot connect to linkbase");
+      code = HTTP_STATUS_404;
+      goto request_global_put_link_record_end;
+    }
+
+  dupin_database_unref (db);
 
   if (request_fields != NULL)
     {
-      gchar * mvcc=NULL;
-      DupinLinkB *linkb;
       JsonNode * node1=NULL;
       JsonObject * node1_obj=NULL;
       DupinLinkRecord *record;
 
-      GList * l=NULL;
-      for (l = arguments; l; l = l->next)
-        {
-          dupin_keyvalue_t *kv = l->data;
-
-          if (!g_strcmp0 (kv->key, REQUEST_RECORD_ARG_REV))
-            {
-              if (dupin_util_is_valid_mvcc (kv->value) == FALSE)
-                {
-                  request_set_error (client, "Invalid record MVCC revision");
-                  code = HTTP_STATUS_404;
-                  goto request_global_put_link_record_error;
-                }
-              mvcc = kv->value;
-            }
-        }
-
-      if (mvcc == NULL)
-        {
-          request_set_error (client, "Link record MVCC revision is missing");
-          code = HTTP_STATUS_404;
-          goto request_global_put_link_record_error;
-        }
-
       /* fetch last revision */
-      if (!  (linkb =
-       		dupin_linkbase_open (client->thread->data->dupin, path->data, NULL)))
-        {
-          request_set_error (client, "Cannot connect to linkbase");
-          code = HTTP_STATUS_404;
-          goto request_global_put_link_record_error;
-        }
 
       if (!(record = dupin_link_record_read (linkb, link_id, NULL)))
         {
           request_set_error (client, "Cannot read link record");
           dupin_linkbase_unref (linkb);
           code = HTTP_STATUS_404;
-          goto request_global_put_link_record_error;
+          goto request_global_put_link_record_end;
         }
 
       mvcc = dupin_link_record_get_last_revision (record);
@@ -5662,7 +5235,7 @@ request_global_put_link_record (DSHttpdClient * client, GList * path,
           dupin_link_record_close (record);
           dupin_linkbase_unref (linkb);
           code = HTTP_STATUS_404;
-          goto request_global_put_link_record_error;
+          goto request_global_put_link_record_end;
         }
 
       node1 = dupin_link_record_get_revision_node (record, mvcc);
@@ -5673,7 +5246,7 @@ request_global_put_link_record (DSHttpdClient * client, GList * path,
           dupin_link_record_close (record);
           dupin_linkbase_unref (linkb);
           code = HTTP_STATUS_404;
-          goto request_global_put_link_record_error;
+          goto request_global_put_link_record_end;
         }
 
       node1 = json_node_copy (node1);
@@ -5712,29 +5285,22 @@ request_global_put_link_record (DSHttpdClient * client, GList * path,
         }
 
       dupin_link_record_close (record);
-      dupin_linkbase_unref (linkb);
 
       node = node1;
     }
-  else
-    {
-      if (json_node_get_node_type (node) != JSON_NODE_OBJECT)
-        {
-	  request_set_error (client, "PUT body must be a JSON object");
-          code = HTTP_STATUS_400;
-          goto request_global_put_link_record_error;
-        }
-    }
 
-  if (request_link_record_insert
-      (client, arguments, node, path->data, link_id, NULL, &code,
-            DP_LINK_TYPE_ANY, &response_list) == TRUE)
+  if (dupin_link_record_insert (linkb, node, link_id, mvcc, NULL, DP_LINK_TYPE_ANY, &response_list, strict_links) == TRUE)
     {
       if (request_record_response (client, response_list) == FALSE)
         {
           code = HTTP_STATUS_500;
           request_set_error (client, "Cannot generate JSON output response");
         }
+    }
+  else
+    {
+      code = HTTP_STATUS_400;
+      request_set_error (client, dupin_linkbase_get_error (linkb));
     }
 
   while (response_list)
@@ -5743,11 +5309,13 @@ request_global_put_link_record (DSHttpdClient * client, GList * path,
       response_list = g_list_remove (response_list, response_list->data);
     }
 
+  dupin_linkbase_unref (linkb);
+
+request_global_put_link_record_end:
+
   if (request_fields != NULL
       && node)
     json_node_free (node);
-
-request_global_put_link_record_error:
 
   if (parser != NULL)
     g_object_unref (parser);
@@ -5765,6 +5333,10 @@ request_global_put_record_attachment (DSHttpdClient * client, GList * path,
   gchar * doc_id=NULL;
   GList * title_parts=NULL;
   GList * response_list = NULL;
+  DupinDB * db=NULL;
+  DupinAttachmentDB * attachment_db=NULL;
+  gchar * mvcc=NULL;
+  GList * l=NULL;
 
   if (!client->body
       || !client->input_mime
@@ -5806,12 +5378,49 @@ request_global_put_record_attachment (DSHttpdClient * client, GList * path,
          }
     }
 
+  for (l = arguments; l; l = l->next)
+    {
+      dupin_keyvalue_t *kv = l->data;
+
+      if (!g_strcmp0 (kv->key, REQUEST_RECORD_ARG_REV))
+        {
+          if (dupin_util_is_valid_mvcc (kv->value) == FALSE)
+            {
+              request_set_error (client, "Invalid record MVCC revision");
+              code = HTTP_STATUS_404;
+              goto request_global_put_record_attachment_end;
+            }
+          mvcc = kv->value;
+        }
+    }
+
+  /* NOTE - we do not force MVCC due if not specified we can create document if it does not exist */
+
 //g_message("request_global_put_record_attachment: dbname=%s doc_id=%s title_parts=%s\n", (gchar *) path->data, doc_id, (gchar *)title_parts->data);
 
-  if (request_record_attachment_insert
-      (client, arguments, path->data, doc_id,
-       title_parts, &code,
-       &response_list) == TRUE)
+  /* NOTE - need to get the right attachment database to put to */
+  if (!  (db = dupin_database_open (client->thread->data->dupin, path->data, NULL)))
+    {
+      request_set_error (client, "Cannot connect to database");
+      code = HTTP_STATUS_404;
+      goto request_global_put_record_attachment_end;
+    }
+
+  if (!  (attachment_db = dupin_attachment_db_open (client->thread->data->dupin, dupin_database_get_default_attachment_db_name (db), NULL)))
+    {
+      dupin_database_unref (db);
+      request_set_error (client, "Cannot connect to attachments database");
+      code = HTTP_STATUS_404;
+      goto request_global_put_record_attachment_end;
+    }
+
+  dupin_database_unref (db);
+
+  const void * client_body_ref = (const void *)client->body;
+
+  if (dupin_attachment_record_insert (attachment_db, doc_id, mvcc, title_parts,
+				      client->body_size, client->input_mime,
+				      &client_body_ref, &response_list ) == TRUE)
     {
       if (request_record_response (client, response_list) == FALSE)
         {
@@ -5819,12 +5428,21 @@ request_global_put_record_attachment (DSHttpdClient * client, GList * path,
           request_set_error (client, "Cannot generate JSON output response");
         }
     }
+  else
+    {
+      code = HTTP_STATUS_400;
+      request_set_error (client, dupin_attachment_db_get_error (attachment_db));
+    }
 
   while (response_list)
     {
       json_node_free (response_list->data);
       response_list = g_list_remove (response_list, response_list->data);
     }
+
+  dupin_attachment_db_unref (attachment_db);
+
+request_global_put_record_attachment_end:
 
   g_free (doc_id);
 
@@ -6316,7 +5934,6 @@ request_global_delete_link_record (DSHttpdClient * client, GList * path,
                   || !g_strcmp0 (path->next->next->next->data, REQUEST_OBJ_REV)
                   || !g_strcmp0 (path->next->next->next->data, REQUEST_OBJ_ATTACHMENTS)
                   || !g_strcmp0 (path->next->next->next->data, REQUEST_OBJ_LINKS)
-                  || !g_strcmp0 (path->next->next->next->data, REQUEST_LINK_OBJ_CONTEXT_ID)
                   || !g_strcmp0 (path->next->next->next->data, REQUEST_LINK_OBJ_LABEL)
                   || !g_strcmp0 (path->next->next->next->data, REQUEST_LINK_OBJ_HREF)
                   || !g_strcmp0 (path->next->next->next->data, REQUEST_LINK_OBJ_REL)
@@ -6486,9 +6103,6 @@ request_global_delete_link_record (DSHttpdClient * client, GList * path,
 }
 
 /* DATA STRUCT *************************************************************/
-#define REQUEST_WWW		"_www"
-#define REQUEST_QUIT		"_quit"
-#define REQUEST_STATUS		"_status"
 
 RequestType request_types[] = {
   {REQUEST_WWW, DS_HTTPD_REQUEST_GET, request_www}
@@ -6501,1148 +6115,6 @@ RequestType request_types[] = {
 };
 
 /* RECORD *********************************************************************/
-
-static gboolean
-request_record_insert (DSHttpdClient * client, GList * arguments, JsonNode * obj_node,
-		       gchar * dbname, gchar * id, DSHttpStatusCode * code,
-		       GList ** response_list)
-{
-  DupinDB *db;
-  DupinLinkB *linkb;
-  DupinAttachmentDB *attachment_db;
-  DupinRecord *record;
-  DSHttpStatusCode retcode;
-
-  gchar * mvcc=NULL;
-  gchar * json_record_id;
-
-  JsonNode * links_node=NULL;
-  JsonNode * relationships_node=NULL;
-  JsonNode * attachments_node=NULL;
-
-  g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, FALSE);
-
-  gboolean to_delete = request_record_insert_deleted (client, obj_node);
-
-  JsonNode * record_response_node = json_node_new (JSON_NODE_OBJECT);
-  JsonObject * record_response_obj = json_object_new ();
-  json_node_take_object (record_response_node, record_response_obj);
-
-  /* fetch the _rev field in the record first, if there */
-  mvcc = request_record_insert_rev (client, obj_node);
-
-  /* otherwise check passed parameters */
-  if (mvcc == NULL)
-    {
-      GList * l=NULL;
-      for (l = arguments; l; l = l->next)
-        {
-          dupin_keyvalue_t *kv = l->data;
-
-          if (!g_strcmp0 (kv->key, REQUEST_RECORD_ARG_REV))
-            {
-              if (dupin_util_is_valid_mvcc (kv->value) == FALSE)
-                {
-                  request_set_error (client, "Invalid record MVCC revision");
-                  *code = HTTP_STATUS_400;
-		  if (record_response_node != NULL)
-                    json_node_free (record_response_node);
-                  return FALSE;
-                }
-              mvcc = g_strdup (kv->value);
-            }
-        }
-    }
-
-  if (!(db = dupin_database_open (client->thread->data->dupin, dbname, NULL)))
-    {
-      request_set_error (client, "Cannot connect to database");
-      *code = HTTP_STATUS_400;
-      if (record_response_node != NULL)
-        json_node_free (record_response_node);
-      return FALSE;
-    }
-
-  if ((json_record_id = request_record_insert_id (client, obj_node)))
-    {
-      if (id && g_strcmp0 (id, json_record_id))
-	{
-          if (mvcc != NULL)
-	    g_free (mvcc);
-	  g_free (json_record_id);
-          dupin_database_unref (db);
-	  *code = HTTP_STATUS_400;
-          request_set_error (client, "Specified record id does not match");
-          if (record_response_node != NULL)
-            json_node_free (record_response_node);
-	  return FALSE;
-	}
-
-      id = json_record_id;
-    }
-
-  if (mvcc != NULL && !id)
-    {
-      if (json_record_id != NULL)
-        g_free (json_record_id);
-      if (mvcc != NULL)
-        g_free (mvcc);
-      dupin_database_unref (db);
-      *code = HTTP_STATUS_400;
-      request_set_error (client, "No valid record id or MVCC specified");
-      if (record_response_node != NULL)
-        json_node_free (record_response_node);
-      return FALSE;
-    }
-
-  /* get and remove inline _attachments element */
-  attachments_node = json_object_get_member (json_node_get_object (obj_node), REQUEST_OBJ_ATTACHMENTS);
-  if (attachments_node != NULL)
-    {
-      attachments_node = json_node_copy (attachments_node);
-      json_object_remove_member (json_node_get_object (obj_node), REQUEST_OBJ_ATTACHMENTS);
-    }
-
-  /* get and remove inline _links element */
-  links_node = json_object_get_member (json_node_get_object (obj_node), REQUEST_OBJ_LINKS);
-  if (links_node != NULL)
-    {
-      links_node = json_node_copy (links_node);
-      json_object_remove_member (json_node_get_object (obj_node), REQUEST_OBJ_LINKS);
-    }
-
-  /* get and remove inline _relationships element */
-  relationships_node = json_object_get_member (json_node_get_object (obj_node), REQUEST_OBJ_RELATIONSHIPS);
-  if (relationships_node != NULL)
-    {
-      relationships_node = json_node_copy (relationships_node);
-      json_object_remove_member (json_node_get_object (obj_node), REQUEST_OBJ_RELATIONSHIPS);
-    }
-
-  if (mvcc != NULL)
-    {
-      retcode = HTTP_STATUS_200;
-
-      record = dupin_record_read (db, id, NULL);
-
-      if ( to_delete == TRUE )
-        {
-          if (!record || dupin_util_mvcc_revision_cmp (mvcc, dupin_record_get_last_revision (record))
-	      || dupin_record_delete (record, NULL) == FALSE)
-	    {
-              if (record)
-	        dupin_record_close (record);
-	      record = NULL;
-	    }
-        }
-      else
-        {
-          if (!record || dupin_util_mvcc_revision_cmp (mvcc, dupin_record_get_last_revision (record))
-	      || dupin_record_update (record, obj_node, NULL) == FALSE)
-	    {
-              if (record)
-	        dupin_record_close (record);
-	      record = NULL;
-	    }
-        }
-    }
-
-  else if (!id)
-    {
-      if ( to_delete == TRUE )
-        {
-          if (record)
-	    dupin_record_close (record);
-	  record = NULL;
-        }
-      else
-        {
-          retcode = HTTP_STATUS_201;
-          record = dupin_record_create (db, obj_node, NULL);
-        }
-    }
-
-  else
-    {
-      if ( to_delete == TRUE )
-        {
-          if (record)
-	    dupin_record_close (record);
-	  record = NULL;
-        }
-      else
-        {
-          retcode = HTTP_STATUS_201;
-
-          if (dupin_record_exists (db, id) == FALSE)
-	    record = dupin_record_create_with_id (db, obj_node, id, NULL);
-          else
-	    record = NULL;
-        }
-    }
-
-  if (json_record_id)
-    g_free (json_record_id);
-
-  if (!record)
-    {
-      if (attachments_node != NULL)
-        json_node_free (attachments_node);
-      if (links_node != NULL)
-        json_node_free (links_node);
-      if (relationships_node != NULL)
-        json_node_free (relationships_node);
-      dupin_database_unref (db);
-
-      *code = HTTP_STATUS_409;
-
-      if (to_delete == TRUE)
-        {
-          if (mvcc == NULL)
-            request_set_error (client, "Deleted flag not allowed on record creation");
-          else
-            request_set_error (client, "Cannot delete record");
-        }
-      else if (mvcc != NULL)
-        request_set_error (client, "Cannot update record");
-      else
-        request_set_error (client, "Cannot insert record");
-
-      if (mvcc != NULL)
-        g_free (mvcc);
-
-      if (record_response_node != NULL)
-        json_node_free (record_response_node);
-
-      return FALSE;
-    }
-
-  /* process _attachments object for inline attachments */
-
-  if (attachments_node != NULL
-      && json_node_get_node_type (attachments_node) == JSON_NODE_OBJECT)
-    {
-//g_message("process _attachments object for inline attachments\n");
-
-      if (!  (attachment_db =
-               dupin_attachment_db_open (client->thread->data->dupin, dbname, NULL)))
-        {
-          if (attachments_node != NULL)
-            json_node_free (attachments_node);
-          if (links_node != NULL)
-            json_node_free (links_node);
-          if (relationships_node != NULL)
-            json_node_free (relationships_node);
-          if (mvcc != NULL)
-            g_free (mvcc);
-          dupin_database_unref (db);
-          *code = HTTP_STATUS_400;
-
-          request_set_error (client, "Cannot connect to attachments database");
-
-          if (record_response_node != NULL)
-            json_node_free (record_response_node);
-
-          return FALSE;
-        }
-
-      JsonObject * attachments_obj = json_node_get_object (attachments_node);
-
-      GList *n;
-      GList *nodes = json_object_get_members (attachments_obj);
-
-      for (n = nodes; n != NULL; n = n->next)
-        {
-          gchar *member_name = (gchar *) n->data;
-          JsonNode *inline_attachment_node = json_object_get_member (attachments_obj, member_name);
-
-          if (json_node_get_node_type (inline_attachment_node) != JSON_NODE_OBJECT)
-            {
-              /* TODO - should log something or fail ? */
-              continue;
-            }
-
-          JsonObject *inline_attachment_obj = json_node_get_object (inline_attachment_node);
-
-          gboolean to_delete = FALSE;
-          if (json_object_has_member (inline_attachment_obj, REQUEST_OBJ_DELETED) == TRUE)
-	    to_delete = json_object_get_boolean_member (inline_attachment_obj, REQUEST_OBJ_DELETED);
-
-          gboolean stub = FALSE;
-          if (json_object_has_member (inline_attachment_obj, REQUEST_OBJ_INLINE_ATTACHMENTS_STUB) == TRUE)
-            stub = json_object_get_boolean_member (inline_attachment_obj, REQUEST_OBJ_INLINE_ATTACHMENTS_STUB);
-
-	  if (stub == TRUE)
-	    {
-              if (to_delete == TRUE)
-                {
-                  // TODO - warning we used _deleted: true while we meant to ingnore attachment ? */
-		  continue;
-                }
-	      else
-                {
-                  // do we need to update attachment metadata in any way ? */
-	          continue;
-                }
-            }
-
-          gchar * content_type = NULL;
-          guchar * buff = NULL;
-          gsize buff_size;
-          if (to_delete == FALSE)
-            {
-              content_type = (gchar *) json_object_get_string_member (inline_attachment_obj, REQUEST_OBJ_INLINE_ATTACHMENTS_TYPE);
-              gchar * data = (gchar *) json_object_get_string_member (inline_attachment_obj, REQUEST_OBJ_INLINE_ATTACHMENTS_DATA);
-
-              /* decode base64 assuming data is a single (even if long) line/string */
-	      if (data != NULL)
-	        buff = g_base64_decode ((const gchar *)data, &buff_size);
-
-	      if (content_type == NULL
-                  || data == NULL
-                  || buff == NULL)
-                {
-                  if (buff != NULL)
-                    g_free (buff);
-
-                  /* TODO - should log something or fail ? */
-                  continue;
-                }
-            }
-
-          /* NOTE - store inline attachment as normal one - correct? */
-          if ( (to_delete == TRUE
-                && dupin_attachment_record_exists (attachment_db, (gchar *) dupin_record_get_id (record), member_name) == FALSE)
-	      || dupin_attachment_record_delete (attachment_db, (gchar *) dupin_record_get_id (record), member_name) == FALSE
-              || (to_delete == FALSE
-		  && dupin_attachment_record_insert (attachment_db, (gchar *) dupin_record_get_id (record), member_name,
-                                          buff_size, content_type, NULL,
-                                          (const void *)buff) == FALSE))
-            {
-              if (buff != NULL)
-                g_free (buff);
-              dupin_attachment_db_unref (attachment_db);
-
-	      dupin_record_close (record);
-
-              if (attachments_node != NULL)
-                json_node_free (attachments_node);
-              if (links_node != NULL)
-                json_node_free (links_node);
-              if (relationships_node != NULL)
-                json_node_free (relationships_node);
-              if (mvcc != NULL)
-                g_free (mvcc);
-              dupin_database_unref (db);
-              *code = HTTP_STATUS_404;
-              request_set_error (client, "Cannot insert, update or delete attachment");
-
-              if (record_response_node != NULL)
-                json_node_free (record_response_node);
-
-              return FALSE;
-            }
-
-          g_free (buff);
-        }
-
-      g_list_free (nodes);
-
-      dupin_attachment_db_unref (attachment_db);
-    }
-
-  /* process _links object for inline links */
-
-  if ((to_delete == FALSE)
-      && (links_node != NULL || relationships_node != NULL))
-    {
-      GList *n, *nodes;
-      gchar * context_id = (gchar *)dupin_record_get_id (record);
-
-      if (!  (linkb =
-               dupin_linkbase_open (client->thread->data->dupin, dbname, NULL)))
-        {
-	  dupin_record_close (record);
-
-          if (attachments_node != NULL)
-            json_node_free (attachments_node);
-          if (links_node != NULL)
-            json_node_free (links_node);
-          if (relationships_node != NULL)
-            json_node_free (relationships_node);
-          if (mvcc != NULL)
-            g_free (mvcc);
-          dupin_database_unref (db);
-          *code = HTTP_STATUS_400;
-          request_set_error (client, "Cannot connect to linkbase");
-          if (record_response_node != NULL)
-            json_node_free (record_response_node);
-
-          return FALSE;
-        }
-
-      if (links_node != NULL && json_node_get_node_type (links_node) == JSON_NODE_OBJECT)
-        {
-  	  JsonNode * record_response_links_node = json_node_new (JSON_NODE_OBJECT);
-	  JsonObject * record_response_links_object = json_object_new ();
-          json_node_take_object (record_response_links_node, record_response_links_object);
-
-          JsonObject * links_obj = json_node_get_object (links_node);
-          nodes = json_object_get_members (links_obj);
-          for (n = nodes; n != NULL; n = n->next)
-            {
-              gchar *label = (gchar *) n->data;
-              JsonNode *inline_link_node = json_object_get_member (links_obj, label);
-
-  	      JsonNode * record_response_links_label_node = json_node_new (JSON_NODE_ARRAY);
-	      JsonArray * record_response_links_label_array = json_array_new ();
-              json_node_take_array (record_response_links_label_node, record_response_links_label_array);
-
-              if (json_node_get_node_type (inline_link_node) == JSON_NODE_ARRAY)
-                {
-                  GList *sn, *snodes;
-                  snodes = json_array_get_elements (json_node_get_array (inline_link_node));
-                  for (sn = snodes; sn != NULL; sn = sn->next)
-                    {
-		      GList * links_response_list = NULL;
-                      JsonNode * lnode = (JsonNode *) sn->data;
-		      gchar * lnode_context_id = NULL;
-		      gchar * lnode_label = NULL;
-
-                      if (json_node_get_node_type (lnode) != JSON_NODE_OBJECT)
-                        {
-                          /* TODO - should log something or fail ? */
-                          continue;
-                        }
-
-                      /* add each link with context_id and label */
-
-                      JsonObject * lobj = json_node_get_object (lnode);
-
-		      if (json_object_has_member (lobj, REQUEST_LINK_OBJ_CONTEXT_ID) == TRUE)
-                        lnode_context_id = (gchar *)json_object_get_string_member (lobj, REQUEST_LINK_OBJ_CONTEXT_ID);
-
-		      if (json_object_has_member (lobj, REQUEST_LINK_OBJ_LABEL) == TRUE)
-                        lnode_label = (gchar *)json_object_get_string_member (lobj, REQUEST_LINK_OBJ_LABEL);
-                      else
-  		        json_object_set_string_member (lobj, REQUEST_LINK_OBJ_LABEL, label);
-
-//g_message("request_record_insert: context_id=%s label=%s lnode_context_id=%s lnode_label=%s\n", context_id, label, lnode_context_id, lnode_label);
-
-		      /* TODO - rework this to report errors to poort user ! perhaps using contextual logging if useful */
-
-		      if ( ((lnode_context_id != NULL ) && (g_strcmp0 (lnode_context_id, context_id)))
-		           || ((lnode_label != NULL ) && (g_strcmp0 (lnode_label, label))))
-        	        {
-			  JsonObject * error_obj = json_object_new ();
-			  GString * str = g_string_new("");
-			  g_string_append_printf (str, "Link record (%s, %s) has an invalid context_id, not a valid label or cannot be added to document",
-						lnode_context_id, lnode_label);
-			  gchar * error_msg = g_string_free (str, FALSE);
-			  json_object_set_string_member (error_obj, RESPONSE_STATUS_REASON, error_msg);
-			  json_object_set_string_member (error_obj, RESPONSE_STATUS_ERROR, DSHttpStatusList[HTTP_STATUS_400].body);
-			  g_free (error_msg);
-			  json_array_add_object_element (record_response_links_label_array, error_obj);
-
-			  continue;
-        		}
-
-		      if (request_link_record_insert (client, arguments, lnode,
-						      dbname, NULL, context_id, code, DP_LINK_TYPE_WEB_LINK, &links_response_list) == FALSE)
-        	        {
-			  JsonObject * error_obj = json_object_new ();
-			  GString * str = g_string_new("");
-			  if (request_get_error (client) != NULL)
-                            {
-			      g_string_append_printf (str, "%s", request_get_error (client));
-			      request_clear_error (client);
-			    }
-			  else
-                            {
-			      g_string_append_printf (str, "Link record (%s, %s) cannnot be inserted", lnode_context_id, lnode_label);
-                            }
-			  gchar * error_msg = g_string_free (str, FALSE);
-			  json_object_set_string_member (error_obj, RESPONSE_STATUS_REASON, error_msg);
-			  json_object_set_string_member (error_obj, RESPONSE_STATUS_ERROR, DSHttpStatusList[*code].body);
-                          g_free (error_msg);
-                          json_array_add_object_element (record_response_links_label_array, error_obj);
-
-  			  while (links_response_list)
-                            {
-			      json_node_free (links_response_list->data);
-			      links_response_list = g_list_remove (links_response_list, links_response_list->data);
-			    }
-
-		          continue;
-        		}
-
-//g_message("request_record_insert: DONE link context_id=%s label=%s lnode_context_id=%s lnode_label=%s\n", context_id, label, lnode_context_id, lnode_label);
-
-  	              while (links_response_list)
-                        {
-      			  json_array_add_element (record_response_links_label_array, (JsonNode *)links_response_list->data);
-			  links_response_list = g_list_remove (links_response_list, links_response_list->data);
-			}
-                    }
-                  g_list_free (snodes);
-                }
-
-	      if (json_array_get_length (record_response_links_label_array) == 0)
-                {
-                  json_node_free (record_response_links_label_node);
-                }
-              else
-                {
-  		  json_object_set_member (record_response_links_object, label, record_response_links_label_node);
-                }
-            }
-          g_list_free (nodes);
-
-	  if (json_object_get_size (record_response_links_object) == 0)
-            {
-              json_node_free (record_response_links_node);
-            }
-          else
-            {
-  	      json_object_set_member (record_response_obj, RESPONSE_OBJ_LINKS, record_response_links_node);
-            }
-        }
-
-      nodes = NULL;
-
-      if (relationships_node != NULL && json_node_get_node_type (relationships_node) == JSON_NODE_OBJECT)
-        {
-  	  JsonNode * record_response_relationships_node = json_node_new (JSON_NODE_OBJECT);
-	  JsonObject * record_response_relationships_object = json_object_new ();
-          json_node_take_object (record_response_relationships_node, record_response_relationships_object);
-
-          JsonObject * relationships_obj = json_node_get_object (relationships_node);
-          nodes = json_object_get_members (relationships_obj);
-          for (n = nodes; n != NULL; n = n->next)
-            {
-              gchar *label = (gchar *) n->data;
-              JsonNode *inline_relationship_node = json_object_get_member (relationships_obj, label);
-
-  	      JsonNode * record_response_relationships_label_node = json_node_new (JSON_NODE_ARRAY);
-	      JsonArray * record_response_relationships_label_array = json_array_new ();
-              json_node_take_array (record_response_relationships_label_node, record_response_relationships_label_array);
-
-              if (json_node_get_node_type (inline_relationship_node) == JSON_NODE_ARRAY)
-                {
-                  GList *sn, *snodes;
-                  snodes = json_array_get_elements (json_node_get_array (inline_relationship_node));
-                  for (sn = snodes; sn != NULL; sn = sn->next)
-                    {
-		      GList * relationships_response_list = NULL;
-                      JsonNode * rnode = (JsonNode *) sn->data;
-		      gchar * rnode_context_id = NULL;
-		      gchar * rnode_label = NULL;
-
-                      if (json_node_get_node_type (rnode) != JSON_NODE_OBJECT)
-                        {
-                          /* TODO - should log something or fail ? */
-                          continue;
-                        }
-
-                      /* add each relationship with context_id and label */
-
-                      JsonObject * robj = json_node_get_object (rnode);
-
-		      if (json_object_has_member (robj, REQUEST_LINK_OBJ_CONTEXT_ID) == TRUE)
-                        rnode_context_id = (gchar *)json_object_get_string_member (robj, REQUEST_LINK_OBJ_CONTEXT_ID);
-
-		      if (json_object_has_member (robj, REQUEST_LINK_OBJ_LABEL) == TRUE)
-                        rnode_label = (gchar *)json_object_get_string_member (robj, REQUEST_LINK_OBJ_LABEL);
-                      else
-  		        json_object_set_string_member (robj, REQUEST_LINK_OBJ_LABEL, label);
-
-//g_message("request_record_insert: context_id=%s label=%s rnode_context_id=%s rnode_label=%s\n", context_id, label, rnode_context_id, rnode_label);
-
-		      /* TODO - rework this to report errors to poort user ! perhaps using contextual logging if useful */
-
-		      if ( ((rnode_context_id != NULL ) && (g_strcmp0 (rnode_context_id, context_id)))
-		           || ((rnode_label != NULL ) && (g_strcmp0 (rnode_label, label))))
-        	        {
-			  JsonObject * error_obj = json_object_new ();
-                          GString * str = g_string_new("");
-                          g_string_append_printf (str, "Relationship record (%s, %s) has an invalid context_id, not a valid label or cannot be added to document",
-                                                rnode_context_id, rnode_label);
-                          gchar * error_msg = g_string_free (str, FALSE);
-			  json_object_set_string_member (error_obj, RESPONSE_STATUS_REASON, error_msg);
-			  json_object_set_string_member (error_obj, RESPONSE_STATUS_ERROR, DSHttpStatusList[HTTP_STATUS_400].body);
-                          g_free (error_msg);
-                          json_array_add_object_element (record_response_relationships_label_array, error_obj);
-
-			  continue;
-        		}
-
-		      if (request_link_record_insert (client, arguments, rnode,
-						      dbname, NULL, context_id, code, DP_LINK_TYPE_RELATIONSHIP, &relationships_response_list) == FALSE)
-        	        {
-			  JsonObject * error_obj = json_object_new ();
-			  GString * str = g_string_new("");
-			  if (request_get_error (client) != NULL)
-                            {
-			      g_string_append_printf (str, "%s", request_get_error (client));
-        		      request_clear_error (client);
-			    }
-			  else
-                            {
-			      g_string_append_printf (str, "Relationship record (%s, %s) cannnot be inserted", rnode_context_id, rnode_label);
-                            }
-			  gchar * error_msg = g_string_free (str, FALSE);
-			  json_object_set_string_member (error_obj, RESPONSE_STATUS_REASON, error_msg);
-			  json_object_set_string_member (error_obj, RESPONSE_STATUS_ERROR, DSHttpStatusList[*code].body);
-                          g_free (error_msg);
-                          json_array_add_object_element (record_response_relationships_label_array, error_obj);
-
-  			  while (relationships_response_list)
-                            {
-			      json_node_free (relationships_response_list->data);
-			      relationships_response_list = g_list_remove (relationships_response_list, relationships_response_list->data);
-			    }
-
-			  continue;
-        		}
-
-//g_message("request_record_insert: DONE relationship context_id=%s label=%s rnode_context_id=%s rnode_label=%s\n", context_id, label, rnode_context_id, rnode_label);
-
-  	              while (relationships_response_list)
-                        {
-      			  json_array_add_element (record_response_relationships_label_array, (JsonNode *)relationships_response_list->data);
-			  relationships_response_list = g_list_remove (relationships_response_list, relationships_response_list->data);
-			}
-                    }
-                  g_list_free (snodes);
-                }
-
-	      if (json_array_get_length (record_response_relationships_label_array) == 0)
-                {
-                  json_node_free (record_response_relationships_label_node);
-                }
-              else
-                {
-                  json_object_set_member (record_response_relationships_object, label, record_response_relationships_label_node);
-                }
-            }
-          g_list_free (nodes);
-
-	  if (json_object_get_size (record_response_relationships_object) == 0)
-            {
-              json_node_free (record_response_relationships_node);
-            }
-          else
-            {
-  	      json_object_set_member (record_response_obj, RESPONSE_OBJ_RELATIONSHIPS, record_response_relationships_node);
-            }
-        }
-
-      dupin_linkbase_unref (linkb);
-    }
-
-  if (attachments_node != NULL)
-    json_node_free (attachments_node);
-
-  if (links_node != NULL)
-    json_node_free (links_node);
-
-  if (relationships_node != NULL)
-    json_node_free (relationships_node);
-
-  if (mvcc != NULL)
-    g_free (mvcc);
-
-  json_object_set_string_member (record_response_obj, RESPONSE_OBJ_ID, (gchar *) dupin_record_get_id (record));
-  json_object_set_string_member (record_response_obj, RESPONSE_OBJ_REV, dupin_record_get_last_revision (record));
-
-  dupin_record_close (record);
-  dupin_database_unref (db);
-
-  *response_list = g_list_prepend (*response_list, record_response_node);
-
-  *code = retcode;
-  return TRUE;
-}
-
-static gchar *
-request_record_insert_rev (DSHttpdClient * client, JsonNode * obj_node)
-{
-  gchar * mvcc=NULL;
-  JsonNode *node;
-  JsonObject *obj;
-
-  g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, NULL);
-
-  obj = json_node_get_object (obj_node);
-
-  if (json_object_has_member (obj, REQUEST_OBJ_REV) == FALSE)
-    return NULL;
-
-  node = json_object_get_member (obj, REQUEST_OBJ_REV);
-
-  if (node == NULL
-      || json_node_get_node_type  (node) != JSON_NODE_VALUE
-      || json_node_get_value_type (node) != G_TYPE_STRING)
-    return NULL;
-
-  mvcc = g_strdup (json_node_get_string (node));
-
-  json_object_remove_member (obj, REQUEST_OBJ_REV); 
-
-  return mvcc;
-}
-
-static gchar *
-request_record_insert_id (DSHttpdClient * client, JsonNode * obj_node)
-{
-  gchar *id = NULL;
-  JsonNode *node;
-  JsonObject *obj;
-
-  g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, NULL);
-
-  obj = json_node_get_object (obj_node);
-
-  if (json_object_has_member (obj, REQUEST_OBJ_ID) == FALSE)
-    return NULL;
-
-  node = json_object_get_member (obj, REQUEST_OBJ_ID);
-
-  if (node == NULL)
-    return NULL;
-
-  if (json_node_get_value_type (node) == G_TYPE_STRING) /* check this is correct type */
-    id = g_strdup (json_node_get_string (node));
-  else
-    {
-      GString * str = g_string_new (NULL);
-      g_string_append_printf (str, "Identifier is of type %s and not string. The system has generated a new ID automaticlaly.", json_node_type_name (node));
-      gchar * tmp = g_string_free (str, FALSE);
-      request_set_warning (client, tmp);  
-      g_free (tmp);
-    }
-
-  json_object_remove_member (obj, REQUEST_OBJ_ID); 
-
-  return id;
-}
-
-static gboolean
-request_record_insert_deleted (DSHttpdClient * client, JsonNode * obj_node)
-{
-  gboolean deleted=FALSE;
-  JsonNode *node;
-  JsonObject *obj;
-
-  g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, FALSE);
-
-  obj = json_node_get_object (obj_node);
-
-  if (json_object_has_member (obj, REQUEST_OBJ_DELETED) == FALSE)
-    return FALSE;
-
-  node = json_object_get_member (obj, REQUEST_OBJ_DELETED);
-
-  if (node == NULL
-      || json_node_get_node_type  (node) != JSON_NODE_VALUE
-      || json_node_get_value_type (node) != G_TYPE_BOOLEAN)
-    return FALSE;
-
-  deleted = json_node_get_boolean (node);
-
-  json_object_remove_member (obj, REQUEST_OBJ_DELETED); 
-
-  return deleted;
-}
-
-static gchar *
-request_link_record_insert_label (DSHttpdClient * client, JsonNode * obj_node)
-{
-  gchar *ret = NULL;
-  JsonNode *node;
-  JsonObject *obj;
-
-  g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, NULL);
-
-  obj = json_node_get_object (obj_node);
-
-  if (json_object_has_member (obj, REQUEST_LINK_OBJ_LABEL) == FALSE)
-    return NULL;
-
-  node = json_object_get_member (obj, REQUEST_LINK_OBJ_LABEL);
-
-  if (node == NULL)
-    return NULL;
-
-  if (json_node_get_value_type (node) == G_TYPE_STRING) /* check this is correct type */
-    ret = g_strdup (json_node_get_string (node));
-
-  json_object_remove_member (obj, REQUEST_LINK_OBJ_LABEL); 
-
-  return ret;
-}
-
-static gchar *
-request_link_record_insert_href (DSHttpdClient * client, JsonNode * obj_node)
-{
-  gchar *ret = NULL;
-  JsonNode *node;
-  JsonObject *obj;
-
-  g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, NULL);
-
-  obj = json_node_get_object (obj_node);
-
-  if (json_object_has_member (obj, REQUEST_LINK_OBJ_HREF) == FALSE)
-    return NULL;
-
-  node = json_object_get_member (obj, REQUEST_LINK_OBJ_HREF);
-
-  if (node == NULL)
-    return NULL;
-
-  if (json_node_get_value_type (node) == G_TYPE_STRING) /* check this is correct type */
-    ret = g_strdup (json_node_get_string (node));
-
-  json_object_remove_member (obj, REQUEST_LINK_OBJ_HREF); 
-
-  return ret;
-}
-
-static gchar *
-request_link_record_insert_rel (DSHttpdClient * client, JsonNode * obj_node)
-{
-  gchar *ret = NULL;
-  JsonNode *node;
-  JsonObject *obj;
-
-  g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, NULL);
-
-  obj = json_node_get_object (obj_node);
-
-  if (json_object_has_member (obj, REQUEST_LINK_OBJ_REL) == FALSE)
-    return NULL;
-
-  node = json_object_get_member (obj, REQUEST_LINK_OBJ_REL);
-
-  if (node == NULL)
-    return NULL;
-
-  if (json_node_get_value_type (node) == G_TYPE_STRING) /* check this is correct type */
-    ret = g_strdup (json_node_get_string (node));
-
-  json_object_remove_member (obj, REQUEST_LINK_OBJ_REL); 
-
-  return ret;
-}
-
-static gchar *
-request_link_record_insert_tag (DSHttpdClient * client, JsonNode * obj_node)
-{
-  gchar *ret = NULL;
-  JsonNode *node;
-  JsonObject *obj;
-
-  g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, NULL);
-
-  obj = json_node_get_object (obj_node);
-
-  if (json_object_has_member (obj, REQUEST_LINK_OBJ_TAG) == FALSE)
-    return NULL;
-
-  node = json_object_get_member (obj, REQUEST_LINK_OBJ_TAG);
-
-  if (node == NULL)
-    return NULL;
-
-  if (json_node_get_value_type (node) == G_TYPE_STRING) /* check this is correct type */
-    ret = g_strdup (json_node_get_string (node));
-
-  json_object_remove_member (obj, REQUEST_LINK_OBJ_TAG); 
-
-  return ret;
-}
-
-static gboolean
-request_link_record_insert (DSHttpdClient * client, GList * arguments, JsonNode * obj_node,
-		       	    gchar * linkbname, gchar * id, gchar * context_id,
-			    DSHttpStatusCode * code,
-			    DupinLinksType link_type,
-			    GList ** response_list)
-{
-  DupinLinkB *linkb;
-  DupinLinkRecord *record;
-  DSHttpStatusCode retcode;
-
-  gchar * mvcc=NULL;
-  gchar * json_record_id;
-  gchar * json_record_label;
-  gchar * json_record_href;
-  gchar * json_record_rel;
-  gchar * json_record_tag;
-
-  g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, FALSE);
-
-  /* NOTE - context_id is purely internal and can not be set in any way by the user if not via
-            the document is being linked from */
-
- if (json_object_has_member (json_node_get_object (obj_node), REQUEST_LINK_OBJ_CONTEXT_ID) == TRUE)
-   {
-     request_set_error (client, "Link context can not be explicitly set.");
-     return FALSE;
-   }
- else if (context_id == NULL)
-   {
-     request_set_error (client, "The link context is missing.");
-     return FALSE;
-   }
-
-  gboolean to_delete = request_record_insert_deleted (client, obj_node);
-
-  json_record_href = request_link_record_insert_href (client, obj_node);
-
-  if (json_record_href != NULL)
-    {
-      gboolean is_weblink = dupin_util_is_valid_absolute_uri (json_record_href);
-
-      if (link_type == DP_LINK_TYPE_WEB_LINK
-	  && is_weblink == FALSE)
-        {
-          g_free (json_record_href);
-          request_set_error (client, "Expected a web link but a relationship was passed");
-	  return FALSE;
-        }
-      else if (link_type == DP_LINK_TYPE_RELATIONSHIP
-	       && is_weblink == TRUE)
-        {
-          g_free (json_record_href);
-          request_set_error (client, "Expected a relationship but a web link was passed");
-	  return FALSE;
-        }
-      /* else is auto, picked by the system */
-    }
-
-  JsonNode * record_response_node = json_node_new (JSON_NODE_OBJECT);
-  JsonObject * record_response_obj = json_object_new ();
-  json_node_take_object (record_response_node, record_response_obj);
-
-  /* fetch the _rev field in the record first, if there */
-  mvcc = request_record_insert_rev (client, obj_node);
-
-  /* otherwise check passed parameters */
-  if (mvcc == NULL)
-    {
-      GList * l=NULL;
-      for (l = arguments; l; l = l->next)
-        {
-          dupin_keyvalue_t *kv = l->data;
-
-          if (!g_strcmp0 (kv->key, REQUEST_RECORD_ARG_REV))
-            {
-              if (dupin_util_is_valid_mvcc (kv->value) == FALSE)
-                {
-                  *code = HTTP_STATUS_400;
-                  request_set_error (client, "Invalid link record MVCC revision");
-		  if (record_response_node != NULL)
-                    json_node_free (record_response_node);
-  		  if (json_record_href)
-		    g_free (json_record_href);
-
-                  return FALSE;
-                }
-              mvcc = g_strdup (kv->value);
-            }
-        }
-    }
-
-  if (!(linkb = dupin_linkbase_open (client->thread->data->dupin, linkbname, NULL)))
-    {
-      *code = HTTP_STATUS_400;
-      request_set_error (client, "Cannot connect to linkbase");
-      if (record_response_node != NULL)
-        json_node_free (record_response_node);
-      if (json_record_href)
-        g_free (json_record_href);
-      return FALSE;
-    }
-
-  if ((json_record_id = request_record_insert_id (client, obj_node)))
-    {
-      if (id && g_strcmp0 (id, json_record_id))
-	{
-          if (mvcc != NULL)
-	    g_free (mvcc);
-	  g_free (json_record_id);
-          dupin_linkbase_unref (linkb);
-	  *code = HTTP_STATUS_400;
-	  request_set_error (client, "Specified link record id does not match");
-	  if (record_response_node != NULL)
-            json_node_free (record_response_node);
-          if (json_record_href)
-            g_free (json_record_href);
-	  return FALSE;
-	}
-
-      id = json_record_id;
-    }
-
-  if (mvcc != NULL && !id)
-    {
-      if (json_record_id != NULL)
-        g_free (json_record_id);
-      if (mvcc != NULL)
-        g_free (mvcc);
-      dupin_linkbase_unref (linkb);
-      *code = HTTP_STATUS_400;
-      request_set_error (client, "No valid link record id or MVCC specified");
-      if (record_response_node != NULL)
-        json_node_free (record_response_node);
-      if (json_record_href)
-        g_free (json_record_href);
-      return FALSE;
-    }
-
-  json_record_label = request_link_record_insert_label (client, obj_node);
-  json_record_rel = request_link_record_insert_rel (client, obj_node);
-  json_record_tag = request_link_record_insert_tag (client, obj_node);
-
-//g_message("request_link_record_insert: context_id=%s\n", context_id);
-//g_message("request_link_record_insert: json_record_label=%s\n", json_record_label);
-//g_message("request_link_record_insert: json_record_href=%s\n", json_record_href);
-//g_message("request_link_record_insert: json_record_rel=%s\n", json_record_rel);
-//g_message("request_link_record_insert: json_record_tag=%s\n", json_record_tag);
-
-  if (mvcc != NULL)
-    {
-      retcode = HTTP_STATUS_200;
-
-      record = dupin_link_record_read (linkb, id, NULL);
-
-      if ( to_delete == TRUE )
-        {
-          if (!record || dupin_util_mvcc_revision_cmp (mvcc, dupin_link_record_get_last_revision (record))
-	      || dupin_link_record_delete (record, NULL) == FALSE)
-	    {
-              if (record)
-	        dupin_link_record_close (record);
-	      record = NULL;
-	    }
-        }
-      else
-        {
-          if (!record || dupin_util_mvcc_revision_cmp (mvcc, dupin_link_record_get_last_revision (record))
-	      || dupin_link_record_update (record, obj_node, 
-				       json_record_label, json_record_href, json_record_rel, json_record_tag,
-					NULL) == FALSE)
-	    {
-              if (record)
-	        dupin_link_record_close (record);
-	      record = NULL;
-	    }
-        }
-    }
-
-  else if (!id)
-    {
-      if ( to_delete == TRUE )
-        {
-          if (record)
-	    dupin_link_record_close (record);
-	  record = NULL;
-        }
-      else
-        {
-          retcode = HTTP_STATUS_201;
-          record = dupin_link_record_create (linkb, obj_node,
-				         context_id,
-				         json_record_label, json_record_href, json_record_rel, json_record_tag,
-					 NULL);
-	}
-    }
-
-  else
-    {
-      if ( to_delete == TRUE )
-        {
-          if (record)
-	    dupin_link_record_close (record);
-	  record = NULL;
-        }
-      else
-        {
-          retcode = HTTP_STATUS_201;
-
-          if (dupin_link_record_exists (linkb, id) == FALSE)
-	    record = dupin_link_record_create_with_id (linkb, obj_node, id, 
-				         	   context_id,
-						   json_record_label,
-				         	   json_record_href, json_record_rel, json_record_tag,
-						   NULL);
-          else
-	    record = NULL;
-        }
-    }
-
-  if (json_record_label)
-    g_free (json_record_label);
-
-  if (json_record_href)
-    g_free (json_record_href);
-
-  if (json_record_rel)
-    g_free (json_record_rel);
-
-  if (json_record_tag)
-    g_free (json_record_tag);
-
-  if (json_record_id)
-    g_free (json_record_id);
-
-  if (!record)
-    {
-      dupin_linkbase_unref (linkb);
-      *code = HTTP_STATUS_409;
-
-      if (to_delete == TRUE)
-        {
-          if (mvcc == NULL)
-            request_set_error (client, "Deleted flag not allowed on link record creation");
-          else
-            request_set_error (client, "Cannot delete link record");
-        }
-      else if (mvcc != NULL)
-        request_set_error (client, "Cannot update link record");
-      else
-        request_set_error (client, "Cannot insert link record");
-
-      if (mvcc != NULL)
-        g_free (mvcc);
-
-      if (record_response_node != NULL)
-        json_node_free (record_response_node);
-      return FALSE;
-    }
-
-  if (mvcc != NULL)
-    g_free (mvcc);
-
-  json_object_set_string_member (record_response_obj, RESPONSE_OBJ_ID, (gchar *) dupin_link_record_get_id (record));
-  json_object_set_string_member (record_response_obj, RESPONSE_OBJ_REV, dupin_link_record_get_last_revision (record));
-
-  dupin_link_record_close (record);
-  dupin_linkbase_unref (linkb);
-
-  *response_list = g_list_prepend (*response_list, record_response_node);
-
-  *code = retcode;
-  return TRUE;
-}
-
-/* NOTE - it receives as second param a list of JsonNode so we are completly generic
-          and let the caller to decide how and what to return as JSON. We just add
-	  an "ok": true status and return one JSON object when response is single (I.e. one item in the list).
-	  Otherwise we return a JSON Array with the info of the caller.
-*/
 
 static gboolean
 request_record_response (DSHttpdClient * client,
@@ -7719,192 +6191,9 @@ request_record_response_error:
   return FALSE;
 }
 
-static gboolean
-request_record_attachment_insert (DSHttpdClient * client,
-				  GList * arguments,
-				  gchar * dbname, gchar * id,
-				  GList * title_parts,
-				  DSHttpStatusCode * code,
-				  GList ** response_list)
-{
-  DupinDB *db;
-  DupinAttachmentDB *attachment_db;
-  DupinRecord *record=NULL;
-  DSHttpStatusCode retcode;
-  JsonNode * obj_node=NULL;
-
-  GString *str;
-  gchar * title = NULL;
-  GList * l=NULL;
-  gchar * mvcc=NULL;
-
-  /* process input attachment name parameter */
-
-  str = g_string_new (title_parts->data);
-
-  for (l=title_parts->next ; l != NULL ; l=l->next)
-    {
-      g_string_append_printf (str, "/%s", (gchar *)l->data);
-    }
-
-  title = g_string_free (str, FALSE);
-
-  if (title == NULL)
-    {
-      *code = HTTP_STATUS_400;
-      request_set_error (client, "Missing attachment name");
-      return FALSE;
-    }
-
-//g_message("request_record_attachment_insert: title=%s\n", title);
-
-  for (l = arguments; l; l = l->next)
-    {
-      dupin_keyvalue_t *kv = l->data;
-
-      if (!g_strcmp0 (kv->key, REQUEST_RECORD_ARG_REV))
-        {
-          if (dupin_util_is_valid_mvcc (kv->value) == FALSE)
-            {
-              *code = HTTP_STATUS_400;
-	      request_set_error (client, "Invalid record MVCC revision");
-              return FALSE;
-            }
-	  mvcc = kv->value;
-        }
-    }
-
-  if (!(db = dupin_database_open (client->thread->data->dupin, dbname, NULL)))
-    {
-      g_free (title);
-      *code = HTTP_STATUS_400;
-      request_set_error (client, "Cannot connect to record database");
-      return FALSE;
-    }
-
-  if (!
-      (attachment_db =
-       dupin_attachment_db_open (client->thread->data->dupin, dbname, NULL)))
-    {
-      g_free (title);
-      dupin_database_unref (db);
-      *code = HTTP_STATUS_400;
-      request_set_error (client, "Cannot connect to attacchemtns database");
-      return FALSE;
-    }
-
-  record = dupin_record_read (db, id, NULL);
-
-  if (mvcc == NULL && record != NULL)
-    {
-      g_free (title);
-      dupin_record_close (record);
-      dupin_attachment_db_unref (attachment_db);
-      dupin_database_unref (db);
-      *code = HTTP_STATUS_400;
-      request_set_error (client, "Record found but MVCC revision number is missing");
-      return FALSE;
-    }
-
-  if (record == NULL)
-    {
-      /* TODO - create new record instead */
-     obj_node = json_node_new (JSON_NODE_OBJECT);
-     JsonObject * obj = json_object_new ();
-     json_node_take_object (obj_node, obj);
-
-     if ( dupin_attachment_record_insert (attachment_db, id, title,
-                                          client->body_size,
-                                          client->input_mime,
-                                          NULL,
-                                          (const void *)client->body) == FALSE
- 	 || (!( record = dupin_record_create_with_id (db, obj_node, id, NULL))))
-        {
-          g_free (title);
-          json_node_free (obj_node);
-          dupin_attachment_db_unref (attachment_db);
-          dupin_database_unref (db);
-          *code = HTTP_STATUS_400;
-          request_set_error (client, "Cannot insert attachment or create record to contain attachment");
-          return FALSE;
-        }
-    }
-  else
-    {
-      if (mvcc == NULL
-          || dupin_util_mvcc_revision_cmp (mvcc, dupin_record_get_last_revision (record)))
-        {
-          g_free (title);
-          dupin_record_close (record);
-          dupin_attachment_db_unref (attachment_db);
-          dupin_database_unref (db);
-          *code = HTTP_STATUS_404;
-          request_set_error (client, "No record MVCC revision found or record revision not matching latest");
-          return FALSE;
-        }
-
-      /* NOTE - need to touch/update the metadata record anyway */
-
-      if (!(obj_node = request_record_revision_obj (client, arguments,
-						    record,
-						    (gchar *) dupin_record_get_id (record), mvcc,
-						    FALSE))) // set this to TRUE when needs to fetch links for _content
-        {
-          g_free (title);
-          dupin_record_close (record);
-          dupin_attachment_db_unref (attachment_db);
-          dupin_database_unref (db);
-          *code = HTTP_STATUS_404;
-          request_set_error (client, "Cannot fetch record for update");
-          return FALSE;
-        }
-
-      /* NOTE - remove _rev and _id from the JSON node structure */
-
-      json_object_remove_member (json_node_get_object (obj_node), REQUEST_OBJ_REV);
-      json_object_remove_member (json_node_get_object (obj_node), REQUEST_OBJ_ID);
-
-      if ( dupin_attachment_record_delete (attachment_db, id, title) == FALSE
-          || dupin_attachment_record_insert (attachment_db, id, title,
-                                          client->body_size,
-                                          client->input_mime,
-                                          NULL,
-                                          (const void *)client->body) == FALSE
-          || dupin_record_update (record, obj_node, NULL) == FALSE)
-        {
-          g_free (title);
-          dupin_record_close (record);
-          dupin_attachment_db_unref (attachment_db);
-          dupin_database_unref (db);
-          json_node_free (obj_node);
-          *code = HTTP_STATUS_404;
-          request_set_error (client, "Cannot replace attachment");
-          return FALSE;
-        }
-    }
-
-  retcode = HTTP_STATUS_200;
-
-  JsonNode * record_response_node = json_node_new (JSON_NODE_OBJECT);
-  JsonObject * record_response_obj = json_object_new ();
-  json_node_take_object (record_response_node, record_response_obj);
-
-  json_object_set_string_member (record_response_obj, RESPONSE_OBJ_ID, (gchar *) dupin_record_get_id (record));
-  json_object_set_string_member (record_response_obj, RESPONSE_OBJ_REV, dupin_record_get_last_revision (record));
-
-  dupin_record_close (record);
-  dupin_attachment_db_unref (attachment_db);
-  dupin_database_unref (db);
-  g_free (title);
-  json_node_free (obj_node);
-
-  *response_list = g_list_prepend (*response_list, record_response_node);
-
-  *code = retcode;
-
-  return TRUE;
-}
-
+/* TODO - the following will need to be moved as well into record level API on top of
+          dupin_record, dupin_link_record and dupin_attachment_record modules */
+ 
 static JsonNode *
 request_record_revision_obj (DSHttpdClient * client,
                              GList * arguments,
@@ -8236,7 +6525,6 @@ request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
 
       obj = json_node_get_object (obj_node);
 
-      json_object_set_string_member (obj, RESPONSE_LINK_OBJ_CONTEXT_ID, dupin_link_record_get_context_id (record));
       json_object_set_string_member (obj, RESPONSE_LINK_OBJ_LABEL, dupin_link_record_get_label (record));
       json_object_set_string_member (obj, RESPONSE_LINK_OBJ_HREF, dupin_link_record_get_href (record));
 
@@ -8427,37 +6715,7 @@ request_view_record_obj (DSHttpdClient * client,
   return json_node_copy (node);
 }
 
-dupin_keyvalue_t *
-dupin_keyvalue_new (gchar * key, gchar * value)
-{
-  dupin_keyvalue_t *new;
-
-  g_return_val_if_fail (key != NULL, NULL);
-  g_return_val_if_fail (value != NULL, NULL);
-
-  new = g_malloc0 (sizeof (dupin_keyvalue_t));
-  new->key = g_strdup (key);
-  new->value = g_strdup (value);
-
-  return new;
-}
-
-void
-dupin_keyvalue_destroy (dupin_keyvalue_t * data)
-{
-  if (!data)
-    return;
-
-  if (data->key)
-    g_free (data->key);
-
-  if (data->value)
-    g_free (data->value);
-
-  g_free (data);
-}
-
-#define DUPIN_DB_MAX_CHANGES_COMET_COUNT  1
+/* Changes API */
 
 gboolean
 request_get_changes_comet_database (DSHttpdClient * client,
@@ -8654,8 +6912,6 @@ request_get_changes_comet_database_error:
 
   return FALSE;
 }
-
-#define DUPIN_LINKB_MAX_CHANGES_COMET_COUNT  1
 
 gboolean
 request_get_changes_comet_linkbase (DSHttpdClient * client,

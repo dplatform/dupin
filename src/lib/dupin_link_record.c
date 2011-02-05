@@ -2144,4 +2144,682 @@ dupin_link_record_util_generate_paths_node (DupinLinkB * linkb,
   return paths;
 }
 
+/* Insert */
+
+static gchar *
+dupin_link_record_insert_extract_label (DupinLinkB * linkb, JsonNode * obj_node)
+{
+  g_return_val_if_fail (linkb != NULL, FALSE);
+
+  gchar *ret = NULL;
+  JsonNode *node;
+  JsonObject *obj;
+
+  g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, NULL);
+
+  obj = json_node_get_object (obj_node);
+
+  if (json_object_has_member (obj, REQUEST_LINK_OBJ_LABEL) == FALSE)
+    return NULL;
+
+  node = json_object_get_member (obj, REQUEST_LINK_OBJ_LABEL);
+
+  if (node == NULL)
+    return NULL;
+
+  if (json_node_get_value_type (node) == G_TYPE_STRING) /* check this is correct type */
+    ret = g_strdup (json_node_get_string (node));
+
+  json_object_remove_member (obj, REQUEST_LINK_OBJ_LABEL); 
+
+  return ret;
+}
+
+static gchar *
+dupin_link_record_insert_extract_href (DupinLinkB * linkb, JsonNode * obj_node)
+{
+  g_return_val_if_fail (linkb != NULL, FALSE);
+
+  gchar *ret = NULL;
+  JsonNode *node;
+  JsonObject *obj;
+
+  g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, NULL);
+
+  obj = json_node_get_object (obj_node);
+
+  if (json_object_has_member (obj, REQUEST_LINK_OBJ_HREF) == FALSE)
+    return NULL;
+
+  node = json_object_get_member (obj, REQUEST_LINK_OBJ_HREF);
+
+  if (node == NULL)
+    return NULL;
+
+  if (json_node_get_value_type (node) == G_TYPE_STRING) /* check this is correct type */
+    ret = g_strdup (json_node_get_string (node));
+
+  json_object_remove_member (obj, REQUEST_LINK_OBJ_HREF); 
+
+  return ret;
+}
+
+static gchar *
+dupin_link_record_insert_extract_rel (DupinLinkB * linkb, JsonNode * obj_node)
+{
+  g_return_val_if_fail (linkb != NULL, FALSE);
+
+  gchar *ret = NULL;
+  JsonNode *node;
+  JsonObject *obj;
+
+  g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, NULL);
+
+  obj = json_node_get_object (obj_node);
+
+  if (json_object_has_member (obj, REQUEST_LINK_OBJ_REL) == FALSE)
+    return NULL;
+
+  node = json_object_get_member (obj, REQUEST_LINK_OBJ_REL);
+
+  if (node == NULL)
+    return NULL;
+
+  if (json_node_get_value_type (node) == G_TYPE_STRING) /* check this is correct type */
+    ret = g_strdup (json_node_get_string (node));
+
+  json_object_remove_member (obj, REQUEST_LINK_OBJ_REL); 
+
+  return ret;
+}
+
+static gchar *
+dupin_link_record_insert_extract_tag (DupinLinkB * linkb, JsonNode * obj_node)
+{
+  g_return_val_if_fail (linkb != NULL, FALSE);
+
+  gchar *ret = NULL;
+  JsonNode *node;
+  JsonObject *obj;
+
+  g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, NULL);
+
+  obj = json_node_get_object (obj_node);
+
+  if (json_object_has_member (obj, REQUEST_LINK_OBJ_TAG) == FALSE)
+    return NULL;
+
+  node = json_object_get_member (obj, REQUEST_LINK_OBJ_TAG);
+
+  if (node == NULL)
+    return NULL;
+
+  if (json_node_get_value_type (node) == G_TYPE_STRING) /* check this is correct type */
+    ret = g_strdup (json_node_get_string (node));
+
+  json_object_remove_member (obj, REQUEST_LINK_OBJ_TAG); 
+
+  return ret;
+}
+
+static gchar *
+dupin_link_record_insert_extract_rev (DupinLinkB * linkb, JsonNode * obj_node)
+{
+  g_return_val_if_fail (linkb != NULL, FALSE);
+
+  gchar * mvcc=NULL;
+  JsonNode *node;
+  JsonObject *obj;
+
+  g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, NULL);
+
+  obj = json_node_get_object (obj_node);
+
+  if (json_object_has_member (obj, REQUEST_OBJ_REV) == FALSE)
+    return NULL;
+
+  node = json_object_get_member (obj, REQUEST_OBJ_REV);
+
+  if (node == NULL
+      || json_node_get_node_type  (node) != JSON_NODE_VALUE
+      || json_node_get_value_type (node) != G_TYPE_STRING)
+    return NULL;
+
+  mvcc = g_strdup (json_node_get_string (node));
+
+  json_object_remove_member (obj, REQUEST_OBJ_REV);
+
+  return mvcc;
+}
+
+static gchar *
+dupin_link_record_insert_extract_id (DupinLinkB * linkb, JsonNode * obj_node)
+{
+  g_return_val_if_fail (linkb != NULL, FALSE);
+
+  gchar *id = NULL;
+  JsonNode *node;
+  JsonObject *obj;
+
+  g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, NULL);
+
+  obj = json_node_get_object (obj_node);
+
+  if (json_object_has_member (obj, REQUEST_OBJ_ID) == FALSE)
+    return NULL;
+
+  node = json_object_get_member (obj, REQUEST_OBJ_ID);
+
+  if (node == NULL)
+    return NULL;
+
+  if (json_node_get_value_type (node) == G_TYPE_STRING) /* check this is correct type */
+    id = g_strdup (json_node_get_string (node));
+  else
+    {
+      GString * str = g_string_new (NULL);
+      g_string_append_printf (str, "Identifier is of type %s and not string. The system has generated a new ID automaticlaly.", json_node_type_name (node));
+      gchar * tmp = g_string_free (str, FALSE);
+      dupin_linkbase_set_warning (linkb, tmp);
+      g_free (tmp);
+    }
+
+  json_object_remove_member (obj, REQUEST_OBJ_ID);
+
+  return id;
+}
+
+static gboolean
+dupin_link_record_insert_extract_deleted (DupinLinkB * linkb, JsonNode * obj_node)
+{
+  g_return_val_if_fail (linkb != NULL, FALSE);
+
+  gboolean deleted=FALSE;
+  JsonNode *node;
+  JsonObject *obj;
+
+  g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, FALSE);
+
+  obj = json_node_get_object (obj_node);
+
+  if (json_object_has_member (obj, REQUEST_OBJ_DELETED) == FALSE)
+    return FALSE;
+
+  node = json_object_get_member (obj, REQUEST_OBJ_DELETED);
+
+  if (node == NULL
+      || json_node_get_node_type  (node) != JSON_NODE_VALUE
+      || json_node_get_value_type (node) != G_TYPE_BOOLEAN)
+    return FALSE;
+
+  deleted = json_node_get_boolean (node);
+
+  json_object_remove_member (obj, REQUEST_OBJ_DELETED);
+
+  return deleted;
+}
+
+/* insert = create or update */
+
+gboolean
+dupin_link_record_insert_check_context_id (DupinLinkB * linkb,
+			                   gchar * context_id)
+{
+  g_return_val_if_fail (linkb != NULL, FALSE);
+
+  /* NOTE - this code is more generic than needed, we will possibly use this in future ... */
+  gboolean document_deleted = FALSE;
+  gboolean document_exists = TRUE;
+
+  if (dupin_linkbase_get_parent_is_db (linkb) == TRUE )
+    {
+      DupinDB * parent_db=NULL;
+
+      if (! (parent_db = dupin_database_open (linkb->d, dupin_linkbase_get_parent (linkb), NULL)))
+        {
+          dupin_linkbase_set_error (linkb, "Cannot connect to parent database");
+	  return FALSE;
+        }
+
+      DupinRecord * doc_id_record = dupin_record_read (parent_db, context_id, NULL);
+
+      if (doc_id_record == NULL)
+        document_exists = FALSE;
+      else
+        {
+          if (dupin_record_is_deleted (doc_id_record, NULL) == TRUE)
+            document_deleted = TRUE;
+
+          dupin_record_close (doc_id_record);
+        }
+
+      dupin_database_unref (parent_db);
+    }
+  else
+    {
+      DupinLinkB * parent_linkb=NULL;
+
+      if (!(parent_linkb = dupin_linkbase_open (linkb->d, dupin_linkbase_get_parent (linkb), NULL)))
+        {
+          dupin_linkbase_set_error (linkb, "Cannot connect to parent linkbase");
+	  return FALSE;
+        }
+
+      DupinLinkRecord * link_id_record = dupin_link_record_read (parent_linkb, context_id, NULL);
+
+      if (link_id_record == NULL)
+        document_exists = FALSE;
+      else
+        {
+          if (dupin_link_record_is_deleted (link_id_record, NULL) == TRUE)
+            document_deleted = TRUE;
+
+          dupin_link_record_close (link_id_record);
+        }
+
+      dupin_linkbase_unref (parent_linkb);
+    }
+
+  if (document_exists == FALSE )
+    {
+      //dupin_linkbase_set_warning (linkb, "request_global_post_doc_link: adding a link to a non existing document");
+      return TRUE;
+    }
+  else if (document_deleted == TRUE )
+    {
+      dupin_linkbase_set_error (linkb,  "Cannot add a link to a document which is marked as deleted.");
+      return FALSE;
+    }
+
+  return TRUE;
+}
+
+/* NOTE - the id of a link must only be used for update or deletion, never possible to set by user */
+
+gboolean
+dupin_link_record_insert (DupinLinkB * linkb,
+			  JsonNode * obj_node,
+			  gchar * id,
+			  gchar * caller_mvcc,
+			  gchar * context_id,
+			  DupinLinksType link_type,
+			  GList ** response_list,
+			  gboolean strict_links)
+{
+  g_return_val_if_fail (linkb != NULL, FALSE);
+
+  DupinLinkRecord *record=NULL;
+
+  gchar * mvcc=NULL;
+  gchar * json_record_id;
+  gchar * json_record_label;
+  gchar * json_record_href;
+  gchar * json_record_rel;
+  gchar * json_record_tag;
+
+  if (caller_mvcc != NULL)
+    {
+      g_return_val_if_fail (dupin_util_is_valid_mvcc (caller_mvcc) == TRUE, FALSE);
+    }
+
+  if (json_node_get_node_type (obj_node) != JSON_NODE_OBJECT)
+    {
+      dupin_linkbase_set_error (linkb, "Input must be a JSON object");
+      return FALSE;
+    }
+
+  if (strict_links == TRUE)
+    {
+//g_message("dupin_link_record_insert: checking context_id=%s\n", context_id);
+
+      gboolean link_ok = dupin_link_record_insert_check_context_id (linkb, context_id);
+
+      if (link_ok == FALSE )
+        return FALSE;
+    }
+
+  gboolean to_delete = dupin_link_record_insert_extract_deleted (linkb, obj_node);
+
+  json_record_href = dupin_link_record_insert_extract_href (linkb, obj_node);
+
+  if (json_record_href != NULL)
+    {
+      gboolean is_weblink = dupin_util_is_valid_absolute_uri (json_record_href);
+
+      if (link_type == DP_LINK_TYPE_WEB_LINK
+          && is_weblink == FALSE)
+        {
+          g_free (json_record_href);
+          dupin_linkbase_set_error (linkb, "Expected a web link but a relationship was passed");
+          return FALSE;
+        }
+      else if (link_type == DP_LINK_TYPE_RELATIONSHIP
+               && is_weblink == TRUE)
+        {
+          g_free (json_record_href);
+          dupin_linkbase_set_error (linkb, "Expected a relationship but a web link was passed");
+          return FALSE;
+        }
+      /* else is auto, picked by the system */
+    }
+
+  JsonNode * record_response_node = json_node_new (JSON_NODE_OBJECT);
+  JsonObject * record_response_obj = json_object_new ();
+  json_node_take_object (record_response_node, record_response_obj);
+
+  /* fetch the _rev field in the record first, if there */
+  mvcc = dupin_link_record_insert_extract_rev (linkb, obj_node);
+
+  if (mvcc == NULL
+      && caller_mvcc != NULL)
+    mvcc = g_strdup (caller_mvcc);
+
+  if ((json_record_id = dupin_link_record_insert_extract_id (linkb, obj_node)))
+    {
+      if (id && g_strcmp0 (id, json_record_id))
+        {
+          if (mvcc != NULL)
+            g_free (mvcc);
+          g_free (json_record_id);
+          
+          dupin_linkbase_set_error (linkb, "Specified link record id does not match");
+          if (record_response_node != NULL)
+            json_node_free (record_response_node);
+          if (json_record_href)
+            g_free (json_record_href);
+          return FALSE;
+        }
+
+      id = json_record_id;
+    }
+
+  if (mvcc != NULL && !id)
+    {
+      if (json_record_id != NULL)
+        g_free (json_record_id);
+      if (mvcc != NULL)
+        g_free (mvcc);
+      
+      dupin_linkbase_set_error (linkb, "No valid link record id or MVCC specified");
+      if (record_response_node != NULL)
+        json_node_free (record_response_node);
+      if (json_record_href)
+        g_free (json_record_href);
+      return FALSE;
+    }
+
+  json_record_label = dupin_link_record_insert_extract_label (linkb, obj_node);
+  json_record_rel = dupin_link_record_insert_extract_rel (linkb, obj_node);
+  json_record_tag = dupin_link_record_insert_extract_tag (linkb, obj_node);
+
+//g_message("dupin_link_record_insert: context_id=%s\n", context_id);
+//g_message("dupin_link_record_insert: json_record_label=%s\n", json_record_label);
+//g_message("dupin_link_record_insert: json_record_href=%s\n", json_record_href);
+//g_message("dupin_link_record_insert: json_record_rel=%s\n", json_record_rel);
+//g_message("dupin_link_record_insert: json_record_tag=%s\n", json_record_tag);
+
+  if (mvcc != NULL) // we either try to update an existing link
+    {
+      record = dupin_link_record_read (linkb, id, NULL);
+
+      if ( to_delete == TRUE )
+        {
+          if (!record || dupin_util_mvcc_revision_cmp (mvcc, dupin_link_record_get_last_revision (record))
+              || dupin_link_record_delete (record, NULL) == FALSE)
+            {
+              if (record)
+                dupin_link_record_close (record);
+              record = NULL;
+            }
+        }
+      else
+        {
+          if (!record || dupin_util_mvcc_revision_cmp (mvcc, dupin_link_record_get_last_revision (record))
+              || dupin_link_record_update (record, obj_node, 
+                                       json_record_label, json_record_href, json_record_rel, json_record_tag,
+                                        NULL) == FALSE)
+            {
+              if (record)
+                dupin_link_record_close (record);
+              record = NULL;
+            }
+        }
+    }
+
+  else if (!id) // or we try to create a new link with autogenerated id in a specific context_id
+    {
+      if ( to_delete == TRUE )
+        {
+          if (record)
+            dupin_link_record_close (record);
+          record = NULL;
+        }
+      else
+        {
+          /* NOTE - context_id is purely internal and can not be set in any way by the user if not via
+            the document is being linked from */
+
+          if (context_id == NULL
+              || (dupin_link_record_util_is_valid_context_id (context_id) == FALSE))
+            {
+              if (context_id == NULL)
+                dupin_linkbase_set_error (linkb, "Cannot determine link context.");
+              else
+                dupin_linkbase_set_error (linkb, "Link context is invalid.");
+
+	      if (json_record_id != NULL)
+                g_free (json_record_id);
+              if (mvcc != NULL)
+                g_free (mvcc);
+
+              if (record_response_node != NULL)
+                json_node_free (record_response_node);
+              if (json_record_href)
+                g_free (json_record_href);
+
+              return FALSE;
+            }
+
+          record = dupin_link_record_create (linkb, obj_node,
+                                         context_id,
+                                         json_record_label, json_record_href, json_record_rel, json_record_tag,
+                                         NULL);
+        }
+    }
+  else
+    {
+      dupin_linkbase_set_error (linkb, "Links ids can not be set and they are only atomatically generated by the system.");
+
+      if (json_record_id != NULL)
+        g_free (json_record_id);
+      if (mvcc != NULL)
+        g_free (mvcc);
+
+      if (record_response_node != NULL)
+        json_node_free (record_response_node);
+      if (json_record_href)
+        g_free (json_record_href);
+
+      return FALSE;
+    }
+
+  if (json_record_label)
+    g_free (json_record_label);
+
+  if (json_record_href)
+    g_free (json_record_href);
+
+  if (json_record_rel)
+    g_free (json_record_rel);
+
+  if (json_record_tag)
+    g_free (json_record_tag);
+
+  if (json_record_id)
+    g_free (json_record_id);
+
+  if (!record)
+    {
+      if (to_delete == TRUE)
+        {
+          if (mvcc == NULL)
+            dupin_linkbase_set_error (linkb, "Deleted flag not allowed on link record creation");
+          else
+            dupin_linkbase_set_error (linkb, "Cannot delete link record");
+        }
+      else if (mvcc != NULL)
+        dupin_linkbase_set_error (linkb, "Cannot update link record");
+      else
+        dupin_linkbase_set_error (linkb, "Cannot insert link record");
+
+      if (mvcc != NULL)
+        g_free (mvcc);
+
+      if (record_response_node != NULL)
+        json_node_free (record_response_node);
+      return FALSE;
+    }
+
+  if (mvcc != NULL)
+    g_free (mvcc);
+
+  json_object_set_string_member (record_response_obj, RESPONSE_OBJ_ID, (gchar *) dupin_link_record_get_id (record));
+  json_object_set_string_member (record_response_obj, RESPONSE_OBJ_REV, dupin_link_record_get_last_revision (record));
+
+  dupin_link_record_close (record);
+  
+  *response_list = g_list_prepend (*response_list, record_response_node);
+
+  return TRUE;
+}
+
+/* NOTE - we do insert links only and always if a context_id is set ahead (passed to function) and not read from the JSON ever */
+
+/* NOTE - receive an object containing an array of objects, and return an array of objects as result */
+
+gboolean
+dupin_link_record_insert_bulk (DupinLinkB * linkb,
+                               JsonNode * bulk_node,
+			       gchar * context_id,
+                               GList ** response_list,
+			       gboolean strict_links)
+{
+  g_return_val_if_fail (linkb != NULL, FALSE);
+  g_return_val_if_fail (context_id != NULL, FALSE);
+  g_return_val_if_fail (dupin_link_record_util_is_valid_context_id (context_id) == TRUE, FALSE);
+
+  JsonObject *obj;
+  JsonNode *node;
+  JsonArray *array;
+  GList *nodes, *n;
+
+  /* NOTE - check links once per bulk if requested */
+
+  if (strict_links == TRUE)
+    {
+//g_message("dupin_link_record_insert_bulk: checking context_id=%s\n", context_id);
+
+      gboolean link_ok = dupin_link_record_insert_check_context_id (linkb, context_id);
+
+      if (link_ok == FALSE )
+        return FALSE;
+    }
+
+  if (json_node_get_node_type (bulk_node) != JSON_NODE_OBJECT)
+    {
+      dupin_linkbase_set_error (linkb, "Bulk body must be a JSON object");
+      return FALSE;
+    }
+
+  obj = json_node_get_object (bulk_node);
+
+  if (json_object_has_member (obj, REQUEST_POST_BULK_LINKS_LINKS) == FALSE)
+    {
+      dupin_linkbase_set_error (linkb, "Bulk body does not contain a mandatory " REQUEST_POST_BULK_LINKS_LINKS " object memeber");
+      return FALSE;
+    }
+
+  node = json_object_get_member (obj, REQUEST_POST_BULK_LINKS_LINKS);
+
+  if (node == NULL)
+    {
+      dupin_linkbase_set_error (linkb, "Bulk body does not contain a valid " REQUEST_POST_BULK_LINKS_LINKS " object memeber");
+      return FALSE;
+    }
+
+  if (json_node_get_node_type (node) != JSON_NODE_ARRAY)
+    {
+      dupin_linkbase_set_error (linkb, "Bulk body " REQUEST_POST_BULK_LINKS_LINKS " object memeber is not an array");
+      return FALSE;
+    }
+
+  array = json_node_get_array (node);
+
+  if (array == NULL)
+    {
+      dupin_linkbase_set_error (linkb, "Bulk body " REQUEST_POST_BULK_LINKS_LINKS " object memeber is not a valid array");
+      return FALSE;
+    }
+
+  /* scan JSON array */
+  nodes = json_array_get_elements (array);
+
+  for (n = nodes; n != NULL; n = n->next)
+    {
+      JsonNode *element_node = (JsonNode*)n->data;
+      gchar * id = NULL;
+      gchar * rev = NULL;
+
+      if (json_node_get_node_type (element_node) != JSON_NODE_OBJECT)
+        {
+          dupin_linkbase_set_error (linkb, "Bulk body " REQUEST_POST_BULK_LINKS_LINKS " array memebr is not a valid JSON object");
+          g_list_free (nodes);
+          return FALSE;
+        }
+
+      if (json_object_has_member (json_node_get_object (element_node), REQUEST_OBJ_ID) == TRUE)
+        id = g_strdup ((gchar *)json_object_get_string_member (json_node_get_object (element_node), REQUEST_OBJ_ID));
+
+      if (json_object_has_member (json_node_get_object (element_node), REQUEST_OBJ_REV) == TRUE)
+        rev = g_strdup ((gchar *)json_object_get_string_member (json_node_get_object (element_node), REQUEST_OBJ_REV));
+
+      if (dupin_link_record_insert (linkb, element_node, NULL, NULL, context_id, DP_LINK_TYPE_ANY, response_list, FALSE) == FALSE)
+        {
+          /* NOTE - we report errors inline in the JSON response */
+
+          JsonNode * error_node = json_node_new (JSON_NODE_OBJECT);
+          JsonObject * error_obj = json_object_new ();
+          json_node_take_object (error_node, error_obj);
+
+          json_object_set_string_member (error_obj, RESPONSE_STATUS_ERROR, "bad_request");
+          json_object_set_string_member (error_obj, RESPONSE_STATUS_REASON, dupin_linkbase_get_error (linkb));
+
+          if (id != NULL)
+            json_object_set_string_member (error_obj, RESPONSE_OBJ_ID,id);
+
+          if (rev != NULL)
+            json_object_set_string_member (error_obj, RESPONSE_OBJ_REV,rev);
+
+          *response_list = g_list_prepend (*response_list, error_node);
+        }
+      else
+        {
+          JsonNode * generated_node = (*response_list)->data;
+          JsonObject * generated_obj = json_node_get_object (generated_node);
+
+          if (dupin_linkbase_get_warning (linkb) != NULL)
+            json_object_set_string_member (generated_obj, RESPONSE_STATUS_WARNING, dupin_linkbase_get_warning (linkb));
+        }
+      if (id != NULL)
+        g_free (id);
+
+      if (rev!= NULL)
+        g_free (rev);
+
+    }
+  g_list_free (nodes);
+
+  return TRUE;
+}
+
 /* EOF */

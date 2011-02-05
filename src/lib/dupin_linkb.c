@@ -499,6 +499,12 @@ dupin_linkb_free (DupinLinkB * linkb)
   if (linkb->linkbs.linkbs)
     g_free (linkb->linkbs.linkbs);
 
+  if (linkb->error_msg)
+    g_free (linkb->error_msg);
+
+  if (linkb->warning_msg)
+    g_free (linkb->warning_msg);
+
   g_free (linkb);
 }
 
@@ -1686,6 +1692,72 @@ dupin_linkbase_is_checked (DupinLinkB * linkb)
     return FALSE;
 
   return linkb->tocheck ? FALSE : TRUE;
+}
+
+void
+dupin_linkbase_set_error (DupinLinkB * linkb,
+                          gchar * msg)
+{
+  g_return_if_fail (linkb != NULL);
+  g_return_if_fail (msg != NULL);
+
+  dupin_linkbase_clear_error (linkb);
+
+  linkb->error_msg = g_strdup ( msg );
+
+  return;
+}
+
+void
+dupin_linkbase_clear_error (DupinLinkB * linkb)
+{
+  g_return_if_fail (linkb != NULL);
+
+  if (linkb->error_msg != NULL)
+    g_free (linkb->error_msg);
+
+  linkb->error_msg = NULL;
+
+  return;
+}
+
+gchar * dupin_linkbase_get_error (DupinLinkB * linkb)
+{
+  g_return_val_if_fail (linkb != NULL, NULL);
+
+  return linkb->error_msg;
+}
+
+void dupin_linkbase_set_warning (DupinLinkB * linkb,
+                                 gchar * msg)
+{
+  g_return_if_fail (linkb != NULL);
+  g_return_if_fail (msg != NULL);
+
+  dupin_linkbase_clear_warning (linkb);
+
+  linkb->warning_msg = g_strdup ( msg );
+
+  return;
+}
+
+void dupin_linkbase_clear_warning (DupinLinkB * linkb)
+{
+  g_return_if_fail (linkb != NULL);
+
+  if (linkb->warning_msg != NULL)
+    g_free (linkb->warning_msg);
+
+  linkb->warning_msg = NULL;
+
+  return;
+}
+
+gchar * dupin_linkbase_get_warning (DupinLinkB * linkb)
+{
+  g_return_val_if_fail (linkb != NULL, NULL);
+
+  return linkb->warning_msg;
 }
 
 /* EOF */

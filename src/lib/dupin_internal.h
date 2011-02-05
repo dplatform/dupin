@@ -96,10 +96,16 @@ struct dupin_db_t
   DupinAttachmentDBP	attachment_dbs;
   DupinLinkBP	linkbs;
 
+  gchar *	default_attachment_db_name;
+  gchar *	default_linkbase_name;
+
   gboolean	tocompact;
   gboolean	compact_toquit;
   GThread *	compact_thread;
   gsize		compact_processed_count; /* incremental counter of compacted records */
+
+  gchar *       error_msg;
+  gchar *       warning_msg;
 };
 
 struct dupin_linkb_t
@@ -132,6 +138,9 @@ struct dupin_linkb_t
   gboolean	check_toquit;
   GThread *	check_thread;
   gsize		check_processed_count; /* incremental counter of checked records */
+
+  gchar *       error_msg;
+  gchar *       warning_msg;
 };
 
 struct dupin_view_t
@@ -169,6 +178,9 @@ struct dupin_view_t
   DupinMRLang	reduce_lang;
 
   DupinViewP	views;
+
+  gchar *       error_msg;
+  gchar *       warning_msg;
 };
 
 struct dupin_attachment_db_t
@@ -186,6 +198,9 @@ struct dupin_attachment_db_t
   gboolean	todelete;
 
   sqlite3 *	db;
+
+  gchar *       error_msg;
+  gchar *       warning_msg;
 };
 
 struct dupin_attachment_record_t
@@ -417,8 +432,7 @@ void		dupin_attachment_db_p_record_insert
                                      gchar *       title,
                                      gsize         length,
                                      gchar *       type,
-                                     gchar *       hash,
-                                     const void *  content);	
+                                     const void ** content);	
 
 void		dupin_attachment_db_p_record_delete
 				(DupinAttachmentDBP * p,

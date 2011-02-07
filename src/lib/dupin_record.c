@@ -1183,6 +1183,7 @@ dupin_record_insert (DupinDB * db,
   DupinLinkB *linkb;
   DupinAttachmentDB *attachment_db;
   DupinRecord *record;
+  GError *error = NULL;
 
   gchar * mvcc=NULL;
   gchar * json_record_id=NULL;
@@ -1270,12 +1271,12 @@ dupin_record_insert (DupinDB * db,
 
   if (mvcc != NULL)
     {
-      record = dupin_record_read (db, id, NULL);
+      record = dupin_record_read (db, id, &error);
 
       if ( to_delete == TRUE )
         {
           if (!record || dupin_util_mvcc_revision_cmp (mvcc, dupin_record_get_last_revision (record))
-              || dupin_record_delete (record, NULL) == FALSE)
+              || dupin_record_delete (record, &error) == FALSE)
             {
               if (record)
                 dupin_record_close (record);
@@ -1285,7 +1286,7 @@ dupin_record_insert (DupinDB * db,
       else
         {
           if (!record || dupin_util_mvcc_revision_cmp (mvcc, dupin_record_get_last_revision (record))
-              || dupin_record_update (record, obj_node, NULL) == FALSE)
+              || dupin_record_update (record, obj_node, &error) == FALSE)
             {
               if (record)
                 dupin_record_close (record);
@@ -1304,7 +1305,7 @@ dupin_record_insert (DupinDB * db,
         }
       else
         {
-          record = dupin_record_create (db, obj_node, NULL);
+          record = dupin_record_create (db, obj_node, &error);
         }
     }
 
@@ -1319,7 +1320,7 @@ dupin_record_insert (DupinDB * db,
       else
         {
           if (dupin_record_exists (db, id) == FALSE)
-            record = dupin_record_create_with_id (db, obj_node, id, NULL);
+            record = dupin_record_create_with_id (db, obj_node, id, &error);
           else
             record = NULL;
         }
@@ -1337,17 +1338,22 @@ dupin_record_insert (DupinDB * db,
       if (relationships_node != NULL)
         json_node_free (relationships_node);
       
-      if (to_delete == TRUE)
-        {
-          if (mvcc == NULL)
-            dupin_database_set_error (db, "Deleted flag not allowed on record creation");
-          else
-            dupin_database_set_error (db, "Cannot delete record");
-        }
-      else if (mvcc != NULL)
-        dupin_database_set_error (db, "Cannot update record");
+      if (error != NULL)
+        dupin_database_set_error (db, error->message);
       else
-        dupin_database_set_error (db, "Cannot insert record");
+        {
+          if (to_delete == TRUE)
+            {
+              if (mvcc == NULL)
+                dupin_database_set_error (db, "Deleted flag not allowed on record creation");
+              else
+                dupin_database_set_error (db, "Cannot delete record");
+            }
+          else if (mvcc != NULL)
+            dupin_database_set_error (db, "Cannot update record");
+          else
+            dupin_database_set_error (db, "Cannot insert record");
+        }
 
       if (mvcc != NULL)
         g_free (mvcc);
@@ -1366,7 +1372,7 @@ dupin_record_insert (DupinDB * db,
 //g_message("process _attachments object for inline attachments\n");
 
       if (!  (attachment_db =
-               dupin_attachment_db_open (db->d, dupin_database_get_default_attachment_db_name (db), NULL)))
+               dupin_attachment_db_open (db->d, dupin_database_get_default_attachment_db_name (db), &error)))
         {
           if (attachments_node != NULL)
             json_node_free (attachments_node);
@@ -1377,7 +1383,10 @@ dupin_record_insert (DupinDB * db,
           if (mvcc != NULL)
             g_free (mvcc);
           
-          dupin_database_set_error (db, "Cannot connect to attachments database");
+          if (error != NULL)
+            dupin_database_set_error (db, error->message);
+          else
+            dupin_database_set_error (db, "Cannot connect to attachments database");
 
           if (record_response_node != NULL)
             json_node_free (record_response_node);
@@ -1502,7 +1511,7 @@ dupin_record_insert (DupinDB * db,
       gchar * context_id = (gchar *)dupin_record_get_id (record);
 
       if (!  (linkb =
-               dupin_linkbase_open (db->d, dupin_database_get_default_linkbase_name (db), NULL)))
+               dupin_linkbase_open (db->d, dupin_database_get_default_linkbase_name (db), &error)))
         {
           dupin_record_close (record);
 
@@ -1515,7 +1524,11 @@ dupin_record_insert (DupinDB * db,
           if (mvcc != NULL)
             g_free (mvcc);
           
-          dupin_database_set_error (db, "Cannot connect to linkbase");
+          if (error != NULL)
+            dupin_database_set_error (db, error->message);
+          else
+            dupin_database_set_error (db, "Cannot connect to linkbase");
+
           if (record_response_node != NULL)
             json_node_free (record_response_node);
 

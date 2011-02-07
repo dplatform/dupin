@@ -2449,6 +2449,7 @@ dupin_link_record_insert (DupinLinkB * linkb,
   g_return_val_if_fail (linkb != NULL, FALSE);
 
   DupinLinkRecord *record=NULL;
+  GError * error = NULL;
 
   gchar * mvcc=NULL;
   gchar * json_record_id;
@@ -2560,12 +2561,12 @@ dupin_link_record_insert (DupinLinkB * linkb,
 
   if (mvcc != NULL) // we either try to update an existing link
     {
-      record = dupin_link_record_read (linkb, id, NULL);
+      record = dupin_link_record_read (linkb, id, &error);
 
       if ( to_delete == TRUE )
         {
           if (!record || dupin_util_mvcc_revision_cmp (mvcc, dupin_link_record_get_last_revision (record))
-              || dupin_link_record_delete (record, NULL) == FALSE)
+              || dupin_link_record_delete (record, &error) == FALSE)
             {
               if (record)
                 dupin_link_record_close (record);
@@ -2577,7 +2578,7 @@ dupin_link_record_insert (DupinLinkB * linkb,
           if (!record || dupin_util_mvcc_revision_cmp (mvcc, dupin_link_record_get_last_revision (record))
               || dupin_link_record_update (record, obj_node, 
                                        json_record_label, json_record_href, json_record_rel, json_record_tag,
-                                        NULL) == FALSE)
+                                        &error) == FALSE)
             {
               if (record)
                 dupin_link_record_close (record);
@@ -2623,7 +2624,7 @@ dupin_link_record_insert (DupinLinkB * linkb,
           record = dupin_link_record_create (linkb, obj_node,
                                          context_id,
                                          json_record_label, json_record_href, json_record_rel, json_record_tag,
-                                         NULL);
+                                         &error);
         }
     }
   else
@@ -2660,17 +2661,22 @@ dupin_link_record_insert (DupinLinkB * linkb,
 
   if (!record)
     {
-      if (to_delete == TRUE)
-        {
-          if (mvcc == NULL)
-            dupin_linkbase_set_error (linkb, "Deleted flag not allowed on link record creation");
-          else
-            dupin_linkbase_set_error (linkb, "Cannot delete link record");
-        }
-      else if (mvcc != NULL)
-        dupin_linkbase_set_error (linkb, "Cannot update link record");
+      if (error != NULL)
+        dupin_linkbase_set_error (linkb, error->message);
       else
-        dupin_linkbase_set_error (linkb, "Cannot insert link record");
+        {
+          if (to_delete == TRUE)
+            {
+              if (mvcc == NULL)
+                dupin_linkbase_set_error (linkb, "Deleted flag not allowed on link record creation");
+              else
+                dupin_linkbase_set_error (linkb, "Cannot delete link record");
+            }
+          else if (mvcc != NULL)
+            dupin_linkbase_set_error (linkb, "Cannot update link record");
+          else
+            dupin_linkbase_set_error (linkb, "Cannot insert link record");
+        }
 
       if (mvcc != NULL)
         g_free (mvcc);

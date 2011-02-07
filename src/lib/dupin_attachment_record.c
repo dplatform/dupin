@@ -922,6 +922,7 @@ dupin_attachment_record_insert (DupinAttachmentDB * attachment_db,
   DupinRecord *record=NULL;
   JsonNode * obj_node=NULL;
 
+  GError *error = NULL;
   GString *str;
   gchar * title = NULL;
   GList * l=NULL;
@@ -948,14 +949,17 @@ dupin_attachment_record_insert (DupinAttachmentDB * attachment_db,
 
 //g_message("dupin_attachment_record_insert: title=%s\n", title);
 
-  if (!(db = dupin_database_open (attachment_db->d, attachment_db->parent, NULL)))
+  if (!(db = dupin_database_open (attachment_db->d, attachment_db->parent, &error)))
     {
       g_free (title);
-      dupin_attachment_db_set_error (attachment_db, "Cannot connect to record database");
+      if (error != NULL)
+        dupin_attachment_db_set_error (attachment_db, error->message);
+      else
+        dupin_attachment_db_set_error (attachment_db, "Cannot connect to record database");
       return FALSE;
     }
 
-  record = dupin_record_read (db, id, NULL);
+  record = dupin_record_read (db, id, &error);
 
   if (caller_mvcc == NULL && record != NULL)
     {
@@ -963,7 +967,12 @@ dupin_attachment_record_insert (DupinAttachmentDB * attachment_db,
       dupin_record_close (record);
       
       dupin_database_unref (db);
-      dupin_attachment_db_set_error (attachment_db, "Record found but MVCC revision number is missing");
+
+      if (error != NULL)
+        dupin_attachment_db_set_error (attachment_db, error->message);
+      else
+        dupin_attachment_db_set_error (attachment_db, "Record found but MVCC revision number is missing");
+
       return FALSE;
     }
 
@@ -978,13 +987,18 @@ dupin_attachment_record_insert (DupinAttachmentDB * attachment_db,
                                           attachment_body_size,
                                           attachment_input_mime,
                                           attachment_body) == FALSE
-         || (!( record = dupin_record_create_with_id (db, obj_node, id, NULL))))
+         || (!( record = dupin_record_create_with_id (db, obj_node, id, &error))))
         {
           g_free (title);
           json_node_free (obj_node);
           
           dupin_database_unref (db);
-          dupin_attachment_db_set_error (attachment_db, "Cannot insert attachment or create record to contain attachment");
+
+          if (error != NULL)
+            dupin_attachment_db_set_error (attachment_db, error->message);
+          else
+            dupin_attachment_db_set_error (attachment_db, "Cannot insert attachment or create record to contain attachment");
+
           return FALSE;
         }
     }
@@ -1018,14 +1032,19 @@ dupin_attachment_record_insert (DupinAttachmentDB * attachment_db,
                                              attachment_body_size,
                                              attachment_input_mime,
                                              attachment_body) == FALSE
-          || dupin_record_update (record, obj_node, NULL) == FALSE)
+          || dupin_record_update (record, obj_node, &error) == FALSE)
         {
           g_free (title);
           dupin_record_close (record);
           
           dupin_database_unref (db);
           json_node_free (obj_node);
-          dupin_attachment_db_set_error (attachment_db, "Cannot replace attachment");
+
+          if (error != NULL)
+            dupin_attachment_db_set_error (attachment_db, error->message);
+          else
+            dupin_attachment_db_set_error (attachment_db, "Cannot replace attachment");
+
           return FALSE;
         }
     }

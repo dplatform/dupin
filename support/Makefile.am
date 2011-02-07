@@ -2,10 +2,15 @@ bin_SCRIPTS = dupinctl
 
 bin_PROGRAMS = dupin_loader
 
-INCLUDES = -I../src/lib \
+INCLUDES = \
+	   -DDS_CONFIG_FILE=\"$(sysconfdir)/dupinserver.cfg\" \
+	   -I../src/lib \
+           -I../src/httpd \
            -I../src/tbjson
 
-LDADD = ../src/lib/libdupin.la
+LDADD = ../src/lib/libdupin.la \
+        ../src/httpd/dupin_server_common.o \
+        ../src/httpd/configure.o
 
 CLEANFILES = $(bin_SCRIPTS) $(bin_PROGRAMS)
 

@@ -46,8 +46,9 @@ CONFIG_CLEAN_FILES =
 am__installdirs = "$(DESTDIR)$(bindir)"
 binPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
 PROGRAMS = $(bin_PROGRAMS)
-am_dupin_server_OBJECTS = configure.$(OBJEXT) httpd.$(OBJEXT) \
-	log.$(OBJEXT) main.$(OBJEXT) map.$(OBJEXT) request.$(OBJEXT)
+am_dupin_server_OBJECTS = dupin_server_common.$(OBJEXT) \
+	configure.$(OBJEXT) httpd.$(OBJEXT) log.$(OBJEXT) \
+	main.$(OBJEXT) map.$(OBJEXT) request.$(OBJEXT)
 dupin_server_OBJECTS = $(am_dupin_server_OBJECTS)
 dupin_server_DEPENDENCIES = ../lib/libdupin.la ../tbjson/libtbjson.la \
 	../tbjsonpath/libtbjsonpath.la
@@ -202,6 +203,8 @@ INCLUDES = \
 	-I../tbjsonpath
 
 dupin_server_SOURCES = \
+	dupin_server_common.c \
+	dupin_server_common.h \
 	configure.c \
 	configure.h \
 	dupin.h \
@@ -292,6 +295,7 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/configure.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dupin_server_common.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/httpd.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/log.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/main.Po@am__quote@

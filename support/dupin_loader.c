@@ -3,12 +3,22 @@
 #endif
 
 #include <dupin.h>
+#include "configure.h"
+#include "dupin_server_common.h"
 
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 
-#include <signal.h>
+#ifdef G_OS_UNIX
+#  include <sys/types.h>
+#  include <unistd.h>
+#  include <stdlib.h>
+#  include <grp.h>
+#  include <pwd.h>
+#  include <signal.h>
+#  include <sys/wait.h>
+#endif
 
 #ifndef G_OS_WIN32
 #  include <unistd.h>
@@ -23,6 +33,7 @@
 #endif
 
 /* Global variables: */
+DSGlobal *d_conf = NULL;
 Dupin *d = NULL;
 DupinDB *db = NULL;
 DupinLinkB *linkb = NULL;
@@ -34,6 +45,7 @@ gchar * warning_msg = NULL;
 gchar * db_name=NULL;
 gchar * json_data_file=NULL;
 GIOChannel *io;
+GError *error = NULL;
 
 typedef struct _dupin_loader_options {
 	gboolean bulk;
@@ -58,7 +70,7 @@ static void
 dupin_loader_usage (char *argv[])
 {
   printf("usage:\n"
-	 "   %s [options] <db-name> [<json-data-file>]\n"
+	 "   %s [options] <db-name> [<json-data-file>] [<dupin-configuration-file>]\n"
 	 , argv[0]);
   puts("\n"
        "options:\n"
@@ -198,7 +210,12 @@ g_message ("dupin_loader_close: closing down\n");
   if (json_data_file != NULL)
     g_free (json_data_file);
 
+  configure_free (d_conf);
+
   dupin_shutdown (d);
+
+  if (error != NULL)
+    g_error_free (error);
 
   if (dupin_loader_get_error () != NULL)
     {
@@ -225,8 +242,6 @@ static void dupin_loader_sig_int (int sig)
 int
 main (int argc, char *argv[])
 {
-  GError *error = NULL;
-
   dupin_loader_options options;
   gchar *line;
   gsize last;
@@ -253,7 +268,25 @@ main (int argc, char *argv[])
         g_thread_init (NULL);
   g_type_init();
 
+  /* NOTE - parse this command options */
   dupin_loader_parse_options (argc, argv, &options);
+
+  /* Read the config file: */
+  if (!(d_conf = configure_init (argc, argv, &error)))
+    {
+      fprintf (stderr, "Error: %s\n", error->message);
+      g_error_free (error);
+      return 1;
+    }
+
+#ifdef G_OS_UNIX
+  /* Check permissions */
+  if (dupin_server_common_permission (d_conf, &error) == FALSE)
+    {
+      fprintf (stderr, "Error about the permissions: %s\n", error->message);
+      goto dupin_loader_end;
+    }
+#endif
 
   g_message("db_name=%s\n", db_name);
   g_message("json_data_file=%s\n", json_data_file);

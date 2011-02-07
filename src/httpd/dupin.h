@@ -9,6 +9,8 @@
 
 #include "../lib/dupin.h"
 
+#include "configure.h"
+
 typedef struct ds_httpd_thread_t DSHttpdThread;
 struct ds_httpd_thread_t
 {
@@ -159,8 +161,6 @@ struct ds_httpd_client_t
 
   } output;
 };
-
-GQuark		ds_error_quark	(void);
 
 #endif
 

@@ -8,6 +8,7 @@
 #include "httpd.h"
 #include "configure.h"
 #include "map.h"
+#include "dupin_server_common.h"
 
 #include <stdlib.h>
 
@@ -19,13 +20,6 @@
 #  include <pwd.h>
 #  include <signal.h>
 #  include <sys/wait.h>
-#endif
-
-#ifdef G_OS_UNIX
-static gboolean pid_check (DSGlobal * data, GError ** error);
-static gboolean pid_check_write (DSGlobal * data, GError ** error);
-static void pid_check_close (DSGlobal * data);
-static gboolean permission (DSGlobal * data, GError ** error);
 #endif
 
 #if defined(DARWIN) && !defined(__cplusplus) && !defined(_ANSI_SOURCE)
@@ -67,7 +61,7 @@ main (int argc, char **argv)
 
 #ifdef G_OS_UNIX
   /* Pid check: */
-  if (pid_check (data, &error) == FALSE)
+  if (dupin_server_common_pid_check (data, &error) == FALSE)
     {
       fprintf (stderr, "Error about the Pid File: %s\n", error->message);
       goto main_error_pid;
@@ -83,7 +77,7 @@ main (int argc, char **argv)
 
 #ifdef G_OS_UNIX
   /* Permissions */
-  if (permission (data, &error) == FALSE)
+  if (dupin_server_common_permission (data, &error) == FALSE)
     {
       fprintf (stderr, "Error about the permissions: %s\n", error->message);
       goto main_error_permission;
@@ -140,7 +134,7 @@ main (int argc, char **argv)
   log_close (data);
 
 #ifdef G_OS_UNIX
-  pid_check_close (data);
+  dupin_server_common_pid_check_close (data);
 #endif
 
   /* Free the memory: */
@@ -161,119 +155,10 @@ main_error_permission:
 
 main_error_log:
 #ifdef G_OS_UNIX
-  pid_check_close (data);
+  dupin_server_common_pid_check_close (data);
 #endif
 
 main_error_pid:
   configure_free (data);
   return 1;
 }
-
-/* LOG SYSTEM OF GLIB *******************************************************/
-GQuark
-ds_error_quark (void)
-{
-  static GQuark q = 0;
-
-  if (!q)
-    q = g_quark_from_static_string ("dupin-server-error-quark");
-
-  return q;
-}
-
-/* PID CHECK ****************************************************************/
-#ifdef G_OS_UNIX
-static gboolean
-pid_check (DSGlobal * data, GError ** error)
-{
-  return TRUE;
-
-  gchar *buffer;
-  gint pid;
-
-  if (g_file_test (data->pidfile, G_FILE_TEST_EXISTS) == FALSE)
-    return pid_check_write (data, error);
-
-  if (g_file_get_contents (data->pidfile, &buffer, NULL, error) == FALSE)
-    return FALSE;
-
-  if (!(pid = atoi (buffer)))
-    {
-      g_set_error (error, ds_error_quark (), 0,
-		   "Pid file contains strange data. Please, remove or check the file: %s",
-		   data->pidfile);
-      g_free (buffer);
-      return FALSE;
-    }
-
-  g_free (buffer);
-
-  /* Only for linux */
-  buffer = g_strdup_printf ("/proc/%d", pid);
-
-  if (g_file_test (buffer, G_FILE_TEST_EXISTS | G_FILE_TEST_IS_DIR) == TRUE)
-    {
-      g_set_error (error, ds_error_quark (), 0,
-		   "The previous process '%d' is running!", pid);
-      g_free (buffer);
-      return FALSE;
-    }
-
-  g_free (buffer);
-  return pid_check_write (data, error);
-}
-
-static gboolean
-pid_check_write (DSGlobal * data, GError ** error)
-{
-  gchar *buffer;
-  gboolean ret;
-
-  buffer = g_strdup_printf ("%d", getpid ());
-
-  ret = g_file_set_contents (data->pidfile, buffer, 0, error);
-  g_free (buffer);
-  return ret;
-}
-
-static void
-pid_check_close (DSGlobal * data)
-{
-  g_remove (data->pidfile);
-}
-
-/* PERMISSIONS **************************************************************/
-static gboolean
-permission (DSGlobal * data, GError ** error)
-{
-  if (data->group)
-    {
-      struct group *gr;
-
-      if (!(gr = getgrnam (data->group)) || setgid (gr->gr_gid))
-	{
-	  g_set_error (error, ds_error_quark (), 0,
-		       "Error setting the GROUP permission of '%s'",
-		       data->group);
-
-	  return FALSE;
-	}
-    }
-
-  if (data->user)
-    {
-      struct passwd *pw;
-
-      if (!(pw = getpwnam (data->user)) || setuid (pw->pw_uid))
-	{
-	  g_set_error (error, ds_error_quark (), 0,
-		       "Error setting the USER permission of '%s'",
-		       data->user);
-
-	  return FALSE;
-	}
-    }
-
-  return TRUE;
-}
-#endif

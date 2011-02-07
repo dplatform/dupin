@@ -8,6 +8,8 @@ INCLUDES = \
 	-I../tbjsonpath
 
 dupin_server_SOURCES = \
+	dupin_server_common.c \
+	dupin_server_common.h \
 	configure.c \
 	configure.h \
 	dupin.h \

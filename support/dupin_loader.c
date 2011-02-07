@@ -46,6 +46,7 @@ gchar * db_name=NULL;
 gchar * json_data_file=NULL;
 GIOChannel *io;
 GError *error = NULL;
+gint argc_left;
 
 typedef struct _dupin_loader_options {
 	gboolean bulk;
@@ -99,7 +100,7 @@ static void
 dupin_loader_parse_options (int argc, char **argv,
 			    dupin_loader_options * options)
 {
-  gint argc_left = argc;
+  argc_left = argc;
 
   options->bulk = FALSE;
   options->no_links = FALSE;
@@ -175,9 +176,15 @@ dupin_loader_parse_options (int argc, char **argv,
         }
     }
 
-  if (argc_left <= 3)
+  if (argc_left <= 4)
     {
-      if (argc_left == 3)
+      if (argc_left == 4)
+        {
+          db_name = g_strdup (argv[argc - 3]);
+          json_data_file = g_strdup (argv[argc - 2]);
+          return;
+        }
+      else if (argc_left == 3)
         {
           db_name = g_strdup (argv[argc - 2]);
           json_data_file = g_strdup (argv[argc - 1]);
@@ -198,11 +205,11 @@ void dupin_loader_close (void)
 {
 g_message ("dupin_loader_close: closing down\n");
 
-  if (db)
-    dupin_database_unref (db);
-
   g_io_channel_shutdown (io, FALSE, NULL);
   g_io_channel_unref (io);
+
+  if (db)
+    dupin_database_unref (db);
 
   if (db_name != NULL)
     g_free (db_name);
@@ -271,12 +278,27 @@ main (int argc, char *argv[])
   /* NOTE - parse this command options */
   dupin_loader_parse_options (argc, argv, &options);
 
+  //g_message("db_name=%s\n", db_name);
+  //g_message("json_data_file=%s\n", json_data_file);
+  //g_message("bulk=%d\n", options.bulk);
+
   /* Read the config file: */
+  if (argc_left == 4)
+    {
+      argv[1] = argv[argc - 1];
+      argc = 2;
+    }
+  else
+    {
+      argc = 1;
+    }
   if (!(d_conf = configure_init (argc, argv, &error)))
     {
       fprintf (stderr, "Error: %s\n", error->message);
       g_error_free (error);
-      return 1;
+
+      dupin_loader_usage (argv);
+      exit (EXIT_FAILURE);
     }
 
 #ifdef G_OS_UNIX
@@ -287,10 +309,6 @@ main (int argc, char *argv[])
       goto dupin_loader_end;
     }
 #endif
-
-  g_message("db_name=%s\n", db_name);
-  g_message("json_data_file=%s\n", json_data_file);
-  g_message("bulk=%d\n", options.bulk);
 
   if (db_name == NULL)
     {

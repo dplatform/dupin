@@ -4138,8 +4138,11 @@ request_global_post_record (DSHttpdClient * client, GList * path,
 
   if (!json_parser_load_from_data (parser, client->body, client->body_size, &error))
     {
-      request_set_error (client, error->message);
-      g_error_free (error);
+      if (error)
+        {
+          request_set_error (client, error->message);
+          g_error_free (error);
+        }
       code = HTTP_STATUS_400;
       goto request_global_post_record_end;
     }
@@ -4241,8 +4244,11 @@ request_global_post_doc_link (DSHttpdClient * client, GList * path,
 
   if (!json_parser_load_from_data (parser, client->body, client->body_size, &error))
     {
-      request_set_error (client, error->message);
-      g_error_free (error);
+      if (error)
+        {
+          request_set_error (client, error->message);
+          g_error_free (error);
+        }
       code = HTTP_STATUS_400;
       goto request_global_post_doc_link_end;
     }
@@ -4327,8 +4333,11 @@ request_global_post_bulk_docs (DSHttpdClient * client, GList * path,
   /* TODO - check any parsing error */
   if (!json_parser_load_from_data (parser, client->body, client->body_size, &error))
     {
-      request_set_error (client, error->message);
-      g_error_free (error);
+      if (error)
+        {
+          request_set_error (client, error->message);
+          g_error_free (error);
+        }
       code = HTTP_STATUS_400;
       goto request_global_post_bulk_docs_end;
     }
@@ -4429,8 +4438,11 @@ request_global_post_bulk_doc_links (DSHttpdClient * client, GList * path,
   /* TODO - check any parsing error */
   if (!json_parser_load_from_data (parser, client->body, client->body_size, &error))
     {
-      request_set_error (client, error->message);
-      g_error_free (error);
+      if (error)
+        {
+          request_set_error (client, error->message);
+          g_error_free (error);
+        }
       code = HTTP_STATUS_400;
       goto request_global_post_bulk_doc_links_end;
     }
@@ -4676,8 +4688,11 @@ request_global_put_view (DSHttpdClient * client, GList * path,
   /* TODO - check any parsing error */
   if (!json_parser_load_from_data (parser, client->body, client->body_size, &error))
     {
-      request_set_error (client, error->message);
-      g_error_free (error);
+      if (error)
+        {
+          request_set_error (client, error->message);
+          g_error_free (error);
+        }
       code = HTTP_STATUS_400;
       goto request_global_put_view_error;
     }
@@ -4921,8 +4936,11 @@ request_global_put_record (DSHttpdClient * client, GList * path,
   /* TODO - check any parsing error */
   if (!json_parser_load_from_data (parser, client->body, client->body_size, &error))
     {
-      request_set_error (client, error->message);
-      g_error_free (error);
+      if (error)
+        {
+          request_set_error (client, error->message);
+          g_error_free (error);
+        }
       code = HTTP_STATUS_400;
       goto request_global_put_record_end;
     }
@@ -5148,8 +5166,11 @@ request_global_put_link_record (DSHttpdClient * client, GList * path,
   /* TODO - check any parsing error */
   if (!json_parser_load_from_data (parser, client->body, client->body_size, &error))
     {
-      request_set_error (client, error->message);
-      g_error_free (error);
+      if (error)
+        {
+          request_set_error (client, error->message);
+          g_error_free (error);
+        }
       code = HTTP_STATUS_400;
       goto request_global_put_link_record_end;
     }

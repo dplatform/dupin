@@ -1427,7 +1427,8 @@ dupin_record_insert (DupinDB * db,
 
           gchar * content_type = NULL;
           guchar * buff = NULL;
-          const void * buff_ref = (const void *) buff;
+          const void * buff_ref = NULL;
+
           gsize buff_size;
           if (to_delete == FALSE)
             {
@@ -1448,6 +1449,8 @@ dupin_record_insert (DupinDB * db,
                   /* TODO - should log something or fail ? */
                   continue;
                 }
+
+              buff_ref = (const void *) buff;
             }
 
           /* NOTE - store inline attachment as normal one - correct? */

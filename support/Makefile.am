@@ -1,15 +1,23 @@
 bin_SCRIPTS = dupinctl
 
-CLEANFILES = $(bin_SCRIPTS)
+bin_PROGRAMS = dupin_loader
 
-DUPINSUPPORTSOURCES = dupinctl
+INCLUDES = -I../src/lib \
+           -I../src/tbjson
+
+LDADD = ../src/lib/libdupin.la
+
+CLEANFILES = $(bin_SCRIPTS) $(bin_PROGRAMS)
+
+DUPINSUPPORTSOURCES = dupinctl dupin_loader.c
 
 EXTRA_DIST = $(DUPINSUPPORTSOURCES)
 
 TARGETS  = $(DUPINSUPPORTSOURCES)
 
 uninstall-hook:
-	cd $(DESTDIR)$(bindir) && rm -f dupinctl
+	cd $(DESTDIR)$(bindir) && rm -f dupinctl \
+	cd $(DESTDIR)$(bindir) && rm -f dupin_loader
 
 ## We can't use configure to do the substitution here; we must do it
 ## by hand.  We use a funny notation here to avoid configure

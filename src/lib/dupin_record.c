@@ -411,9 +411,11 @@ dupin_record_get_list (DupinDB * db, guint count, guint offset,
     }
 
   if (orderby_type == DP_ORDERBY_ROWID)
-    str = g_string_append (str, " GROUP BY id ORDER BY d.ROWID");
+    //str = g_string_append (str, " GROUP BY id ORDER BY d.ROWID");
+    str = g_string_append (str, " ORDER BY d.ROWID");
   else
-    str = g_string_append (str, " GROUP BY id ORDER BY d.ROWID");
+    //str = g_string_append (str, " GROUP BY id ORDER BY d.ROWID");
+    str = g_string_append (str, " ORDER BY d.ROWID");
 
   if (descending)
     str = g_string_append (str, " DESC");

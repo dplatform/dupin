@@ -966,7 +966,7 @@ dupin_linkbase_get_changes_list (DupinLinkB *              linkb,
       sqlite3_free (tmp2);
     }
 
-  str = g_string_append (str, " GROUP BY d.id "); 
+  //str = g_string_append (str, " GROUP BY d.id "); 
 
   str = g_string_append (str, " ORDER BY d.ROWID");
 

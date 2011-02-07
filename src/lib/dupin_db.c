@@ -664,7 +664,7 @@ dupin_database_get_changes_list (DupinDB *              db,
   else if (g_strcmp0 (check_deleted, ""))
     g_string_append_printf (str, " AND %s ", check_deleted);
 
-  str = g_string_append (str, " GROUP BY d.id ");
+  //str = g_string_append (str, " GROUP BY d.id ");
 
   str = g_string_append (str, " ORDER BY d.ROWID");
 

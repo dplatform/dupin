@@ -141,6 +141,10 @@ struct dupin_linkb_t
 
   gchar *       error_msg;
   gchar *       warning_msg;
+
+  gchar *	cache_last_context_id;
+  GHashTable *	cache_idspath;
+  GHashTable *	cache_labelspath;
 };
 
 struct dupin_view_t

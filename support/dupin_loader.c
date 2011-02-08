@@ -47,7 +47,6 @@ gchar * json_data_file=NULL;
 GIOChannel *io;
 GError *error = NULL;
 gint argc_left;
-gchar * context_id = NULL;
 
 typedef struct _dupin_loader_options {
 	gboolean bulk;
@@ -212,9 +211,6 @@ dupin_loader_parse_options (int argc, char **argv,
 void dupin_loader_close (void)
 {
 //g_message ("dupin_loader_close: closing down\n");
-
-  if (context_id != NULL)
-    g_free (context_id);
 
   g_io_channel_shutdown (io, FALSE, NULL);
   g_io_channel_unref (io);
@@ -424,11 +420,11 @@ main (int argc, char *argv[])
         goto dupin_loader_end;
 
       gboolean res;
+      gchar * context_id = NULL;
       if (options.bulk == TRUE)
         {
           if (options.links == TRUE)
             {
-              context_id = NULL;
 	      if (options.context_id != NULL)
                 context_id = g_strdup (options.context_id);
 
@@ -456,7 +452,6 @@ main (int argc, char *argv[])
        {
           if (options.links == TRUE)
             {
-              context_id = NULL;
 	      if (options.context_id != NULL)
                 context_id = g_strdup (options.context_id);
 

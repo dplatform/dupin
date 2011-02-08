@@ -47,6 +47,7 @@ gchar * json_data_file=NULL;
 GIOChannel *io;
 GError *error = NULL;
 gint argc_left;
+gchar * context_id = NULL;
 
 typedef struct _dupin_loader_options {
 	gboolean bulk;
@@ -210,7 +211,10 @@ dupin_loader_parse_options (int argc, char **argv,
 
 void dupin_loader_close (void)
 {
-g_message ("dupin_loader_close: closing down\n");
+//g_message ("dupin_loader_close: closing down\n");
+
+  if (context_id != NULL)
+    g_free (context_id);
 
   g_io_channel_shutdown (io, FALSE, NULL);
   g_io_channel_unref (io);
@@ -367,7 +371,7 @@ main (int argc, char *argv[])
 
   if (options.create_db == TRUE)
     {
-g_message("creating db %s\n", db_name);
+//g_message("creating db %s\n", db_name);
 
       if (!  (db = dupin_database_new (d, db_name, NULL)))
         {
@@ -377,7 +381,7 @@ g_message("creating db %s\n", db_name);
     }
   else
     {
-g_message("opening db %s\n", db_name);
+//g_message("opening db %s\n", db_name);
 
       if (!  (db = dupin_database_open (d, db_name, NULL)))
         {
@@ -420,11 +424,14 @@ g_message("opening db %s\n", db_name);
         goto dupin_loader_end;
 
       gboolean res;
-      gchar * context_id = options.context_id;
       if (options.bulk == TRUE)
         {
           if (options.links == TRUE)
             {
+              context_id = NULL;
+	      if (options.context_id != NULL)
+                context_id = g_strdup (options.context_id);
+
               if (context_id == NULL)
                 context_id = dupin_loader_extract_context_id (json_object_node);
 
@@ -435,8 +442,12 @@ g_message("opening db %s\n", db_name);
                   goto dupin_loader_end;
                 }
 
+//g_message("context_id = %s\n", context_id);
+
 	      res =  dupin_link_record_insert_bulk (linkb, json_object_node, context_id, &response_list,
 						    options.strict_links);
+
+	      g_free (context_id); 
             }
           else
             res = dupin_record_insert_bulk (db, json_object_node, &response_list);
@@ -445,6 +456,10 @@ g_message("opening db %s\n", db_name);
        {
           if (options.links == TRUE)
             {
+              context_id = NULL;
+	      if (options.context_id != NULL)
+                context_id = g_strdup (options.context_id);
+
               if (context_id == NULL)
                 context_id = dupin_loader_extract_context_id (json_object_node);
 
@@ -457,6 +472,8 @@ g_message("opening db %s\n", db_name);
 
 	      res = dupin_link_record_insert (linkb, json_object_node, NULL, NULL, context_id,
 					      DP_LINK_TYPE_ANY, &response_list, options.strict_links);
+
+	      g_free (context_id); 
             }
           else
             res = dupin_record_insert (db, json_object_node, NULL, NULL, &response_list);
@@ -511,7 +528,7 @@ dupin_loader_extract_context_id (JsonNode * node)
   gchar * context_id = NULL;
   if (json_object_has_member (obj, REQUEST_GET_ALL_LINKS_CONTEXT_ID) == TRUE)
     {
-      context_id = (gchar *)json_object_get_string_member (obj, REQUEST_GET_ALL_LINKS_CONTEXT_ID);
+      context_id = g_strdup ((gchar *)json_object_get_string_member (obj, REQUEST_GET_ALL_LINKS_CONTEXT_ID));
       json_object_remove_member (obj, REQUEST_GET_ALL_LINKS_CONTEXT_ID);
     }
 

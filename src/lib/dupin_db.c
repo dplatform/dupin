@@ -480,6 +480,8 @@ dupin_database_count (DupinDB * db, DupinCountType type)
 
   query = "SELECT deleted, max(rev) as rev FROM Dupin GROUP BY id";
 
+//g_message("dupin_database_count: query=%s\n", query);
+
   g_mutex_lock (db->mutex);
 
   if (sqlite3_exec (db->db, query, dupin_database_count_cb, &count, NULL) !=

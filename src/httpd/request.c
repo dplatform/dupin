@@ -2200,6 +2200,7 @@ request_global_get_all_links_linkbase (DSHttpdClient * client, GList * path,
   json_object_set_int_member (obj, "offset", offset);
   json_object_set_int_member (obj, "rows_per_page", count);
 
+#if 0
   /* add base */
   if (link_type == DP_LINK_TYPE_ANY
       || link_type == DP_LINK_TYPE_RELATIONSHIP)
@@ -2213,6 +2214,7 @@ request_global_get_all_links_linkbase (DSHttpdClient * client, GList * path,
       json_object_set_string_member (obj, "base", tmp);
       g_free (tmp);
     }
+#endif
 
   array = json_array_new ();
 

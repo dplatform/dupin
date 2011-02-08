@@ -50,13 +50,15 @@ gint argc_left;
 
 typedef struct _dupin_loader_options {
 	gboolean bulk;
-	gboolean no_links;
-	gboolean no_docs;
-	gboolean no_attachments;
+	gboolean links;
 	gboolean create_db;
 	gboolean verbose;
 	gboolean silent;
+	gboolean strict_links;
+	gchar * context_id;
 } dupin_loader_options;
+
+gchar * dupin_loader_extract_context_id (JsonNode * node);
 
 static JsonNode * dupin_loader_read_json_object (gchar * line);
 
@@ -77,13 +79,16 @@ dupin_loader_usage (char *argv[])
        "options:\n"
        "   --help             this usage statement\n"
        "   --bulk             read one bulk per line\n"
-       "   --no-links         links (weblinks or relationships) are not loaded\n"
-       "   --no-docs          docs are not loaded\n"
-       "   --no-attachments   attachments are not loaded\n"
+       "   --links            input is only about links (weblinks or relationships) no documents\n"
+       "   --strict_links     check that the context_id document is valid and not deleted\n"
        "   --create-db        force (re)creation of database if it doesn't exist\n"
        "   --verbose          verbose logging, more than normal logging\n"
        "   --silent           silent, prints only errors\n"
-       "   --version          prints version information\n");
+       "   --version          prints version information\n"
+       "   --context_id ID    the context_id to use to create the links if --links is used\n"
+       "   \n"
+       "   When the --links option is specified without --context_id each input JSON object must have a 'context_id' field, including bulks.\n"
+);
 }
 
 static void
@@ -103,12 +108,12 @@ dupin_loader_parse_options (int argc, char **argv,
   argc_left = argc;
 
   options->bulk = FALSE;
-  options->no_links = FALSE;
-  options->no_docs = FALSE;
-  options->no_attachments = FALSE;
+  options->links = FALSE;
   options->create_db = FALSE;
   options->silent = FALSE;
   options->verbose = FALSE;
+  options->context_id = NULL;
+  options->strict_links = FALSE;
 
   if (argc > 1)
     {
@@ -128,20 +133,27 @@ dupin_loader_parse_options (int argc, char **argv,
 		   options->bulk = TRUE;
 		   argc_left--;
 		 }
-               else if (!g_strcmp0 (argv[i], "--no-links"))
+               else if (!g_strcmp0 (argv[i], "--links"))
                  {
-		   options->no_links = TRUE;
+		   options->links = TRUE;
 		   argc_left--;
 		 }
-               else if (!g_strcmp0 (argv[i], "--no-docs"))
+               else if (!g_strcmp0 (argv[i], "--strict_links"))
                  {
-		   options->no_docs = TRUE;
+		   options->strict_links = TRUE;
 		   argc_left--;
 		 }
-               else if (!g_strcmp0 (argv[i], "--no-attachments"))
+               else if (!g_strcmp0 (argv[i], "--context_id"))
                  {
-		   options->no_attachments = TRUE;
-		   argc_left--;
+                   if (argv[i+1] && dupin_link_record_util_is_valid_context_id (argv[i+1]) == FALSE)
+                     {
+		       fprintf (stderr, "not valid context_id: %s\n", argv[i+1]);
+		       exit (EXIT_FAILURE);
+                     }
+                  
+		   options->context_id = argv[i+1];
+		   argc_left-=2;
+		   i++;
 		 }
                else if (!g_strcmp0 (argv[i], "--create-db"))
                  {
@@ -151,11 +163,6 @@ dupin_loader_parse_options (int argc, char **argv,
                else if (!g_strcmp0 (argv[i], "--silent"))
                  {
 		   options->silent = TRUE;
-		   argc_left--;
-		 }
-               else if (!g_strcmp0 (argv[i], "--no-links"))
-                 {
-		   options->no_links = TRUE;
 		   argc_left--;
 		 }
 	       else if (!g_strcmp0 (argv[i], "--version"))
@@ -210,6 +217,9 @@ g_message ("dupin_loader_close: closing down\n");
 
   if (db)
     dupin_database_unref (db);
+
+  if (linkb)
+    dupin_linkbase_unref (linkb);
 
   if (db_name != NULL)
     g_free (db_name);
@@ -277,6 +287,14 @@ main (int argc, char *argv[])
 
   /* NOTE - parse this command options */
   dupin_loader_parse_options (argc, argv, &options);
+
+  if (options.context_id != NULL 
+      && options.links == FALSE)
+    {
+      fprintf (stderr, "option context_id can only be used for loading links\n");
+      dupin_loader_usage (argv);
+      exit (EXIT_FAILURE);
+    }
 
   //g_message("db_name=%s\n", db_name);
   //g_message("json_data_file=%s\n", json_data_file);
@@ -367,6 +385,15 @@ g_message("opening db %s\n", db_name);
           goto dupin_loader_end;
         }
     }
+ 
+  if (options.links == TRUE)
+    {
+      if (!  (linkb = dupin_linkbase_open (d, dupin_database_get_default_linkbase_name (db), NULL)))
+        {
+          dupin_loader_set_error ("Cannot connect to linkbase");
+          goto dupin_loader_end;
+        }
+    }
 
   while (TRUE)
     {
@@ -393,10 +420,47 @@ g_message("opening db %s\n", db_name);
         goto dupin_loader_end;
 
       gboolean res;
+      gchar * context_id = options.context_id;
       if (options.bulk == TRUE)
-        res = dupin_record_insert_bulk (db, json_object_node, &response_list);
+        {
+          if (options.links == TRUE)
+            {
+              if (context_id == NULL)
+                context_id = dupin_loader_extract_context_id (json_object_node);
+
+              if (context_id == NULL
+                  || dupin_link_record_util_is_valid_context_id (context_id) == FALSE)
+                {
+                  dupin_loader_set_error ("Not a valid context_id specified");
+                  goto dupin_loader_end;
+                }
+
+	      res =  dupin_link_record_insert_bulk (linkb, json_object_node, context_id, &response_list,
+						    options.strict_links);
+            }
+          else
+            res = dupin_record_insert_bulk (db, json_object_node, &response_list);
+        }
       else
-        res = dupin_record_insert (db, json_object_node, NULL, NULL, &response_list);
+       {
+          if (options.links == TRUE)
+            {
+              if (context_id == NULL)
+                context_id = dupin_loader_extract_context_id (json_object_node);
+
+              if (context_id == NULL
+                  || dupin_link_record_util_is_valid_context_id (context_id) == FALSE)
+                {
+                  dupin_loader_set_error ("Not a valid context_id specified");
+                  goto dupin_loader_end;
+                }
+
+	      res = dupin_link_record_insert (linkb, json_object_node, NULL, NULL, context_id,
+					      DP_LINK_TYPE_ANY, &response_list, options.strict_links);
+            }
+          else
+            res = dupin_record_insert (db, json_object_node, NULL, NULL, &response_list);
+       }
 
       if (res == TRUE)
         {
@@ -412,7 +476,10 @@ g_message("opening db %s\n", db_name);
         }
       else
         {
-          dupin_loader_set_error (dupin_database_get_error (db));
+          if (options.links == TRUE)
+            dupin_loader_set_error (dupin_linkbase_get_error (linkb));
+          else
+            dupin_loader_set_error (dupin_database_get_error (db));
         }
 
       while (response_list)
@@ -431,6 +498,24 @@ dupin_loader_end:
   dupin_loader_close ();
 
   return EXIT_SUCCESS;
+}
+
+gchar *
+dupin_loader_extract_context_id (JsonNode * node)
+{
+  g_return_val_if_fail (node != NULL, NULL);
+  g_return_val_if_fail (json_node_get_node_type (node) == JSON_NODE_OBJECT, NULL);
+
+  JsonObject * obj = json_node_get_object (node);
+
+  gchar * context_id = NULL;
+  if (json_object_has_member (obj, REQUEST_GET_ALL_LINKS_CONTEXT_ID) == TRUE)
+    {
+      context_id = (gchar *)json_object_get_string_member (obj, REQUEST_GET_ALL_LINKS_CONTEXT_ID);
+      json_object_remove_member (obj, REQUEST_GET_ALL_LINKS_CONTEXT_ID);
+    }
+
+  return context_id;
 }
 
 static JsonNode *

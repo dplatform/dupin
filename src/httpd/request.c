@@ -4846,6 +4846,7 @@ request_global_put_record (DSHttpdClient * client, GList * path,
   DupinDB *db;
   gchar * mvcc=NULL;
   GList * l=NULL;
+  gboolean res;
  
   if (!client->body
       || !path->next->data)
@@ -4935,7 +4936,6 @@ request_global_put_record (DSHttpdClient * client, GList * path,
       goto request_global_put_record_end;
     }
 
-  /* TODO - check any parsing error */
   if (!json_parser_load_from_data (parser, client->body, client->body_size, &error))
     {
       if (error)
@@ -5021,7 +5021,50 @@ request_global_put_record (DSHttpdClient * client, GList * path,
           goto request_global_put_record_end;
         }
 
-      node1 = json_node_copy (node1);
+      /* NOTE - we need to brew a deep copy of node1 before making any change */
+
+      JsonParser * parser1 = json_parser_new ();
+
+      if (parser1 == NULL)
+        {
+          request_set_error (client, "Cannot get record revision");
+          dupin_record_close (record);
+          dupin_database_unref (db);
+          code = HTTP_STATUS_500;
+          goto request_global_put_record_end;
+        }
+
+      gchar * node1_serialized = dupin_util_json_serialize (node1);
+
+      error = NULL;
+      if (node1_serialized == NULL
+          || (!json_parser_load_from_data (parser1, node1_serialized, -1, &error)))
+        {
+          if (error)
+            {
+              request_set_error (client, error->message);
+              g_error_free (error);
+            }
+          else
+            {
+               request_set_error (client, "Cannot get record revision");
+            }
+
+          if (parser1 != NULL)
+            g_object_unref (parser1);
+
+          if (node1_serialized != NULL)
+            g_free (node1_serialized);
+
+          dupin_record_close (record);
+          dupin_database_unref (db);
+          code = HTTP_STATUS_404;
+          goto request_global_put_record_end;
+        }
+
+      g_free (node1_serialized);
+
+      node1 = json_parser_get_root (parser1);
 
       node1_obj = json_node_get_object (node1);
 
@@ -5036,10 +5079,17 @@ request_global_put_record (DSHttpdClient * client, GList * path,
 
       dupin_record_close (record);
 
-      node = node1;
+      res = dupin_record_insert (db, node1, doc_id, mvcc, &response_list);
+
+      if (parser1 != NULL)
+        g_object_unref (parser1);
+    }
+  else
+    {
+      res = dupin_record_insert (db, node, doc_id, mvcc, &response_list);
     }
 
-  if (dupin_record_insert (db, node, doc_id, mvcc, &response_list) == TRUE)
+  if (res == TRUE)
     {
       if (request_record_response (client, response_list) == FALSE)
         {
@@ -5062,10 +5112,6 @@ request_global_put_record (DSHttpdClient * client, GList * path,
   dupin_database_unref (db);
 
 request_global_put_record_end:
-
-  if (request_fields != NULL
-      && node)
-    json_node_free (node);
 
   if (parser != NULL)
     g_object_unref (parser);
@@ -5091,6 +5137,7 @@ request_global_put_link_record (DSHttpdClient * client, GList * path,
   gchar * mvcc=NULL;
   gboolean strict_links = FALSE;
   GList * l=NULL;
+  gboolean res;
  
   if (!client->body
       || !path->next->data)
@@ -5250,8 +5297,6 @@ request_global_put_link_record (DSHttpdClient * client, GList * path,
           goto request_global_put_link_record_end;
         }
 
-      mvcc = dupin_link_record_get_last_revision (record);
-
       if (dupin_link_record_is_deleted (record, mvcc) == TRUE)
         {
           request_set_error (client, "Link record is deleted");
@@ -5265,14 +5310,57 @@ request_global_put_link_record (DSHttpdClient * client, GList * path,
 
       if (node1 == NULL)
         {
-          request_set_error (client, "Cannot ger link record revision");
+          request_set_error (client, "Cannot get link record revision");
           dupin_link_record_close (record);
           dupin_linkbase_unref (linkb);
           code = HTTP_STATUS_404;
           goto request_global_put_link_record_end;
         }
 
-      node1 = json_node_copy (node1);
+      /* NOTE - we need to brew a deep copy of node1 before making any change */
+
+      JsonParser * parser1 = json_parser_new ();
+
+      if (parser1 == NULL)
+        {
+          request_set_error (client, "Cannot get link record revision");
+          dupin_link_record_close (record);
+          dupin_linkbase_unref (linkb);
+          code = HTTP_STATUS_500;
+          goto request_global_put_link_record_end;
+        }
+
+      gchar * node1_serialized = dupin_util_json_serialize (node1);
+
+      error = NULL;
+      if (node1_serialized == NULL
+          || (!json_parser_load_from_data (parser1, node1_serialized, -1, &error)))
+        {
+          if (error)
+            {
+              request_set_error (client, error->message);
+              g_error_free (error);
+            }
+          else
+            {
+              request_set_error (client, "Cannot get link record revision");
+            }
+
+          if (parser1 != NULL)
+            g_object_unref (parser1);
+
+          if (node1_serialized != NULL)
+            g_free (node1_serialized);
+
+          dupin_link_record_close (record);
+          dupin_linkbase_unref (linkb);
+          code = HTTP_STATUS_404;
+          goto request_global_put_link_record_end;
+        }
+
+      g_free (node1_serialized);
+
+      node1 = json_parser_get_root (parser1);
 
       node1_obj = json_node_get_object (node1);
 
@@ -5309,10 +5397,17 @@ request_global_put_link_record (DSHttpdClient * client, GList * path,
 
       dupin_link_record_close (record);
 
-      node = node1;
+      res = dupin_link_record_insert (linkb, node1, link_id, mvcc, NULL, DP_LINK_TYPE_ANY, &response_list, strict_links);
+
+      if (parser1 != NULL)
+        g_object_unref (parser1);
+    }
+  else
+    {
+      res = dupin_link_record_insert (linkb, node, link_id, mvcc, NULL, DP_LINK_TYPE_ANY, &response_list, strict_links);
     }
 
-  if (dupin_link_record_insert (linkb, node, link_id, mvcc, NULL, DP_LINK_TYPE_ANY, &response_list, strict_links) == TRUE)
+  if (res == TRUE)
     {
       if (request_record_response (client, response_list) == FALSE)
         {
@@ -5335,10 +5430,6 @@ request_global_put_link_record (DSHttpdClient * client, GList * path,
   dupin_linkbase_unref (linkb);
 
 request_global_put_link_record_end:
-
-  if (request_fields != NULL
-      && node)
-    json_node_free (node);
 
   if (parser != NULL)
     g_object_unref (parser);

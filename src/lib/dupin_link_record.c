@@ -1468,7 +1468,6 @@ dupin_link_record_get_revision_node (DupinLinkRecord * record, gchar * mvcc)
 
   JsonParser * parser = json_parser_new();
 
-  /* we do not check any parsing error due we stored earlier, we assume it is sane */
   if (!json_parser_load_from_data (parser, r->obj_serialized, r->obj_serialized_len, &error))
     {
       if (error)

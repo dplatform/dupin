@@ -36,10 +36,14 @@
 
 #define DUPIN_LINKB_SQL_DESC_CREATE \
   "CREATE TABLE IF NOT EXISTS DupinLinkB (\n" \
-  "  parent      CHAR(255) NOT NULL,\n" \
-  "  isdb        BOOL DEFAULT TRUE,\n" \
-  "  compact_id  CHAR(255),\n" \
-  "  check_id    CHAR(255)\n" \
+  "  total_webl_ins  INTEGER NOT NULL DEFAULT 0,\n" \
+  "  total_webl_del  INTEGER NOT NULL DEFAULT 0,\n" \
+  "  total_rel_ins   INTEGER NOT NULL DEFAULT 0,\n" \
+  "  total_rel_del   INTEGER NOT NULL DEFAULT 0,\n" \
+  "  parent          CHAR(255) NOT NULL,\n" \
+  "  isdb            BOOL DEFAULT TRUE,\n" \
+  "  compact_id      CHAR(255),\n" \
+  "  check_id        CHAR(255)\n" \
   ");"
 
 #define DUPIN_LINKB_SQL_TOTAL \
@@ -579,160 +583,53 @@ dupin_linkb_create (Dupin * d, gchar * name, gchar * path, GError ** error)
   return linkb;
 }
 
-struct dupin_linkbase_dp_count_t
-{
-  gsize ret;
-  DupinCountType count_type;
-};
-
-static int
-dupin_linkbase_count_cb (void *data, int argc, char **argv, char **col)
-{
-  struct dupin_linkbase_dp_count_t *count = data;
-
-  if (argv[0] && *argv[0])
-    {
-      switch (count->count_type)
-	{
-	case DP_COUNT_EXIST:
-	  if (!g_strcmp0 (argv[0], "FALSE"))
-	    count->ret++;
-	  break;
-
-	case DP_COUNT_DELETE:
-	  if (!g_strcmp0 (argv[0], "TRUE"))
-	    count->ret++;
-	  break;
-
-	case DP_COUNT_ALL:
-	default:
-	  count->ret++;
-	  break;
-	}
-    }
-
-  return 0;
-}
-
 gsize
 dupin_linkbase_count (DupinLinkB * linkb,
 		      DupinLinksType links_type,
-	              DupinCountType count_type,
-                      gchar * context_id,
-                      gchar ** labels,
-                      gchar * tag)
+	              DupinCountType count_type)
 {
-  struct dupin_linkbase_dp_count_t count;
-  GString * str;
-  gchar *query;
-  gchar *check_linktype="";
-  gint i=0;
-
   g_return_val_if_fail (linkb != NULL, 0);
 
-  if (context_id != NULL)
-    g_return_val_if_fail (dupin_link_record_util_is_valid_context_id (context_id) == TRUE, FALSE);
-
-  if (labels != NULL)
-    {
-      for (i = 0; labels[i]; i++)
-        {
-          g_return_val_if_fail (dupin_link_record_util_is_valid_label (labels[i]) == TRUE, FALSE);
-        }
-    }
-
-  count.ret = 0;
-  count.count_type = count_type;
-
-  if (links_type == DP_LINK_TYPE_WEB_LINK)
-    check_linktype = " is_weblink = 'TRUE' ";
-  else if (links_type == DP_LINK_TYPE_RELATIONSHIP)
-    check_linktype = " is_weblink = 'FALSE' "; 
-
-  str = g_string_new ("SELECT deleted, max(rev) as rev FROM Dupin ");
-
-  gchar * op = "";
-
-  if (g_strcmp0 (check_linktype, ""))
-    {
-      if (!g_strcmp0 (op, ""))
-        op = "WHERE";
-
-      g_string_append_printf (str, " %s %s ", op, check_linktype);
-      op = "AND";
-    }
-
-  if (context_id != NULL)
-    {
-      if (!g_strcmp0 (op, ""))
-        op = "WHERE";
-
-      gchar * tmp2 = sqlite3_mprintf (" %s context_id = '%q' ", op, context_id);
-      str = g_string_append (str, tmp2);
-      sqlite3_free (tmp2);
-      op = "AND";
-    }
-
-  if (labels != NULL)
-    {
-      if (!g_strcmp0 (op, ""))
-        op = "WHERE";
-
-      if (labels[0])
-        {
-          gchar * tmp2 = sqlite3_mprintf (" %s ( ", op);
-          str = g_string_append (str, tmp2);
-          sqlite3_free (tmp2);
-        }
-
-      for (i = 0; labels[i]; i++)
-        {
-          gchar * tmp2 = sqlite3_mprintf (" d.label = '%q' ", labels[i]);
-          str = g_string_append (str, tmp2);
-          sqlite3_free (tmp2);
-          if (labels[i+1])
-            str = g_string_append (str, " OR ");
-        }
-
-      if (labels[0])
-        str = g_string_append (str, " ) ");
-
-      op = "AND";
-    }
-
-  if (tag != NULL)
-    {
-      if (!g_strcmp0 (op, ""))
-        op = "WHERE";
-
-      gchar * tmp2 = sqlite3_mprintf (" %s tag = '%q' ", op, tag);
-      str = g_string_append (str, tmp2);
-      sqlite3_free (tmp2);
-    }
-
-  str = g_string_append (str, " GROUP BY id");
-
-  query = g_string_free (str, FALSE);
-
-//g_message("dupin_linkbase_count: query=%s\n", query);
+  struct dupin_link_record_select_total_t count;
+  memset (&count, 0, sizeof (count));
 
   g_mutex_lock (linkb->mutex);
 
-  if (sqlite3_exec (linkb->db, query, dupin_linkbase_count_cb, &count, NULL) !=
+  if (sqlite3_exec (linkb->db, DUPIN_LINKB_SQL_GET_TOTALS, dupin_link_record_select_total_cb, &count, NULL) !=
       SQLITE_OK)
     {
       g_mutex_unlock (linkb->mutex);
-
-      g_free (query);
-
       return 0;
     }
 
   g_mutex_unlock (linkb->mutex);
 
-  g_free (query);
+  if (count_type == DP_COUNT_EXIST)
+    {
+      if (links_type == DP_LINK_TYPE_WEB_LINK)
+        return count.total_webl_ins;
 
-  return count.ret;
+      else if (links_type == DP_LINK_TYPE_RELATIONSHIP)
+        return count.total_rel_ins;
+
+      else
+        return count.total_webl_ins + count.total_rel_ins;
+    }
+  else if (count_type == DP_COUNT_DELETE)
+    {
+      if (links_type == DP_LINK_TYPE_WEB_LINK)
+        return count.total_webl_del;
+
+      else if (links_type == DP_LINK_TYPE_RELATIONSHIP)
+        return count.total_rel_del;
+
+      else
+        return count.total_webl_del + count.total_rel_del;
+    }
+  else
+    {
+      return count.total_webl_ins + count.total_rel_ins + count.total_webl_del + count.total_rel_del;
+    }
 }
 
 static int

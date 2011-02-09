@@ -11,6 +11,25 @@
 
 G_BEGIN_DECLS
 
+struct dupin_record_select_total_t
+{
+  gsize total_doc_ins;
+  gsize total_doc_del;
+};
+
+int		dupin_record_select_total_cb 
+					(void *data,
+					 int argc,
+					 char **argv,
+					 char **col);
+
+#define DUPIN_DB_SQL_GET_TOTALS \
+        "SELECT total_doc_ins, total_doc_del FROM DupinDB"
+
+#define DUPIN_DB_SQL_SET_TOTALS \
+        "UPDATE DupinDB SET total_doc_ins = %d, total_doc_del = %d"
+
+
 DupinRecord *	dupin_record_create	(DupinDB *		db,
 					 JsonNode *		obj_node,
 					 GError **		error);

@@ -55,6 +55,20 @@ static gboolean
 			    		 gboolean delete,
 			    		 gchar ** hash, gsize * hash_len);
 
+int
+dupin_record_select_total_cb (void *data, int argc, char **argv, char **col)
+{
+  struct dupin_record_select_total_t *t = data;
+
+  if (argv[0] && *argv[0])
+    t->total_doc_ins = atoi (argv[0]);
+
+  if (argv[1] && *argv[1])
+    t->total_doc_del = atoi (argv[1]);
+
+  return 0;
+}
+
 gboolean
 dupin_record_exists (DupinDB * db, gchar * id)
 {
@@ -157,6 +171,9 @@ dupin_record_create_with_id_real (DupinDB * db, JsonNode * obj_node,
   gchar *tmp;
   gchar * md5=NULL;
 
+  struct dupin_record_select_total_t t;
+  memset (&t, 0, sizeof (t));
+
   dupin_database_ref (db);
 
   if (lock == TRUE)
@@ -188,8 +205,45 @@ dupin_record_create_with_id_real (DupinDB * db, JsonNode * obj_node,
       return NULL;
     }
 
+  sqlite3_free (tmp);
+
+  /* NOTE - update totals */
+
+  if (sqlite3_exec (db->db, DUPIN_DB_SQL_GET_TOTALS, dupin_record_select_total_cb, &t, NULL) != SQLITE_OK)
+    {
+      if (lock == TRUE)
+	g_mutex_unlock (db->mutex);
+
+      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
+		   errmsg);
+
+      dupin_record_close (record);
+      sqlite3_free (errmsg);
+      return NULL;
+    }
+
+  t.total_doc_ins++;
+
+  tmp = sqlite3_mprintf (DUPIN_DB_SQL_SET_TOTALS, (gint)t.total_doc_ins, (gint)t.total_doc_del);
+
+  if (sqlite3_exec (db->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
+    {
+      if (lock == TRUE)
+	g_mutex_unlock (db->mutex);
+
+      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
+		   errmsg);
+
+      dupin_record_close (record);
+      sqlite3_free (errmsg);
+      sqlite3_free (tmp);
+      return NULL;
+    }
+
   if (lock == TRUE)
     g_mutex_unlock (db->mutex);
+
+  sqlite3_free (tmp);
 
   dupin_linkbase_p_record_insert (&db->linkbs,
 			          (gchar *) dupin_record_get_id (record),
@@ -199,7 +253,6 @@ dupin_record_create_with_id_real (DupinDB * db, JsonNode * obj_node,
 			      (gchar *) dupin_record_get_id (record),
 			      json_node_get_object (dupin_record_get_revision_node (record, NULL)));
 
-  sqlite3_free (tmp);
   return record;
 }
 
@@ -667,12 +720,15 @@ dupin_record_update (DupinRecord * record, JsonNode * obj_node,
   gchar *tmp;
   gchar *errmsg;
   gchar * md5=NULL;
+  gboolean record_was_deleted = FALSE;
 
   g_return_val_if_fail (record != NULL, FALSE);
   g_return_val_if_fail (obj_node != NULL, FALSE);
   g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, FALSE);
 
   g_mutex_lock (record->db->mutex);
+
+  record_was_deleted = record->last->deleted;
 
   rev = record->last->revision + 1;
 
@@ -697,8 +753,53 @@ dupin_record_update (DupinRecord * record, JsonNode * obj_node,
       sqlite3_free (tmp);
       return FALSE;
     }
+  else
+    {
+      if (record_was_deleted == TRUE)
+        {
+          /* NOTE - update totals */
+
+          struct dupin_record_select_total_t t;
+          memset (&t, 0, sizeof (t));
+
+          if (sqlite3_exec (record->db->db, DUPIN_DB_SQL_GET_TOTALS, dupin_record_select_total_cb, &t, NULL) != SQLITE_OK)
+            {
+              g_mutex_unlock (record->db->mutex);
+
+              g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
+                   errmsg);
+
+              sqlite3_free (errmsg);
+              sqlite3_free (tmp);
+              return FALSE;
+            }
+          else
+            {
+              t.total_doc_del--;
+              t.total_doc_ins++;
+
+              sqlite3_free (tmp);
+
+              tmp = sqlite3_mprintf (DUPIN_DB_SQL_SET_TOTALS, (gint)t.total_doc_ins, (gint)t.total_doc_del);
+
+              if (sqlite3_exec (record->db->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
+                {
+                  g_mutex_unlock (record->db->mutex);
+
+                  g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
+                   errmsg);
+
+                  sqlite3_free (errmsg);
+                  sqlite3_free (tmp);
+                  return FALSE;
+                }
+            }
+        }
+    }
 
   g_mutex_unlock (record->db->mutex);
+
+  sqlite3_free (tmp);
 
   dupin_linkbase_p_record_delete (&record->db->linkbs,
 			          (gchar *) dupin_record_get_id (record));
@@ -712,7 +813,6 @@ dupin_record_update (DupinRecord * record, JsonNode * obj_node,
 			      (gchar *) dupin_record_get_id (record),
 			      json_node_get_object (dupin_record_get_revision_node (record, NULL)));
 
-  sqlite3_free (tmp);
   return TRUE;
 }
 
@@ -752,13 +852,48 @@ dupin_record_delete (DupinRecord * record, GError ** error)
       sqlite3_free (errmsg);
       ret = FALSE;
     }
+  else
+    {
+      /* NOTE - update totals */
+
+      struct dupin_record_select_total_t t;
+      memset (&t, 0, sizeof (t));
+
+      if (sqlite3_exec (record->db->db, DUPIN_DB_SQL_GET_TOTALS, dupin_record_select_total_cb, &t, NULL) != SQLITE_OK)
+        {
+          g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
+                   errmsg);
+
+          sqlite3_free (errmsg);
+          ret = FALSE;
+        }
+      else
+        {
+          t.total_doc_del++;
+          t.total_doc_ins--;
+
+          sqlite3_free (tmp);
+
+          tmp = sqlite3_mprintf (DUPIN_DB_SQL_SET_TOTALS, (gint)t.total_doc_ins, (gint)t.total_doc_del);
+
+          if (sqlite3_exec (record->db->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
+            {
+              g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
+                   errmsg);
+
+             sqlite3_free (errmsg);
+             ret = FALSE;
+           }
+       }
+    }
 
   g_mutex_unlock (record->db->mutex);
+
+  sqlite3_free (tmp);
 
   dupin_view_p_record_delete (&record->db->views,
 			      (gchar *) dupin_record_get_id (record));
 
-  sqlite3_free (tmp);
   return ret;
 }
 

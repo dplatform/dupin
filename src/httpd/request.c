@@ -2038,12 +2038,12 @@ request_global_get_linkbase (DSHttpdClient * client, GList * path,
 
   json_object_set_string_member (obj, "linkbase_name", (gchar *) dupin_linkbase_get_name (linkb));
   json_object_set_string_member (obj, "linkbase_parent", (gchar *) dupin_linkbase_get_parent (linkb));
-  json_object_set_int_member (obj, "links_count", dupin_linkbase_count (linkb, DP_LINK_TYPE_ANY, DP_COUNT_EXIST, NULL, NULL, NULL));
-  json_object_set_int_member (obj, "web_links_count", dupin_linkbase_count (linkb, DP_LINK_TYPE_WEB_LINK, DP_COUNT_EXIST, NULL, NULL, NULL));
-  json_object_set_int_member (obj, "relationships_count", dupin_linkbase_count (linkb, DP_LINK_TYPE_RELATIONSHIP, DP_COUNT_EXIST, NULL, NULL, NULL));
-  json_object_set_int_member (obj, "links_del_count", dupin_linkbase_count (linkb, DP_LINK_TYPE_ANY, DP_COUNT_DELETE, NULL, NULL, NULL));
-  json_object_set_int_member (obj, "web_links_del_count", dupin_linkbase_count (linkb, DP_LINK_TYPE_WEB_LINK, DP_COUNT_DELETE, NULL, NULL, NULL));
-  json_object_set_int_member (obj, "relationships_del_count", dupin_linkbase_count (linkb, DP_LINK_TYPE_RELATIONSHIP, DP_COUNT_DELETE, NULL, NULL, NULL));
+  json_object_set_int_member (obj, "links_count", dupin_linkbase_count (linkb, DP_LINK_TYPE_ANY, DP_COUNT_EXIST));
+  json_object_set_int_member (obj, "web_links_count", dupin_linkbase_count (linkb, DP_LINK_TYPE_WEB_LINK, DP_COUNT_EXIST));
+  json_object_set_int_member (obj, "relationships_count", dupin_linkbase_count (linkb, DP_LINK_TYPE_RELATIONSHIP, DP_COUNT_EXIST));
+  json_object_set_int_member (obj, "links_del_count", dupin_linkbase_count (linkb, DP_LINK_TYPE_ANY, DP_COUNT_DELETE));
+  json_object_set_int_member (obj, "web_links_del_count", dupin_linkbase_count (linkb, DP_LINK_TYPE_WEB_LINK, DP_COUNT_DELETE));
+  json_object_set_int_member (obj, "relationships_del_count", dupin_linkbase_count (linkb, DP_LINK_TYPE_RELATIONSHIP, DP_COUNT_DELETE));
 
   json_object_set_int_member (obj, "disk_size", dupin_linkbase_get_size (linkb));
 
@@ -2169,7 +2169,14 @@ request_global_get_all_links_linkbase (DSHttpdClient * client, GList * path,
       return HTTP_STATUS_404;
     }
 
-  total_rows = dupin_linkbase_count (linkb, link_type, DP_COUNT_EXIST, context_id, link_labels, tag);
+  /* NOTE - try to optimize here */
+  if (context_id != NULL
+      || link_labels != NULL
+      || tag != NULL)
+    total_rows = dupin_link_record_get_list_total (linkb, link_type, DP_COUNT_EXIST, context_id, link_labels, tag);
+  else
+    total_rows = dupin_linkbase_count (linkb, link_type, DP_COUNT_EXIST);
+
 
   if (dupin_link_record_get_list (linkb, count, offset, 0, 0, link_type, DP_COUNT_EXIST, DP_ORDERBY_ROWID, descending, 
 					context_id, link_labels, tag, &results, NULL) ==
@@ -6402,7 +6409,7 @@ request_record_revision_obj (DSHttpdClient * client,
 	      JsonObject * links_obj = json_object_new ();
 	      json_node_take_object (links_node, links_obj);
 
-              gsize total_links = dupin_linkbase_count (linkb, DP_LINK_TYPE_WEB_LINK, DP_COUNT_EXIST,
+              gsize total_links = dupin_link_record_get_list_total (linkb, DP_LINK_TYPE_WEB_LINK, DP_COUNT_EXIST,
 					            (gchar *) dupin_record_get_id (record),
 					            link_labels, tag);
 
@@ -6471,7 +6478,7 @@ request_record_revision_obj (DSHttpdClient * client,
 	      JsonObject * relationships_obj = json_object_new ();
 	      json_node_take_object (relationships_node, relationships_obj);
 
-              gsize total_relationships = dupin_linkbase_count (linkb, DP_LINK_TYPE_RELATIONSHIP,
+              gsize total_relationships = dupin_link_record_get_list_total (linkb, DP_LINK_TYPE_RELATIONSHIP,
 						    DP_COUNT_EXIST,
 					            (gchar *) dupin_record_get_id (record),
 					            link_labels, tag);

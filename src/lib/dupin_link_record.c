@@ -30,7 +30,6 @@
 	"INSERT OR REPLACE INTO Dupin (id, rev, deleted, hash, tm, context_id, label, href, rel, tag, is_weblink, idspath, labelspath) " \
         "VALUES('%q', '%" G_GSIZE_FORMAT "', 'TRUE', '%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%q', %Q, %Q, '%q', '%q', '%q')"
 
-
 DSWeblinkingRelationRegistry DSWeblinkingRelationRegistryList[] = {
   {WEBLINKING_RELNAME_ALTERNATE, "alternate", "Designates a substitute for the link's context."}
   ,
@@ -143,7 +142,27 @@ DSWeblinkingRelationRegistry DSWeblinkingRelationRegistryList[] = {
 
 #define DUPIN_LINKB_DEFAULT_REL	DSWeblinkingRelationRegistryList[WEBLINKING_RELNAME_ALTERNATE].rel
 
-#define DUPIN_LINKB_DEFAULT_IDSPATH	"[ ]"
+#define DUPIN_LINKB_DEFAULT_PATH	"[ ]"
+
+int
+dupin_link_record_select_total_cb (void *data, int argc, char **argv, char **col)
+{
+  struct dupin_link_record_select_total_t *t = data;
+
+  if (argv[0] && *argv[0])
+    t->total_webl_ins = atoi (argv[0]);
+
+  if (argv[1] && *argv[1])
+    t->total_webl_del = atoi (argv[1]);
+
+  if (argv[2] && *argv[2])
+    t->total_rel_ins = atoi (argv[2]);
+
+  if (argv[3] && *argv[3])
+    t->total_rel_del = atoi (argv[3]);
+
+  return 0;
+}
 
 static DupinLinkRecord *dupin_link_record_create_with_id_real (DupinLinkB * linkb,
 						      JsonNode * obj_node,
@@ -357,6 +376,9 @@ dupin_link_record_create_with_id_real (DupinLinkB * linkb, JsonNode * obj_node,
   gchar *tmp;
   gchar * md5=NULL;
 
+  struct dupin_link_record_select_total_t t;
+  memset (&t, 0, sizeof (t));
+
   JsonNode * paths = NULL;
   JsonNode * idspath = NULL;
   JsonNode * labelspath = NULL;
@@ -424,14 +446,57 @@ dupin_link_record_create_with_id_real (DupinLinkB * linkb, JsonNode * obj_node,
       return NULL;
     }
 
+  sqlite3_free (tmp);
+
+  /* NOTE - update totals */
+
+  if (sqlite3_exec (linkb->db, DUPIN_LINKB_SQL_GET_TOTALS, dupin_link_record_select_total_cb, &t, NULL) != SQLITE_OK)
+    {
+      if (lock == TRUE)
+        g_mutex_unlock (linkb->mutex);
+
+      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
+                   errmsg);
+
+      dupin_link_record_close (record);
+      sqlite3_free (errmsg);
+      return NULL;
+    }
+
+  if (dupin_util_is_valid_absolute_uri (href) == TRUE)
+    {
+      t.total_webl_ins++;
+    }
+  else
+    {
+      t.total_rel_ins++;
+    }
+
+  tmp = sqlite3_mprintf (DUPIN_LINKB_SQL_SET_TOTALS, (gint)t.total_webl_ins, (gint)t.total_webl_del, (gint)t.total_rel_ins, (gint)t.total_rel_del);
+
+  if (sqlite3_exec (linkb->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
+    {
+      if (lock == TRUE)
+        g_mutex_unlock (linkb->mutex);
+
+      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
+                   errmsg);
+
+      dupin_link_record_close (record);
+      sqlite3_free (errmsg);
+      sqlite3_free (tmp);
+      return NULL;
+    }
+
   if (lock == TRUE)
     g_mutex_unlock (linkb->mutex);
+
+  sqlite3_free (tmp);
 
   dupin_view_p_record_insert (&linkb->views,
 			      (gchar *) dupin_link_record_get_id (record),
 			      json_node_get_object (dupin_link_record_get_revision_node (record, NULL)));
 
-  sqlite3_free (tmp);
   return record;
 }
 
@@ -566,6 +631,162 @@ dupin_link_record_read_real (DupinLinkB * linkb, gchar * id, GError ** error,
     }
 
   return record;
+}
+
+struct dupin_link_record_get_list_total_t
+{
+  gsize ret;
+  DupinCountType count_type;
+};
+
+static int
+dupin_link_record_get_list_total_cb (void *data, int argc, char **argv, char **col)
+{
+  struct dupin_link_record_get_list_total_t *count = data;
+
+  if (argv[0] && *argv[0])
+    {
+      switch (count->count_type)
+        {
+        case DP_COUNT_EXIST:
+          if (!g_strcmp0 (argv[0], "FALSE"))
+            count->ret++;
+          break;
+
+        case DP_COUNT_DELETE:
+          if (!g_strcmp0 (argv[0], "TRUE"))
+            count->ret++;
+          break;
+
+        case DP_COUNT_ALL:
+        default:
+          count->ret++;
+          break;
+        }
+    }
+
+  return 0;
+}
+
+gsize
+dupin_link_record_get_list_total (DupinLinkB * linkb,
+                                  DupinLinksType links_type,
+                                  DupinCountType count_type,
+                                  gchar * context_id,
+                                  gchar ** labels,
+                                  gchar * tag)
+{
+  struct dupin_link_record_get_list_total_t count;
+  GString * str;
+  gchar *query;
+  gchar *check_linktype="";
+  gint i=0;
+
+  g_return_val_if_fail (linkb != NULL, 0);
+
+  if (context_id != NULL)
+    g_return_val_if_fail (dupin_link_record_util_is_valid_context_id (context_id) == TRUE, FALSE);
+
+  if (labels != NULL)
+    {
+      for (i = 0; labels[i]; i++)
+        {
+          g_return_val_if_fail (dupin_link_record_util_is_valid_label (labels[i]) == TRUE, FALSE);
+        }
+    }
+
+  count.ret = 0;
+  count.count_type = count_type;
+
+  if (links_type == DP_LINK_TYPE_WEB_LINK)
+    check_linktype = " is_weblink = 'TRUE' ";
+  else if (links_type == DP_LINK_TYPE_RELATIONSHIP)
+    check_linktype = " is_weblink = 'FALSE' ";
+
+  str = g_string_new ("SELECT deleted, max(rev) as rev FROM Dupin ");
+
+  gchar * op = "";
+
+  if (g_strcmp0 (check_linktype, ""))
+    {
+      if (!g_strcmp0 (op, ""))
+        op = "WHERE";
+
+      g_string_append_printf (str, " %s %s ", op, check_linktype);
+      op = "AND";
+    }
+
+  if (context_id != NULL)
+    {
+      if (!g_strcmp0 (op, ""))
+        op = "WHERE";
+
+      gchar * tmp2 = sqlite3_mprintf (" %s context_id = '%q' ", op, context_id);
+      str = g_string_append (str, tmp2);
+      sqlite3_free (tmp2);
+      op = "AND";
+    }
+
+  if (labels != NULL)
+    {
+      if (!g_strcmp0 (op, ""))
+        op = "WHERE";
+
+      if (labels[0])
+        {
+          gchar * tmp2 = sqlite3_mprintf (" %s ( ", op);
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+        }
+
+      for (i = 0; labels[i]; i++)
+        {
+          gchar * tmp2 = sqlite3_mprintf (" d.label = '%q' ", labels[i]);
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+          if (labels[i+1])
+            str = g_string_append (str, " OR ");
+        }
+
+      if (labels[0])
+        str = g_string_append (str, " ) ");
+
+      op = "AND";
+    }
+
+  if (tag != NULL)
+    {
+      if (!g_strcmp0 (op, ""))
+        op = "WHERE";
+
+      gchar * tmp2 = sqlite3_mprintf (" %s tag = '%q' ", op, tag);
+      str = g_string_append (str, tmp2);
+      sqlite3_free (tmp2);
+    }
+
+  str = g_string_append (str, " GROUP BY id");
+
+  query = g_string_free (str, FALSE);
+
+//g_message("dupin_link_record_get_list_total: query=%s\n", query);
+
+  g_mutex_lock (linkb->mutex);
+
+  if (sqlite3_exec (linkb->db, query, dupin_link_record_get_list_total_cb, &count, NULL) !=
+      SQLITE_OK)
+    {
+      g_mutex_unlock (linkb->mutex);
+
+      g_free (query);
+
+      return 0;
+    }
+
+  g_mutex_unlock (linkb->mutex);
+
+  g_free (query);
+
+  return count.ret;
 }
 
 struct dupin_link_record_get_list_t
@@ -1044,6 +1265,8 @@ dupin_link_record_update (DupinLinkRecord * record, JsonNode * obj_node,
   gchar *tmp;
   gchar *errmsg;
   gchar * md5=NULL;
+  gboolean record_was_deleted = FALSE;
+  gboolean record_was_weblink = FALSE;
 
   g_return_val_if_fail (record != NULL, FALSE);
   g_return_val_if_fail (obj_node != NULL, FALSE);
@@ -1062,6 +1285,9 @@ dupin_link_record_update (DupinLinkRecord * record, JsonNode * obj_node,
     g_return_val_if_fail (dupin_link_record_util_is_valid_label (label) == TRUE, FALSE);
 
   g_mutex_lock (record->linkb->mutex);
+
+  record_was_deleted = record->last->deleted;
+  record_was_weblink = record->last->is_weblink;
 
   rev = record->last->revision + 1;
 
@@ -1124,8 +1350,95 @@ dupin_link_record_update (DupinLinkRecord * record, JsonNode * obj_node,
       sqlite3_free (tmp);
       return FALSE;
     }
+  else
+    {
+      if (record_was_deleted == TRUE
+          || record_was_weblink != record->last->is_weblink)
+        {
+          struct dupin_link_record_select_total_t t;
+          memset (&t, 0, sizeof (t));
+
+          if (sqlite3_exec (record->linkb->db, DUPIN_LINKB_SQL_GET_TOTALS, dupin_link_record_select_total_cb, &t, NULL) != SQLITE_OK)
+            {
+              g_mutex_unlock (record->linkb->mutex);
+
+              g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
+                   errmsg);
+
+              sqlite3_free (errmsg);
+              sqlite3_free (tmp);
+              return FALSE;
+            }
+          else
+            {
+              if (record_was_deleted == TRUE)
+                {
+                  if (record_was_weblink == record->last->is_weblink)
+	            {
+                      if (record->last->is_weblink == TRUE)
+                        {
+                          t.total_webl_del--;
+                          t.total_webl_ins++;
+                        }
+                      else
+                        {
+                          t.total_rel_del--;
+                          t.total_rel_ins++;
+                        }
+                    }
+                  else
+                    {
+		      /* NOTE - undo into a different link type ? */
+
+                      if (record_was_weblink == TRUE)
+                        {
+                          t.total_webl_del--;
+                          t.total_rel_ins++;
+                        }
+                      else
+                        {
+                          t.total_rel_del--;
+                          t.total_webl_ins++;
+                        }
+                    }
+                }
+              else
+                {
+                  /* NOTE - just updated link type */
+                  if (record_was_weblink == TRUE)
+                    {
+                      t.total_webl_ins--;
+                      t.total_rel_ins++;
+                    }
+                  else
+                    {
+                      t.total_rel_ins--;
+                      t.total_webl_ins++;
+                    }
+                }
+
+              sqlite3_free (tmp);
+
+              tmp = sqlite3_mprintf (DUPIN_LINKB_SQL_SET_TOTALS, (gint)t.total_webl_ins, (gint)t.total_webl_del, (gint)t.total_rel_ins, (gint)t.total_rel_del);
+
+              if (sqlite3_exec (record->linkb->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
+                {
+                  g_mutex_unlock (record->linkb->mutex);
+
+                  g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
+                   errmsg);
+
+                  sqlite3_free (errmsg);
+                  sqlite3_free (tmp);
+                  return FALSE;
+                }
+            }
+        }
+    }
 
   g_mutex_unlock (record->linkb->mutex);
+
+  sqlite3_free (tmp);
 
   dupin_view_p_record_delete (&record->linkb->views,
 			      (gchar *) dupin_link_record_get_id (record));
@@ -1133,7 +1446,6 @@ dupin_link_record_update (DupinLinkRecord * record, JsonNode * obj_node,
 			      (gchar *) dupin_link_record_get_id (record),
 			      json_node_get_object (dupin_link_record_get_revision_node (record, NULL)));
 
-  sqlite3_free (tmp);
   return TRUE;
 }
 
@@ -1144,6 +1456,7 @@ dupin_link_record_delete (DupinLinkRecord * record, GError ** error)
   gchar *tmp;
   gchar *errmsg;
   gchar * md5=NULL;
+  gboolean record_was_weblink = FALSE;
   gboolean ret = TRUE;
 
   g_return_val_if_fail (record != NULL, FALSE);
@@ -1156,6 +1469,8 @@ dupin_link_record_delete (DupinLinkRecord * record, GError ** error)
     }
 
   g_mutex_lock (record->linkb->mutex);
+
+  record_was_weblink = record->last->is_weblink;
 
   rev = record->last->revision + 1;
 
@@ -1192,13 +1507,56 @@ dupin_link_record_delete (DupinLinkRecord * record, GError ** error)
       sqlite3_free (errmsg);
       ret = FALSE;
     }
+  else
+    {
+      /* NOTE - update totals */
+
+      struct dupin_link_record_select_total_t t;
+      memset (&t, 0, sizeof (t));
+
+      if (sqlite3_exec (record->linkb->db, DUPIN_LINKB_SQL_GET_TOTALS, dupin_link_record_select_total_cb, &t, NULL) != SQLITE_OK)
+        {
+          g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
+                   errmsg);
+
+          sqlite3_free (errmsg);
+          ret = FALSE;
+        }
+      else
+        {
+          if (record_was_weblink == TRUE)
+            {
+              t.total_webl_ins--;
+              t.total_webl_del++;
+            }
+          else
+            {
+              t.total_rel_ins--;
+              t.total_rel_del++;
+            }
+
+          sqlite3_free (tmp);
+
+          tmp = sqlite3_mprintf (DUPIN_LINKB_SQL_SET_TOTALS, (gint)t.total_webl_ins, (gint)t.total_webl_del, (gint)t.total_rel_ins, (gint)t.total_rel_del);
+
+          if (sqlite3_exec (record->linkb->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
+            {
+              g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
+                   errmsg);
+
+             sqlite3_free (errmsg);
+             ret = FALSE;
+           }
+       }
+    }
 
   g_mutex_unlock (record->linkb->mutex);
+
+  sqlite3_free (tmp);
 
   dupin_view_p_record_delete (&record->linkb->views,
 			      (gchar *) dupin_link_record_get_id (record));
 
-  sqlite3_free (tmp);
   return ret;
 }
 
@@ -2080,7 +2438,7 @@ dupin_link_record_util_generate_paths_node (DupinLinkB * linkb,
           if (dupin_linkbase_is_cache_on (linkb, NULL) == TRUE)
             {
               /* cache */
-              g_hash_table_replace (linkb->cache_idspath, g_strdup (linkb->cache_last_context_id), g_strdup ("[ ]"));
+              g_hash_table_replace (linkb->cache_idspath, g_strdup (linkb->cache_last_context_id), g_strdup (DUPIN_LINKB_DEFAULT_PATH));
             }
 
           idspath_node = json_node_new (JSON_NODE_ARRAY);
@@ -2150,7 +2508,7 @@ dupin_link_record_util_generate_paths_node (DupinLinkB * linkb,
           if (dupin_linkbase_is_cache_on (linkb, NULL) == TRUE)
             {
               /* cache */
-              g_hash_table_replace (linkb->cache_labelspath, g_strdup (linkb->cache_last_context_id), g_strdup ("[ ]"));
+              g_hash_table_replace (linkb->cache_labelspath, g_strdup (linkb->cache_last_context_id), g_strdup (DUPIN_LINKB_DEFAULT_PATH));
             }
 
           labelspath_node = json_node_new (JSON_NODE_ARRAY);

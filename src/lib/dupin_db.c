@@ -25,7 +25,9 @@
 
 #define DUPIN_DB_SQL_DESC_CREATE \
   "CREATE TABLE IF NOT EXISTS DupinDB (\n" \
-  "  compact_id  CHAR(255)\n" \
+  "  total_doc_ins   INTEGER NOT NULL DEFAULT 0,\n" \
+  "  total_doc_del   INTEGER NOT NULL DEFAULT 0,\n" \
+  "  compact_id      CHAR(255)\n" \
   ");"
 
 #define DUPIN_DB_SQL_TOTAL \
@@ -432,59 +434,17 @@ dupin_db_create (Dupin * d, gchar * name, gchar * path, GError ** error)
   return db;
 }
 
-struct dupin_database_dp_count_t
-{
-  gsize ret;
-  DupinCountType type;
-};
-
-static int
-dupin_database_count_cb (void *data, int argc, char **argv, char **col)
-{
-  struct dupin_database_dp_count_t *count = data;
-
-  if (argv[0] && *argv[0])
-    {
-      switch (count->type)
-	{
-	case DP_COUNT_EXIST:
-	  if (!g_strcmp0 (argv[0], "FALSE"))
-	    count->ret++;
-	  break;
-
-	case DP_COUNT_DELETE:
-	  if (!g_strcmp0 (argv[0], "TRUE"))
-	    count->ret++;
-	  break;
-
-	case DP_COUNT_ALL:
-	default:
-	  count->ret++;
-	  break;
-	}
-    }
-
-  return 0;
-}
-
 gsize
 dupin_database_count (DupinDB * db, DupinCountType type)
 {
-  struct dupin_database_dp_count_t count;
-  gchar *query;
-
   g_return_val_if_fail (db != NULL, 0);
 
-  count.ret = 0;
-  count.type = type;
-
-  query = "SELECT deleted, max(rev) as rev FROM Dupin GROUP BY id";
-
-//g_message("dupin_database_count: query=%s\n", query);
+  struct dupin_record_select_total_t count;
+  memset (&count, 0, sizeof (count));
 
   g_mutex_lock (db->mutex);
 
-  if (sqlite3_exec (db->db, query, dupin_database_count_cb, &count, NULL) !=
+  if (sqlite3_exec (db->db, DUPIN_DB_SQL_GET_TOTALS, dupin_record_select_total_cb, &count, NULL) !=
       SQLITE_OK)
     {
       g_mutex_unlock (db->mutex);
@@ -492,7 +452,19 @@ dupin_database_count (DupinDB * db, DupinCountType type)
     }
 
   g_mutex_unlock (db->mutex);
-  return count.ret;
+
+  if (type == DP_COUNT_EXIST)
+    {
+      return count.total_doc_ins;
+    }
+  else if (type == DP_COUNT_DELETE)
+    {
+      return count.total_doc_del;
+    }
+  else
+    {
+      return count.total_doc_ins + count.total_doc_del;
+    }
 }
 
 static int

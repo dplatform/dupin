@@ -12,6 +12,26 @@
 
 G_BEGIN_DECLS
 
+struct dupin_link_record_select_total_t
+{
+  gsize total_webl_ins;
+  gsize total_webl_del;
+  gsize total_rel_ins;
+  gsize total_rel_del;
+};
+
+int		dupin_link_record_select_total_cb
+					(void *data,
+					 int argc,
+					 char **argv,
+					 char **col);
+
+#define DUPIN_LINKB_SQL_GET_TOTALS \
+        "SELECT total_webl_ins, total_webl_del, total_rel_ins, total_rel_del FROM DupinLinkB"
+
+#define DUPIN_LINKB_SQL_SET_TOTALS \
+        "UPDATE DupinLinkB SET total_webl_ins = %d, total_webl_del = %d, total_rel_ins = %d, total_rel_del = %d"
+
 /* see RFC 5988 - Web Linking  spec */
 
 typedef enum
@@ -131,6 +151,14 @@ gboolean	dupin_link_record_get_list
 
 void		dupin_link_record_get_list_close
 					(GList *		list);
+
+gsize           dupin_link_record_get_list_total
+					(DupinLinkB * linkb,
+                                         DupinLinksType links_type,
+                                         DupinCountType count_type,
+                                         gchar * context_id,
+                                         gchar ** labels,
+                                         gchar * tag);
 
 gboolean	dupin_link_record_update
 					(DupinLinkRecord *		record,

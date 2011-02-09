@@ -465,6 +465,8 @@ dupin_view_record_get_key (DupinViewRecord * record)
 {
   g_return_val_if_fail (record != NULL, NULL);
 
+  GError * error = NULL;
+
   /* record->key stays owernship of the view record - the caller eventually need to json_node_copy() it */
   if (record->key)
     return record->key;
@@ -473,9 +475,15 @@ dupin_view_record_get_key (DupinViewRecord * record)
 
 //g_message("dupin_view_record_get_key: key_serialized=%s key_serialized_len=%d\n", record->key_serialized, (gint)record->key_serialized_len);
 
-  /* we do not check any parsing error due we stored earlier, we assume it is sane */
-  if (json_parser_load_from_data (parser, record->key_serialized, record->key_serialized_len, NULL) == FALSE)
-    goto dupin_view_record_get_key_error;
+  if (!json_parser_load_from_data (parser, record->key_serialized, record->key_serialized_len, &error))
+    {
+      if (error)
+        {
+          dupin_view_set_error (record->view, error->message);
+          g_error_free (error);
+        }
+      goto dupin_view_record_get_key_error;
+    }
 
   record->key = json_node_copy (json_parser_get_root (parser));
 
@@ -498,6 +506,8 @@ dupin_view_record_get_pid (DupinViewRecord * record)
 {
   g_return_val_if_fail (record != NULL, NULL);
 
+  GError * error = NULL;
+
   /* record->pid stays owernship of the view record - the caller eventually need to json_node_copy() it */
   if (record->pid)
     return record->pid;
@@ -506,9 +516,15 @@ dupin_view_record_get_pid (DupinViewRecord * record)
 
 //g_message("dupin_view_record_get_pid: pid_serialized=%s pid_serialized_len=%d\n", record->pid_serialized, (gint)record->pid_serialized_len);
 
-  /* we do not check any parsing error due we stored earlier, we assume it is sane */
-  if (json_parser_load_from_data (parser, record->pid_serialized, record->pid_serialized_len, NULL) == FALSE)
-    goto dupin_view_record_get_pid_error;
+  if (!json_parser_load_from_data (parser, record->pid_serialized, record->pid_serialized_len, &error))
+    {
+      if (error)
+        {
+          dupin_view_set_error (record->view, error->message);
+          g_error_free (error);
+        }
+      goto dupin_view_record_get_pid_error;
+    }
 
   record->pid = json_node_copy (json_parser_get_root (parser));
 
@@ -531,15 +547,23 @@ dupin_view_record_get (DupinViewRecord * record)
 {
   g_return_val_if_fail (record != NULL, NULL);
 
+  GError * error = NULL;
+
   /* record->obj stays owernship of the view record - the caller eventually need to json_node_copy() it */
   if (record->obj)
     return record->obj;
 
   JsonParser * parser = json_parser_new ();
 
-  /* we do not check any parsing error due we stored earlier, we assume it is sane */
-  if (json_parser_load_from_data (parser, record->obj_serialized, record->obj_serialized_len, NULL) == FALSE)
-    goto dupin_view_record_get_error;
+  if (!json_parser_load_from_data (parser, record->obj_serialized, record->obj_serialized_len, &error))
+    {
+      if (error)
+        {
+          dupin_view_set_error (record->view, error->message);
+          g_error_free (error);
+        }
+      goto dupin_view_record_get_error;
+    }
 
   record->obj = json_node_copy (json_parser_get_root (parser));
 

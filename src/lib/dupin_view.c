@@ -1817,6 +1817,7 @@ dupin_view_sync_thread_reduce (DupinView * view, gsize count, gboolean rereduce,
           gchar * pids_string=NULL;
           JsonNode * result_obj_node = json_node_new (JSON_NODE_OBJECT);
           JsonObject * result_obj = json_object_new ();
+          GError * error = NULL;
 
           json_node_take_object (result_obj_node, result_obj);
           
@@ -1824,8 +1825,14 @@ dupin_view_sync_thread_reduce (DupinView * view, gsize count, gboolean rereduce,
 
 	  JsonParser * parser = json_parser_new ();
 
-          if (json_parser_load_from_data (parser, member_name, strlen (member_name), NULL) == FALSE)
+          if (!json_parser_load_from_data (parser, member_name, strlen (member_name), &error))
             {
+              if (error)
+                {
+                  dupin_view_set_error (view, error->message);
+                  g_error_free (error);
+                }
+
               if (parser != NULL)
                 g_object_unref (parser);
               json_node_free (result_obj_node);

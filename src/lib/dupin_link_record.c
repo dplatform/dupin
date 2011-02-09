@@ -1288,6 +1288,7 @@ dupin_link_record_get_revision_idspath_node (DupinLinkRecord * record, gchar * m
   g_return_val_if_fail (record != NULL, 0);
 
   DupinLinkRecordRev *r;
+  GError *error = NULL;
 
   g_return_val_if_fail (record != NULL, NULL);
 
@@ -1318,9 +1319,15 @@ dupin_link_record_get_revision_idspath_node (DupinLinkRecord * record, gchar * m
 
   JsonParser * parser = json_parser_new();
 
-  /* we do not check any parsing error due we stored earlier, we assume it is sane */
-  if (json_parser_load_from_data (parser, r->idspath_serialized, r->idspath_serialized_len, NULL) == FALSE)
-    goto dupin_link_record_get_revision_idspath_node_error;
+  if (!json_parser_load_from_data (parser, r->idspath_serialized, r->idspath_serialized_len, &error))
+    {
+      if (error)
+        {
+          dupin_linkbase_set_error (record->linkb, error->message);
+          g_error_free (error);
+        }
+      goto dupin_link_record_get_revision_idspath_node_error;
+    }
 
   r->idspath = json_node_copy (json_parser_get_root (parser));
 
@@ -1344,6 +1351,7 @@ dupin_link_record_get_revision_labelspath_node (DupinLinkRecord * record, gchar 
   g_return_val_if_fail (record != NULL, 0);
 
   DupinLinkRecordRev *r;
+  GError *error = NULL;
 
   g_return_val_if_fail (record != NULL, NULL);
 
@@ -1374,9 +1382,15 @@ dupin_link_record_get_revision_labelspath_node (DupinLinkRecord * record, gchar 
 
   JsonParser * parser = json_parser_new();
 
-  /* we do not check any parsing error due we stored earlier, we assume it is sane */
-  if (json_parser_load_from_data (parser, r->labelspath_serialized, r->labelspath_serialized_len, NULL) == FALSE)
-    goto dupin_link_record_get_revision_labelspath_node_error;
+  if (!json_parser_load_from_data (parser, r->labelspath_serialized, r->labelspath_serialized_len, &error))
+    {
+      if (error)
+        {
+          dupin_linkbase_set_error (record->linkb, error->message);
+          g_error_free (error);
+        }
+      goto dupin_link_record_get_revision_labelspath_node_error;
+    }
 
   r->labelspath = json_node_copy (json_parser_get_root (parser));
 
@@ -1425,6 +1439,7 @@ JsonNode *
 dupin_link_record_get_revision_node (DupinLinkRecord * record, gchar * mvcc)
 {
   DupinLinkRecordRev *r;
+  GError *error = NULL;
 
   g_return_val_if_fail (record != NULL, NULL);
 
@@ -1454,8 +1469,15 @@ dupin_link_record_get_revision_node (DupinLinkRecord * record, gchar * mvcc)
   JsonParser * parser = json_parser_new();
 
   /* we do not check any parsing error due we stored earlier, we assume it is sane */
-  if (json_parser_load_from_data (parser, r->obj_serialized, r->obj_serialized_len, NULL) == FALSE)
-    goto dupin_link_record_get_revision_error;
+  if (!json_parser_load_from_data (parser, r->obj_serialized, r->obj_serialized_len, &error))
+    {
+      if (error)
+        {
+          dupin_linkbase_set_error (record->linkb, error->message);
+          g_error_free (error);
+        }
+      goto dupin_link_record_get_revision_error;
+    }
 
   r->obj = json_node_copy (json_parser_get_root (parser));
 
@@ -1871,6 +1893,7 @@ dupin_link_record_util_generate_paths_node (DupinLinkB * linkb,
   memset (&parent, 0, sizeof (struct dupin_link_record_util_generate_paths_node_t));
 
   JsonParser * parser = json_parser_new();
+  GError *parser_error = NULL;
   JsonNode *  paths = NULL;
   JsonArray * paths_array = NULL;
 
@@ -2007,8 +2030,15 @@ dupin_link_record_util_generate_paths_node (DupinLinkB * linkb,
               g_hash_table_replace (linkb->cache_idspath, g_strdup (linkb->cache_last_context_id), g_strdup (parent.parent_idspath));
             }
 
-          if (json_parser_load_from_data (parser, parent.parent_idspath, -1, NULL) == FALSE)
+          parser_error = NULL;
+          if (!json_parser_load_from_data (parser, parent.parent_idspath, -1, &parser_error))
             {
+              if (parser_error)
+                {
+                  dupin_linkbase_set_error (linkb, parser_error->message);
+                  g_error_free (parser_error);
+                }
+
               if (parser != NULL)
                 g_object_unref (parser);
               g_free (parent.parent_idspath);
@@ -2067,8 +2097,15 @@ dupin_link_record_util_generate_paths_node (DupinLinkB * linkb,
               g_hash_table_replace (linkb->cache_labelspath, g_strdup (linkb->cache_last_context_id), g_strdup (parent.parent_labelspath));
             }
 
-          if (json_parser_load_from_data (parser, parent.parent_labelspath, -1, NULL) == FALSE)
+          parser_error = NULL;
+          if (!json_parser_load_from_data (parser, parent.parent_labelspath, -1, &parser_error))
             {
+              if (parser_error)
+                {
+                  dupin_linkbase_set_error (linkb, parser_error->message);
+                  g_error_free (parser_error);
+                }
+
               if (parser != NULL)
                 g_object_unref (parser);
               g_free (parent.parent_idspath);

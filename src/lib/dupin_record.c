@@ -815,6 +815,7 @@ JsonNode *
 dupin_record_get_revision_node (DupinRecord * record, gchar * mvcc)
 {
   DupinRecordRev *r;
+  GError * error = NULL;
 
   g_return_val_if_fail (record != NULL, NULL);
 
@@ -844,8 +845,15 @@ dupin_record_get_revision_node (DupinRecord * record, gchar * mvcc)
   JsonParser * parser = json_parser_new();
 
   /* we do not check any parsing error due we stored earlier, we assume it is sane */
-  if (json_parser_load_from_data (parser, r->obj_serialized, r->obj_serialized_len, NULL) == FALSE)
-    goto dupin_record_get_revision_error;
+  if (!json_parser_load_from_data (parser, r->obj_serialized, r->obj_serialized_len, &error))
+    {
+      if (error)
+        {
+          dupin_database_set_error (record->db, error->message);
+          g_error_free (error);
+        }
+      goto dupin_record_get_revision_error;
+    }
 
   r->obj = json_node_copy (json_parser_get_root (parser));
 

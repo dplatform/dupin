@@ -140,6 +140,17 @@ void            dupin_linkbase_clear_warning
 gchar *         dupin_linkbase_get_warning
                                         (DupinLinkB * linkb);
 
+void		dupin_linkbase_cache_on	(DupinLinkB *	linkb,
+					 GError **	error);
+
+void		dupin_linkbase_cache_off
+					(DupinLinkB *	linkb,
+					 GError **	error);
+
+gboolean	dupin_linkbase_is_cache_on
+					(DupinLinkB *   linkb,
+					 GError **      error);
+
 G_END_DECLS
 
 #endif

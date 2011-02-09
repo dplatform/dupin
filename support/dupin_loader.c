@@ -56,6 +56,7 @@ typedef struct _dupin_loader_options {
 	gboolean silent;
 	gboolean strict_links;
 	gchar * context_id;
+	gboolean links_cache;
 } dupin_loader_options;
 
 gchar * dupin_loader_extract_context_id (JsonNode * node);
@@ -86,6 +87,7 @@ dupin_loader_usage (char *argv[])
        "   --silent           silent, prints only errors\n"
        "   --version          prints version information\n"
        "   --context_id ID    the context_id to use to create the links if --links is used\n"
+       "   --no-links-cache   do not use links cache on insertion (it will be much slower)\n"
        "   \n"
        "   When the --links option is specified without --context_id each input JSON object must have a 'context_id' field, including bulks.\n"
 );
@@ -114,6 +116,7 @@ dupin_loader_parse_options (int argc, char **argv,
   options->verbose = FALSE;
   options->context_id = NULL;
   options->strict_links = FALSE;
+  options->links_cache = TRUE;
 
   if (argc > 1)
     {
@@ -170,6 +173,11 @@ dupin_loader_parse_options (int argc, char **argv,
 	           dupin_loader_version ();
 	           exit (EXIT_SUCCESS);
                  }
+               else if (!g_strcmp0 (argv[i], "--no-links-cache"))
+                 {
+		   options->links_cache = FALSE;
+		   argc_left--;
+		 }
                else
                  {
 		   fprintf (stderr, "unknown command line option: %s\n", argv[i]);
@@ -393,6 +401,9 @@ main (int argc, char *argv[])
           dupin_loader_set_error ("Cannot connect to linkbase");
           goto dupin_loader_end;
         }
+
+      if (options.links_cache == TRUE)
+        dupin_linkbase_cache_on (linkb, NULL);
     }
 
   while (TRUE)

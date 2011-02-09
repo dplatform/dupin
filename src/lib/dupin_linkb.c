@@ -539,6 +539,7 @@ dupin_linkb_create (Dupin * d, gchar * name, gchar * path, GError ** error)
   linkb->check_processed_count = 0;
 
   /* NOTE - caches for ids and labels path generation, especially useful on bulk inserts */
+  linkb->cache_on = FALSE;
   linkb->cache_last_context_id = NULL;
   linkb->cache_idspath = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
   linkb->cache_labelspath = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
@@ -1774,6 +1775,37 @@ gchar * dupin_linkbase_get_warning (DupinLinkB * linkb)
   g_return_val_if_fail (linkb != NULL, NULL);
 
   return linkb->warning_msg;
+}
+
+gboolean
+dupin_linkbase_is_cache_on (DupinLinkB *   linkb,
+			    GError **      error)
+{
+  g_return_val_if_fail (linkb != NULL, FALSE);
+
+  return linkb->cache_on;
+}
+
+void
+dupin_linkbase_cache_on (DupinLinkB *   linkb,
+			 GError **      error)
+{
+  g_return_if_fail (linkb != NULL);
+
+  linkb->cache_on = TRUE;
+
+  return;
+}
+
+void
+dupin_linkbase_cache_off (DupinLinkB *   linkb,
+			  GError **      error)
+{
+  g_return_if_fail (linkb != NULL);
+
+  linkb->cache_on = FALSE;
+
+  return;
 }
 
 /* EOF */

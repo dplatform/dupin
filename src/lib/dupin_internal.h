@@ -6,6 +6,9 @@
 #define DUPIN_ID_HASH_ALGO	G_CHECKSUM_MD5
 #define DUPIN_ID_HASH_ALGO_LEN	32
 
+/* see dupin_link_record.c */
+#define DUPIN_LINKS_PATH_CACHE	100000
+
 #include "dupin.h"
 
 #include <glib/gstdio.h>
@@ -142,6 +145,7 @@ struct dupin_linkb_t
   gchar *       error_msg;
   gchar *       warning_msg;
 
+  gboolean 	cache_on;
   gchar *	cache_last_context_id;
   GHashTable *	cache_idspath;
   GHashTable *	cache_labelspath;

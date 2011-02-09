@@ -1991,11 +1991,11 @@ dupin_link_record_util_generate_paths_node (DupinLinkB * linkb,
       if (tag != NULL)
         //query = sqlite3_mprintf ("SELECT idspath, labelspath, id as link_record_id FROM Dupin WHERE rev = (select max(rev) as rev FROM Dupin WHERE id=link_record_id) AND deleted = 'FALSE' AND href = '%q' AND tag = %Q GROUP BY context_id", source_id, tag); //slowest
         //query = sqlite3_mprintf ("SELECT idspath, labelspath, id as link_record_id FROM Dupin WHERE rev = (select max(rev) as rev FROM Dupin WHERE id=link_record_id) AND deleted = 'FALSE' AND href = '%q' AND tag = %Q", source_id, tag); //slower
-        query = sqlite3_mprintf ("SELECT idspath, labelspath, ROWID as link_record_rowid FROM Dupin WHERE rowid = (select max(ROWID) as rowid FROM Dupin WHERE rowid=link_record_rowid) AND deleted = 'FALSE' AND href = '%q' AND tag = %Q", source_id, tag);
+        query = sqlite3_mprintf ("SELECT idspath, labelspath, ROWID as link_record_rowid FROM Dupin WHERE rowid = (select max(ROWID) as rowid FROM Dupin WHERE rowid=link_record_rowid) AND deleted = 'FALSE' AND href = '%q' AND tag = %Q LIMIT 1", source_id, tag);
       else
         //query = sqlite3_mprintf ("SELECT idspath, labelspath, id as link_record_id FROM Dupin WHERE rev = (select max(rev) as rev FROM Dupin WHERE id=link_record_id) AND deleted = 'FALSE' AND href = '%q' GROUP BY context_id", source_id); //slowest
         //query = sqlite3_mprintf ("SELECT idspath, labelspath, id as link_record_id FROM Dupin WHERE rev = (select max(rev) as rev FROM Dupin WHERE id=link_record_id) AND deleted = 'FALSE' AND href = '%q'", source_id); // slower
-        query = sqlite3_mprintf ("SELECT idspath, labelspath, ROWID as link_record_rowid FROM Dupin WHERE rowid = (select max(ROWID) as rowid FROM Dupin WHERE rowid=link_record_rowid) AND deleted = 'FALSE' AND href = '%q'", source_id);
+        query = sqlite3_mprintf ("SELECT idspath, labelspath, ROWID as link_record_rowid FROM Dupin WHERE rowid = (select max(ROWID) as rowid FROM Dupin WHERE rowid=link_record_rowid) AND deleted = 'FALSE' AND href = '%q' LIMIT 1", source_id);
 
 //g_message("dupin_link_record_util_generate_paths_node: source_id=%s target_id=%s label=%s tag=%s\n", source_id, target_id, label, tag);
 //g_message("dupin_link_record_util_generate_paths_node: query=%s\n", query);

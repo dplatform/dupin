@@ -826,6 +826,31 @@ dupin_util_get_collate_type (gchar * json_raw_string)
     }
 }
 
+gchar *
+dupin_util_json_string_normalize (gchar * input_string)
+{
+  g_return_val_if_fail (input_string != NULL, NULL);
+
+  JsonParser *parser = json_parser_new ();
+  GError *error = NULL;
+  gchar * output_string = NULL;
+
+  if (!json_parser_load_from_data (parser, input_string, -1, &error)
+      || (!(output_string = dupin_util_json_serialize (json_parser_get_root (parser)))) )
+    {
+      if (error != NULL)
+        g_error_free (error);
+
+      g_object_unref (parser);
+
+      return NULL;
+    }
+
+  g_object_unref (parser);
+
+  return output_string; 
+}
+
 /* k/v pairs management functions for arguments list */
 
 dupin_keyvalue_t *

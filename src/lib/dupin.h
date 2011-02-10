@@ -192,9 +192,15 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 #define REQUEST_GET_ALL_LINKS_COUNT             REQUEST_GET_ALL_DOCS_COUNT
 #define REQUEST_GET_ALL_LINKS_OFFSET            REQUEST_GET_ALL_DOCS_OFFSET
 #define REQUEST_GET_ALL_LINKS_KEY               REQUEST_GET_ALL_DOCS_KEY
-#define REQUEST_GET_ALL_LINKS_STARTKEY          REQUEST_GET_ALL_DOCS_STARTKEY
-#define REQUEST_GET_ALL_LINKS_ENDKEY            REQUEST_GET_ALL_DOCS_ENDKEY
-#define REQUEST_GET_ALL_LINKS_INCLUSIVEEND      REQUEST_GET_ALL_DOCS_INCLUSIVEEND
+
+#define REQUEST_GET_ALL_LINKS_IDSPATH_KEY  		"idspath_key"
+#define REQUEST_GET_ALL_LINKS_IDSPATH_STARTKEY  	"idspath_startkey"
+#define REQUEST_GET_ALL_LINKS_IDSPATH_ENDKEY            "idspath_endkey"
+#define REQUEST_GET_ALL_LINKS_IDSPATH_INCLUSIVEEND      "idspath_inclusive_end"
+#define REQUEST_GET_ALL_LINKS_LABELSPATH_KEY  		"labelspath_key"
+#define REQUEST_GET_ALL_LINKS_LABELSPATH_STARTKEY  	"labelspath_startkey"
+#define REQUEST_GET_ALL_LINKS_LABELSPATH_ENDKEY         "labelspath_endkey"
+#define REQUEST_GET_ALL_LINKS_LABELSPATH_INCLUSIVEEND   "labelspath_inclusive_end"
 
 #define REQUEST_GET_ALL_LINKS_LINKBASE                  "linkbase"
 

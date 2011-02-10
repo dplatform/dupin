@@ -146,6 +146,12 @@ gboolean	dupin_link_record_get_list
 					 gchar *                context_id,
 					 gchar **               labels,
                                          gchar *                tag,
+					 gchar *                idspath_start_key,
+                            		 gchar *                idspath_end_key,
+                            		 gboolean               idspath_inclusive_end,
+                            		 gchar *                labelspath_start_key,
+                            		 gchar *                labelspath_end_key,
+                            		 gboolean               labelspath_inclusive_end,
 					 GList **		list,
 					 GError **		error);
 
@@ -153,12 +159,18 @@ void		dupin_link_record_get_list_close
 					(GList *		list);
 
 gsize           dupin_link_record_get_list_total
-					(DupinLinkB * linkb,
-                                         DupinLinksType links_type,
-                                         DupinCountType count_type,
-                                         gchar * context_id,
-                                         gchar ** labels,
-                                         gchar * tag);
+					(DupinLinkB *		linkb,
+                                         DupinLinksType 	links_type,
+                                         DupinCountType 	count_type,
+                                         gchar * 		context_id,
+                                         gchar ** 		labels,
+                                         gchar * 		tag,
+					 gchar *                idspath_start_key,
+                            		 gchar *                idspath_end_key,
+                            		 gboolean               idspath_inclusive_end,
+                            		 gchar *                labelspath_start_key,
+                            		 gchar *                labelspath_end_key,
+                            		 gboolean               labelspath_inclusive_end);
 
 gboolean	dupin_link_record_update
 					(DupinLinkRecord *		record,

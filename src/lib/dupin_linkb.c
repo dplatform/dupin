@@ -1120,7 +1120,8 @@ dupin_linkbase_thread_compact (DupinLinkB * linkb, gsize count)
 
   gsize start_rowid = (compact_id != NULL) ? atoi(compact_id)+1 : 1;
 
-  if (dupin_link_record_get_list (linkb, count, 0, start_rowid, 0, DP_LINK_TYPE_ANY, DP_COUNT_ALL, DP_ORDERBY_ROWID, FALSE, NULL, NULL, NULL, &results, NULL) ==
+  if (dupin_link_record_get_list (linkb, count, 0, start_rowid, 0, DP_LINK_TYPE_ANY, DP_COUNT_ALL, DP_ORDERBY_ROWID, FALSE,
+				  NULL, NULL, NULL, NULL, NULL, FALSE, NULL, NULL, FALSE, &results, NULL) ==
       FALSE || !results)
     {
       if (compact_id != NULL)
@@ -1376,7 +1377,8 @@ dupin_linkbase_thread_check (DupinLinkB * linkb, gsize count)
 
   gsize start_rowid = (check_id != NULL) ? atoi(check_id)+1 : 1;
 
-  if (dupin_link_record_get_list (linkb, count, 0, start_rowid, 0, DP_LINK_TYPE_ANY, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE, NULL, NULL, NULL, &results, NULL) ==
+  if (dupin_link_record_get_list (linkb, count, 0, start_rowid, 0, DP_LINK_TYPE_ANY, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE,
+				  NULL, NULL, NULL, NULL, NULL, FALSE, NULL, NULL, FALSE, &results, NULL) ==
       FALSE || !results)
     {
       if (check_id != NULL)

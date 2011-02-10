@@ -84,6 +84,8 @@ gboolean        dupin_util_mvcc_get_hash	(gchar * mvcc,
 DupinCollateType
 		dupin_util_get_collate_type	(gchar * json_raw_string);
 
+gchar *        dupin_util_json_string_normalize	(gchar * input_string);
+
 /* k/v pairs for argument lists */
 
 typedef struct dupin_keyvalue_t    dupin_keyvalue_t;

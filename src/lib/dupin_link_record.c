@@ -674,13 +674,21 @@ dupin_link_record_get_list_total (DupinLinkB * linkb,
                                   DupinCountType count_type,
                                   gchar * context_id,
                                   gchar ** labels,
-                                  gchar * tag)
+                                  gchar * tag,
+				  gchar * idspath_start_key,
+                                  gchar * idspath_end_key,
+                                  gboolean idspath_inclusive_end,
+                                  gchar * labelspath_start_key,
+                                  gchar * labelspath_end_key,
+                                  gboolean labelspath_inclusive_end)
 {
   struct dupin_link_record_get_list_total_t count;
   GString * str;
   gchar *query;
   gchar *check_linktype="";
   gint i=0;
+  gchar * idspath_key_range=NULL;
+  gchar * labelspath_key_range=NULL;
 
   g_return_val_if_fail (linkb != NULL, 0);
 
@@ -703,10 +711,66 @@ dupin_link_record_get_list_total (DupinLinkB * linkb,
   else if (links_type == DP_LINK_TYPE_RELATIONSHIP)
     check_linktype = " is_weblink = 'FALSE' ";
 
+  if (idspath_start_key!=NULL && idspath_end_key!=NULL)
+    if (!g_utf8_collate (idspath_start_key, idspath_end_key) && idspath_inclusive_end == TRUE)
+      idspath_key_range = sqlite3_mprintf (" d.idspath = '%q' ", idspath_start_key);
+    else if (idspath_inclusive_end == TRUE)
+      idspath_key_range = sqlite3_mprintf (" d.idspath >= '%q' AND d.idspath <= '%q' ", idspath_start_key, idspath_end_key);
+    else
+      idspath_key_range = sqlite3_mprintf (" d.idspath >= '%q' AND d.idspath < '%q' ", idspath_start_key, idspath_end_key);
+  else if (idspath_start_key!=NULL)
+    {
+      idspath_key_range = sqlite3_mprintf (" d.idspath >= '%q' ", idspath_start_key);
+    }
+  else if (idspath_end_key!=NULL)
+    {
+      if (idspath_inclusive_end == TRUE)
+        idspath_key_range = sqlite3_mprintf (" d.idspath <= '%q' ", idspath_end_key);
+      else
+        idspath_key_range = sqlite3_mprintf (" d.idspath < '%q' ", idspath_end_key);
+    }
+
+  if (labelspath_start_key!=NULL && labelspath_end_key!=NULL)
+    if (!g_utf8_collate (labelspath_start_key, labelspath_end_key) && labelspath_inclusive_end == TRUE)
+      labelspath_key_range = sqlite3_mprintf (" d.labelspath = '%q' ", labelspath_start_key);
+    else if (labelspath_inclusive_end == TRUE)
+      labelspath_key_range = sqlite3_mprintf (" d.labelspath >= '%q' AND d.labelspath <= '%q' ", labelspath_start_key, labelspath_end_key);
+    else
+      labelspath_key_range = sqlite3_mprintf (" d.labelspath >= '%q' AND d.labelspath < '%q' ", labelspath_start_key, labelspath_end_key);
+  else if (labelspath_start_key!=NULL)
+    {
+      labelspath_key_range = sqlite3_mprintf (" d.labelspath >= '%q' ", labelspath_start_key);
+    }
+  else if (labelspath_end_key!=NULL)
+    {
+      if (labelspath_inclusive_end == TRUE)
+        labelspath_key_range = sqlite3_mprintf (" d.labelspath <= '%q' ", labelspath_end_key);
+      else
+        labelspath_key_range = sqlite3_mprintf (" d.labelspath < '%q' ", labelspath_end_key);
+    }
+
   str = g_string_new ("SELECT deleted, max(rev) as rev FROM Dupin ");
 
   gchar * op = "";
 
+  if (idspath_key_range!=NULL)
+    {
+      if (!g_strcmp0 (op, ""))
+        op = "WHERE";
+
+      g_string_append_printf (str, " %s %s ", op, idspath_key_range);
+      op = "AND";
+    }
+  
+  if (labelspath_key_range!=NULL)
+    {
+      if (!g_strcmp0 (op, ""))
+        op = "WHERE";
+
+      g_string_append_printf (str, " %s %s ", op, labelspath_key_range);
+      op = "AND";
+    }
+  
   if (g_strcmp0 (check_linktype, ""))
     {
       if (!g_strcmp0 (op, ""))
@@ -764,11 +828,17 @@ dupin_link_record_get_list_total (DupinLinkB * linkb,
       sqlite3_free (tmp2);
     }
 
+  if (idspath_key_range!=NULL)
+    sqlite3_free (idspath_key_range);
+
+  if (labelspath_key_range!=NULL)
+    sqlite3_free (labelspath_key_range);
+
   str = g_string_append (str, " GROUP BY id");
 
   query = g_string_free (str, FALSE);
 
-//g_message("dupin_link_record_get_list_total: query=%s\n", query);
+g_message("dupin_link_record_get_list_total: query=%s\n", query);
 
   g_mutex_lock (linkb->mutex);
 
@@ -895,6 +965,12 @@ dupin_link_record_get_list (DupinLinkB * linkb, guint count, guint offset,
                             gchar *                context_id,
                             gchar **               labels,
                             gchar *                tag,
+		            gchar * 		   idspath_start_key,
+                            gchar *                idspath_end_key,
+                            gboolean               idspath_inclusive_end,
+                            gchar *                labelspath_start_key,
+                            gchar *                labelspath_end_key,
+                            gboolean               labelspath_inclusive_end,
 		            GList ** list, GError ** error)
 {
   GString *str;
@@ -903,6 +979,8 @@ dupin_link_record_get_list (DupinLinkB * linkb, guint count, guint offset,
   gchar *check_deleted="";
   gchar *check_linktype="";
   gint i=0;
+  gchar * idspath_key_range=NULL;
+  gchar * labelspath_key_range=NULL;
 
   struct dupin_link_record_get_list_t s;
 
@@ -935,7 +1013,62 @@ dupin_link_record_get_list (DupinLinkB * linkb, guint count, guint offset,
   else if (links_type == DP_LINK_TYPE_RELATIONSHIP)
     check_linktype = " d.is_weblink = 'FALSE' ";
 
+  if (links_type == DP_LINK_TYPE_WEB_LINK)
+    check_linktype = " is_weblink = 'TRUE' ";
+  else if (links_type == DP_LINK_TYPE_RELATIONSHIP)
+    check_linktype = " is_weblink = 'FALSE' ";
+
+  if (idspath_start_key!=NULL && idspath_end_key!=NULL)
+    if (!g_utf8_collate (idspath_start_key, idspath_end_key) && idspath_inclusive_end == TRUE)
+      idspath_key_range = sqlite3_mprintf (" d.idspath = '%q' ", idspath_start_key);
+    else if (idspath_inclusive_end == TRUE)
+      idspath_key_range = sqlite3_mprintf (" d.idspath >= '%q' AND d.idspath <= '%q' ", idspath_start_key, idspath_end_key);
+    else
+      idspath_key_range = sqlite3_mprintf (" d.idspath >= '%q' AND d.idspath < '%q' ", idspath_start_key, idspath_end_key);
+  else if (idspath_start_key!=NULL)
+    {
+      idspath_key_range = sqlite3_mprintf (" d.idspath >= '%q' ", idspath_start_key);
+    }
+  else if (idspath_end_key!=NULL)
+    {
+      if (idspath_inclusive_end == TRUE)
+        idspath_key_range = sqlite3_mprintf (" d.idspath <= '%q' ", idspath_end_key);
+      else
+        idspath_key_range = sqlite3_mprintf (" d.idspath < '%q' ", idspath_end_key);
+    }
+
+  if (labelspath_start_key!=NULL && labelspath_end_key!=NULL)
+    if (!g_utf8_collate (labelspath_start_key, labelspath_end_key) && labelspath_inclusive_end == TRUE)
+      labelspath_key_range = sqlite3_mprintf (" d.labelspath = '%q' ", labelspath_start_key);
+    else if (labelspath_inclusive_end == TRUE)
+      labelspath_key_range = sqlite3_mprintf (" d.labelspath >= '%q' AND d.labelspath <= '%q' ", labelspath_start_key, labelspath_end_key);
+    else
+      labelspath_key_range = sqlite3_mprintf (" d.labelspath >= '%q' AND d.labelspath < '%q' ", labelspath_start_key, labelspath_end_key);
+  else if (labelspath_start_key!=NULL)
+    {
+      labelspath_key_range = sqlite3_mprintf (" d.labelspath >= '%q' ", labelspath_start_key);
+    }
+  else if (labelspath_end_key!=NULL)
+    {
+      if (labelspath_inclusive_end == TRUE)
+        labelspath_key_range = sqlite3_mprintf (" d.labelspath <= '%q' ", labelspath_end_key);
+      else
+        labelspath_key_range = sqlite3_mprintf (" d.labelspath < '%q' ", labelspath_end_key);
+    }
+
   gchar * op = "AND";
+
+  if (idspath_key_range!=NULL)
+    {
+      g_string_append_printf (str, " %s %s ", op, idspath_key_range);
+      op = "AND";
+    }
+  
+  if (labelspath_key_range!=NULL)
+    {
+      g_string_append_printf (str, " %s %s ", op, labelspath_key_range);
+      op = "AND";
+    }
 
   if (rowid_start > 0 && rowid_end > 0)
     {
@@ -1030,12 +1163,17 @@ dupin_link_record_get_list (DupinLinkB * linkb, guint count, guint offset,
 
   tmp = g_string_free (str, FALSE);
 
-//g_message("dupin_link_record_get_list() query=%s\n",tmp);
+  if (idspath_key_range!=NULL)
+    sqlite3_free (idspath_key_range);
+
+  if (labelspath_key_range!=NULL)
+    sqlite3_free (labelspath_key_range);
+
+g_message("dupin_link_record_get_list() query=%s\n",tmp);
 
   g_mutex_lock (linkb->mutex);
 
-  if (sqlite3_exec (linkb->db, tmp, dupin_link_record_get_list_cb, &s, &errmsg) !=
-      SQLITE_OK)
+  if (sqlite3_exec (linkb->db, tmp, dupin_link_record_get_list_cb, &s, &errmsg) != SQLITE_OK)
     {
       g_mutex_unlock (linkb->mutex);
 

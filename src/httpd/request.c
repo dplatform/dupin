@@ -3353,7 +3353,6 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
   gchar * endkey = NULL;
   gboolean inclusive_end = TRUE;
   gboolean include_docs = FALSE;
-  gboolean include_parent_docs = FALSE;
 
   JsonObject *obj;
   JsonNode *node=NULL;
@@ -3382,12 +3381,9 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_OFFSET))
 	offset = atoi (kv->value);
 
-      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_DOCS)
-      	       || !g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_PARENT_DOCS))
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_DOCS))
         {
           if (view->reduce != NULL
-             || (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_PARENT_DOCS) && 
-		 dupin_view_get_parent_is_db (view) == TRUE)
              || (g_strcmp0 (kv->value,"false") && g_strcmp0 (kv->value,"FALSE") &&
                  g_strcmp0 (kv->value,"true") && g_strcmp0 (kv->value,"TRUE")))
             {
@@ -3400,12 +3396,7 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
               dupin_view_unref (view);
 	      
       	      if (view->reduce != NULL)
-                request_set_error (client, "The " REQUEST_GET_ALL_DOCS_INCLUDE_PARENT_DOCS " and " REQUEST_GET_ALL_DOCS_INCLUDE_PARENT_DOCS " parameters can only be used on map only views.");
-              else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_PARENT_DOCS) && 
-		       dupin_view_get_parent_is_db (view) == TRUE)
-                request_set_error (client, "The " REQUEST_GET_ALL_DOCS_INCLUDE_PARENT_DOCS " parameter can only be used on views about linkbases or views of views.");
-      	      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_PARENT_DOCS))
-                request_set_error (client, "Invalid " REQUEST_GET_ALL_DOCS_INCLUDE_PARENT_DOCS " parameter. Allowed values are: true, false");
+                request_set_error (client, "The " REQUEST_GET_ALL_DOCS_INCLUDE_DOCS " parameter can only be used on map only views.");
               else
                 request_set_error (client, "Invalid " REQUEST_GET_ALL_DOCS_INCLUDE_DOCS " parameter. Allowed values are: true, false");
 
@@ -3414,10 +3405,7 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
 
           if (view->reduce == NULL)
             {
-      	       if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_PARENT_DOCS))
-                include_parent_docs = (!g_strcmp0 (kv->value,"false") || !g_strcmp0 (kv->value,"FALSE")) ? FALSE : TRUE;
-	       else
-                include_docs = (!g_strcmp0 (kv->value,"false") || !g_strcmp0 (kv->value,"FALSE")) ? FALSE : TRUE;
+              include_docs = (!g_strcmp0 (kv->value,"false") || !g_strcmp0 (kv->value,"FALSE")) ? FALSE : TRUE;
             }
         }
 
@@ -3502,115 +3490,7 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
         }
     }
 
-  if (include_parent_docs == TRUE)
-    {
-      gchar * parent_of_parent_name = NULL;
-      gboolean parent_of_parent_is_db = FALSE;
-      gboolean parent_of_parent_is_linkb = FALSE;
-      DupinLinkB * parent_linkb = NULL;
-      DupinView *  parent_view = NULL;
-
-      if (dupin_view_get_parent_is_linkb (view) == TRUE)
-        {
-          if (!(parent_linkb = dupin_linkbase_open (view->d, view->parent, NULL)))
-            {
-	      if (startkey != NULL)
-                g_free (startkey);
-
-              if (endkey != NULL)
-                g_free (endkey);
-
-              dupin_view_unref (view);
-              request_set_error (client, "Cannot connect to parent linkbase");
-              return HTTP_STATUS_404;
-            }
-
-          parent_of_parent_name = (gchar *)dupin_linkbase_get_parent (parent_linkb);
-
-          dupin_linkbase_unref (parent_linkb);
-
-          if (!(docs_db = dupin_database_open (view->d, parent_of_parent_name, NULL)))
-            {
-	      if (startkey != NULL)
-                g_free (startkey);
-
-              if (endkey != NULL)
-                g_free (endkey);
-
-              dupin_view_unref (view);
-              request_set_error (client, "Cannot connect to linkbase parent database to fetch linked documents");
-              return HTTP_STATUS_404;
-            }
-        }
-      else if (dupin_view_get_parent_is_db (view) == FALSE)
-        {
-          if (!(parent_view = dupin_view_open (view->d, view->parent, NULL)))
-            {
-	      if (startkey != NULL)
-                g_free (startkey);
-
-              if (endkey != NULL)
-                g_free (endkey);
-
-              dupin_view_unref (view);
-              request_set_error (client, "Cannot connect to parent view");
-    	      return HTTP_STATUS_404;
-            }
-
-          parent_of_parent_name = (gchar *)dupin_view_get_parent (parent_view);
-	  parent_of_parent_is_db = dupin_view_get_parent_is_db (parent_view);
-	  parent_of_parent_is_linkb = dupin_view_get_parent_is_linkb (parent_view);
-
-          dupin_view_unref (parent_view);
-
-          if (parent_of_parent_is_db == TRUE)
-            {
-              if (!(docs_db = dupin_database_open (view->d, parent_of_parent_name, NULL)))
-                {
-		  if (startkey != NULL)
-                    g_free (startkey);
-
-                  if (endkey != NULL)
-                    g_free (endkey);
-
-                  dupin_view_unref (view);
-                  request_set_error (client, "Cannot connect to parent of parent database to fetch linked documents");
-                  return HTTP_STATUS_404;
-                }
-            }
-          else if (parent_of_parent_is_linkb == TRUE)
-            {
-              if (!(docs_linkb = dupin_linkbase_open (view->d, parent_of_parent_name, NULL)))
-                {
-	 	  if (startkey != NULL)
-                    g_free (startkey);
-
-                  if (endkey != NULL)
-                    g_free (endkey);
-
-                  dupin_view_unref (view);
-                  request_set_error (client, "Cannot connect to parent of parent linkbase to fetch linked documents");
-                  return HTTP_STATUS_404;
-                }
-            }
-          else
-            {
-              if (!(docs_view = dupin_view_open (view->d, parent_of_parent_name, NULL)))
-                {
-		  if (startkey != NULL)
-                    g_free (startkey);
-
-                  if (endkey != NULL)
-                    g_free (endkey);
-
-                  dupin_view_unref (view);
-                  request_set_error (client, "Cannot connect to parent of parent view to fetch linked documents");
-    	          return HTTP_STATUS_404;
-                }
-            }
-        }
-    }
-  else if (include_docs == TRUE)
+  if (include_docs == TRUE)
     {
       if (dupin_view_get_parent_is_db (view) == TRUE)
         {
@@ -3631,7 +3511,7 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
         {
           if (!(docs_linkb = dupin_linkbase_open (view->d, view->parent, NULL)))
             {
-	      if (startkey != NULL)
+             if (startkey != NULL)
                 g_free (startkey);
 
               if (endkey != NULL)
@@ -3764,8 +3644,9 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
 	  goto request_global_get_all_docs_view_error;
         }
 
-      if (include_docs == TRUE
-          || include_parent_docs == TRUE)
+      /* TODO - need to make sure two includes are done if DP_LINKBASE_INCLUDE_DOC_TYPE_ALL is used */
+
+      if (include_docs == TRUE)
         {
           gchar * record_id;
 	  JsonNode * doc = NULL;
@@ -6604,8 +6485,7 @@ request_record_revision_obj (DSHttpdClient * client,
   json_object_set_string_member (obj, REQUEST_OBJ_REV, mvcc);
 
   /* Setting links and relationships if requested */
-  if (visit_links == TRUE
-      || arguments != NULL)
+  if (visit_links == TRUE)
     {
       DupinLinkB * linkb=NULL;
 
@@ -6725,7 +6605,7 @@ request_record_revision_obj (DSHttpdClient * client,
 								 link_record,
 								 (gchar *) dupin_link_record_get_id (link_record),
 								 dupin_link_record_get_last_revision (link_record),
-								 FALSE)))
+								 TRUE)))
         	    {
 		      // just log the error and reason into JSON
         	    }
@@ -6796,7 +6676,7 @@ request_record_revision_obj (DSHttpdClient * client,
 								 link_record,
 								 (gchar *) dupin_link_record_get_id (link_record),
 								 dupin_link_record_get_last_revision (link_record),
-								 FALSE)))
+								 TRUE)))
         	    {
 		      // just log the error and reason into JSON
         	    }
@@ -6887,6 +6767,7 @@ request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
 
       obj = json_node_get_object (obj_node);
 
+      json_object_set_string_member (obj, RESPONSE_LINK_OBJ_CONTEXT_ID, dupin_link_record_get_context_id (record));
       json_object_set_string_member (obj, RESPONSE_LINK_OBJ_LABEL, dupin_link_record_get_label (record));
       json_object_set_string_member (obj, RESPONSE_LINK_OBJ_HREF, dupin_link_record_get_href (record));
 
@@ -6908,45 +6789,54 @@ request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
   /* Include any docs if requested */
 
   if (visit_docs == TRUE
-      && dupin_link_record_is_weblink (record) == FALSE
-      && dupin_link_record_is_reflexive (record) == FALSE
       && arguments != NULL)
     {
       GList * list = NULL;
-      gboolean include_docs = FALSE;
+
+      DupinLinkbaseIncludeDocsType include_linked_docs = DP_LINKBASE_INCLUDE_DOC_TYPE_NONE;
 
       for (list = arguments; list; list = list->next)
         {
 	  dupin_keyvalue_t *kv = list->data;
 
-          if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_DOCS))
+          if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_INCLUDE_LINKED_DOCS))
             {
-              if (g_strcmp0 (kv->value,"false") && g_strcmp0 (kv->value,"FALSE") &&
-                  g_strcmp0 (kv->value,"true") && g_strcmp0 (kv->value,"TRUE"))
+              if (g_strcmp0 (kv->value, REQUEST_GET_ALL_LINKS_INCLUDE_LINKED_DOCS_IN)
+                   && g_strcmp0 (kv->value, REQUEST_GET_ALL_LINKS_INCLUDE_LINKED_DOCS_OUT)
+                   && g_strcmp0 (kv->value, REQUEST_GET_ALL_LINKS_INCLUDE_LINKED_DOCS_ALL))
                 {
-	          if (obj_node != NULL)
+		  if (obj_node != NULL)
                     json_node_free (obj_node);
 
-                  request_set_error (client, "Invalid " REQUEST_GET_ALL_DOCS_INCLUDE_DOCS " parameter. Allowed values are: true, false");
+                  request_set_error (client, "Invalid " REQUEST_GET_ALL_LINKS_INCLUDE_LINKED_DOCS " parameter. Allowed values are: " REQUEST_GET_ALL_LINKS_INCLUDE_LINKED_DOCS_IN ", " REQUEST_GET_ALL_LINKS_INCLUDE_LINKED_DOCS_OUT " or " REQUEST_GET_ALL_LINKS_INCLUDE_LINKED_DOCS_ALL ".");
 
                   /* TODO - pass the ret code here as well ? */
                   return NULL;
                 }
 
-              include_docs = (!g_strcmp0 (kv->value,"false") || !g_strcmp0 (kv->value,"FALSE")) ? FALSE : TRUE;
+              if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_LINKS_INCLUDE_LINKED_DOCS_IN))
+                include_linked_docs = DP_LINKBASE_INCLUDE_DOC_TYPE_IN;
+              else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_LINKS_INCLUDE_LINKED_DOCS_OUT))
+                include_linked_docs = DP_LINKBASE_INCLUDE_DOC_TYPE_OUT;
+              else
+                include_linked_docs = DP_LINKBASE_INCLUDE_DOC_TYPE_ALL;
             }
         }
 
-    if (include_docs == TRUE)
+    if (include_linked_docs != DP_LINKBASE_INCLUDE_DOC_TYPE_NONE)
       {
         DupinDB * parent_db=NULL;
         DupinLinkB * parent_linkb=NULL;
-        gboolean document_exists = TRUE;
-        gboolean document_deleted = FALSE;
-        JsonNode * node = NULL;
+        gboolean document_in_exists = TRUE;
+        gboolean document_in_deleted = FALSE;
+        gboolean document_out_exists = TRUE;
+        gboolean document_out_deleted = FALSE;
+        JsonNode * node_in = NULL;
+        JsonNode * node_out = NULL;
         gchar * href = (gchar *)dupin_link_record_get_href (record);
+        gchar * context_id = (gchar *)dupin_link_record_get_context_id (record);
 
-//g_message("request_link_record_revision_obj: generating links for link record id=%s with mvcc=%s for context_id=%s href=%s\n", id, mvcc, (gchar *)dupin_link_record_get_context_id (record), href);
+//g_message("request_link_record_revision_obj: generating links for link record id=%s with mvcc=%s for context_id=%s href=%s\n", id, mvcc, context_id, href);
 
         if (dupin_linkbase_get_parent_is_db (record->linkb) == TRUE )
           {
@@ -6961,35 +6851,80 @@ request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
 	        return NULL;
 	      }
 
-            DupinRecord * doc_id_record = dupin_record_read (parent_db, href, NULL);
+            DupinRecord * doc_id_record = NULL;
 
-	    if (doc_id_record == NULL)
-	      document_exists = FALSE;
-            else
+            if (include_linked_docs == DP_LINKBASE_INCLUDE_DOC_TYPE_IN
+		|| include_linked_docs == DP_LINKBASE_INCLUDE_DOC_TYPE_ALL)
               {
-		if (dupin_record_is_deleted (doc_id_record, NULL) == FALSE)
+                doc_id_record = dupin_record_read (parent_db, context_id, NULL);
+
+	        if (doc_id_record == NULL)
+	          document_in_exists = FALSE;
+                else
                   {
-                    if (! (node = request_record_revision_obj (client,
+		    if (dupin_record_is_deleted (doc_id_record, NULL) == FALSE)
+                      {
+                        if (! (node_in = request_record_revision_obj (client,
+							   arguments,
+							   doc_id_record,
+							   context_id,
+							   (gchar *)dupin_record_get_last_revision (doc_id_record),
+							   FALSE)))
+                          {
+	                    if (obj_node != NULL)
+	                      json_node_free (obj_node);
+                            dupin_record_close (doc_id_record);
+                            dupin_database_unref (parent_db);
+                            request_set_error (client, "Cannot read ancestor record from parent database");
+	                    /* TODO - pass the ret code here as well ? */
+	                    return NULL;
+                          }
+                      }
+                    else
+                      document_in_deleted = TRUE;
+
+                    dupin_record_close (doc_id_record);
+                  }
+	      }
+
+            if (dupin_link_record_is_weblink (record) == FALSE
+                && dupin_link_record_is_reflexive (record) == FALSE
+		&& (include_linked_docs == DP_LINKBASE_INCLUDE_DOC_TYPE_OUT
+		    || include_linked_docs == DP_LINKBASE_INCLUDE_DOC_TYPE_ALL))
+              {
+		doc_id_record = NULL;
+                doc_id_record = dupin_record_read (parent_db, href, NULL);
+
+	        if (doc_id_record == NULL)
+	          document_out_exists = FALSE;
+                else
+                  {
+		    if (dupin_record_is_deleted (doc_id_record, NULL) == FALSE)
+                      {
+                        if (! (node_out = request_record_revision_obj (client,
 							   arguments,
 							   doc_id_record,
 							   href,
 							   (gchar *)dupin_record_get_last_revision (doc_id_record),
 							   FALSE)))
-                      {
-	                if (obj_node != NULL)
-	                  json_node_free (obj_node);
-                        dupin_record_close (doc_id_record);
-                        dupin_database_unref (parent_db);
-                        request_set_error (client, "Cannot read record from parent database");
-	                /* TODO - pass the ret code here as well ? */
-	                return NULL;
+                          {
+	                    if (obj_node != NULL)
+	                      json_node_free (obj_node);
+	                    if (node_in != NULL)
+	                      json_node_free (node_in);
+                            dupin_record_close (doc_id_record);
+                            dupin_database_unref (parent_db);
+                            request_set_error (client, "Cannot read child record from parent database");
+	                    /* TODO - pass the ret code here as well ? */
+	                    return NULL;
+                          }
                       }
-                  }
-                else
-                  document_deleted = TRUE;
+                    else
+                      document_out_deleted = TRUE;
 
-                dupin_record_close (doc_id_record);
-              }
+                    dupin_record_close (doc_id_record);
+                  }
+	      }
 
             dupin_database_unref (parent_db);
           }
@@ -7006,57 +6941,119 @@ request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
 	        return NULL;
               }
 
-            DupinLinkRecord * link_id_record = dupin_link_record_read (parent_linkb, href, NULL);
+            DupinLinkRecord * link_id_record = NULL;
 
-	    if (link_id_record == NULL)
-	      document_exists = FALSE;
-            else
+            if (include_linked_docs == DP_LINKBASE_INCLUDE_DOC_TYPE_IN
+		|| include_linked_docs == DP_LINKBASE_INCLUDE_DOC_TYPE_ALL)
               {
-                if (dupin_link_record_is_deleted (link_id_record, NULL) == FALSE)
+                link_id_record = dupin_link_record_read (parent_linkb, context_id, NULL);
+
+	        if (link_id_record == NULL)
+	          document_in_exists = FALSE;
+                else
                   {
-                    if (! (node = request_link_record_revision_obj (client,
+                    if (dupin_link_record_is_deleted (link_id_record, NULL) == FALSE)
+                      {
+                        if (! (node_in = request_link_record_revision_obj (client,
+							   arguments,
+							   link_id_record,
+							   context_id,
+							   (gchar *)dupin_link_record_get_last_revision (link_id_record),
+							   FALSE)))
+                          {
+	                    if (obj_node != NULL)
+	                      json_node_free (obj_node);
+                            dupin_link_record_close (link_id_record);
+                            dupin_linkbase_unref (parent_linkb);
+                            request_set_error (client, "Cannot read record from parent linkbase");
+	                    /* TODO - pass the ret code here as well ? */
+	                    return NULL;
+                          }
+                      }
+                    else
+                      document_in_deleted = TRUE;
+
+                    dupin_link_record_close (link_id_record);
+                  }
+              }
+
+            if (dupin_link_record_is_weblink (record) == FALSE
+                && dupin_link_record_is_reflexive (record) == FALSE
+		&& (include_linked_docs == DP_LINKBASE_INCLUDE_DOC_TYPE_OUT
+		    || include_linked_docs == DP_LINKBASE_INCLUDE_DOC_TYPE_ALL))
+              {
+		link_id_record = NULL;
+                link_id_record = dupin_link_record_read (parent_linkb, href, NULL);
+
+	        if (link_id_record == NULL)
+	          document_out_exists = FALSE;
+                else
+                  {
+                    if (dupin_link_record_is_deleted (link_id_record, NULL) == FALSE)
+                      {
+                        if (! (node_out = request_link_record_revision_obj (client,
 							   arguments,
 							   link_id_record,
 							   href,
 							   (gchar *)dupin_link_record_get_last_revision (link_id_record),
 							   FALSE)))
-                      {
-	                if (obj_node != NULL)
-	                  json_node_free (obj_node);
-                        dupin_link_record_close (link_id_record);
-                        dupin_linkbase_unref (parent_linkb);
-                        request_set_error (client, "Cannot read record from parent linkbase");
-	                /* TODO - pass the ret code here as well ? */
-	                return NULL;
+                          {
+	                    if (obj_node != NULL)
+	                      json_node_free (obj_node);
+	                    if (node_in != NULL)
+	                      json_node_free (node_in);
+                            dupin_link_record_close (link_id_record);
+                            dupin_linkbase_unref (parent_linkb);
+                            request_set_error (client, "Cannot read record from parent linkbase");
+	                    /* TODO - pass the ret code here as well ? */
+	                    return NULL;
+                          }
                       }
-                  }
-                else
-                  document_deleted = TRUE;
+                    else
+                      document_out_deleted = TRUE;
 
-                dupin_link_record_close (link_id_record);
-              }
+                    dupin_link_record_close (link_id_record);
+                  }
+	      }
 
             dupin_linkbase_unref (parent_linkb);
           }
 
-        if (document_deleted == TRUE )
+        if (document_in_deleted == TRUE )
           {
-            node = json_node_new (JSON_NODE_OBJECT);
+            node_in = json_node_new (JSON_NODE_OBJECT);
             JsonObject * doc_obj = json_object_new ();
-            json_node_take_object (node, doc_obj);
+            json_node_take_object (node_in, doc_obj);
             json_object_set_boolean_member (doc_obj, RESPONSE_OBJ_DELETED, TRUE);
           }
-        else if (document_exists == FALSE )
+        else if (document_in_exists == FALSE )
           {
-            node = json_node_new (JSON_NODE_OBJECT);
+            node_in = json_node_new (JSON_NODE_OBJECT);
             JsonObject * doc_obj = json_object_new ();
-            json_node_take_object (node, doc_obj);
+            json_node_take_object (node_in, doc_obj);
             json_object_set_boolean_member (doc_obj, RESPONSE_OBJ_EMPTY, TRUE);
           }
 
-        if (node != NULL)
-          json_object_set_member (obj, RESPONSE_LINK_OBJ_DOC, node);
+        if (document_out_deleted == TRUE )
+          {
+            node_out = json_node_new (JSON_NODE_OBJECT);
+            JsonObject * doc_obj = json_object_new ();
+            json_node_take_object (node_out, doc_obj);
+            json_object_set_boolean_member (doc_obj, RESPONSE_OBJ_DELETED, TRUE);
+          }
+        else if (document_out_exists == FALSE )
+          {
+            node_out = json_node_new (JSON_NODE_OBJECT);
+            JsonObject * doc_obj = json_object_new ();
+            json_node_take_object (node_out, doc_obj);
+            json_object_set_boolean_member (doc_obj, RESPONSE_OBJ_EMPTY, TRUE);
+          }
 
+        if (node_in != NULL)
+          json_object_set_member (obj, RESPONSE_LINK_OBJ_DOC_IN, node_in);
+
+        if (node_out != NULL)
+          json_object_set_member (obj, RESPONSE_LINK_OBJ_DOC_OUT, node_out);
       }
     }
 

@@ -32,7 +32,10 @@
 
 #define DUPIN_LINKB_SQL_CREATE_INDEX \
   "CREATE INDEX IF NOT EXISTS DupinId ON Dupin (id);" \
+  "CREATE INDEX IF NOT EXISTS DupinIdsPath ON Dupin (idspath);" \
+  "CREATE INDEX IF NOT EXISTS DupinLabelsPath ON Dupin (labelspath);" \
   "CREATE INDEX IF NOT EXISTS DupinContextId ON Dupin (context_id);" \
+  "CREATE INDEX IF NOT EXISTS DupinHref ON Dupin (href);" \
   "CREATE INDEX IF NOT EXISTS DupinHrefDeletedContextIdTag ON Dupin (href,deleted,tag);"
 
 #define DUPIN_LINKB_SQL_DESC_CREATE \

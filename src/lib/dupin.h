@@ -33,6 +33,15 @@ typedef enum
   DP_LINK_TYPE_RELATIONSHIP
 } DupinLinksType;
 
+/* Linkbase Include Docs type: */
+typedef enum
+{
+  DP_LINKBASE_INCLUDE_DOC_TYPE_NONE,
+  DP_LINKBASE_INCLUDE_DOC_TYPE_ALL,
+  DP_LINKBASE_INCLUDE_DOC_TYPE_IN,
+  DP_LINKBASE_INCLUDE_DOC_TYPE_OUT
+} DupinLinkbaseIncludeDocsType;
+
 /* Changes type: */
 typedef enum
 {
@@ -125,15 +134,17 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 
 #define RESPONSE_LINK_OBJ_ID            RESPONSE_OBJ_ID
 #define RESPONSE_LINK_OBJ_REV           RESPONSE_OBJ_REV
-#define RESPONSE_LINK_OBJ_HREF          "href"
-#define RESPONSE_LINK_OBJ_REL           "rel"
-#define RESPONSE_LINK_OBJ_TAG           "tag"
+#define RESPONSE_LINK_OBJ_HREF          REQUEST_LINK_OBJ_HREF
+#define RESPONSE_LINK_OBJ_REL           REQUEST_LINK_OBJ_REL
+#define RESPONSE_LINK_OBJ_TAG           REQUEST_LINK_OBJ_TAG
 #define RESPONSE_LINK_OBJ_LABEL         REQUEST_LINK_OBJ_LABEL
-#define RESPONSE_LINK_OBJ_DOC           RESPONSE_OBJ_DOC
+#define RESPONSE_LINK_OBJ_CONTEXT_ID    "_context_id"
+#define RESPONSE_LINK_OBJ_DOC_IN        "doc_in"
+#define RESPONSE_LINK_OBJ_DOC_OUT       "doc_out"
 #define RESPONSE_LINK_OBJ_LINK          "link"
 #define RESPONSE_LINK_OBJ_EMPTY         RESPONSE_OBJ_EMPTY
 
-#define RESPONSE_VIEW_OBJ_DOC           RESPONSE_LINK_OBJ_DOC
+#define RESPONSE_VIEW_OBJ_DOC           RESPONSE_OBJ_DOC
 
 #define REQUEST_STRICT                  "strict"
 #define REQUEST_STRICT_LINKS            "links"
@@ -173,7 +184,6 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 #define REQUEST_GET_ALL_DOCS_ENDKEY               "endkey"
 #define REQUEST_GET_ALL_DOCS_INCLUSIVEEND         "inclusive_end"
 #define REQUEST_GET_ALL_DOCS_INCLUDE_DOCS         "include_docs"
-#define REQUEST_GET_ALL_DOCS_INCLUDE_PARENT_DOCS  "include_parent_docs"
 
 #define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TYPE                 "include_links"
 #define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TYPE_ALL_LINKS       REQUEST_GET_ALL_LINKS_LINK_TYPE_ALL_LINKS
@@ -201,6 +211,11 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 #define REQUEST_GET_ALL_LINKS_LABELSPATH_STARTKEY  	"labelspath_startkey"
 #define REQUEST_GET_ALL_LINKS_LABELSPATH_ENDKEY         "labelspath_endkey"
 #define REQUEST_GET_ALL_LINKS_LABELSPATH_INCLUSIVEEND   "labelspath_inclusive_end"
+
+#define REQUEST_GET_ALL_LINKS_INCLUDE_LINKED_DOCS	"include_linked_docs"
+#define REQUEST_GET_ALL_LINKS_INCLUDE_LINKED_DOCS_IN	"in"
+#define REQUEST_GET_ALL_LINKS_INCLUDE_LINKED_DOCS_OUT	"out"
+#define REQUEST_GET_ALL_LINKS_INCLUDE_LINKED_DOCS_ALL	"all"
 
 #define REQUEST_GET_ALL_LINKS_LINKBASE                  "linkbase"
 

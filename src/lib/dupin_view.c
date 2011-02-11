@@ -1146,7 +1146,16 @@ dupin_view_sync_thread_map_db (DupinView * view, gsize count)
           JsonObject * obj = json_node_get_object (obj_node);
           json_object_set_string_member (obj, "_id", (gchar *) dupin_record_get_id (list->data));
           json_object_set_string_member (obj, "_rev", dupin_record_get_last_revision (list->data));
+
+	  if (json_object_has_member (obj, "_created") == TRUE)
+            json_object_remove_member (obj, "_created"); // ignore any record one if set by user, ever
           json_object_set_int_member (obj, "_created", dupin_record_get_created (list->data));
+
+	  /* NOTE - needed for m/r dupin.docpath() and dupin.links() methods - see dupin_js.c */
+
+          if (json_object_has_member (obj, "_linkbase") == TRUE)
+            json_object_remove_member (obj, "_linkbase"); // ignore any record one if set by user, ever
+          json_object_set_string_member (obj, "_linkbase", dupin_database_get_default_linkbase_name (db));
 
           data->obj = json_node_copy (obj_node);
         }
@@ -1252,8 +1261,7 @@ dupin_view_sync_thread_map_linkb (DupinView * view, gsize count)
 
   gsize start_rowid = (sync_map_id != NULL) ? atoi(sync_map_id)+1 : 1;
 
-  if (dupin_link_record_get_list (linkb, count, 0, start_rowid, 0, DP_LINK_TYPE_ANY, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE, NULL, NULL, NULL,
-				  NULL, NULL, FALSE, NULL, NULL, FALSE, &results, NULL) ==
+  if (dupin_link_record_get_list (linkb, count, 0, start_rowid, 0, DP_LINK_TYPE_ANY, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE, NULL, NULL, NULL, NULL, &results, NULL) ==
       FALSE || !results)
     {
       if (sync_map_id != NULL)
@@ -1282,22 +1290,51 @@ dupin_view_sync_thread_map_linkb (DupinView * view, gsize count)
           JsonObject * obj = json_node_get_object (obj_node);
           json_object_set_string_member (obj, "_id", (gchar *) dupin_link_record_get_id (list->data));
           json_object_set_string_member (obj, "_rev", dupin_link_record_get_last_revision (list->data));
+
+          if (json_object_has_member (obj, "_created") == TRUE)
+            json_object_remove_member (obj, "_created"); // ignore any record one if set by user, ever
           json_object_set_int_member (obj, "_created", dupin_link_record_get_created (list->data));
 
+	  if (json_object_has_member (obj, "_context_id") == TRUE)
+            json_object_remove_member (obj, "_context_id"); // ignore any record one if set by user, ever
           json_object_set_string_member (obj, "_context_id", (gchar *)dupin_link_record_get_context_id (list->data));
+
+	  if (json_object_has_member (obj, "_href") == TRUE)
+            json_object_remove_member (obj, "_href"); // ignore any record one if set by user, ever
           json_object_set_string_member (obj, "_href", (gchar *)dupin_link_record_get_href (list->data));
+
+	  if (json_object_has_member (obj, "_label") == TRUE)
+            json_object_remove_member (obj, "_label"); // ignore any record one if set by user, ever
           json_object_set_string_member (obj, "_label", (gchar *)dupin_link_record_get_label (list->data));
+
+	  if (json_object_has_member (obj, "_rel") == TRUE)
+            json_object_remove_member (obj, "_rel"); // ignore any record one if set by user, ever
           json_object_set_string_member (obj, "_rel", (gchar *)dupin_link_record_get_rel (list->data));
+
+	  if (json_object_has_member (obj, "_tag") == TRUE)
+            json_object_remove_member (obj, "_tag"); // ignore any record one if set by user, ever
           json_object_set_string_member (obj, "_tag", (gchar *)dupin_link_record_get_tag (list->data));
+
+	  if (json_object_has_member (obj, "_is_weblink") == TRUE)
+            json_object_remove_member (obj, "_is_weblink"); // ignore any record one if set by user, ever
           json_object_set_boolean_member (obj, "_is_weblink", dupin_link_record_is_weblink (list->data));
 
           /* special path ones */
           JsonNode * ids_path = dupin_link_record_get_revision_idspath_node (list->data, NULL);
           if (ids_path != NULL)
-            json_object_set_member (obj, "_idspath", json_node_copy (ids_path));
+            {
+	      if (json_object_has_member (obj, "_idspath") == TRUE)
+                json_object_remove_member (obj, "_idspath"); // ignore any record one if set by user, ever
+              json_object_set_member (obj, "_idspath", json_node_copy (ids_path));
+	    }
+
           JsonNode * labels_path = dupin_link_record_get_revision_labelspath_node (list->data, NULL);
           if (labels_path != NULL)
-            json_object_set_member (obj, "_labelspath", json_node_copy (labels_path));
+            {
+	      if (json_object_has_member (obj, "_labelspath") == TRUE)
+                json_object_remove_member (obj, "_labelspath"); // ignore any record one if set by user, ever
+              json_object_set_member (obj, "_labelspath", json_node_copy (labels_path));
+            }
 
           data->obj = json_node_copy (obj_node);
         }

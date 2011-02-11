@@ -25,15 +25,13 @@
   "  rel         TEXT DEFAULT NULL,\n" \
   "  is_weblink  BOOL DEFAULT FALSE,\n" \
   "  tag         TEXT DEFAULT NULL,\n" \
-  "  idspath     TEXT NOT NULL COLLATE dupincmp,\n" \
-  "  labelspath  TEXT NOT NULL COLLATE dupincmp,\n" \
+  "  idspath     TEXT NOT NULL,\n" \
+  "  labelspath  TEXT NOT NULL,\n" \
   "  PRIMARY     KEY(id, rev, hash)\n" \
   ");"
 
 #define DUPIN_LINKB_SQL_CREATE_INDEX \
   "CREATE INDEX IF NOT EXISTS DupinId ON Dupin (id);" \
-  "CREATE INDEX IF NOT EXISTS DupinIdsPath ON Dupin (idspath);" \
-  "CREATE INDEX IF NOT EXISTS DupinLabelsPath ON Dupin (labelspath);" \
   "CREATE INDEX IF NOT EXISTS DupinContextId ON Dupin (context_id);" \
   "CREATE INDEX IF NOT EXISTS DupinHref ON Dupin (href);" \
   "CREATE INDEX IF NOT EXISTS DupinHrefDeletedContextIdTag ON Dupin (href,deleted,tag);"
@@ -556,17 +554,6 @@ dupin_linkb_create (Dupin * d, gchar * name, gchar * path, GError ** error)
     {
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
 		   "Linkbase error.");
-      dupin_linkb_free (linkb);
-      return NULL;
-    }
-
-  /* NOTE - set simple collation functions for path columns - see http://wiki.apache.org/couchdb/How_to_store_hierarchical_data */
-
-  if (sqlite3_create_collation (linkb->db, "dupincmp", SQLITE_UTF8,  linkb, dupin_view_collation) != SQLITE_OK)
-    {
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
-		   errmsg);
-      sqlite3_free (errmsg);
       dupin_linkb_free (linkb);
       return NULL;
     }
@@ -1125,7 +1112,7 @@ dupin_linkbase_thread_compact (DupinLinkB * linkb, gsize count)
   gsize start_rowid = (compact_id != NULL) ? atoi(compact_id)+1 : 1;
 
   if (dupin_link_record_get_list (linkb, count, 0, start_rowid, 0, DP_LINK_TYPE_ANY, DP_COUNT_ALL, DP_ORDERBY_ROWID, FALSE,
-				  NULL, NULL, NULL, NULL, NULL, FALSE, NULL, NULL, FALSE, &results, NULL) ==
+				  NULL, NULL, NULL, NULL, &results, NULL) ==
       FALSE || !results)
     {
       if (compact_id != NULL)
@@ -1382,7 +1369,7 @@ dupin_linkbase_thread_check (DupinLinkB * linkb, gsize count)
   gsize start_rowid = (check_id != NULL) ? atoi(check_id)+1 : 1;
 
   if (dupin_link_record_get_list (linkb, count, 0, start_rowid, 0, DP_LINK_TYPE_ANY, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE,
-				  NULL, NULL, NULL, NULL, NULL, FALSE, NULL, NULL, FALSE, &results, NULL) ==
+				  NULL, NULL, NULL, NULL, &results, NULL) ==
       FALSE || !results)
     {
       if (check_id != NULL)

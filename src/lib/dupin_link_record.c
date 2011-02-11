@@ -674,21 +674,14 @@ dupin_link_record_get_list_total (DupinLinkB * linkb,
                                   DupinCountType count_type,
                                   gchar * context_id,
                                   gchar ** labels,
-                                  gchar * tag,
-				  gchar * idspath_start_key,
-                                  gchar * idspath_end_key,
-                                  gboolean idspath_inclusive_end,
-                                  gchar * labelspath_start_key,
-                                  gchar * labelspath_end_key,
-                                  gboolean labelspath_inclusive_end)
+                                  gchar * href,
+                                  gchar * tag)
 {
   struct dupin_link_record_get_list_total_t count;
   GString * str;
   gchar *query;
   gchar *check_linktype="";
   gint i=0;
-  gchar * idspath_key_range=NULL;
-  gchar * labelspath_key_range=NULL;
 
   g_return_val_if_fail (linkb != NULL, 0);
 
@@ -711,66 +704,10 @@ dupin_link_record_get_list_total (DupinLinkB * linkb,
   else if (links_type == DP_LINK_TYPE_RELATIONSHIP)
     check_linktype = " d.is_weblink = 'FALSE' ";
 
-  if (idspath_start_key!=NULL && idspath_end_key!=NULL)
-    if (!g_utf8_collate (idspath_start_key, idspath_end_key) && idspath_inclusive_end == TRUE)
-      idspath_key_range = sqlite3_mprintf (" d.idspath = '%q' ", idspath_start_key);
-    else if (idspath_inclusive_end == TRUE)
-      idspath_key_range = sqlite3_mprintf (" d.idspath >= '%q' AND d.idspath <= '%q' ", idspath_start_key, idspath_end_key);
-    else
-      idspath_key_range = sqlite3_mprintf (" d.idspath >= '%q' AND d.idspath < '%q' ", idspath_start_key, idspath_end_key);
-  else if (idspath_start_key!=NULL)
-    {
-      idspath_key_range = sqlite3_mprintf (" d.idspath >= '%q' ", idspath_start_key);
-    }
-  else if (idspath_end_key!=NULL)
-    {
-      if (idspath_inclusive_end == TRUE)
-        idspath_key_range = sqlite3_mprintf (" d.idspath <= '%q' ", idspath_end_key);
-      else
-        idspath_key_range = sqlite3_mprintf (" d.idspath < '%q' ", idspath_end_key);
-    }
-
-  if (labelspath_start_key!=NULL && labelspath_end_key!=NULL)
-    if (!g_utf8_collate (labelspath_start_key, labelspath_end_key) && labelspath_inclusive_end == TRUE)
-      labelspath_key_range = sqlite3_mprintf (" d.labelspath = '%q' ", labelspath_start_key);
-    else if (labelspath_inclusive_end == TRUE)
-      labelspath_key_range = sqlite3_mprintf (" d.labelspath >= '%q' AND d.labelspath <= '%q' ", labelspath_start_key, labelspath_end_key);
-    else
-      labelspath_key_range = sqlite3_mprintf (" d.labelspath >= '%q' AND d.labelspath < '%q' ", labelspath_start_key, labelspath_end_key);
-  else if (labelspath_start_key!=NULL)
-    {
-      labelspath_key_range = sqlite3_mprintf (" d.labelspath >= '%q' ", labelspath_start_key);
-    }
-  else if (labelspath_end_key!=NULL)
-    {
-      if (labelspath_inclusive_end == TRUE)
-        labelspath_key_range = sqlite3_mprintf (" d.labelspath <= '%q' ", labelspath_end_key);
-      else
-        labelspath_key_range = sqlite3_mprintf (" d.labelspath < '%q' ", labelspath_end_key);
-    }
-
   str = g_string_new ("SELECT deleted, max(rev) as rev FROM Dupin as d ");
 
   gchar * op = "";
 
-  if (idspath_key_range!=NULL)
-    {
-      if (!g_strcmp0 (op, ""))
-        op = "WHERE";
-
-      g_string_append_printf (str, " %s %s ", op, idspath_key_range);
-      op = "AND";
-    }
-  
-  if (labelspath_key_range!=NULL)
-    {
-      if (!g_strcmp0 (op, ""))
-        op = "WHERE";
-
-      g_string_append_printf (str, " %s %s ", op, labelspath_key_range);
-      op = "AND";
-    }
-  
   if (g_strcmp0 (check_linktype, ""))
     {
       if (!g_strcmp0 (op, ""))
@@ -818,6 +755,18 @@ dupin_link_record_get_list_total (DupinLinkB * linkb,
       op = "AND";
     }
 
+  if (href != NULL)
+    {
+      if (!g_strcmp0 (op, ""))
+        op = "WHERE";
+
+      gchar * tmp2 = sqlite3_mprintf (" %s d.href LIKE '%%\"%q\"%%' ", op, href);
+      str = g_string_append (str, tmp2);
+      sqlite3_free (tmp2);
+
+      op = "AND";
+    }
+
   if (tag != NULL)
     {
       if (!g_strcmp0 (op, ""))
@@ -827,12 +776,6 @@ dupin_link_record_get_list_total (DupinLinkB * linkb,
       str = g_string_append (str, tmp2);
       sqlite3_free (tmp2);
     }
-
-  if (idspath_key_range!=NULL)
-    sqlite3_free (idspath_key_range);
-
-  if (labelspath_key_range!=NULL)
-    sqlite3_free (labelspath_key_range);
 
   str = g_string_append (str, " GROUP BY id");
 
@@ -964,13 +907,8 @@ dupin_link_record_get_list (DupinLinkB * linkb, guint count, guint offset,
                             gboolean               descending,
                             gchar *                context_id,
                             gchar **               labels,
+                            gchar *                href,
                             gchar *                tag,
-		            gchar * 		   idspath_start_key,
-                            gchar *                idspath_end_key,
-                            gboolean               idspath_inclusive_end,
-                            gchar *                labelspath_start_key,
-                            gchar *                labelspath_end_key,
-                            gboolean               labelspath_inclusive_end,
 		            GList ** list, GError ** error)
 {
   GString *str;
@@ -979,8 +917,6 @@ dupin_link_record_get_list (DupinLinkB * linkb, guint count, guint offset,
   gchar *check_deleted="";
   gchar *check_linktype="";
   gint i=0;
-  gchar * idspath_key_range=NULL;
-  gchar * labelspath_key_range=NULL;
 
   struct dupin_link_record_get_list_t s;
 
@@ -1013,57 +949,7 @@ dupin_link_record_get_list (DupinLinkB * linkb, guint count, guint offset,
   else if (links_type == DP_LINK_TYPE_RELATIONSHIP)
     check_linktype = " d.is_weblink = 'FALSE' ";
 
-  if (idspath_start_key!=NULL && idspath_end_key!=NULL)
-    if (!g_utf8_collate (idspath_start_key, idspath_end_key) && idspath_inclusive_end == TRUE)
-      idspath_key_range = sqlite3_mprintf (" d.idspath = '%q' ", idspath_start_key);
-    else if (idspath_inclusive_end == TRUE)
-      idspath_key_range = sqlite3_mprintf (" d.idspath >= '%q' AND d.idspath <= '%q' ", idspath_start_key, idspath_end_key);
-    else
-      idspath_key_range = sqlite3_mprintf (" d.idspath >= '%q' AND d.idspath < '%q' ", idspath_start_key, idspath_end_key);
-  else if (idspath_start_key!=NULL)
-    {
-      idspath_key_range = sqlite3_mprintf (" d.idspath >= '%q' ", idspath_start_key);
-    }
-  else if (idspath_end_key!=NULL)
-    {
-      if (idspath_inclusive_end == TRUE)
-        idspath_key_range = sqlite3_mprintf (" d.idspath <= '%q' ", idspath_end_key);
-      else
-        idspath_key_range = sqlite3_mprintf (" d.idspath < '%q' ", idspath_end_key);
-    }
-
-  if (labelspath_start_key!=NULL && labelspath_end_key!=NULL)
-    if (!g_utf8_collate (labelspath_start_key, labelspath_end_key) && labelspath_inclusive_end == TRUE)
-      labelspath_key_range = sqlite3_mprintf (" d.labelspath = '%q' ", labelspath_start_key);
-    else if (labelspath_inclusive_end == TRUE)
-      labelspath_key_range = sqlite3_mprintf (" d.labelspath >= '%q' AND d.labelspath <= '%q' ", labelspath_start_key, labelspath_end_key);
-    else
-      labelspath_key_range = sqlite3_mprintf (" d.labelspath >= '%q' AND d.labelspath < '%q' ", labelspath_start_key, labelspath_end_key);
-  else if (labelspath_start_key!=NULL)
-    {
-      labelspath_key_range = sqlite3_mprintf (" d.labelspath >= '%q' ", labelspath_start_key);
-    }
-  else if (labelspath_end_key!=NULL)
-    {
-      if (labelspath_inclusive_end == TRUE)
-        labelspath_key_range = sqlite3_mprintf (" d.labelspath <= '%q' ", labelspath_end_key);
-      else
-        labelspath_key_range = sqlite3_mprintf (" d.labelspath < '%q' ", labelspath_end_key);
-    }
-
   gchar * op = "AND";
-
-  if (idspath_key_range!=NULL)
-    {
-      g_string_append_printf (str, " %s %s ", op, idspath_key_range);
-      op = "AND";
-    }
-  
-  if (labelspath_key_range!=NULL)
-    {
-      g_string_append_printf (str, " %s %s ", op, labelspath_key_range);
-      op = "AND";
-    }
 
   if (rowid_start > 0 && rowid_end > 0)
     {
@@ -1125,6 +1011,15 @@ dupin_link_record_get_list (DupinLinkB * linkb, guint count, guint offset,
       op = "AND";
     }
 
+  if (href != NULL)
+    {
+      gchar * tmp2 = sqlite3_mprintf (" %s d.href LIKE '%%\"%q\"%%' ", op, href);
+      str = g_string_append (str, tmp2);
+      sqlite3_free (tmp2);
+
+      op = "AND";
+    }
+
   if (tag != NULL)
     {
       gchar * tmp2 = sqlite3_mprintf (" %s d.tag = '%q' ", op, tag);
@@ -1157,12 +1052,6 @@ dupin_link_record_get_list (DupinLinkB * linkb, guint count, guint offset,
     }
 
   tmp = g_string_free (str, FALSE);
-
-  if (idspath_key_range!=NULL)
-    sqlite3_free (idspath_key_range);
-
-  if (labelspath_key_range!=NULL)
-    sqlite3_free (labelspath_key_range);
 
 //g_message("dupin_link_record_get_list: query=%s\n",tmp);
 
@@ -2478,6 +2367,15 @@ dupin_link_record_util_generate_paths_node (DupinLinkB * linkb,
       || idspath_node == NULL
       || labelspath_node == NULL)
     {
+      /*
+	NOTE - We will have multiple matching links for a given source_id I.e. multiple links can created with the same target - this it means that
+               We will have multiple possible paths to the same target node to choose from when selecting a "parent path" for a given new link.
+	       For simplicity and efficiency we chose to always select the latest not-deleted link wich has max(rowid) so it is possible to have
+	       sorted insertions (E.g. during a metadata dump load of a set of trees/forests) working correctly. Or if one need to have parallel
+	       hierarchies bearing to the same source_id, it can use the tag on the link to distinguish each link into the path.
+	       Tag is used purely for filtering the query results here.
+       */
+
       gchar *query;
       if (tag != NULL)
         //query = sqlite3_mprintf ("SELECT idspath, labelspath, id as link_record_id FROM Dupin WHERE rev = (select max(rev) as rev FROM Dupin WHERE id=link_record_id) AND deleted = 'FALSE' AND href = '%q' AND tag = %Q GROUP BY context_id", source_id, tag); //slowest
@@ -2659,7 +2557,7 @@ dupin_link_record_util_generate_paths_node (DupinLinkB * linkb,
 //g_message ("dupin_link_record_util_generate_paths_node: linkb->cache_idspath(%s) = %s\n", linkb->cache_last_context_id, (gchar *)g_hash_table_lookup (linkb->cache_idspath, linkb->cache_last_context_id));
 //g_message ("dupin_link_record_util_generate_paths_node: linkb->cache_labelspath(%s) = %s\n", linkb->cache_last_context_id, (gchar *)g_hash_table_lookup (linkb->cache_labelspath, linkb->cache_last_context_id));
 
-  /* NOTE - try to avoid disasters pre-parse source_id, target_id, label and tag to make sure JSON will be sane
+  /* NOTE - try to avoid disasters pre-parse source_id, target_id and label to make sure JSON will be sane
  	    even though note that the dupin_view_collation() and the dupin_util_get_collate_type do not use json-glib
 	    in any way. But here we might have the user posting nusty IDs */
 
@@ -2688,56 +2586,13 @@ dupin_link_record_util_generate_paths_node (DupinLinkB * linkb,
   target_id_node = json_node_new (JSON_NODE_VALUE);
   json_node_set_string (target_id_node, escaped_target_id);
 
-  JsonNode * tag_node = NULL;
-  if (tag != NULL)
-    {
-      /* NOTE - not yet used, but we might want the tag to be a JSON structure too so collation works nicely too */
-
-      if (json_parser_load_from_data (parser, tag, -1, NULL) == FALSE)
-        {
-          /* NOTE - OK we parse the tag as a string */
-          tag_node = json_node_new (JSON_NODE_VALUE);
-          gchar * escaped_tag = dupin_util_json_strescape (tag);
-          json_node_set_string (tag_node, escaped_tag);
-          g_free (escaped_tag);
-        }
-      else
-        {
-          tag_node = json_node_copy (json_parser_get_root (parser));
-        }
-
-      /* [ [EXISTING-SOURCE_ID-IDSPATH-with-TAG], [ TAG, SOURCE_ID ], [ TAG, TARGET_ID] ] */
-      JsonArray * target_id_array = json_array_new ();
-      json_array_add_element (target_id_array, tag_node);
-      json_array_add_element (target_id_array, target_id_node);
-
-      if (json_array_get_length (idspath_array) == 0)
-        {
-          JsonNode * source_id_array_node = json_node_new (JSON_NODE_ARRAY);
-          JsonArray * source_id_array = json_array_new ();
-          json_node_take_array (source_id_array_node, source_id_array);
-          json_array_add_element (source_id_array, json_node_copy (tag_node));
-          json_array_add_element (source_id_array, source_id_node);
-
-          json_array_add_element (idspath_array, source_id_array_node);
-        }
-      else
-        {
-          json_node_free (source_id_node);
-        }
-
-      json_array_add_array_element (idspath_array, target_id_array);
-    }
+  /* [ [EXISTING-SOURCE_ID-IDSPATH], SOURCE_ID, TARGET_ID ] */
+  if (json_array_get_length (idspath_array) == 0)
+    json_array_add_element (idspath_array, source_id_node);
   else
-    {
-      /* [ [EXISTING-SOURCE_ID-IDSPATH], SOURCE_ID, TARGET_ID ] */
-      if (json_array_get_length (idspath_array) == 0)
-        json_array_add_element (idspath_array, source_id_node);
-      else
-        json_node_free (source_id_node);
+    json_node_free (source_id_node);
 
-      json_array_add_element (idspath_array, target_id_node);
-    }
+  json_array_add_element (idspath_array, target_id_node);
 
   g_free (escaped_target_id);
   g_free (escaped_source_id);
@@ -2762,20 +2617,8 @@ dupin_link_record_util_generate_paths_node (DupinLinkB * linkb,
   label_node = json_node_new (JSON_NODE_VALUE);
   json_node_set_string (label_node, escaped_label);
 
-  if (tag_node != NULL)
-    {
-      /* [ [EXISTING-SOURCE_ID-LABELSPATH-with-TAG], [ TAG, LABEL ] ] */
-      JsonArray * label_array = json_array_new ();
-      json_array_add_element (label_array, json_node_copy (tag_node));
-      json_array_add_element (label_array, label_node);
-
-      json_array_add_array_element (labelspath_array, label_array);
-    }
-  else
-    {
-      /* [ [EXISTING-SOURCE_ID-LABELSPATH], SOURCE_ID, TARGET_ID ] */
-      json_array_add_element (labelspath_array, label_node);
-    }
+  /* [ [EXISTING-SOURCE_ID-LABELSPATH], SOURCE_ID, TARGET_ID ] */
+  json_array_add_element (labelspath_array, label_node);
 
   g_free (escaped_label);
 
@@ -2792,7 +2635,7 @@ dupin_link_record_util_generate_paths_node (DupinLinkB * linkb,
   json_array_add_element (paths_array, idspath_node);
   json_array_add_element (paths_array, labelspath_node);
 
-//DUPIN_UTIL_DUMP_JSON (paths);
+DUPIN_UTIL_DUMP_JSON (paths);
 
 //g_message(" ========= paths %s ======= \n\n", source_id);
 

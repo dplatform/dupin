@@ -145,13 +145,8 @@ gboolean	dupin_link_record_get_list
 					 gboolean		descending,
 					 gchar *                context_id,
 					 gchar **               labels,
+                                         gchar *                href,
                                          gchar *                tag,
-					 gchar *                idspath_start_key,
-                            		 gchar *                idspath_end_key,
-                            		 gboolean               idspath_inclusive_end,
-                            		 gchar *                labelspath_start_key,
-                            		 gchar *                labelspath_end_key,
-                            		 gboolean               labelspath_inclusive_end,
 					 GList **		list,
 					 GError **		error);
 
@@ -164,13 +159,8 @@ gsize           dupin_link_record_get_list_total
                                          DupinCountType 	count_type,
                                          gchar * 		context_id,
                                          gchar ** 		labels,
-                                         gchar * 		tag,
-					 gchar *                idspath_start_key,
-                            		 gchar *                idspath_end_key,
-                            		 gboolean               idspath_inclusive_end,
-                            		 gchar *                labelspath_start_key,
-                            		 gchar *                labelspath_end_key,
-                            		 gboolean               labelspath_inclusive_end);
+                                         gchar *                href,
+                                         gchar * 		tag);
 
 gboolean	dupin_link_record_update
 					(DupinLinkRecord *		record,

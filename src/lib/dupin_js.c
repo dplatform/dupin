@@ -8,6 +8,8 @@
 
 #include <string.h>
 
+#define DUPIN_JS_DEFAULT_PATH_TYPE "any"
+
 #define DUPIN_JS_FUNCTION_SUM "function sum(values) { var rv = 0; for (var i in values) { rv += values[i]; } return rv; };\n"
 
 static JSValueRef dupin_js_emit (JSContextRef ctx,
@@ -40,9 +42,27 @@ static JSValueRef dupin_js_dupin_class_view_lookup
 					    const JSValueRef arguments[],
 					    JSValueRef * exception);
 
+static JSValueRef dupin_js_dupin_class_docpath
+					   (JSContextRef ctx,
+					    JSObjectRef object,
+		   	       		    JSObjectRef thisObject,
+					    size_t argumentCount,
+		   	       		    const JSValueRef arguments[],
+		   	       		    JSValueRef * exception);
+
+static JSValueRef dupin_js_dupin_class_links
+					   (JSContextRef ctx,
+					    JSObjectRef object,
+		   	       		    JSObjectRef thisObject,
+					    size_t argumentCount,
+		   	       		    const JSValueRef arguments[],
+		   	       		    JSValueRef * exception);
+
 static JSStaticFunction dupin_js_dupin_class_static_functions[] = {
     { "log", dupin_js_dupin_class_log, kJSPropertyAttributeNone },
     { "view_lookup", dupin_js_dupin_class_view_lookup, kJSPropertyAttributeNone },
+    { "docpath", dupin_js_dupin_class_docpath, kJSPropertyAttributeNone },
+    { "links", dupin_js_dupin_class_links, kJSPropertyAttributeNone },
     { 0, 0, 0 }
 };
 
@@ -680,6 +700,7 @@ dupin_js_dupin_class_view_lookup(JSContextRef ctx,
   Dupin * d = (Dupin *) JSObjectGetPrivate(thisObject);
   DupinView *view=NULL;
   DupinDB *parent_db=NULL;
+  DupinLinkB *parent_linkb=NULL;
   DupinView *parent_view=NULL;
 
   GList *results;
@@ -717,7 +738,10 @@ dupin_js_dupin_class_view_lookup(JSContextRef ctx,
   JsonNode * key = NULL;
   dupin_js_value (ctx, arguments[1], &key);
   if (key == NULL)
-    return JSValueMakeNull(ctx);
+    {
+      g_free (view_name);
+      return JSValueMakeNull(ctx);
+    }
   lookupkey = dupin_util_json_serialize (key); 
 
   /* include_docs */
@@ -740,6 +764,17 @@ dupin_js_dupin_class_view_lookup(JSContextRef ctx,
       if (dupin_view_get_parent_is_db (view) == TRUE)
         {
           if (!(parent_db = dupin_database_open (view->d, view->parent, NULL)))
+            {
+              dupin_view_unref (view);
+              g_free (lookupkey);
+              g_free (view_name);
+              json_node_free (key);
+              return JSValueMakeNull(ctx);
+            }
+        }
+      else if (dupin_view_get_parent_is_linkb (view) == TRUE)
+        {
+          if (!(parent_linkb = dupin_linkbase_open (view->d, view->parent, NULL)))
             {
               dupin_view_unref (view);
               g_free (lookupkey);
@@ -806,6 +841,20 @@ dupin_js_dupin_class_view_lookup(JSContextRef ctx,
               dupin_record_close (db_record);
             }
         }
+      else if (dupin_view_get_parent_is_linkb (view) == TRUE)
+        {
+          DupinLinkRecord * linkb_record=NULL;
+          if (!(linkb_record = dupin_link_record_read (parent_linkb, record_id, NULL)))
+            {
+              doc = json_node_new (JSON_NODE_NULL);
+            }
+          else
+            {
+              doc = json_node_copy (dupin_link_record_get_revision_node (linkb_record, NULL));
+
+              dupin_link_record_close (linkb_record);
+            }
+        }
       else
         {
           DupinViewRecord * view_record=NULL;
@@ -849,6 +898,9 @@ dupin_js_dupin_class_view_lookup_error:
   if (parent_db != NULL)
     dupin_database_unref (parent_db);
 
+  if (parent_linkb != NULL)
+    dupin_linkbase_unref (parent_linkb);
+
   if (parent_view != NULL)
     dupin_view_unref (parent_view);
 
@@ -858,6 +910,162 @@ dupin_js_dupin_class_view_lookup_error:
   json_node_free (key);
 
   return result;
+}
+
+static JSValueRef
+dupin_js_dupin_class_docpath (JSContextRef ctx,
+                   	      JSObjectRef object,
+		   	      JSObjectRef thisObject, size_t argumentCount,
+		   	      const JSValueRef arguments[],
+		   	      JSValueRef * exception)
+{
+  JSValueRef result=NULL;
+
+  Dupin * d = (Dupin *) JSObjectGetPrivate(thisObject);
+  DupinLinkB *linkb=NULL;
+
+  GList *results;
+
+  gboolean descending = FALSE;
+  guint count = 1;
+  guint offset = 0;
+  gchar * startkey = NULL;
+  //gchar * endkey = NULL;
+
+  //DupinLinkRecord *record=NULL;
+  //JsonNode * docpath=NULL;
+
+  if (argumentCount != 3)
+    {
+      *exception = JSValueMakeNumber (ctx, 1);
+      return JSValueMakeNull(ctx);
+    }
+
+g_message("dupin_js_dupin_class_docpath: checking params...\n");
+
+  if (((!arguments[0]))
+      || (!JSValueIsString(ctx, arguments[1]))
+      || (!arguments[2])) // works for 'null' fine ?
+    return JSValueMakeNull(ctx);
+
+g_message("dupin_js_dupin_class_docpath: ok params...\n");
+
+  JsonNode * doc_node = NULL;
+  dupin_js_value (ctx, arguments[0], &doc_node);
+  if (doc_node == NULL
+      || json_node_get_node_type (doc_node) != JSON_NODE_OBJECT
+      || json_object_has_member (json_node_get_object (doc_node), "_linkbase") == FALSE)
+    {
+      if (doc_node != NULL) 
+        json_node_free (doc_node);
+
+      return JSValueMakeNull(ctx);
+    }
+
+  /* path_type - 'any' is the only supported value so far - we might have 'shortest' etc later on... */
+  JSStringRef string = JSValueToStringCopy (ctx, arguments[1], NULL);
+  gchar * str = dupin_js_string_utf8 (string);
+  if (g_strcmp0 (str, DUPIN_JS_DEFAULT_PATH_TYPE))
+    {
+      g_free (str);
+      if (doc_node != NULL) 
+        json_node_free (doc_node);
+
+      return JSValueMakeNull(ctx);
+    }
+  g_free (str);
+  JSStringRelease (string);
+  gchar * path_type = DUPIN_JS_DEFAULT_PATH_TYPE;
+
+  /* tag node */
+  JsonNode * tag_node = NULL;
+  dupin_js_value (ctx, arguments[2], &tag_node);
+  if (tag_node == NULL)
+    {
+      if (doc_node != NULL) 
+        json_node_free (doc_node);
+
+      return JSValueMakeNull(ctx);
+    }
+  gchar * tag = dupin_util_json_serialize (tag_node); 
+  if (tag_node != NULL) 
+    json_node_free (tag_node);
+
+g_message("dupin_js_dupin_class_docpath: doc:\n");
+DUPIN_UTIL_DUMP_JSON (doc_node);
+g_message("dupin_js_dupin_class_docpath: path_type=%s tag=%s\n", path_type, tag);
+
+  if (!
+      (linkb = dupin_linkbase_open (d, (gchar *)json_object_get_string_member (json_node_get_object (doc_node), "_linkbase"), NULL)))
+    {
+      g_free (tag);
+      json_node_free (doc_node);
+      return JSValueMakeNull(ctx);
+    }
+
+  /* FINISH - look up links into context ID - then return joined array of all idspaths + labelspaths as object of arrays... */
+
+  /* idspath_startkey = [ "doc._id" ]  idspath_endkey = [ "doc._id", null ] or if tag is defined
+     idspath_startkey = [ [ "tag" ], [ "doc._id" ] ] idspath_endkey = [ [ "tag" ], [ "doc._id", null ] ] */
+
+  GString * gs = g_string_new (NULL);
+  g_string_append_printf (gs, "[\"%s\"]", (gchar *)json_object_get_string_member (json_node_get_object (doc_node), "_id"));
+  gchar * gsc = g_string_free (gs, FALSE);
+  
+  startkey = dupin_util_json_string_normalize (gsc);
+  g_free (gsc);
+
+  if (startkey == NULL)
+    {
+      g_free (tag);
+      json_node_free (doc_node);
+      return JSValueMakeNull(ctx);
+    }
+
+  if (dupin_link_record_get_list (linkb, count, offset, 0, 0, DP_LINK_TYPE_RELATIONSHIP, DP_COUNT_EXIST, DP_ORDERBY_ROWID, descending,
+                                  NULL, NULL, NULL, tag, &results, NULL) == FALSE)
+    {
+      result = NULL;
+      goto dupin_js_dupin_class_docpath_error;
+    }
+
+  /* now match has the node we wanted */
+#if 0
+  gchar * match_json = dupin_util_json_serialize (match); 
+
+  gchar *b=NULL;
+  GString * buffer = g_string_new ("var result = ");
+  buffer = g_string_append (buffer, match_json);
+  buffer = g_string_append (buffer, "; result;");
+  b = g_string_free (buffer, FALSE);
+  string=JSStringCreateWithUTF8CString(b);
+  result = JSEvaluateScript (ctx, string, NULL, NULL, 1, NULL);
+  JSStringRelease(string);
+  g_free (b);
+  g_free (match_json);
+#endif
+
+dupin_js_dupin_class_docpath_error:
+
+  if( results )
+    dupin_view_record_get_list_close(results);
+
+  dupin_linkbase_unref (linkb);
+
+  g_free (tag);
+  json_node_free (doc_node);
+
+  return result;
+}
+
+static JSValueRef
+dupin_js_dupin_class_links (JSContextRef ctx,
+                   	    JSObjectRef object,
+		   	    JSObjectRef thisObject, size_t argumentCount,
+		   	    const JSValueRef arguments[],
+		   	    JSValueRef * exception)
+{
+  return NULL;
 }
 
 /* EOF */

@@ -1339,7 +1339,7 @@ request_global_get_server_info (DSHttpdClient * client, GList * path,
       return HTTP_STATUS_500;
     }
 
-  json_object_set_string_member (obj, "couchdb", "Welcome to Dupin");
+  json_object_set_string_member (obj, "dupindb", "Welcome to Dupin");
   json_object_set_string_member (obj, "version", PACKAGE " " VERSION);
 
   node = json_node_new (JSON_NODE_OBJECT);
@@ -2117,13 +2117,6 @@ request_global_get_all_links_linkbase (DSHttpdClient * client, GList * path,
   JsonArray *array;
   JsonGenerator *gen=NULL;
 
-  gchar * idspath_startkey = NULL;
-  gchar * idspath_endkey = NULL;
-  gboolean idspath_inclusive_end = TRUE;
-  gchar * labelspath_startkey = NULL;
-  gchar * labelspath_endkey = NULL;
-  gboolean labelspath_inclusive_end = TRUE;
-
   gchar * linkbase_name = path->data;
 
   for (list = arguments; list; list = list->next)
@@ -2163,204 +2156,6 @@ request_global_get_all_links_linkbase (DSHttpdClient * client, GList * path,
           else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_LINKS_LINK_TYPE_RELATIONSHIPS))
             link_type = DP_LINK_TYPE_RELATIONSHIP;
         }
-
-      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_IDSPATH_INCLUSIVEEND))
-        {
-          if (g_strcmp0 (kv->value,"false") && g_strcmp0 (kv->value,"FALSE") &&
-              g_strcmp0 (kv->value,"true") && g_strcmp0 (kv->value,"TRUE"))
-            {
-              if (idspath_startkey != NULL)
-                g_free (idspath_startkey);
-
-              if (idspath_endkey != NULL)
-                g_free (idspath_endkey);
-
-              if (labelspath_startkey != NULL)
-                g_free (labelspath_startkey);
-
-              if (labelspath_endkey != NULL)
-                g_free (labelspath_endkey);
-
-              request_set_error (client, "Invalid " REQUEST_GET_ALL_LINKS_IDSPATH_INCLUSIVEEND " parameter. Allowed values are: true, false");
-
-              return HTTP_STATUS_400;
-            }
-
-          idspath_inclusive_end = (!g_strcmp0 (kv->value,"false") || !g_strcmp0 (kv->value,"FALSE")) ? FALSE : TRUE;
-        }
-
-      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_LABELSPATH_INCLUSIVEEND))
-        {
-          if (g_strcmp0 (kv->value,"false") && g_strcmp0 (kv->value,"FALSE") &&
-              g_strcmp0 (kv->value,"true") && g_strcmp0 (kv->value,"TRUE"))
-            {
-              if (idspath_startkey != NULL)
-                g_free (idspath_startkey);
-
-              if (idspath_endkey != NULL)
-                g_free (idspath_endkey);
-
-              if (labelspath_startkey != NULL)
-                g_free (labelspath_startkey);
-
-              if (labelspath_endkey != NULL)
-                g_free (labelspath_endkey);
-
-              request_set_error (client, "Invalid " REQUEST_GET_ALL_LINKS_LABELSPATH_INCLUSIVEEND " parameter. Allowed values are: true, false");
-
-              return HTTP_STATUS_400;
-            }
-
-          labelspath_inclusive_end = (!g_strcmp0 (kv->value,"false") || !g_strcmp0 (kv->value,"FALSE")) ? FALSE : TRUE;
-        }
-
-      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_IDSPATH_KEY))
-        {
-          if (idspath_startkey != NULL)
-            g_free (idspath_startkey);
-
-          idspath_startkey = dupin_util_json_string_normalize (kv->value);
-
-	  if (idspath_startkey == NULL)
-            {
-              if (idspath_endkey != NULL)
-                g_free (idspath_endkey);
-
-              if (labelspath_startkey != NULL)
-                g_free (labelspath_startkey);
-
-              if (labelspath_endkey != NULL)
-                g_free (labelspath_endkey);
-
-              request_set_error (client, "Invalid " REQUEST_GET_ALL_LINKS_IDSPATH_KEY " parameter. It must be a valid JSON node.");
-
-              return HTTP_STATUS_400;
-            }
-    
-          idspath_endkey = g_strdup (idspath_startkey);
-        }
-
-      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_IDSPATH_STARTKEY))
-        {
-          if (idspath_startkey != NULL)
-            g_free (idspath_startkey);
-
-          idspath_startkey = dupin_util_json_string_normalize (kv->value);
-
-	  if (idspath_startkey == NULL)
-            {
-              if (idspath_endkey != NULL)
-                g_free (idspath_endkey);
-
-              if (labelspath_startkey != NULL)
-                g_free (labelspath_startkey);
-
-              if (labelspath_endkey != NULL)
-                g_free (labelspath_endkey);
-
-              request_set_error (client, "Invalid " REQUEST_GET_ALL_LINKS_IDSPATH_STARTKEY " parameter. It must be a valid JSON node.");
-
-              return HTTP_STATUS_400;
-            }
-        }
-
-      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_IDSPATH_ENDKEY))
-        {
-          if (idspath_endkey != NULL)
-            g_free (idspath_endkey);
-
-          idspath_endkey = dupin_util_json_string_normalize (kv->value);
-
-	  if (idspath_endkey == NULL)
-            {
-              if (idspath_startkey != NULL)
-                g_free (idspath_startkey);
-
-              if (labelspath_startkey != NULL)
-                g_free (labelspath_startkey);
-
-              if (labelspath_endkey != NULL)
-                g_free (labelspath_endkey);
-
-              request_set_error (client, "Invalid " REQUEST_GET_ALL_LINKS_IDSPATH_ENDKEY " parameter. It must be a valid JSON node.");
-
-              return HTTP_STATUS_400;
-            }
-        }
-
-      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_LABELSPATH_KEY))
-        {
-          if (labelspath_startkey != NULL)
-            g_free (labelspath_startkey);
-
-          labelspath_startkey = dupin_util_json_string_normalize (kv->value);
-
-	  if (labelspath_startkey == NULL)
-            {
-              if (idspath_startkey != NULL)
-                g_free (idspath_startkey);
-
-              if (idspath_endkey != NULL)
-                g_free (idspath_endkey);
-
-              if (labelspath_endkey != NULL)
-                g_free (labelspath_endkey);
-
-              request_set_error (client, "Invalid " REQUEST_GET_ALL_LINKS_LABELSPATH_KEY " parameter. It must be a valid JSON node.");
-
-              return HTTP_STATUS_400;
-            }
-    
-          idspath_endkey = g_strdup (idspath_startkey);
-        }
-
-      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_LABELSPATH_STARTKEY))
-        {
-          if (labelspath_startkey != NULL)
-            g_free (labelspath_startkey);
-
-          labelspath_startkey = dupin_util_json_string_normalize (kv->value);
-
-	  if (labelspath_startkey == NULL)
-            {
-              if (idspath_startkey != NULL)
-                g_free (idspath_startkey);
-
-              if (idspath_endkey != NULL)
-                g_free (idspath_endkey);
-
-              if (labelspath_endkey != NULL)
-                g_free (labelspath_endkey);
-
-              request_set_error (client, "Invalid " REQUEST_GET_ALL_LINKS_LABELSPATH_STARTKEY " parameter. It must be a valid JSON node.");
-
-              return HTTP_STATUS_400;
-            }
-        }
-
-      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_LABELSPATH_ENDKEY))
-        {
-          if (labelspath_endkey != NULL)
-            g_free (labelspath_endkey);
-
-          labelspath_endkey = dupin_util_json_string_normalize (kv->value);
-
-	  if (labelspath_endkey == NULL)
-            {
-              if (idspath_startkey != NULL)
-                g_free (idspath_startkey);
-
-              if (idspath_endkey != NULL)
-                g_free (idspath_endkey);
-
-              if (labelspath_startkey != NULL)
-                g_free (labelspath_startkey);
-
-              request_set_error (client, "Invalid " REQUEST_GET_ALL_LINKS_LABELSPATH_ENDKEY " parameter. It must be a valid JSON node.");
-
-              return HTTP_STATUS_400;
-            }
-        }
     }
 
   if (!
@@ -2370,18 +2165,6 @@ request_global_get_all_links_linkbase (DSHttpdClient * client, GList * path,
       if (link_labels)
         g_strfreev (link_labels);
 
-      if (idspath_startkey != NULL)
-        g_free (idspath_startkey);
-
-      if (idspath_endkey != NULL)
-        g_free (idspath_endkey);
-
-      if (labelspath_startkey != NULL)
-        g_free (labelspath_startkey);
-
-      if (labelspath_endkey != NULL)
-        g_free (labelspath_endkey);
-
       request_set_error (client, "Cannot connect to linkabse");
       return HTTP_STATUS_404;
     }
@@ -2390,33 +2173,16 @@ request_global_get_all_links_linkbase (DSHttpdClient * client, GList * path,
   if (context_id != NULL
       || link_labels != NULL
       || tag != NULL)
-    total_rows = dupin_link_record_get_list_total (linkb, link_type, DP_COUNT_EXIST, context_id, link_labels, tag,
-						   idspath_startkey, idspath_endkey, idspath_inclusive_end,
-						   labelspath_startkey, labelspath_endkey, labelspath_inclusive_end);
+    total_rows = dupin_link_record_get_list_total (linkb, link_type, DP_COUNT_EXIST, context_id, link_labels, NULL, tag);
   else
     total_rows = dupin_linkbase_count (linkb, link_type, DP_COUNT_EXIST);
 
 
   if (dupin_link_record_get_list (linkb, count, offset, 0, 0, link_type, DP_COUNT_EXIST, DP_ORDERBY_ROWID, descending, 
-					context_id, link_labels, tag,
-					idspath_startkey, idspath_endkey, idspath_inclusive_end,
-				        labelspath_startkey, labelspath_endkey, labelspath_inclusive_end,
-						&results, NULL) == FALSE)
+					context_id, link_labels, NULL, tag, &results, NULL) == FALSE)
     {
       if (link_labels)
         g_strfreev (link_labels);
-
-      if (idspath_startkey != NULL)
-        g_free (idspath_startkey);
-
-      if (idspath_endkey != NULL)
-        g_free (idspath_endkey);
-
-      if (labelspath_startkey != NULL)
-        g_free (labelspath_startkey);
-
-      if (labelspath_endkey != NULL)
-        g_free (labelspath_endkey);
 
       dupin_linkbase_unref (linkb);
       request_set_error (client, "Cannot iget list of links from linkabse");
@@ -2432,18 +2198,6 @@ request_global_get_all_links_linkbase (DSHttpdClient * client, GList * path,
 
       if (link_labels)
         g_strfreev (link_labels);
-
-      if (idspath_startkey != NULL)
-        g_free (idspath_startkey);
-
-      if (idspath_endkey != NULL)
-        g_free (idspath_endkey);
-
-      if (labelspath_startkey != NULL)
-        g_free (labelspath_startkey);
-
-      if (labelspath_endkey != NULL)
-        g_free (labelspath_endkey);
 
       dupin_linkbase_unref (linkb);
       request_set_error (client, "Cannot get list of links from linkabse");
@@ -2531,18 +2285,6 @@ request_global_get_all_links_linkbase (DSHttpdClient * client, GList * path,
   if (link_labels)
     g_strfreev (link_labels);
 
-  if (idspath_startkey != NULL)
-    g_free (idspath_startkey);
-
-  if (idspath_endkey != NULL)
-    g_free (idspath_endkey);
-
-  if (labelspath_startkey != NULL)
-    g_free (labelspath_startkey);
-
-  if (labelspath_endkey != NULL)
-    g_free (labelspath_endkey);
-
   return HTTP_STATUS_200;
 
 request_global_get_all_docs_error:
@@ -2560,18 +2302,6 @@ request_global_get_all_docs_error:
 
   if (link_labels)
     g_strfreev (link_labels);
-
-  if (idspath_startkey != NULL)
-    g_free (idspath_startkey);
-
-  if (idspath_endkey != NULL)
-    g_free (idspath_endkey);
-
-  if (labelspath_startkey != NULL)
-    g_free (labelspath_startkey);
-
-  if (labelspath_endkey != NULL)
-    g_free (labelspath_endkey);
 
   request_set_error (client, "Cannot get list of links from linkabse");
 
@@ -4022,7 +3752,7 @@ request_global_get_linkbase_query (DSHttpdClient * client, GList * path,
   array = json_array_new ();
 
   while (dupin_link_record_get_list (linkb, QUERY_BLOCK, offset, 0, 0, DP_LINK_TYPE_ANY, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE,
-					NULL, NULL, NULL, NULL, NULL, FALSE, NULL, NULL, FALSE, &results, NULL) == TRUE && results)
+					NULL, NULL, NULL, NULL, &results, NULL) == TRUE && results)
     {
       GList *list;
 
@@ -6574,13 +6304,12 @@ request_record_revision_obj (DSHttpdClient * client,
 
               gsize total_links = dupin_link_record_get_list_total (linkb, DP_LINK_TYPE_WEB_LINK, DP_COUNT_EXIST,
 					            (gchar *) dupin_record_get_id (record),
-					            link_labels, tag, NULL, NULL, FALSE, NULL, NULL, FALSE);
+					            link_labels, NULL, tag);
 
               if (dupin_link_record_get_list (linkb, include_links_weblinks_count, include_links_weblinks_offset,
 					      0, 0, DP_LINK_TYPE_WEB_LINK, DP_COUNT_EXIST, DP_ORDERBY_ROWID,
 					      include_links_weblinks_descending,
-					      (gchar *) dupin_record_get_id (record), link_labels, tag,
-					      NULL, NULL, FALSE, NULL, NULL, FALSE, &results, NULL) == FALSE)
+					      (gchar *) dupin_record_get_id (record), link_labels, NULL, tag, &results, NULL) == FALSE)
                 {
 		  // just log the error and reason into JSON
                 }
@@ -6645,13 +6374,12 @@ request_record_revision_obj (DSHttpdClient * client,
               gsize total_relationships = dupin_link_record_get_list_total (linkb, DP_LINK_TYPE_RELATIONSHIP,
 						    DP_COUNT_EXIST,
 					            (gchar *) dupin_record_get_id (record),
-					            link_labels, tag, NULL, NULL, FALSE, NULL, NULL, FALSE);
+					            link_labels, NULL, tag);
 
               if (dupin_link_record_get_list (linkb, include_links_relationships_count, include_links_relationships_offset,
 					      0, 0, DP_LINK_TYPE_RELATIONSHIP, DP_COUNT_EXIST, DP_ORDERBY_ROWID,
 					      include_links_relationships_descending,
-					      (gchar *) dupin_record_get_id (record), link_labels, tag,
-					      NULL, NULL, FALSE, NULL, NULL, FALSE, &results, NULL) == FALSE)
+					      (gchar *) dupin_record_get_id (record), link_labels, NULL, tag, &results, NULL) == FALSE)
                 {
 		  // just log the error and reason into JSON
                 }

@@ -2110,6 +2110,7 @@ request_global_get_all_links_linkbase (DSHttpdClient * client, GList * path,
   gchar * context_id = NULL;
   gchar ** link_labels = NULL;
   gchar * tag = NULL;
+  gchar * href = NULL;
   DupinLinksType link_type = DP_LINK_TYPE_ANY;
 
   JsonObject *obj;
@@ -2143,6 +2144,9 @@ request_global_get_all_links_linkbase (DSHttpdClient * client, GList * path,
           link_labels = g_strsplit (kv->value, ",", -1);
         }
 
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_HREF))
+        href = kv->value;
+
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_TAG))
         tag = kv->value;
 
@@ -2173,13 +2177,13 @@ request_global_get_all_links_linkbase (DSHttpdClient * client, GList * path,
   if (context_id != NULL
       || link_labels != NULL
       || tag != NULL)
-    total_rows = dupin_link_record_get_list_total (linkb, link_type, DP_COUNT_EXIST, context_id, link_labels, NULL, tag);
+    total_rows = dupin_link_record_get_list_total (linkb, link_type, DP_COUNT_EXIST, context_id, link_labels, href, tag);
   else
     total_rows = dupin_linkbase_count (linkb, link_type, DP_COUNT_EXIST);
 
 
   if (dupin_link_record_get_list (linkb, count, offset, 0, 0, link_type, DP_COUNT_EXIST, DP_ORDERBY_ROWID, descending, 
-					context_id, link_labels, NULL, tag, &results, NULL) == FALSE)
+					context_id, link_labels, href, tag, &results, NULL) == FALSE)
     {
       if (link_labels)
         g_strfreev (link_labels);
@@ -6221,6 +6225,7 @@ request_record_revision_obj (DSHttpdClient * client,
 
       DupinLinksType include_links_type = DP_LINK_TYPE_NONE;
       gchar * tag = NULL;
+      gchar * href = NULL;
       gchar ** link_labels=NULL;
       gboolean include_links_weblinks_descending = FALSE;
       guint include_links_weblinks_count = DUPIN_LINKB_MAX_LINKS_COUNT;
@@ -6248,6 +6253,10 @@ request_record_revision_obj (DSHttpdClient * client,
             {
               link_labels = g_strsplit (kv->value, ",", -1);
             }
+
+          else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_HREF)
+	           && g_strcmp0 (kv->value, ""))
+            href = kv->value;
 
           else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TAG)
 	           && g_strcmp0 (kv->value, ""))
@@ -6304,12 +6313,12 @@ request_record_revision_obj (DSHttpdClient * client,
 
               gsize total_links = dupin_link_record_get_list_total (linkb, DP_LINK_TYPE_WEB_LINK, DP_COUNT_EXIST,
 					            (gchar *) dupin_record_get_id (record),
-					            link_labels, NULL, tag);
+					            link_labels, href, tag);
 
               if (dupin_link_record_get_list (linkb, include_links_weblinks_count, include_links_weblinks_offset,
 					      0, 0, DP_LINK_TYPE_WEB_LINK, DP_COUNT_EXIST, DP_ORDERBY_ROWID,
 					      include_links_weblinks_descending,
-					      (gchar *) dupin_record_get_id (record), link_labels, NULL, tag, &results, NULL) == FALSE)
+					      (gchar *) dupin_record_get_id (record), link_labels, href, tag, &results, NULL) == FALSE)
                 {
 		  // just log the error and reason into JSON
                 }
@@ -6374,12 +6383,12 @@ request_record_revision_obj (DSHttpdClient * client,
               gsize total_relationships = dupin_link_record_get_list_total (linkb, DP_LINK_TYPE_RELATIONSHIP,
 						    DP_COUNT_EXIST,
 					            (gchar *) dupin_record_get_id (record),
-					            link_labels, NULL, tag);
+					            link_labels, href, tag);
 
               if (dupin_link_record_get_list (linkb, include_links_relationships_count, include_links_relationships_offset,
 					      0, 0, DP_LINK_TYPE_RELATIONSHIP, DP_COUNT_EXIST, DP_ORDERBY_ROWID,
 					      include_links_relationships_descending,
-					      (gchar *) dupin_record_get_id (record), link_labels, NULL, tag, &results, NULL) == FALSE)
+					      (gchar *) dupin_record_get_id (record), link_labels, href, tag, &results, NULL) == FALSE)
                 {
 		  // just log the error and reason into JSON
                 }

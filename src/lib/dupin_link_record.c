@@ -760,7 +760,7 @@ dupin_link_record_get_list_total (DupinLinkB * linkb,
       if (!g_strcmp0 (op, ""))
         op = "WHERE";
 
-      gchar * tmp2 = sqlite3_mprintf (" %s d.href LIKE '%%\"%q\"%%' ", op, href);
+      gchar * tmp2 = sqlite3_mprintf (" %s d.href LIKE '%%%q%%' ", op, href);
       str = g_string_append (str, tmp2);
       sqlite3_free (tmp2);
 
@@ -1013,7 +1013,7 @@ dupin_link_record_get_list (DupinLinkB * linkb, guint count, guint offset,
 
   if (href != NULL)
     {
-      gchar * tmp2 = sqlite3_mprintf (" %s d.href LIKE '%%\"%q\"%%' ", op, href);
+      gchar * tmp2 = sqlite3_mprintf (" %s d.href LIKE '%%%q%%' ", op, href);
       str = g_string_append (str, tmp2);
       sqlite3_free (tmp2);
 

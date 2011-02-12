@@ -190,6 +190,7 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 #define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TYPE_ALL_LINKS       REQUEST_GET_ALL_LINKS_LINK_TYPE_ALL_LINKS
 #define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TYPE_WEBLINKS        REQUEST_GET_ALL_LINKS_LINK_TYPE_WEBLINKS
 #define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TYPE_RELATIONSHIPS   REQUEST_GET_ALL_LINKS_LINK_TYPE_RELATIONSHIPS
+#define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_HREF                 "include_links_href"
 #define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TAG                  "include_links_tag"
 #define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_LABELS               "include_links_labels"
 #define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_WEBLINKS_DESCENDING  "include_links_weblinks_descending"
@@ -212,6 +213,7 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 #define REQUEST_GET_ALL_LINKS_LINKBASE                  "linkbase"
 
 #define REQUEST_GET_ALL_LINKS_CONTEXT_ID                "context_id"
+#define REQUEST_GET_ALL_LINKS_HREF                      "href"
 #define REQUEST_GET_ALL_LINKS_TAG                       "tag"
 #define REQUEST_GET_ALL_LINKS_LABELS                    "labels"
 #define REQUEST_GET_ALL_LINKS_LINK_TYPE                 "link_type"

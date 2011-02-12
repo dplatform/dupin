@@ -784,46 +784,53 @@ dupin_util_mvcc_get_hash (gchar * mvcc,
   return TRUE;
 }
 
-DupinCollateType
-dupin_util_get_collate_type (gchar * json_raw_string)
-{
-  if (json_raw_string == NULL)
-    {
-      return DP_COLLATE_TYPE_EMPTY;
-    }
-  else
-    {
-      gunichar ch = g_utf8_get_char (json_raw_string);
+/* map JSON node type to our collation sorted type */
 
-      if (ch == 'n')
+DupinCollateType
+dupin_util_get_collate_type (JsonNode * node)
+{
+  JsonNodeType node_type = json_node_get_node_type (node);
+
+  if (node_type == JSON_NODE_NULL)
+    return DP_COLLATE_TYPE_NULL;
+
+  else if (node_type == JSON_NODE_VALUE)
+    {
+      if (json_node_get_value_type (node) == G_TYPE_STRING)
         {
-          return DP_COLLATE_TYPE_NULL;
+	  if (json_node_get_string (node) == NULL)
+            return DP_COLLATE_TYPE_EMPTY;
+
+	  else
+            return DP_COLLATE_TYPE_STRING;
         }
-      else if (ch == 't' || ch == 'f')
+
+      if (json_node_get_value_type (node) == G_TYPE_DOUBLE
+          || json_node_get_value_type (node) == G_TYPE_FLOAT)
+        {
+          return DP_COLLATE_TYPE_DOUBLE;
+        }
+
+      if (json_node_get_value_type (node) == G_TYPE_INT
+          || json_node_get_value_type (node) == G_TYPE_INT64
+          || json_node_get_value_type (node) == G_TYPE_UINT)
+        {
+          return DP_COLLATE_TYPE_INTEGER;
+        }
+
+      if (json_node_get_value_type (node) == G_TYPE_BOOLEAN)
         {
           return DP_COLLATE_TYPE_BOOLEAN;
         }
-      else if (g_unichar_isdigit (ch))
-        {
-          return DP_COLLATE_TYPE_NUMBER;
-        }
-      else if (ch == '"')
-        {
-          return DP_COLLATE_TYPE_TEXT;
-        }
-      else if (ch == '[')
-        {
-          return DP_COLLATE_TYPE_ARRAY;
-        }
-      else if (ch == '{')
-        {
-          return DP_COLLATE_TYPE_OBJECT;
-        }
-      else
-        {
-          return DP_COLLATE_TYPE_ANY;
-        }
     }
+
+  else if (node_type == JSON_NODE_ARRAY)
+    return DP_COLLATE_TYPE_ARRAY;
+
+  else if (node_type == JSON_NODE_OBJECT)
+    return DP_COLLATE_TYPE_OBJECT;
+
+  return DP_COLLATE_TYPE_ANY;
 }
 
 gchar *

@@ -5,9 +5,9 @@
 
 G_BEGIN_DECLS
 
-#define DUPIN_UTIL_DUMP_JSON(node) do { \
+#define DUPIN_UTIL_DUMP_JSON(msg, node) do { \
         gchar * string = dupin_util_json_serialize (node); \
-	g_message ("%s", string); \
+	g_message ("%s: %s", msg, string); \
 	g_free (string); \
         } while (0)
 
@@ -82,7 +82,7 @@ gboolean        dupin_util_mvcc_get_hash	(gchar * mvcc,
                                          	 gchar hash[DUPIN_ID_HASH_ALGO_LEN]);
 
 DupinCollateType
-		dupin_util_get_collate_type	(gchar * json_raw_string);
+		dupin_util_get_collate_type	(JsonNode * node);
 
 gchar *        dupin_util_json_string_normalize	(gchar * input_string);
 

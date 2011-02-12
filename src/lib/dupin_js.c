@@ -8,8 +8,6 @@
 
 #include <string.h>
 
-#define DUPIN_JS_DEFAULT_PATH_TYPE "any"
-
 #define DUPIN_JS_FUNCTION_SUM "function sum(values) { var rv = 0; for (var i in values) { rv += values[i]; } return rv; };\n"
 
 static JSValueRef dupin_js_emit (JSContextRef ctx,
@@ -42,15 +40,7 @@ static JSValueRef dupin_js_dupin_class_view_lookup
 					    const JSValueRef arguments[],
 					    JSValueRef * exception);
 
-static JSValueRef dupin_js_dupin_class_docpath
-					   (JSContextRef ctx,
-					    JSObjectRef object,
-		   	       		    JSObjectRef thisObject,
-					    size_t argumentCount,
-		   	       		    const JSValueRef arguments[],
-		   	       		    JSValueRef * exception);
-
-static JSValueRef dupin_js_dupin_class_links
+static JSValueRef dupin_js_dupin_class_path
 					   (JSContextRef ctx,
 					    JSObjectRef object,
 		   	       		    JSObjectRef thisObject,
@@ -61,8 +51,7 @@ static JSValueRef dupin_js_dupin_class_links
 static JSStaticFunction dupin_js_dupin_class_static_functions[] = {
     { "log", dupin_js_dupin_class_log, kJSPropertyAttributeNone },
     { "view_lookup", dupin_js_dupin_class_view_lookup, kJSPropertyAttributeNone },
-    { "docpath", dupin_js_dupin_class_docpath, kJSPropertyAttributeNone },
-    { "links", dupin_js_dupin_class_links, kJSPropertyAttributeNone },
+    { "path", dupin_js_dupin_class_path, kJSPropertyAttributeNone },
     { 0, 0, 0 }
 };
 
@@ -913,42 +902,29 @@ dupin_js_dupin_class_view_lookup_error:
 }
 
 static JSValueRef
-dupin_js_dupin_class_docpath (JSContextRef ctx,
-                   	      JSObjectRef object,
-		   	      JSObjectRef thisObject, size_t argumentCount,
-		   	      const JSValueRef arguments[],
-		   	      JSValueRef * exception)
+dupin_js_dupin_class_path (JSContextRef ctx,
+                   	   JSObjectRef object,
+		   	   JSObjectRef thisObject, size_t argumentCount,
+		   	   const JSValueRef arguments[],
+		   	   JSValueRef * exception)
 {
   JSValueRef result=NULL;
 
   Dupin * d = (Dupin *) JSObjectGetPrivate(thisObject);
   DupinLinkB *linkb=NULL;
 
-  GList *results;
-
-  gboolean descending = FALSE;
-  guint count = 1;
-  guint offset = 0;
-  gchar * startkey = NULL;
-  //gchar * endkey = NULL;
-
-  //DupinLinkRecord *record=NULL;
-  //JsonNode * docpath=NULL;
-
-  if (argumentCount != 3)
+  if (argumentCount != 2)
     {
       *exception = JSValueMakeNumber (ctx, 1);
       return JSValueMakeNull(ctx);
     }
-
-g_message("dupin_js_dupin_class_docpath: checking params...\n");
+//g_message("dupin_js_dupin_class_path: checking params...\n");
 
   if (((!arguments[0]))
-      || (!JSValueIsString(ctx, arguments[1]))
-      || (!arguments[2])) // works for 'null' fine ?
+      || (!arguments[1]))
     return JSValueMakeNull(ctx);
 
-g_message("dupin_js_dupin_class_docpath: ok params...\n");
+//g_message("dupin_js_dupin_class_path: ok params...\n");
 
   JsonNode * doc_node = NULL;
   dupin_js_value (ctx, arguments[0], &doc_node);
@@ -962,110 +938,65 @@ g_message("dupin_js_dupin_class_docpath: ok params...\n");
       return JSValueMakeNull(ctx);
     }
 
-  /* path_type - 'any' is the only supported value so far - we might have 'shortest' etc later on... */
-  JSStringRef string = JSValueToStringCopy (ctx, arguments[1], NULL);
-  gchar * str = dupin_js_string_utf8 (string);
-  if (g_strcmp0 (str, DUPIN_JS_DEFAULT_PATH_TYPE))
+  gchar * tag = NULL;
+  JSStringRef string = NULL;
+  if (JSValueIsNull (ctx, arguments[1]) == FALSE)
     {
-      g_free (str);
-      if (doc_node != NULL) 
-        json_node_free (doc_node);
-
-      return JSValueMakeNull(ctx);
+      string = JSValueToStringCopy (ctx, arguments[1], NULL);
+      tag = dupin_js_string_utf8 (string);
+      JSStringRelease (string);
     }
-  g_free (str);
-  JSStringRelease (string);
-  gchar * path_type = DUPIN_JS_DEFAULT_PATH_TYPE;
 
-  /* tag node */
-  JsonNode * tag_node = NULL;
-  dupin_js_value (ctx, arguments[2], &tag_node);
-  if (tag_node == NULL)
-    {
-      if (doc_node != NULL) 
-        json_node_free (doc_node);
-
-      return JSValueMakeNull(ctx);
-    }
-  gchar * tag = dupin_util_json_serialize (tag_node); 
-  if (tag_node != NULL) 
-    json_node_free (tag_node);
-
-g_message("dupin_js_dupin_class_docpath: doc:\n");
-DUPIN_UTIL_DUMP_JSON (doc_node);
-g_message("dupin_js_dupin_class_docpath: path_type=%s tag=%s\n", path_type, tag);
+//g_message("dupin_js_dupin_class_path: doc:\n");
+//DUPIN_UTIL_DUMP_JSON (doc_node);
+//g_message("dupin_js_dupin_class_path: tag=%s\n", tag);
 
   if (!
       (linkb = dupin_linkbase_open (d, (gchar *)json_object_get_string_member (json_node_get_object (doc_node), "_linkbase"), NULL)))
     {
-      g_free (tag);
+      if (tag != NULL)
+        g_free (tag);
       json_node_free (doc_node);
       return JSValueMakeNull(ctx);
     }
 
-  /* FINISH - look up links into context ID - then return joined array of all idspaths + labelspaths as object of arrays... */
+  gchar * source_id = (gchar *)json_object_get_string_member (json_node_get_object (doc_node), "_id");
 
-  /* idspath_startkey = [ "doc._id" ]  idspath_endkey = [ "doc._id", null ] or if tag is defined
-     idspath_startkey = [ [ "tag" ], [ "doc._id" ] ] idspath_endkey = [ [ "tag" ], [ "doc._id", null ] ] */
+  /* NOTE - we might want to have the caller to enable cache on this one, if needed with dupin_link_record_cache_on() */
 
-  GString * gs = g_string_new (NULL);
-  g_string_append_printf (gs, "[\"%s\"]", (gchar *)json_object_get_string_member (json_node_get_object (doc_node), "_id"));
-  gchar * gsc = g_string_free (gs, FALSE);
-  
-  startkey = dupin_util_json_string_normalize (gsc);
-  g_free (gsc);
+  JsonNode * paths = dupin_link_record_util_get_paths_node (linkb, source_id, tag, NULL, TRUE);
 
-  if (startkey == NULL)
+  if (paths == NULL
+      || json_node_get_node_type (paths) != JSON_NODE_ARRAY)
     {
-      g_free (tag);
+      if (tag != NULL)
+        g_free (tag);
       json_node_free (doc_node);
+      dupin_linkbase_unref (linkb);
       return JSValueMakeNull(ctx);
     }
 
-  if (dupin_link_record_get_list (linkb, count, offset, 0, 0, DP_LINK_TYPE_RELATIONSHIP, DP_COUNT_EXIST, DP_ORDERBY_ROWID, descending,
-                                  NULL, NULL, NULL, tag, &results, NULL) == FALSE)
-    {
-      result = NULL;
-      goto dupin_js_dupin_class_docpath_error;
-    }
-
-  /* now match has the node we wanted */
-#if 0
-  gchar * match_json = dupin_util_json_serialize (match); 
+  gchar * paths_json = dupin_util_json_serialize (paths); 
 
   gchar *b=NULL;
   GString * buffer = g_string_new ("var result = ");
-  buffer = g_string_append (buffer, match_json);
+  buffer = g_string_append (buffer, paths_json);
   buffer = g_string_append (buffer, "; result;");
   b = g_string_free (buffer, FALSE);
   string=JSStringCreateWithUTF8CString(b);
   result = JSEvaluateScript (ctx, string, NULL, NULL, 1, NULL);
   JSStringRelease(string);
   g_free (b);
-  g_free (match_json);
-#endif
-
-dupin_js_dupin_class_docpath_error:
-
-  if( results )
-    dupin_view_record_get_list_close(results);
+  g_free (paths_json);
 
   dupin_linkbase_unref (linkb);
 
-  g_free (tag);
+  if (tag != NULL)
+    g_free (tag);
   json_node_free (doc_node);
+  json_node_free (paths);
 
   return result;
-}
-
-static JSValueRef
-dupin_js_dupin_class_links (JSContextRef ctx,
-                   	    JSObjectRef object,
-		   	    JSObjectRef thisObject, size_t argumentCount,
-		   	    const JSValueRef arguments[],
-		   	    JSValueRef * exception)
-{
-  return NULL;
 }
 
 /* EOF */

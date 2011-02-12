@@ -146,7 +146,7 @@ struct dupin_linkb_t
   gchar *       warning_msg;
 
   gboolean 	cache_on;
-  gchar *	cache_last_context_id;
+  gchar *	cache_last_lookup_id;
   GHashTable *	cache_idspath;
   GHashTable *	cache_labelspath;
 };
@@ -184,6 +184,8 @@ struct dupin_view_t
 
   gchar *	reduce;
   DupinMRLang	reduce_lang;
+
+  JsonParser *	collation_parser;
 
   DupinViewP	views;
 

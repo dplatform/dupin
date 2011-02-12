@@ -483,8 +483,8 @@ dupin_linkb_free (DupinLinkB * linkb)
 {
   g_message("dupin_linkb_free: total number of changes for '%s' linkbase: %d\n", linkb->name, (gint)sqlite3_total_changes (linkb->db));
 
-  if (linkb->cache_last_context_id)
-    g_free (linkb->cache_last_context_id);
+  if (linkb->cache_last_lookup_id)
+    g_free (linkb->cache_last_lookup_id);
 
   if (linkb->cache_idspath)
     g_hash_table_destroy (linkb->cache_idspath);
@@ -546,7 +546,7 @@ dupin_linkb_create (Dupin * d, gchar * name, gchar * path, GError ** error)
 
   /* NOTE - caches for ids and labels path generation, especially useful on bulk inserts */
   linkb->cache_on = FALSE;
-  linkb->cache_last_context_id = NULL;
+  linkb->cache_last_lookup_id = NULL;
   linkb->cache_idspath = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
   linkb->cache_labelspath = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
  

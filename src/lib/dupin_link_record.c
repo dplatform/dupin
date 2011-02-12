@@ -2234,16 +2234,16 @@ dupin_link_record_util_is_valid_rel (gchar * rel)
   return TRUE;
 }
 
-struct dupin_link_record_util_generate_paths_node_t
+struct dupin_link_record_util_get_paths_node_t
 {
   gchar * parent_idspath;
   gchar * parent_labelspath;
 };
 
 static int
-dupin_link_record_util_generate_paths_node_cb (void *data, int argc, char **argv, char **col)
+dupin_link_record_util_get_paths_node_cb (void *data, int argc, char **argv, char **col)
 {
-  struct dupin_link_record_util_generate_paths_node_t *s = data;
+  struct dupin_link_record_util_get_paths_node_t *s = data;
 
   if (argv[0] && *argv[0])
     s->parent_idspath = g_strdup (argv[0]);
@@ -2255,21 +2255,17 @@ dupin_link_record_util_generate_paths_node_cb (void *data, int argc, char **argv
 }
 
 JsonNode *
-dupin_link_record_util_generate_paths_node (DupinLinkB * linkb,
-					    gchar * source_id,
-                                            gchar * target_id,
-                                            gchar * label,
-                                            gchar * tag,
-					    GError ** error, gboolean lock)
+dupin_link_record_util_get_paths_node (DupinLinkB * linkb,
+				       gchar * source_id,
+                                       gchar * tag,
+				       GError ** error, gboolean lock)
 {
   g_return_val_if_fail (source_id != NULL, FALSE);
   g_return_val_if_fail (dupin_link_record_util_is_valid_context_id (source_id), FALSE);
 
-//g_message(" %s ========= %s =======> %s\n", source_id, label, target_id);
-
   gchar *errmsg;
-  struct dupin_link_record_util_generate_paths_node_t parent;
-  memset (&parent, 0, sizeof (struct dupin_link_record_util_generate_paths_node_t));
+  struct dupin_link_record_util_get_paths_node_t parent;
+  memset (&parent, 0, sizeof (struct dupin_link_record_util_get_paths_node_t));
 
   JsonParser * parser = json_parser_new();
   GError *parser_error = NULL;
@@ -2283,49 +2279,54 @@ dupin_link_record_util_generate_paths_node (DupinLinkB * linkb,
 
   gboolean context_id_changed = FALSE;
 
-//g_message ("dupin_link_record_util_generate_paths_node: cache_last_context_id = %s\n", linkb->cache_last_context_id);
-//g_message ("dupin_link_record_util_generate_paths_node: source_id             = %s\n", source_id);
+  /* lookup key is alwasy tag + source_id */
+  GString * lookup_key_str = g_string_new (tag);
+  lookup_key_str = g_string_append (lookup_key_str, source_id);
+  gchar * lookup_key = g_string_free (lookup_key_str, FALSE);
+
+//g_message ("dupin_link_record_util_get_paths_node: cache_last_lookup_id = %s\n", linkb->cache_last_id);
+//g_message ("dupin_link_record_util_get_paths_node: lookup_key             = %s\n", lookup_key);
 
   if (dupin_linkbase_is_cache_on (linkb, NULL) == TRUE
-      && g_strcmp0 (source_id, linkb->cache_last_context_id))
+      && g_strcmp0 (lookup_key, linkb->cache_last_lookup_id))
     {
-//g_message ("dupin_link_record_util_generate_paths_node: source_id has changed to %s, previous was %s\n", source_id, linkb->cache_last_context_id);
+//g_message ("dupin_link_record_util_get_paths_node: lookup_key has changed to %s, previous was %s\n", lookup_key, linkb->cache_last_lookup_id);
 
-      if (linkb->cache_last_context_id != NULL)
+      if (linkb->cache_last_lookup_id != NULL)
         {
 /*
-          g_hash_table_remove (linkb->cache_idspath, linkb->cache_last_context_id);
-          g_hash_table_remove (linkb->cache_labelspath, linkb->cache_last_context_id);
+          g_hash_table_remove (linkb->cache_idspath, linkb->cache_last_lookup_id);
+          g_hash_table_remove (linkb->cache_labelspath, linkb->cache_last_lookup_id);
 */
 
-          g_free (linkb->cache_last_context_id);
+          g_free (linkb->cache_last_lookup_id);
         }
 
       /* clear cache if full */
       if (g_hash_table_size (linkb->cache_idspath) > DUPIN_LINKS_PATH_CACHE)
         {
-//g_message ("dupin_link_record_util_generate_paths_node: clearing ids_path cache\n");
+//g_message ("dupin_link_record_util_get_paths_node: clearing ids_path cache\n");
 
           g_hash_table_remove_all (linkb->cache_idspath);
         }
 
       if (g_hash_table_size (linkb->cache_labelspath) > DUPIN_LINKS_PATH_CACHE)
         {
-//g_message ("dupin_link_record_util_generate_paths_node: clearing labels_path cache\n");
+//g_message ("dupin_link_record_util_get_paths_node: clearing labels_path cache\n");
 
           g_hash_table_remove_all (linkb->cache_labelspath);
         }
 
-//g_message ("dupin_link_record_util_generate_paths_node: current caches size is %d / %d\n", (gint) g_hash_table_size (linkb->cache_idspath), (gint) g_hash_table_size (linkb->cache_labelspath));
+//g_message ("dupin_link_record_util_get_paths_node: current caches size is %d / %d\n", (gint) g_hash_table_size (linkb->cache_idspath), (gint) g_hash_table_size (linkb->cache_labelspath));
 
-      linkb->cache_last_context_id = g_strdup (source_id);
+      linkb->cache_last_lookup_id = g_strdup (lookup_key);
       context_id_changed = TRUE;
     }
 
   if (dupin_linkbase_is_cache_on (linkb, NULL) == TRUE)
     {
-      gchar * cached_ids_path = g_hash_table_lookup (linkb->cache_idspath, linkb->cache_last_context_id);
-      gchar * cached_labels_path = g_hash_table_lookup (linkb->cache_labelspath, linkb->cache_last_context_id);
+      gchar * cached_ids_path = g_hash_table_lookup (linkb->cache_idspath, linkb->cache_last_lookup_id);
+      gchar * cached_labels_path = g_hash_table_lookup (linkb->cache_labelspath, linkb->cache_last_lookup_id);
 
       if (context_id_changed == FALSE
           && cached_ids_path != NULL
@@ -2379,20 +2380,22 @@ dupin_link_record_util_generate_paths_node (DupinLinkB * linkb,
       gchar *query;
       if (tag != NULL)
         //query = sqlite3_mprintf ("SELECT idspath, labelspath, id as link_record_id FROM Dupin WHERE rev = (select max(rev) as rev FROM Dupin WHERE id=link_record_id) AND deleted = 'FALSE' AND href = '%q' AND tag = %Q GROUP BY context_id", source_id, tag); //slowest
-        //query = sqlite3_mprintf ("SELECT idspath, labelspath, id as link_record_id FROM Dupin WHERE rev = (select max(rev) as rev FROM Dupin WHERE id=link_record_id) AND deleted = 'FALSE' AND href = '%q' AND tag = %Q", source_id, tag); //slower
-        query = sqlite3_mprintf ("SELECT idspath, labelspath, ROWID as link_record_rowid FROM Dupin WHERE rowid = (select max(ROWID) as rowid FROM Dupin WHERE rowid=link_record_rowid) AND deleted = 'FALSE' AND href = '%q' AND tag = %Q LIMIT 1", source_id, tag);
+        //query = sqlite3_mprintf ("SELECT idspath, labelspath, ROWID as link_record_rowid FROM Dupin WHERE rowid = (select max(ROWID) as rowid FROM Dupin WHERE rowid=link_record_rowid) AND deleted = 'FALSE' AND href = '%q' AND tag = %Q LIMIT 1", source_id, tag);
+
+        query = sqlite3_mprintf ("SELECT idspath, labelspath, tag, id as link_record_id FROM Dupin WHERE rev = (select max(rev) as rev FROM Dupin WHERE id=link_record_id) AND deleted = 'FALSE' AND href = '%q' AND tag = %Q ORDER BY ROWID DESC LIMIT 1", source_id, tag);
       else
         //query = sqlite3_mprintf ("SELECT idspath, labelspath, id as link_record_id FROM Dupin WHERE rev = (select max(rev) as rev FROM Dupin WHERE id=link_record_id) AND deleted = 'FALSE' AND href = '%q' GROUP BY context_id", source_id); //slowest
-        //query = sqlite3_mprintf ("SELECT idspath, labelspath, id as link_record_id FROM Dupin WHERE rev = (select max(rev) as rev FROM Dupin WHERE id=link_record_id) AND deleted = 'FALSE' AND href = '%q'", source_id); // slower
-        query = sqlite3_mprintf ("SELECT idspath, labelspath, ROWID as link_record_rowid FROM Dupin WHERE rowid = (select max(ROWID) as rowid FROM Dupin WHERE rowid=link_record_rowid) AND deleted = 'FALSE' AND href = '%q' LIMIT 1", source_id);
+        //query = sqlite3_mprintf ("SELECT idspath, labelspath, ROWID as link_record_rowid FROM Dupin WHERE rowid = (select max(ROWID) as rowid FROM Dupin WHERE rowid=link_record_rowid) AND deleted = 'FALSE' AND href = '%q' AND tag = NULL LIMIT 1", source_id);
 
-//g_message("dupin_link_record_util_generate_paths_node: source_id=%s target_id=%s label=%s tag=%s\n", source_id, target_id, label, tag);
-//g_message("dupin_link_record_util_generate_paths_node: query=%s\n", query);
+        query = sqlite3_mprintf ("SELECT idspath, labelspath, tag, id as link_record_id FROM Dupin WHERE rev = (select max(rev) as rev FROM Dupin WHERE id=link_record_id) AND deleted = 'FALSE' AND href = '%q' AND tag IS NULL ORDER BY ROWID DESC LIMIT 1 ", source_id);
+
+//g_message("dupin_link_record_util_get_paths_node: source_id=%s tag=%s lookup_key=%\n", source_id, tag, lookup_key);
+//g_message("dupin_link_record_util_get_paths_node: query=%s\n", query);
 
       if (lock == TRUE)
         g_mutex_lock (linkb->mutex);
 
-      if (sqlite3_exec (linkb->db, query, dupin_link_record_util_generate_paths_node_cb, &parent, &errmsg)
+      if (sqlite3_exec (linkb->db, query, dupin_link_record_util_get_paths_node_cb, &parent, &errmsg)
           != SQLITE_OK)
         {
           if (lock == TRUE)
@@ -2402,6 +2405,7 @@ dupin_link_record_util_generate_paths_node (DupinLinkB * linkb,
                        errmsg);
           sqlite3_free (errmsg);
           sqlite3_free (query);
+	  g_free (lookup_key);
           return NULL;
         }
 
@@ -2415,7 +2419,7 @@ dupin_link_record_util_generate_paths_node (DupinLinkB * linkb,
           if (dupin_linkbase_is_cache_on (linkb, NULL) == TRUE)
             {
               /* cache */
-              g_hash_table_replace (linkb->cache_idspath, g_strdup (linkb->cache_last_context_id), g_strdup (parent.parent_idspath));
+              g_hash_table_replace (linkb->cache_idspath, g_strdup (linkb->cache_last_lookup_id), g_strdup (parent.parent_idspath));
             }
 
           parser_error = NULL;
@@ -2427,10 +2431,16 @@ dupin_link_record_util_generate_paths_node (DupinLinkB * linkb,
                   g_error_free (parser_error);
                 }
 
+              if (parent.parent_idspath)
+    	        g_free (parent.parent_idspath);
+
+  	      if (parent.parent_labelspath)
+    	        g_free (parent.parent_labelspath);
+
               if (parser != NULL)
                 g_object_unref (parser);
-              g_free (parent.parent_idspath);
-              g_free (parent.parent_labelspath);
+
+	      g_free (lookup_key);
 
               return NULL;
             }
@@ -2439,11 +2449,17 @@ dupin_link_record_util_generate_paths_node (DupinLinkB * linkb,
 
           if (json_node_get_node_type (idspath_node) != JSON_NODE_ARRAY)
             {
+              if (parent.parent_idspath)
+                g_free (parent.parent_idspath);
+
+              if (parent.parent_labelspath)
+                g_free (parent.parent_labelspath);
+
               if (parser != NULL)
                 g_object_unref (parser);
               json_node_free (idspath_node);
-              g_free (parent.parent_idspath);
-              g_free (parent.parent_labelspath);
+
+	      g_free (lookup_key);
 
               return NULL;
             }
@@ -2452,29 +2468,61 @@ dupin_link_record_util_generate_paths_node (DupinLinkB * linkb,
 
           if (json_array_get_length (idspath_array) == 0)
             {
-              g_warning ("dupin_link_record_util_generate_paths_node: skipped idspath generation for source_id=%s target_id=%s lael=%s tag=%s - parent path was set to empty JSON array\n",
-			source_id, target_id, label, tag);
+              g_warning ("dupin_link_record_util_get_paths_node: skipped idspath for source_id=%s tag=%s - parent path was set to empty JSON array\n", source_id, tag);
+
+              if (parent.parent_idspath)
+                g_free (parent.parent_idspath);
+
+              if (parent.parent_labelspath)
+                g_free (parent.parent_labelspath);
 
               if (parser != NULL)
                 g_object_unref (parser);
               json_node_free (idspath_node);
-              g_free (parent.parent_idspath);
-              g_free (parent.parent_labelspath);
+
+	      g_free (lookup_key);
 
               return NULL;
 	    }
         }
       else
         {
-          if (dupin_linkbase_is_cache_on (linkb, NULL) == TRUE)
+
+          /* NOTE - add default path for node */
+          JsonNode * source_id_node = NULL;
+          gchar * escaped_source_id = dupin_util_json_strescape (source_id);
+          if (escaped_source_id == NULL)
             {
-              /* cache */
-              g_hash_table_replace (linkb->cache_idspath, g_strdup (linkb->cache_last_context_id), g_strdup (DUPIN_LINKB_DEFAULT_PATH));
+              if (parent.parent_idspath)
+                g_free (parent.parent_idspath);
+
+              if (parent.parent_labelspath)
+                g_free (parent.parent_labelspath);
+
+              if (parser != NULL)
+                g_object_unref (parser);
+
+	      g_free (lookup_key);
+
+              return NULL;
             }
+
+          source_id_node = json_node_new (JSON_NODE_VALUE);
+          json_node_set_string (source_id_node, escaped_source_id);
+
+          g_free (escaped_source_id);
 
           idspath_node = json_node_new (JSON_NODE_ARRAY);
           idspath_array = json_array_new ();
           json_node_take_array (idspath_node, idspath_array);
+
+          json_array_add_element (idspath_array, source_id_node);
+
+          if (dupin_linkbase_is_cache_on (linkb, NULL) == TRUE)
+            {
+              /* cache */
+              g_hash_table_replace (linkb->cache_idspath, g_strdup (linkb->cache_last_lookup_id), dupin_util_json_serialize (idspath_node));
+            }
         }
       
       if (parent.parent_labelspath != NULL)
@@ -2482,7 +2530,7 @@ dupin_link_record_util_generate_paths_node (DupinLinkB * linkb,
           if (dupin_linkbase_is_cache_on (linkb, NULL) == TRUE)
             {
               /* cache */
-              g_hash_table_replace (linkb->cache_labelspath, g_strdup (linkb->cache_last_context_id), g_strdup (parent.parent_labelspath));
+              g_hash_table_replace (linkb->cache_labelspath, g_strdup (linkb->cache_last_lookup_id), g_strdup (parent.parent_labelspath));
             }
 
           parser_error = NULL;
@@ -2494,11 +2542,17 @@ dupin_link_record_util_generate_paths_node (DupinLinkB * linkb,
                   g_error_free (parser_error);
                 }
 
+              if (parent.parent_idspath)
+                g_free (parent.parent_idspath);
+
+              if (parent.parent_labelspath)
+                g_free (parent.parent_labelspath);
+
               if (parser != NULL)
                 g_object_unref (parser);
-              g_free (parent.parent_idspath);
-              g_free (parent.parent_labelspath);
               json_node_free (idspath_node);
+
+	      g_free (lookup_key);
 
               return NULL;
             }
@@ -2507,12 +2561,18 @@ dupin_link_record_util_generate_paths_node (DupinLinkB * linkb,
 
           if (json_node_get_node_type (labelspath_node) != JSON_NODE_ARRAY)
             {
+              if (parent.parent_idspath)
+                g_free (parent.parent_idspath);
+
+              if (parent.parent_labelspath)
+                g_free (parent.parent_labelspath);
+
               if (parser != NULL)
                 g_object_unref (parser);
               json_node_free (labelspath_node);
-              g_free (parent.parent_idspath);
-              g_free (parent.parent_labelspath);
               json_node_free (idspath_node);
+
+	      g_free (lookup_key);
 
               return NULL;
             }
@@ -2521,109 +2581,57 @@ dupin_link_record_util_generate_paths_node (DupinLinkB * linkb,
 
           if (json_array_get_length (labelspath_array) == 0)
             {
-              g_warning ("dupin_link_record_util_generate_paths_node: skipped labelspath generation for source_id=%s target_id=%s label=%s tag=%s - parent path was set to empty JSON array\n",
-			source_id, target_id, label, tag);
+              g_warning ("dupin_link_record_util_get_paths_node: skipped idspath for source_id=%s tag=%s - parent path was set to empty JSON array\n", source_id, tag);
+
+              if (parent.parent_idspath)
+                g_free (parent.parent_idspath);
+
+              if (parent.parent_labelspath)
+                g_free (parent.parent_labelspath);
 
               if (parser != NULL)
                 g_object_unref (parser);
               json_node_free (labelspath_node);
-              g_free (parent.parent_idspath);
-              g_free (parent.parent_labelspath);
               json_node_free (idspath_node);
+
+	      g_free (lookup_key);
 
               return NULL;
 	    }
         }
       else
         {
-          if (dupin_linkbase_is_cache_on (linkb, NULL) == TRUE)
-            {
-              /* cache */
-              g_hash_table_replace (linkb->cache_labelspath, g_strdup (linkb->cache_last_context_id), g_strdup (DUPIN_LINKB_DEFAULT_PATH));
-            }
+          JsonNode * empty_source_id_label_node = json_node_new (JSON_NODE_NULL);
 
           labelspath_node = json_node_new (JSON_NODE_ARRAY);
           labelspath_array = json_array_new ();
           json_node_take_array (labelspath_node, labelspath_array);
+
+          json_array_add_element (labelspath_array, empty_source_id_label_node);
+
+          if (dupin_linkbase_is_cache_on (linkb, NULL) == TRUE)
+            {
+              /* cache */
+              g_hash_table_replace (linkb->cache_labelspath, g_strdup (linkb->cache_last_lookup_id), dupin_util_json_serialize (labelspath_node));
+            }
+
         }
 
-//g_message ("dupin_link_record_util_generate_paths_node: Created the following cache entries:\n");
+//g_message ("dupin_link_record_util_get_paths_node: Created the following cache entries:\n");
     }
   else
     {
-//g_message ("dupin_link_record_util_generate_paths_node: Fetched the following cache entries:\n");
+//g_message ("dupin_link_record_util_get_paths_node: Fetched the following cache entries:\n");
     }
 
-//g_message ("dupin_link_record_util_generate_paths_node: linkb->cache_idspath(%s) = %s\n", linkb->cache_last_context_id, (gchar *)g_hash_table_lookup (linkb->cache_idspath, linkb->cache_last_context_id));
-//g_message ("dupin_link_record_util_generate_paths_node: linkb->cache_labelspath(%s) = %s\n", linkb->cache_last_context_id, (gchar *)g_hash_table_lookup (linkb->cache_labelspath, linkb->cache_last_context_id));
+//g_message ("dupin_link_record_util_get_paths_node: linkb->cache_idspath(%s) = %s\n", linkb->cache_last_lookup_id, (gchar *)g_hash_table_lookup (linkb->cache_idspath, linkb->cache_last_id));
+//g_message ("dupin_link_record_util_get_paths_node: linkb->cache_labelspath(%s) = %s\n", linkb->cache_last_lookup_id, (gchar *)g_hash_table_lookup (linkb->cache_labelspath, linkb->cache_last_id));
 
-  /* NOTE - try to avoid disasters pre-parse source_id, target_id and label to make sure JSON will be sane
- 	    even though note that the dupin_view_collation() and the dupin_util_get_collate_type do not use json-glib
-	    in any way. But here we might have the user posting nusty IDs */
+  if (parent.parent_idspath)
+    g_free (parent.parent_idspath);
 
-  /* ids path */
-
-  JsonNode * source_id_node = NULL;
-  JsonNode * target_id_node = NULL;
-  gchar * escaped_source_id = dupin_util_json_strescape (source_id);
-  gchar * escaped_target_id = dupin_util_json_strescape (target_id);
-
-  if (escaped_source_id == NULL || escaped_target_id == NULL)
-    {
-      if (parser != NULL)
-        g_object_unref (parser);
-      json_node_free (idspath_node);
-      json_node_free (labelspath_node);
-      g_free (parent.parent_idspath);
-      g_free (parent.parent_labelspath);
-
-      return NULL;
-    }
-
-  source_id_node = json_node_new (JSON_NODE_VALUE);
-  json_node_set_string (source_id_node, escaped_source_id);
-
-  target_id_node = json_node_new (JSON_NODE_VALUE);
-  json_node_set_string (target_id_node, escaped_target_id);
-
-  /* [ [EXISTING-SOURCE_ID-IDSPATH], SOURCE_ID, TARGET_ID ] */
-  if (json_array_get_length (idspath_array) == 0)
-    json_array_add_element (idspath_array, source_id_node);
-  else
-    json_node_free (source_id_node);
-
-  json_array_add_element (idspath_array, target_id_node);
-
-  g_free (escaped_target_id);
-  g_free (escaped_source_id);
-
-  /* labels path */
-
-  JsonNode * label_node = NULL;
-  gchar * escaped_label = dupin_util_json_strescape (label);
-
-  if (escaped_label == NULL)
-    {
-      if (parser != NULL)
-        g_object_unref (parser);
-      json_node_free (idspath_node);
-      json_node_free (labelspath_node);
-      g_free (parent.parent_idspath);
-      g_free (parent.parent_labelspath);
-
-      return NULL;
-    }
-
-  label_node = json_node_new (JSON_NODE_VALUE);
-  json_node_set_string (label_node, escaped_label);
-
-  /* [ [EXISTING-SOURCE_ID-LABELSPATH], SOURCE_ID, TARGET_ID ] */
-  json_array_add_element (labelspath_array, label_node);
-
-  g_free (escaped_label);
-
-  g_free (parent.parent_idspath);
-  g_free (parent.parent_labelspath);
+  if (parent.parent_labelspath)
+    g_free (parent.parent_labelspath);
 
   if (parser != NULL)
     g_object_unref (parser);
@@ -2635,13 +2643,87 @@ dupin_link_record_util_generate_paths_node (DupinLinkB * linkb,
   json_array_add_element (paths_array, idspath_node);
   json_array_add_element (paths_array, labelspath_node);
 
-DUPIN_UTIL_DUMP_JSON (paths);
+//g_message(" ========= fetched paths %s %s ======= \n\n", source_id, tag);
 
-//g_message(" ========= paths %s ======= \n\n", source_id);
+//DUPIN_UTIL_DUMP_JSON ("fetched (and defaulted) paths", paths);
 
-//g_message ("dupin_link_record_util_generate_paths_node: linkb->cache_idspath(%s) = %s\n", linkb->cache_last_context_id, (gchar *)g_hash_table_lookup (linkb->cache_idspath, linkb->cache_last_context_id));
-//g_message ("dupin_link_record_util_generate_paths_node: linkb->cache_labelspath(%s) = %s\n", linkb->cache_last_context_id, (gchar *)g_hash_table_lookup (linkb->cache_labelspath, linkb->cache_last_context_id));
-//g_message(" ========= cached entries %s ======= \n\n", source_id);
+//g_message(" ========= cached entries %s %s ======= \n\n", source_id, tag);
+
+//g_message ("dupin_link_record_util_get_paths_node: linkb->cache_idspath(%s) = %s\n", linkb->cache_last_lookup_id, (gchar *)g_hash_table_lookup (linkb->cache_idspath, linkb->cache_last_id));
+//g_message ("dupin_link_record_util_get_paths_node: linkb->cache_labelspath(%s) = %s\n", linkb->cache_last_lookup_id, (gchar *)g_hash_table_lookup (linkb->cache_labelspath, linkb->cache_last_id));
+
+  g_free (lookup_key);
+
+  return paths;
+}
+
+JsonNode *
+dupin_link_record_util_generate_paths_node (DupinLinkB * linkb,
+					    gchar * source_id,
+                                            gchar * target_id,
+                                            gchar * label,
+                                            gchar * tag,
+					    GError ** error, gboolean lock)
+{
+  g_return_val_if_fail (source_id != NULL, FALSE);
+  g_return_val_if_fail (dupin_link_record_util_is_valid_context_id (source_id), FALSE);
+
+//g_message("dupin_link_record_util_generate_paths_node: %s ========= %s =======> %s\n", source_id, label, target_id);
+
+  JsonArray * idspath_array = NULL;
+  JsonArray * labelspath_array = NULL;
+
+  JsonNode * paths = dupin_link_record_util_get_paths_node (linkb, source_id, tag, error, lock);
+
+  if (paths == NULL
+      || json_node_get_node_type (paths) != JSON_NODE_ARRAY)
+    return FALSE;
+
+  idspath_array = json_node_get_array (json_array_get_element (json_node_get_array (paths), 0));
+  labelspath_array = json_node_get_array (json_array_get_element (json_node_get_array (paths), 1));
+
+  /* ids path */
+
+  JsonNode * target_id_node = NULL;
+  gchar * escaped_target_id = dupin_util_json_strescape (target_id);
+
+  if (escaped_target_id == NULL)
+    {
+      json_node_free (paths);
+      return NULL;
+    }
+
+  target_id_node = json_node_new (JSON_NODE_VALUE);
+  json_node_set_string (target_id_node, escaped_target_id);
+
+  /* [ [EXISTING-SOURCE_ID-IDSPATH], TARGET_ID ] */
+
+  json_array_add_element (idspath_array, target_id_node);
+
+  g_free (escaped_target_id);
+
+  /* labels path */
+
+  JsonNode * label_node = NULL;
+  gchar * escaped_label = dupin_util_json_strescape (label);
+
+  if (escaped_label == NULL)
+    {
+      json_node_free (paths);
+      return NULL;
+    }
+
+  label_node = json_node_new (JSON_NODE_VALUE);
+  json_node_set_string (label_node, escaped_label);
+
+  /* [ [EXISTING-SOURCE_LABEL-LABELSPATH], TARGET_LABEL ] */
+  json_array_add_element (labelspath_array, label_node);
+
+  g_free (escaped_label);
+
+//g_message(" ========= generated paths %s ======= \n\n", source_id);
+
+//DUPIN_UTIL_DUMP_JSON ("generated paths", paths);
 
   return paths;
 }

@@ -249,6 +249,15 @@ gboolean	dupin_link_record_is_deleted
 					(DupinLinkRecord *		record,
 					 gchar *		mvcc);
 
+/* Special utility function for paths - used into map/reduce code too */
+
+JsonNode *	dupin_link_record_util_get_paths_node
+					(DupinLinkB * linkb,
+                                       	 gchar * source_id,
+                                       	 gchar * tag,
+                                       	 GError ** error,
+					 gboolean lock);
+
 /* insert = create or update */
 
 gboolean	dupin_link_record_insert

@@ -22,7 +22,7 @@
   "  context_id  CHAR(255) NOT NULL,\n" \
   "  label       CHAR(255) NOT NULL,\n" \
   "  href        TEXT NOT NULL,\n" \
-  "  rel         TEXT DEFAULT NULL,\n" \
+  "  rel         TEXT NOT NULL,\n" \
   "  is_weblink  BOOL DEFAULT FALSE,\n" \
   "  tag         TEXT DEFAULT NULL,\n" \
   "  idspath     TEXT NOT NULL,\n" \
@@ -32,8 +32,11 @@
 
 #define DUPIN_LINKB_SQL_CREATE_INDEX \
   "CREATE INDEX IF NOT EXISTS DupinId ON Dupin (id);" \
+  "CREATE INDEX IF NOT EXISTS DupinCreated ON Dupin (tm);" \
   "CREATE INDEX IF NOT EXISTS DupinContextId ON Dupin (context_id);" \
+  "CREATE INDEX IF NOT EXISTS DupinRel ON Dupin (rel);" \
   "CREATE INDEX IF NOT EXISTS DupinHref ON Dupin (href);" \
+  "CREATE INDEX IF NOT EXISTS DupinTag ON Dupin (tag);" \
   "CREATE INDEX IF NOT EXISTS DupinHrefDeletedContextIdTag ON Dupin (href,deleted,tag);"
 
 #define DUPIN_LINKB_SQL_DESC_CREATE \
@@ -797,7 +800,8 @@ dupin_linkbase_get_changes_list (DupinLinkB *              linkb,
                                  DupinOrderByType       orderby_type,
                                  gboolean               descending,
 				 gchar *		context_id,
-				 gchar *		tag,
+				 gchar **               tags,
+				 DupinFilterByType      tags_type,
                                  GList **               list,
                                  GError **              error)
 {
@@ -862,11 +866,51 @@ dupin_linkbase_get_changes_list (DupinLinkB *              linkb,
       sqlite3_free (tmp2);
     }
 
-  if (tag != NULL)
+  if (tags != NULL
+      && tags_type != DP_FILTERBY_PRESENT)
     {
-      gchar * tmp2 = sqlite3_mprintf (" %s d.tag = '%q' ", op, tag);
-      str = g_string_append (str, tmp2);
-      sqlite3_free (tmp2);
+      if (tags[0])
+        {
+          gchar * tmp2 = sqlite3_mprintf (" %s ( ", op);
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+        }
+
+      gint i;
+      for (i = 0; tags[i]; i++)
+        {
+          gchar * tmp2;
+
+          if (tags_type == DP_FILTERBY_EQUALS)
+            tmp2 = sqlite3_mprintf (" d.tag = '%q' ", tags[i]);
+          else if (tags_type == DP_FILTERBY_CONTAINS)
+            tmp2 = sqlite3_mprintf (" d.tag LIKE '%%%q%%' ", tags[i]);
+          else if (tags_type == DP_FILTERBY_STARTS_WITH)
+            tmp2 = sqlite3_mprintf (" d.tag LIKE '%q%%' ", tags[i]);
+
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+          if (tags[i+1])
+            str = g_string_append (str, " OR ");
+        }
+
+      if (tags[0])
+        str = g_string_append (str, " ) ");
+    }
+  else
+    {
+      if (tags_type == DP_FILTERBY_PRESENT)
+        {
+          gchar * tmp2 = tmp2 = sqlite3_mprintf (" %s ( d.tag IS NOT NULL OR d.tag != '' ) ", op);
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+        }
+      else
+        {
+          gchar * tmp2 = tmp2 = sqlite3_mprintf (" %s d.tag IS NULL ", op);
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+       }
     }
 
   //str = g_string_append (str, " GROUP BY d.id "); 
@@ -950,7 +994,8 @@ dupin_linkbase_get_total_changes
 			 	 DupinCountType         count_type,
                                  gboolean               inclusive_end,
 				 gchar *                context_id,
-				 gchar *		tag,
+				 gchar **               tags,
+				 DupinFilterByType      tags_type,
                                  GError **              error)
 {
   g_return_val_if_fail (linkb != NULL, FALSE);
@@ -1026,16 +1071,60 @@ dupin_linkbase_get_total_changes
       op = "AND";
     }
 
-  if (tag != NULL)
-    { 
+  if (tags != NULL
+      && tags_type != DP_FILTERBY_PRESENT)
+    {
       if (!g_strcmp0 (op, ""))
         op = "WHERE";
 
-      gchar * tmp2 = sqlite3_mprintf (" %s d.tag = '%q' ", op, tag);
-      str = g_string_append (str, tmp2);
-      sqlite3_free (tmp2);
+      if (tags[0])
+        {
+          gchar * tmp2 = sqlite3_mprintf (" %s ( ", op);
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+        }
+
+      gint i;
+      for (i = 0; tags[i]; i++)
+        {
+          gchar * tmp2;
+
+          if (tags_type == DP_FILTERBY_EQUALS)
+            tmp2 = sqlite3_mprintf (" d.tag = '%q' ", tags[i]);
+          else if (tags_type == DP_FILTERBY_CONTAINS)
+            tmp2 = sqlite3_mprintf (" d.tag LIKE '%%%q%%' ", tags[i]);
+          else if (tags_type == DP_FILTERBY_STARTS_WITH)
+            tmp2 = sqlite3_mprintf (" d.tag LIKE '%q%%' ", tags[i]);
+
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+          if (tags[i+1])
+            str = g_string_append (str, " OR ");
+        }
+
+      if (tags[0])
+        str = g_string_append (str, " ) ");
+    }
+  else
+    {
+      if (!g_strcmp0 (op, ""))
+        op = "WHERE";
+
+      if (tags_type == DP_FILTERBY_PRESENT)
+        {
+          gchar * tmp2 = tmp2 = sqlite3_mprintf (" %s ( d.tag IS NOT NULL OR d.tag != '' ) ", op);
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+        }
+      else
+        {
+          gchar * tmp2 = tmp2 = sqlite3_mprintf (" %s d.tag IS NULL ", op);
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+       }
     }
 
+  // TODO - check if we need this group by - see above dupin_linkbase_get_changes_list()
   str = g_string_append (str, " GROUP BY d.id "); 
 
   tmp = g_string_free (str, FALSE);
@@ -1112,7 +1201,8 @@ dupin_linkbase_thread_compact (DupinLinkB * linkb, gsize count)
   gsize start_rowid = (compact_id != NULL) ? atoi(compact_id)+1 : 1;
 
   if (dupin_link_record_get_list (linkb, count, 0, start_rowid, 0, DP_LINK_TYPE_ANY, DP_COUNT_ALL, DP_ORDERBY_ROWID, FALSE,
-				  NULL, NULL, NULL, NULL, &results, NULL) ==
+				  0, DP_CREATED_SINCE, NULL, NULL, DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS,
+                                  NULL, DP_FILTERBY_EQUALS, &results, NULL) ==
       FALSE || !results)
     {
       if (compact_id != NULL)
@@ -1369,7 +1459,8 @@ dupin_linkbase_thread_check (DupinLinkB * linkb, gsize count)
   gsize start_rowid = (check_id != NULL) ? atoi(check_id)+1 : 1;
 
   if (dupin_link_record_get_list (linkb, count, 0, start_rowid, 0, DP_LINK_TYPE_ANY, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE,
-				  NULL, NULL, NULL, NULL, &results, NULL) ==
+				  0, DP_CREATED_SINCE, NULL, NULL, DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS,
+                                  NULL, DP_FILTERBY_EQUALS, &results, NULL) ==
       FALSE || !results)
     {
       if (check_id != NULL)

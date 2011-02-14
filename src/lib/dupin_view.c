@@ -1337,7 +1337,7 @@ dupin_view_sync_thread_map_db (DupinView * view, gsize count)
 
   gsize start_rowid = (sync_map_id != NULL) ? atoi(sync_map_id)+1 : 1;
 
-  if (dupin_record_get_list (db, count, 0, start_rowid, 0, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE, &results, NULL) ==
+  if (dupin_record_get_list (db, count, 0, start_rowid, 0, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE, 0, DP_CREATED_SINCE, &results, NULL) ==
       FALSE || !results)
     {
       if (sync_map_id != NULL)
@@ -1481,7 +1481,9 @@ dupin_view_sync_thread_map_linkb (DupinView * view, gsize count)
 
   gsize start_rowid = (sync_map_id != NULL) ? atoi(sync_map_id)+1 : 1;
 
-  if (dupin_link_record_get_list (linkb, count, 0, start_rowid, 0, DP_LINK_TYPE_ANY, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE, NULL, NULL, NULL, NULL, &results, NULL) ==
+  if (dupin_link_record_get_list (linkb, count, 0, start_rowid, 0, DP_LINK_TYPE_ANY, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE,
+				  0, DP_CREATED_SINCE, NULL, NULL, DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS,
+				  NULL, DP_FILTERBY_EQUALS, &results, NULL) ==
       FALSE || !results)
     {
       if (sync_map_id != NULL)

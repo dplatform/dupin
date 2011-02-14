@@ -672,10 +672,17 @@ gsize
 dupin_link_record_get_list_total (DupinLinkB * linkb,
                                   DupinLinksType links_type,
                                   DupinCountType count_type,
-                                  gchar * context_id,
-                                  gchar ** labels,
-                                  gchar * href,
-                                  gchar * tag)
+				  gsize                  created,
+				  DupinCreatedType       created_type,
+                                  gchar *                context_id,
+			    	  gchar **               rels,
+			    	  DupinFilterByType      rels_type,
+                                  gchar **               labels,
+                                  DupinFilterByType      labels_type,
+                                  gchar **               hrefs,
+                                  DupinFilterByType      hrefs_type,
+                                  gchar **               tags,
+                                  DupinFilterByType      tags_type)
 {
   struct dupin_link_record_get_list_total_t count;
   GString * str;
@@ -688,11 +695,30 @@ dupin_link_record_get_list_total (DupinLinkB * linkb,
   if (context_id != NULL)
     g_return_val_if_fail (dupin_link_record_util_is_valid_context_id (context_id) == TRUE, FALSE);
 
-  if (labels != NULL)
+  if (rels != NULL
+      && rels_type == DP_FILTERBY_EQUALS )
+    {
+      for (i = 0; rels[i]; i++)
+        {
+          g_return_val_if_fail (dupin_link_record_util_is_valid_rel (rels[i]) == TRUE, FALSE);
+        }
+    }
+
+  if (labels != NULL
+      && labels_type == DP_FILTERBY_EQUALS )
     {
       for (i = 0; labels[i]; i++)
         {
           g_return_val_if_fail (dupin_link_record_util_is_valid_label (labels[i]) == TRUE, FALSE);
+        }
+    }
+
+  if (hrefs != NULL
+      && hrefs_type == DP_FILTERBY_EQUALS )
+    {
+      for (i = 0; hrefs[i]; i++)
+        {
+          g_return_val_if_fail (dupin_link_record_util_is_valid_href (hrefs[i]) == TRUE, FALSE);
         }
     }
 
@@ -717,6 +743,19 @@ dupin_link_record_get_list_total (DupinLinkB * linkb,
       op = "AND";
     }
 
+  if (created != 0)
+    {
+      if (!g_strcmp0 (op, ""))
+        op = "WHERE";
+
+      if (created_type == DP_CREATED_SINCE)
+        g_string_append_printf (str, " %s d.tm >= %" G_GSIZE_FORMAT " ", op, created);
+      else if (created_type == DP_CREATED_UNTIL)
+        g_string_append_printf (str, " %s d.tm <= %" G_GSIZE_FORMAT " ", op, created);
+
+      op = "AND";
+    }
+
   if (context_id != NULL)
     {
       if (!g_strcmp0 (op, ""))
@@ -728,7 +767,44 @@ dupin_link_record_get_list_total (DupinLinkB * linkb,
       op = "AND";
     }
 
-  if (labels != NULL)
+  if (rels != NULL
+      && rels_type != DP_FILTERBY_PRESENT)
+    {
+      if (!g_strcmp0 (op, ""))
+        op = "WHERE";
+
+      if (rels[0])
+        {
+          gchar * tmp2 = sqlite3_mprintf (" %s ( ", op);
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+        }
+
+      for (i = 0; rels[i]; i++)
+        {
+          gchar * tmp2;
+
+	  if (rels_type == DP_FILTERBY_EQUALS)
+            tmp2 = sqlite3_mprintf (" d.rel = '%q' ", rels[i]);
+	  else if (rels_type == DP_FILTERBY_CONTAINS)
+            tmp2 = sqlite3_mprintf (" d.rel LIKE '%%%q%%' ", rels[i]);
+	  else if (rels_type == DP_FILTERBY_STARTS_WITH)
+            tmp2 = sqlite3_mprintf (" d.rel LIKE '%q%%' ", rels[i]);
+
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+          if (rels[i+1])
+            str = g_string_append (str, " OR ");
+        }
+
+      if (rels[0])
+        str = g_string_append (str, " ) ");
+
+      op = "AND";
+    }
+
+  if (labels != NULL
+      && labels_type != DP_FILTERBY_PRESENT)
     {
       if (!g_strcmp0 (op, ""))
         op = "WHERE";
@@ -742,7 +818,15 @@ dupin_link_record_get_list_total (DupinLinkB * linkb,
 
       for (i = 0; labels[i]; i++)
         {
-          gchar * tmp2 = sqlite3_mprintf (" d.label = '%q' ", labels[i]);
+          gchar * tmp2;
+
+	  if (labels_type == DP_FILTERBY_EQUALS)
+            tmp2 = sqlite3_mprintf (" d.label = '%q' ", labels[i]);
+	  else if (labels_type == DP_FILTERBY_CONTAINS)
+            tmp2 = sqlite3_mprintf (" d.label LIKE '%%%q%%' ", labels[i]);
+	  else if (labels_type == DP_FILTERBY_STARTS_WITH)
+            tmp2 = sqlite3_mprintf (" d.label LIKE '%q%%' ", labels[i]);
+
           str = g_string_append (str, tmp2);
           sqlite3_free (tmp2);
           if (labels[i+1])
@@ -755,26 +839,101 @@ dupin_link_record_get_list_total (DupinLinkB * linkb,
       op = "AND";
     }
 
-  if (href != NULL)
+  if (hrefs != NULL
+      && hrefs_type != DP_FILTERBY_PRESENT)
     {
       if (!g_strcmp0 (op, ""))
         op = "WHERE";
 
-      gchar * tmp2 = sqlite3_mprintf (" %s d.href LIKE '%%%q%%' ", op, href);
-      str = g_string_append (str, tmp2);
-      sqlite3_free (tmp2);
+      if (hrefs[0])
+        {
+          gchar * tmp2 = sqlite3_mprintf (" %s ( ", op);
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+        }
+
+      for (i = 0; hrefs[i]; i++)
+        {
+          gchar * tmp2;
+
+	  if (hrefs_type == DP_FILTERBY_EQUALS)
+            tmp2 = sqlite3_mprintf (" d.href = '%q' ", hrefs[i]);
+	  else if (hrefs_type == DP_FILTERBY_CONTAINS)
+            tmp2 = sqlite3_mprintf (" d.href LIKE '%%%q%%' ", hrefs[i]);
+	  else if (hrefs_type == DP_FILTERBY_STARTS_WITH)
+            tmp2 = sqlite3_mprintf (" d.href LIKE '%q%%' ", hrefs[i]);
+
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+          if (hrefs[i+1])
+            str = g_string_append (str, " OR ");
+        }
+
+      if (hrefs[0])
+        str = g_string_append (str, " ) ");
 
       op = "AND";
     }
 
-  if (tag != NULL)
+  if (tags != NULL
+      && tags_type != DP_FILTERBY_PRESENT)
     {
       if (!g_strcmp0 (op, ""))
         op = "WHERE";
 
-      gchar * tmp2 = sqlite3_mprintf (" %s d.tag = '%q' ", op, tag);
-      str = g_string_append (str, tmp2);
-      sqlite3_free (tmp2);
+      if (tags[0])
+        {
+          gchar * tmp2 = sqlite3_mprintf (" %s ( ", op);
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+        }
+
+      for (i = 0; tags[i]; i++)
+        {
+          gchar * tmp2;
+
+	  if (tags_type == DP_FILTERBY_EQUALS)
+            tmp2 = sqlite3_mprintf (" d.tag = '%q' ", tags[i]);
+	  else if (tags_type == DP_FILTERBY_CONTAINS)
+            tmp2 = sqlite3_mprintf (" d.tag LIKE '%%%q%%' ", tags[i]);
+	  else if (tags_type == DP_FILTERBY_STARTS_WITH)
+            tmp2 = sqlite3_mprintf (" d.tag LIKE '%q%%' ", tags[i]);
+
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+          if (tags[i+1])
+            str = g_string_append (str, " OR ");
+        }
+
+      if (tags[0])
+        str = g_string_append (str, " ) ");
+
+      op = "AND";
+    }
+  else
+    {
+      if (tags_type == DP_FILTERBY_PRESENT)
+        {
+          if (!g_strcmp0 (op, ""))
+            op = "WHERE";
+
+          gchar * tmp2 = tmp2 = sqlite3_mprintf (" %s ( d.tag IS NOT NULL OR d.tag != '' ) ", op);
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+
+          op = "AND";
+        }
+      else
+        {
+          if (!g_strcmp0 (op, ""))
+            op = "WHERE";
+
+          gchar * tmp2 = tmp2 = sqlite3_mprintf (" %s d.tag IS NULL ", op);
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+
+          op = "AND";
+       }
     }
 
   str = g_string_append (str, " GROUP BY id");
@@ -905,10 +1064,17 @@ dupin_link_record_get_list (DupinLinkB * linkb, guint count, guint offset,
 			    DupinCountType         count_type,
                             DupinOrderByType       orderby_type,
                             gboolean               descending,
+			    gsize                  created,
+			    DupinCreatedType       created_type,
                             gchar *                context_id,
+			    gchar **               rels,
+			    DupinFilterByType      rels_type,
                             gchar **               labels,
-                            gchar *                href,
-                            gchar *                tag,
+                            DupinFilterByType      labels_type,
+                            gchar **               hrefs,
+                            DupinFilterByType      hrefs_type,
+                            gchar **               tags,
+                            DupinFilterByType      tags_type,
 		            GList ** list, GError ** error)
 {
   GString *str;
@@ -926,11 +1092,33 @@ dupin_link_record_get_list (DupinLinkB * linkb, guint count, guint offset,
   if (context_id != NULL)
     g_return_val_if_fail (dupin_link_record_util_is_valid_context_id (context_id) == TRUE, FALSE);
 
-  if (labels != NULL)
+  if (context_id != NULL)
+    g_return_val_if_fail (dupin_link_record_util_is_valid_context_id (context_id) == TRUE, FALSE);
+
+  if (rels != NULL
+      && rels_type == DP_FILTERBY_EQUALS )
+    {
+      for (i = 0; rels[i]; i++)
+        {
+          g_return_val_if_fail (dupin_link_record_util_is_valid_rel (rels[i]) == TRUE, FALSE);
+        }
+    }
+
+  if (labels != NULL
+      && labels_type == DP_FILTERBY_EQUALS )
     {
       for (i = 0; labels[i]; i++)
         {
           g_return_val_if_fail (dupin_link_record_util_is_valid_label (labels[i]) == TRUE, FALSE);
+        }
+    }
+
+  if (hrefs != NULL
+      && hrefs_type == DP_FILTERBY_EQUALS )
+    {
+      for (i = 0; hrefs[i]; i++)
+        {
+          g_return_val_if_fail (dupin_link_record_util_is_valid_href (hrefs[i]) == TRUE, FALSE);
         }
     }
 
@@ -979,6 +1167,16 @@ dupin_link_record_get_list (DupinLinkB * linkb, guint count, guint offset,
       op = "AND";
     }
 
+  if (created != 0)
+    {
+      if (created_type == DP_CREATED_SINCE)
+        g_string_append_printf (str, " %s d.tm >= %" G_GSIZE_FORMAT " ", op, created);
+      else if (created_type == DP_CREATED_UNTIL)
+        g_string_append_printf (str, " %s d.tm <= %" G_GSIZE_FORMAT " ", op, created);
+
+      op = "AND";
+    }
+
   if (context_id != NULL)
     {
       gchar * tmp2 = sqlite3_mprintf (" %s d.context_id = '%q' ", op, context_id);
@@ -987,18 +1185,60 @@ dupin_link_record_get_list (DupinLinkB * linkb, guint count, guint offset,
       op = "AND";
     }
 
-  if (labels != NULL)
+  if (rels != NULL
+      && rels_type != DP_FILTERBY_PRESENT)
+    {
+      if (rels[0])
+        {
+          gchar * tmp2 = sqlite3_mprintf (" %s ( ", op);
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+        }
+
+      for (i = 0; rels[i]; i++)
+        {
+          gchar * tmp2;
+
+	  if (rels_type == DP_FILTERBY_EQUALS)
+            tmp2 = sqlite3_mprintf (" d.rel = '%q' ", rels[i]);
+	  else if (rels_type == DP_FILTERBY_CONTAINS)
+            tmp2 = sqlite3_mprintf (" d.rel LIKE '%%%q%%' ", rels[i]);
+	  else if (rels_type == DP_FILTERBY_STARTS_WITH)
+            tmp2 = sqlite3_mprintf (" d.rel LIKE '%q%%' ", rels[i]);
+
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+          if (rels[i+1])
+            str = g_string_append (str, " OR ");
+        }
+
+      if (rels[0])
+        str = g_string_append (str, " ) ");
+
+      op = "AND";
+    }
+
+  if (labels != NULL
+      && labels_type != DP_FILTERBY_PRESENT)
     {
       if (labels[0])
         {
           gchar * tmp2 = sqlite3_mprintf (" %s ( ", op);
           str = g_string_append (str, tmp2);
           sqlite3_free (tmp2);
-	}
+        }
 
       for (i = 0; labels[i]; i++)
         {
-          gchar * tmp2 = sqlite3_mprintf (" d.label = '%q' ", labels[i]);
+          gchar * tmp2;
+
+	  if (labels_type == DP_FILTERBY_EQUALS)
+            tmp2 = sqlite3_mprintf (" d.label = '%q' ", labels[i]);
+	  else if (labels_type == DP_FILTERBY_CONTAINS)
+            tmp2 = sqlite3_mprintf (" d.label LIKE '%%%q%%' ", labels[i]);
+	  else if (labels_type == DP_FILTERBY_STARTS_WITH)
+            tmp2 = sqlite3_mprintf (" d.label LIKE '%q%%' ", labels[i]);
+
           str = g_string_append (str, tmp2);
           sqlite3_free (tmp2);
           if (labels[i+1])
@@ -1011,20 +1251,89 @@ dupin_link_record_get_list (DupinLinkB * linkb, guint count, guint offset,
       op = "AND";
     }
 
-  if (href != NULL)
+  if (hrefs != NULL
+      && hrefs_type != DP_FILTERBY_PRESENT)
     {
-      gchar * tmp2 = sqlite3_mprintf (" %s d.href LIKE '%%%q%%' ", op, href);
-      str = g_string_append (str, tmp2);
-      sqlite3_free (tmp2);
+      if (hrefs[0])
+        {
+          gchar * tmp2 = sqlite3_mprintf (" %s ( ", op);
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+        }
+
+      for (i = 0; hrefs[i]; i++)
+        {
+          gchar * tmp2;
+
+	  if (hrefs_type == DP_FILTERBY_EQUALS)
+            tmp2 = sqlite3_mprintf (" d.href = '%q' ", hrefs[i]);
+	  else if (hrefs_type == DP_FILTERBY_CONTAINS)
+            tmp2 = sqlite3_mprintf (" d.href LIKE '%%%q%%' ", hrefs[i]);
+	  else if (hrefs_type == DP_FILTERBY_STARTS_WITH)
+            tmp2 = sqlite3_mprintf (" d.href LIKE '%q%%' ", hrefs[i]);
+
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+          if (hrefs[i+1])
+            str = g_string_append (str, " OR ");
+        }
+
+      if (hrefs[0])
+        str = g_string_append (str, " ) ");
 
       op = "AND";
     }
 
-  if (tag != NULL)
+  if (tags != NULL
+      && tags_type != DP_FILTERBY_PRESENT)
     {
-      gchar * tmp2 = sqlite3_mprintf (" %s d.tag = '%q' ", op, tag);
-      str = g_string_append (str, tmp2);
-      sqlite3_free (tmp2);
+      if (tags[0])
+        {
+          gchar * tmp2 = sqlite3_mprintf (" %s ( ", op);
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+        }
+
+      for (i = 0; tags[i]; i++)
+        {
+          gchar * tmp2;
+
+	  if (tags_type == DP_FILTERBY_EQUALS)
+            tmp2 = sqlite3_mprintf (" d.tag = '%q' ", tags[i]);
+	  else if (tags_type == DP_FILTERBY_CONTAINS)
+            tmp2 = sqlite3_mprintf (" d.tag LIKE '%%%q%%' ", tags[i]);
+	  else if (tags_type == DP_FILTERBY_STARTS_WITH)
+            tmp2 = sqlite3_mprintf (" d.tag LIKE '%q%%' ", tags[i]);
+
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+          if (tags[i+1])
+            str = g_string_append (str, " OR ");
+        }
+
+      if (tags[0])
+        str = g_string_append (str, " ) ");
+
+      op = "AND";
+    }
+  else
+    {
+      if (tags_type == DP_FILTERBY_PRESENT)
+        {
+          gchar * tmp2 = tmp2 = sqlite3_mprintf (" %s ( d.tag IS NOT NULL OR d.tag != '' ) ", op);
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+
+          op = "AND";
+        }
+      else
+        {
+          gchar * tmp2 = tmp2 = sqlite3_mprintf (" %s d.tag IS NULL ", op);
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+
+          op = "AND";
+       }
     }
 
   if (orderby_type == DP_ORDERBY_ROWID)
@@ -3194,6 +3503,19 @@ dupin_link_record_insert (DupinLinkB * linkb,
 
 	      if (json_record_id != NULL)
                 g_free (json_record_id);
+
+              if (json_record_label)
+                g_free (json_record_label);
+
+              if (json_record_href)
+                g_free (json_record_href);
+
+              if (json_record_rel)
+                g_free (json_record_rel);
+
+              if (json_record_tag)
+                g_free (json_record_tag);
+
               if (mvcc != NULL)
                 g_free (mvcc);
 
@@ -3217,6 +3539,19 @@ dupin_link_record_insert (DupinLinkB * linkb,
 
       if (json_record_id != NULL)
         g_free (json_record_id);
+
+      if (json_record_label)
+        g_free (json_record_label);
+
+      if (json_record_href)
+        g_free (json_record_href);
+
+      if (json_record_rel)
+        g_free (json_record_rel);
+
+      if (json_record_tag)
+        g_free (json_record_tag);
+
       if (mvcc != NULL)
         g_free (mvcc);
 

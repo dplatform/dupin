@@ -156,7 +156,8 @@ struct ds_httpd_client_t
       gboolean		   param_include_docs;
       gboolean		   param_include_links;
       gchar *		   param_context_id;
-      gchar *		   param_tag;
+      gchar **		   param_tags;
+      DupinFilterByType	   param_tags_op;
     } changes_comet;
 
   } output;

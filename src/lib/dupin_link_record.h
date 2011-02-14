@@ -143,10 +143,17 @@ gboolean	dupin_link_record_get_list
 					 DupinCountType		count_type,
 					 DupinOrderByType	orderby_type,
 					 gboolean		descending,
+					 gsize			created,
+					 DupinCreatedType	created_type,
 					 gchar *                context_id,
+					 gchar **               rels,
+					 DupinFilterByType	rels_type,
 					 gchar **               labels,
-                                         gchar *                href,
-                                         gchar *                tag,
+					 DupinFilterByType	labels_type,
+					 gchar **               hrefs,
+					 DupinFilterByType	hrefs_type,
+					 gchar **               tags,
+					 DupinFilterByType	tags_type,
 					 GList **		list,
 					 GError **		error);
 
@@ -157,10 +164,17 @@ gsize           dupin_link_record_get_list_total
 					(DupinLinkB *		linkb,
                                          DupinLinksType 	links_type,
                                          DupinCountType 	count_type,
-                                         gchar * 		context_id,
-                                         gchar ** 		labels,
-                                         gchar *                href,
-                                         gchar * 		tag);
+					 gsize                  created,
+                                         DupinCreatedType       created_type,
+                                         gchar *                context_id,
+					 gchar **               rels,
+					 DupinFilterByType	rels_type,
+                                         gchar **               labels,
+                                         DupinFilterByType      labels_type,
+                                         gchar **               hrefs,
+                                         DupinFilterByType      hrefs_type,
+                                         gchar **               tags,
+                                         DupinFilterByType      tags_type);
 
 gboolean	dupin_link_record_update
 					(DupinLinkRecord *		record,

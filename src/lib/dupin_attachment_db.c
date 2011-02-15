@@ -21,8 +21,7 @@
   ");"
 
 #define DUPIN_ATTACHMENT_DB_SQL_CREATE_INDEX \
-  "CREATE INDEX IF NOT EXISTS DupinId ON Dupin (id);\n" \
-  "CREATE INDEX IF NOT EXISTS DupinTitle ON Dupin (title);"
+  "CREATE INDEX IF NOT EXISTS DupinIdTitle ON Dupin (id, title);"
 
 #define DUPIN_ATTACHMENT_DB_SQL_DESC_CREATE \
   "CREATE TABLE IF NOT EXISTS DupinAttachmentDB (\n" \

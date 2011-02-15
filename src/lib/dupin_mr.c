@@ -134,6 +134,18 @@ dupin_mr_map (DupinView * view, gchar * map, DupinMRLang language, JsonObject * 
         dupin_js_destroy (js);
 	return len;
       }
+    case DP_MR_LANG_DUPIN_GI:
+      {
+        /* 
+	   - index all fields, one level, two levels, all levels - see portable-listings filterby and filterop
+		-> foo, foo.bar.baz etc. etc...	
+	   - free-text index of set of of fileds (E.g. title and summary)
+	   - date-search
+	   - spatial-search (geo-json / geo-couch and using r-tree module in sqlite)
+	   - similary matching of records
+         */
+	   
+      }
     }
 
   return 0;
@@ -260,6 +272,9 @@ dupin_mr_reduce (DupinView * view,
         dupin_js_destroy (js);
 
 	return ret;
+      }
+    case DP_MR_LANG_DUPIN_GI:
+      {
       }
     }
 

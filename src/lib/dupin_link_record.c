@@ -672,8 +672,6 @@ gsize
 dupin_link_record_get_list_total (DupinLinkB * linkb,
                                   DupinLinksType links_type,
                                   DupinCountType count_type,
-				  gsize                  created,
-				  DupinCreatedType       created_type,
                                   gchar *                context_id,
 			    	  gchar **               rels,
 			    	  DupinFilterByType      rels_type,
@@ -740,19 +738,6 @@ dupin_link_record_get_list_total (DupinLinkB * linkb,
         op = "WHERE";
 
       g_string_append_printf (str, " %s %s ", op, check_linktype);
-      op = "AND";
-    }
-
-  if (created != 0)
-    {
-      if (!g_strcmp0 (op, ""))
-        op = "WHERE";
-
-      if (created_type == DP_CREATED_SINCE)
-        g_string_append_printf (str, " %s d.tm >= %" G_GSIZE_FORMAT " ", op, created);
-      else if (created_type == DP_CREATED_UNTIL)
-        g_string_append_printf (str, " %s d.tm <= %" G_GSIZE_FORMAT " ", op, created);
-
       op = "AND";
     }
 
@@ -1064,8 +1049,6 @@ dupin_link_record_get_list (DupinLinkB * linkb, guint count, guint offset,
 			    DupinCountType         count_type,
                             DupinOrderByType       orderby_type,
                             gboolean               descending,
-			    gsize                  created,
-			    DupinCreatedType       created_type,
                             gchar *                context_id,
 			    gchar **               rels,
 			    DupinFilterByType      rels_type,
@@ -1164,16 +1147,6 @@ dupin_link_record_get_list (DupinLinkB * linkb, guint count, guint offset,
   if (g_strcmp0 (check_linktype, ""))
     {
       g_string_append_printf (str, " %s %s ", op, check_linktype);
-      op = "AND";
-    }
-
-  if (created != 0)
-    {
-      if (created_type == DP_CREATED_SINCE)
-        g_string_append_printf (str, " %s d.tm >= %" G_GSIZE_FORMAT " ", op, created);
-      else if (created_type == DP_CREATED_UNTIL)
-        g_string_append_printf (str, " %s d.tm <= %" G_GSIZE_FORMAT " ", op, created);
-
       op = "AND";
     }
 

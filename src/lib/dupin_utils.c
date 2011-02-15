@@ -151,6 +151,9 @@ dupin_util_mr_lang_to_enum (gchar * lang)
   if (!g_strcmp0 (lang, "javascript"))
     return DP_MR_LANG_JAVASCRIPT;
 
+  if (!g_strcmp0 (lang, "dupin_gi"))
+    return DP_MR_LANG_DUPIN_GI;
+
   g_return_val_if_fail (dupin_util_is_valid_mr_lang (lang) == TRUE, 0);
   return 0;
 }
@@ -784,6 +787,8 @@ dupin_util_mvcc_get_hash (gchar * mvcc,
   return TRUE;
 }
 
+/* JSON Collation related functions - see also http://wiki.apache.org/couchdb/View_collation */
+
 /* map JSON node type to our collation sorted type */
 
 DupinCollateType
@@ -831,6 +836,245 @@ dupin_util_get_collate_type (JsonNode * node)
     return DP_COLLATE_TYPE_OBJECT;
 
   return DP_COLLATE_TYPE_ANY;
+}
+
+int
+dupin_util_collation (void        * ref,
+                      int         left_len,
+                      const void  *left_void,
+                      int         right_len,
+                      const void  *right_void)
+{
+  int ret = 0;
+
+  gchar * left  = g_string_free (g_string_new_len ((gchar*)left_void, (gint) left_len), FALSE);
+  gchar * right = g_string_free (g_string_new_len ((gchar*)right_void, (gint) right_len), FALSE);
+
+  int min_len = MIN(left_len, right_len);
+
+  if (min_len == 0)
+    {
+      // empty string sorts at end of list
+      if (left_len == right_len)
+        {
+          ret = 0;
+        }
+      else if (left_len == 0)
+        {
+          ret = 1;
+        }
+      else
+        {
+          ret = -1;
+        }
+    }
+  else
+    {
+      JsonParser * parser = (JsonParser *) ref;
+
+      json_parser_load_from_data (parser, left, -1, NULL);
+      JsonNode * left_node = json_node_copy (json_parser_get_root (parser));
+
+      json_parser_load_from_data (parser, right, -1, NULL);
+      JsonNode * right_node = json_node_copy (json_parser_get_root (parser));
+
+      ret = dupin_util_collation_compare_pair (left_node, right_node);
+
+      json_node_free (left_node);
+      json_node_free (right_node);
+    }
+
+  g_free (left);
+  g_free (right);
+
+  return ret;
+}
+
+int
+dupin_util_collation_compare_pair (JsonNode * left_node,
+                                   JsonNode * right_node)
+{
+  int ret = 0;
+
+/*
+g_message("dupin_util_collation_compare_pair: BEGIN");
+DUPIN_UTIL_DUMP_JSON ("left", left_node);
+DUPIN_UTIL_DUMP_JSON ("right", right_node);
+g_message("dupin_util_collation_compare_pair: BEGIN");
+*/
+
+  DupinCollateType left_type = dupin_util_get_collate_type (left_node);
+  DupinCollateType right_type = dupin_util_get_collate_type (right_node);
+
+  if (left_type == right_type)
+    {
+      if (left_type == DP_COLLATE_TYPE_EMPTY
+          || left_type == DP_COLLATE_TYPE_NULL)
+        ret = 0;
+
+      else if (left_type == DP_COLLATE_TYPE_STRING)
+        {
+          /* TODO - study how to get g_utf8_collate_key() to work - if we use it on left/right
+                    strings glib returns random values and sort order on strcmp() ?! */
+
+          gchar * left_val = (gchar *)json_node_get_string (left_node);
+          gchar * right_val = (gchar *)json_node_get_string (right_node);
+
+          ret = g_utf8_collate (left_val, right_val);
+        }
+
+      else if (left_type == DP_COLLATE_TYPE_DOUBLE)
+        {
+          gdouble left_val = json_node_get_double (left_node);
+          gdouble right_val = json_node_get_double (right_node);
+
+          if (left_val == right_val)
+            ret = 0;
+          else if (left_val < right_val)
+            ret = -1;
+          else if (left_val > right_val)
+            ret = 1;
+        }
+
+      else if (left_type == DP_COLLATE_TYPE_INTEGER)
+        {
+          gint left_val = json_node_get_int (left_node);
+          gint right_val = json_node_get_int (right_node);
+
+          if (left_val == right_val)
+            ret = 0;
+          else if (left_val < right_val)
+            ret = -1;
+          else if (left_val > right_val)
+            ret = 1;
+        }
+
+      else if (left_type == DP_COLLATE_TYPE_BOOLEAN)
+        {
+          gboolean left_val = json_node_get_boolean (left_node);
+          gboolean right_val = json_node_get_boolean (right_node);
+
+          if (left_val == right_val)
+            ret = 0;
+          else if (left_val == FALSE)
+            ret = -1;
+          else if (left_val == TRUE)
+            ret = 1;
+        }
+
+      else if (left_type == DP_COLLATE_TYPE_ARRAY)
+        {
+          gint left_length = json_array_get_length (json_node_get_array (left_node));
+          gint right_length = json_array_get_length (json_node_get_array (right_node));
+
+          if (left_length == right_length)
+            {
+              /* loop on the above, at first difference return -1 or 1 - otherwise 0 */
+              GList *ln, *lnodes;
+              GList *rn, *rnodes;
+              lnodes = json_array_get_elements (json_node_get_array (left_node));
+              rnodes = json_array_get_elements (json_node_get_array (right_node));
+
+              for (ln = lnodes, rn = rnodes; ln != NULL && rn != NULL ; ln = ln->next, rn = rn->next)
+                {
+                  JsonNode * ln_node = (JsonNode *)ln->data;
+                  JsonNode * rn_node = (JsonNode *)rn->data;
+
+                  ret = dupin_util_collation_compare_pair (ln_node, rn_node);
+
+/*
+g_message("dupin_util_collation_compare_pair: checking array element ret=%d", (gint)ret);
+DUPIN_UTIL_DUMP_JSON ("left array element", ln_node);
+DUPIN_UTIL_DUMP_JSON ("right array element", rn_node);
+g_message("dupin_util_collation_compare_pair: checking array element");
+*/
+
+                  if (ret != 0)
+                    break;
+                }
+              g_list_free (lnodes);
+              g_list_free (rnodes);
+            }
+          else if (left_length < right_length)
+            ret = -1;
+          else if (left_length > right_length)
+            ret = 1;
+        }
+
+      else if (left_type == DP_COLLATE_TYPE_OBJECT)
+        {
+          gint left_length = json_object_get_size (json_node_get_object (left_node));
+          gint right_length = json_object_get_size (json_node_get_object (right_node));
+
+          if (left_length == right_length)
+            {
+              /* loop on the above, at first difference return -1 or 1 - otherwise 0 */
+
+              GList *ln, *lnodes;
+              GList *rn, *rnodes;
+
+              /* WARNING - bear in mind that there might be a bug in json-glib which
+                           makes interger numbers to be returned as double in a json node value
+                           see for example the work around in dupin_view_sync_thread_real_map()
+                           we do not reparse here due to efficency reasons, and we will consider
+                           and object member of value 1 to be the same as 1.0 */
+
+              lnodes = json_object_get_members (json_node_get_object (left_node));
+              rnodes = json_object_get_members (json_node_get_object (right_node));
+
+              /* NOTE - we assume json-glib will return object members returned somehow - see library source code */
+
+              for (ln = lnodes, rn = rnodes; ln != NULL && rn != NULL ; ln = ln->next, rn = rn->next)
+                {
+                  gchar * ln_member_name = (gchar *)ln->data;
+                  gchar * rn_member_name = (gchar *)rn->data;
+
+                  ret = g_utf8_collate (ln_member_name, rn_member_name);
+
+                  if (ret != 0)
+                    break;
+
+                  JsonNode * ln_node = json_object_get_member (json_node_get_object (left_node), ln_member_name);
+                  JsonNode * rn_node = json_object_get_member (json_node_get_object (right_node), rn_member_name);
+
+                  ret = dupin_util_collation_compare_pair (ln_node, rn_node);
+
+/*
+g_message("dupin_util_collation_compare_pair: checking object member ret=%d", (gint)ret);
+DUPIN_UTIL_DUMP_JSON ("left array element", ln_node);
+DUPIN_UTIL_DUMP_JSON ("right array element", rn_node);
+g_message("dupin_util_collation_compare_pair: checking object member ");
+*/
+
+                  if (ret != 0)
+                    break;
+                }
+              g_list_free (lnodes);
+              g_list_free (rnodes);
+            }
+          else if (left_length < right_length)
+            ret = -1;
+          else if (left_length > right_length)
+            ret = 1;
+        }
+    }
+  else if (left_type < right_type)
+    {
+      ret = -1;
+    }
+  else if (left_type > right_type)
+    {
+      ret = 1;
+    }
+
+/*
+g_message("dupin_util_collation_compare_pair: END ret=%d", (gint)ret);
+DUPIN_UTIL_DUMP_JSON ("left", left_node);
+DUPIN_UTIL_DUMP_JSON ("right", right_node);
+g_message("dupin_util_collation_compare_pair: END\n");
+*/
+
+  return ret;
 }
 
 gchar *

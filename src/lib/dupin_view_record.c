@@ -87,8 +87,8 @@ dupin_view_record_get_total_records_cb (void *data, int argc, char **argv,
 {
   gsize *numb = data;
 
-  if (argv[0])
-    *numb = atoi (argv[0]);
+  if (argv[0] && *argv[0])
+    *numb+=1;
 
   return 0;
 }
@@ -99,9 +99,13 @@ dupin_view_record_get_total_records_cb (void *data, int argc, char **argv,
 gboolean
 dupin_view_record_get_total_records (DupinView * view,
 				    gsize * total,
+			            gsize rowid_start, gsize rowid_end,
 				    gchar * start_key,
                                     gchar * end_key,
 			    	    gboolean inclusive_end,
+				    gchar * start_value,
+                                    gchar * end_value,
+			    	    gboolean inclusive_end_value,
                                     GError ** error)
 {
   g_return_val_if_fail (view != NULL, FALSE);
@@ -113,8 +117,10 @@ dupin_view_record_get_total_records (DupinView * view,
   *total = 0;
 
   gchar * key_range=NULL;
+  gchar * value_range=NULL;
 
-  str = g_string_new (DUPIN_VIEW_SQL_TOTAL);
+  //str = g_string_new (DUPIN_VIEW_SQL_TOTAL);
+  str = g_string_new ("SELECT id FROM Dupin as d");
 
   if (start_key!=NULL && end_key!=NULL)
     if (!g_utf8_collate (start_key, end_key) && inclusive_end == TRUE)
@@ -135,8 +141,64 @@ dupin_view_record_get_total_records (DupinView * view,
         key_range = sqlite3_mprintf (" d.key < '%q' ", end_key);
     }
 
-  if (key_range!=NULL)
-    g_string_append_printf (str, " WHERE %s ", (key_range!=NULL) ? key_range : "");
+  if (start_value!=NULL && end_value!=NULL)
+    if (!g_utf8_collate (start_value, end_value) && inclusive_end_value == TRUE)
+      value_range = sqlite3_mprintf (" d.obj = '%q' ", start_value);
+    else if (inclusive_end_value == TRUE)
+      value_range = sqlite3_mprintf (" d.obj >= '%q' AND d.obj <= '%q' ", start_value, end_value);
+    else
+      value_range = sqlite3_mprintf (" d.obj >= '%q' AND d.obj < '%q' ", start_value, end_value);
+  else if (start_value!=NULL)
+    {
+      value_range = sqlite3_mprintf (" d.obj >= '%q' ", start_value);
+    }
+  else if (end_value!=NULL)
+    {
+      if (inclusive_end_value == TRUE)
+        value_range = sqlite3_mprintf (" d.obj <= '%q' ", end_value);
+      else
+        value_range = sqlite3_mprintf (" d.obj < '%q' ", end_value);
+    }
+
+  gchar * op = "";
+
+  if (rowid_start > 0 && rowid_end > 0)
+    {
+      if (!g_strcmp0 (op, ""))
+        op = "WHERE";
+      g_string_append_printf (str, " %s d.ROWID >= %d AND d.ROWID <= %d ", op, (gint)rowid_start, (gint)rowid_end);
+      op = "AND";
+    }
+  else if (rowid_start > 0)
+    {
+      if (!g_strcmp0 (op, ""))
+        op = "WHERE";
+      g_string_append_printf (str, " %s d.ROWID >= %d ", op, (gint)rowid_start);
+      op = "AND";
+    }
+  else if (rowid_end > 0)
+    {
+      if (!g_strcmp0 (op, ""))
+        op = "WHERE";
+      g_string_append_printf (str, " %s d.ROWID <= %d ", op, (gint)rowid_end);
+      op = "AND";
+    }
+
+  if (key_range != NULL)
+    {
+      if (!g_strcmp0 (op, ""))
+        op = "WHERE";
+      g_string_append_printf (str, " %s %s ", op, key_range);
+      op = "AND";
+    }
+
+  if (value_range != NULL)
+    {
+      if (!g_strcmp0 (op, ""))
+        op = "WHERE";
+      g_string_append_printf (str, " %s %s ", op, value_range);
+      op = "AND";
+    }
 
   tmp = g_string_free (str, FALSE);
  
@@ -144,6 +206,9 @@ dupin_view_record_get_total_records (DupinView * view,
 
   if (key_range!=NULL)
     sqlite3_free (key_range);
+
+  if (value_range!=NULL)
+    sqlite3_free (value_range);
 
   g_mutex_lock (view->mutex);
 
@@ -270,8 +335,52 @@ dupin_view_record_get_list_cb (void *data, int argc, char **argv, char **col)
   struct dupin_view_record_get_list_t *s = data;
   DupinViewRecord *record;
 
-  if ((record = dupin_view_record_read_real (s->view, argv[0], NULL, FALSE)))
-    s->list = g_list_append (s->list, record);
+  gchar * pid_serialized = NULL;
+  gchar * key_serialized = NULL;
+  gchar * obj_serialized = NULL;
+  gsize rowid = 0;
+  gchar * id = NULL;
+
+  gint i;
+
+  for (i = 0; i < argc; i++)
+    {
+      if (!g_strcmp0 (col[i], "id"))
+          id = argv[i];
+      else if (!g_strcmp0 (col[i], "pid"))
+        {
+          pid_serialized = argv[i];
+        }
+      else if (!g_strcmp0 (col[i], "key"))
+        {
+          key_serialized = argv[i];
+        }
+      else if (!g_strcmp0 (col[i], "obj"))
+        {
+          obj_serialized = argv[i];
+        }
+      else if (!g_strcmp0 (col[i], "rowid"))
+        {
+          rowid = (gsize)atof(argv[i]);
+        }
+    }
+
+  if (id != NULL && rowid)
+    {
+      dupin_view_ref (s->view);
+
+      record = dupin_view_record_new (s->view, id);
+
+      record->pid_serialized = g_strdup (pid_serialized);
+      record->pid_serialized_len = strlen (pid_serialized);
+      record->key_serialized = g_strdup (key_serialized);
+      record->key_serialized_len = strlen (key_serialized);
+      record->obj_serialized = g_strdup (obj_serialized);
+      record->obj_serialized_len = strlen (obj_serialized);
+      record->rowid = rowid;
+
+      s->list = g_list_append (s->list, record);
+    }
 
   return 0;
 }
@@ -284,6 +393,9 @@ dupin_view_record_get_list (DupinView * view, guint count, guint offset,
 			    gchar * start_key,
 			    gchar * end_key,
 			    gboolean inclusive_end,
+		            gchar * start_value,
+                            gchar * end_value,
+			    gboolean inclusive_end_value,
 			    GList ** list, GError ** error)
 {
   GString *str;
@@ -291,6 +403,7 @@ dupin_view_record_get_list (DupinView * view, guint count, guint offset,
   gchar *errmsg;
 
   gchar * key_range=NULL;
+  gchar * value_range=NULL;
 
   struct dupin_view_record_get_list_t s;
 
@@ -304,7 +417,7 @@ dupin_view_record_get_list (DupinView * view, guint count, guint offset,
 
   /* TODO - double check with http://www.sqlite.org/datatype3.html and http://wiki.apache.org/couchdb/ViewCollation */
 
-  str = g_string_new ("SELECT id FROM Dupin as d");
+  str = g_string_new ("SELECT id, pid, key, obj, ROWID as rowid FROM Dupin as d");
 
   if (start_key!=NULL && end_key!=NULL)
     if (!g_utf8_collate (start_key, end_key) && inclusive_end == TRUE)
@@ -325,23 +438,73 @@ dupin_view_record_get_list (DupinView * view, guint count, guint offset,
         key_range = sqlite3_mprintf (" d.key < '%q' ", end_key);
     }
 
+  if (start_value!=NULL && end_value!=NULL)
+    if (!g_utf8_collate (start_value, end_value) && inclusive_end_value == TRUE)
+      value_range = sqlite3_mprintf (" d.obj = '%q' ", start_value);
+    else if (inclusive_end_value == TRUE)
+      value_range = sqlite3_mprintf (" d.obj >= '%q' AND d.obj <= '%q' ", start_value, end_value);
+    else
+      value_range = sqlite3_mprintf (" d.obj >= '%q' AND d.obj < '%q' ", start_value, end_value);
+  else if (start_value!=NULL)
+    {
+      value_range = sqlite3_mprintf (" d.obj >= '%q' ", start_value);
+    }
+  else if (end_value!=NULL)
+    {
+      if (inclusive_end_value == TRUE)
+        value_range = sqlite3_mprintf (" d.obj <= '%q' ", end_value);
+      else
+        value_range = sqlite3_mprintf (" d.obj < '%q' ", end_value);
+    }
+
+  gchar * op = "";
+
   if (rowid_start > 0 && rowid_end > 0)
-    g_string_append_printf (str, " WHERE %s %s d.ROWID >= %d AND d.ROWID <= %d ", (key_range!=NULL) ? key_range : "", (key_range!=NULL) ? "AND" : "", (gint)rowid_start, (gint)rowid_end);
+    {
+      if (!g_strcmp0 (op, ""))
+        op = "WHERE";
+      g_string_append_printf (str, " %s d.ROWID >= %d AND d.ROWID <= %d ", op, (gint)rowid_start, (gint)rowid_end);
+      op = "AND";
+    }
   else if (rowid_start > 0)
-    g_string_append_printf (str, " WHERE %s %s d.ROWID >= %d ", (key_range!=NULL) ? key_range : "", (key_range!=NULL) ? "AND" : "", (gint)rowid_start);
+    {
+      if (!g_strcmp0 (op, ""))
+        op = "WHERE";
+      g_string_append_printf (str, " %s d.ROWID >= %d ", op, (gint)rowid_start);
+      op = "AND";
+    }
   else if (rowid_end > 0)
-    g_string_append_printf (str, " WHERE %s %s d.ROWID <= %d ", (key_range!=NULL) ? key_range : "", (key_range!=NULL) ? "AND" : "", (gint)rowid_end);
-  else if (key_range!=NULL)
-    g_string_append_printf (str, " WHERE %s ", key_range);
+    {
+      if (!g_strcmp0 (op, ""))
+        op = "WHERE";
+      g_string_append_printf (str, " %s d.ROWID <= %d ", op, (gint)rowid_end);
+      op = "AND";
+    }
+
+  if (key_range != NULL)
+    {
+      if (!g_strcmp0 (op, ""))
+        op = "WHERE";
+      g_string_append_printf (str, " %s %s ", op, key_range);
+      op = "AND";
+    }
+
+  if (value_range != NULL)
+    {
+      if (!g_strcmp0 (op, ""))
+        op = "WHERE";
+      g_string_append_printf (str, " %s %s ", op, value_range);
+      op = "AND";
+    }
 
   if (orderby_type == DP_ORDERBY_KEY)
     {
-      str = g_string_append (str, " GROUP BY id ORDER BY d.key"); /* this should never be used for reduce internal operations */
+      str = g_string_append (str, " ORDER BY d.key"); /* this should never be used for reduce internal operations */
     }
   else if (orderby_type == DP_ORDERBY_ROWID)
-    str = g_string_append (str, " GROUP BY id ORDER BY d.ROWID");
+    str = g_string_append (str, " ORDER BY d.ROWID");
   else
-    str = g_string_append (str, " GROUP BY id ORDER BY d.ROWID");
+    str = g_string_append (str, " ORDER BY d.ROWID");
 
   if (descending)
     str = g_string_append (str, " DESC");
@@ -364,6 +527,9 @@ dupin_view_record_get_list (DupinView * view, guint count, guint offset,
  
   if (key_range!=NULL)
     sqlite3_free (key_range);
+
+  if (value_range!=NULL)
+    sqlite3_free (value_range);
 
 //g_message("dupin_view_record_get_list() query=%s\n",tmp);
 

@@ -63,7 +63,8 @@ typedef enum
 /* Languages: */
 typedef enum
 {
-  DP_MR_LANG_JAVASCRIPT = 0
+  DP_MR_LANG_JAVASCRIPT = 0,
+  DP_MR_LANG_DUPIN_GI
 } DupinMRLang;
 
 /* OrderBy type: */ 
@@ -162,6 +163,14 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 #define RESPONSE_LINK_OBJ_EMPTY         RESPONSE_OBJ_EMPTY
 
 #define RESPONSE_VIEW_OBJ_DOC           RESPONSE_OBJ_DOC
+#define RESPONSE_VIEW_OBJ_KEY           "key"
+#define RESPONSE_VIEW_OBJ_VALUE         "value"
+
+#define DUPIN_VIEW_KEY		        "key"
+#define DUPIN_VIEW_KEYS		        "keys"
+#define DUPIN_VIEW_VALUE	        "value"
+#define DUPIN_VIEW_VALUES	        "values"
+#define DUPIN_VIEW_PIDS			"pids"
 
 #define REQUEST_STRICT                  "strict"
 #define REQUEST_STRICT_LINKS            "links"
@@ -208,6 +217,10 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 #define REQUEST_GET_ALL_DOCS_STARTKEY             "startkey"
 #define REQUEST_GET_ALL_DOCS_ENDKEY               "endkey"
 #define REQUEST_GET_ALL_DOCS_INCLUSIVEEND         "inclusive_end"
+#define REQUEST_GET_ALL_DOCS_VALUE                "value"
+#define REQUEST_GET_ALL_DOCS_STARTVALUE           "startvalue"
+#define REQUEST_GET_ALL_DOCS_ENDVALUE             "endvalue"
+#define REQUEST_GET_ALL_DOCS_INCLUSIVEEND_VALUE   "inclusive_end_value"
 #define REQUEST_GET_ALL_DOCS_INCLUDE_DOCS         "include_docs"
 
 #define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TYPE                 "include_links"

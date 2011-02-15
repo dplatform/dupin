@@ -21,8 +21,7 @@
   ");"
 
 #define DUPIN_DB_SQL_CREATE_INDEX \
-  "CREATE INDEX IF NOT EXISTS DupinId ON Dupin (id);\n" \
-  "CREATE INDEX IF NOT EXISTS DupinCreated ON Dupin (tm);"
+  "CREATE INDEX IF NOT EXISTS DupinIdRevHashDeleted ON Dupin (id, rev, hash, deleted);"
 
 #define DUPIN_DB_SQL_DESC_CREATE \
   "CREATE TABLE IF NOT EXISTS DupinDB (\n" \
@@ -819,7 +818,7 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
 
   gsize start_rowid = (compact_id != NULL) ? atoi(compact_id)+1 : 1;
 
-  if (dupin_record_get_list (db, count, 0, start_rowid, 0, DP_COUNT_ALL, DP_ORDERBY_ROWID, FALSE, 0, DP_CREATED_SINCE, &results, NULL) ==
+  if (dupin_record_get_list (db, count, 0, start_rowid, 0, DP_COUNT_ALL, DP_ORDERBY_ROWID, FALSE, &results, NULL) ==
       FALSE || !results)
     {
       if (compact_id != NULL)

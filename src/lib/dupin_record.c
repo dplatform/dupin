@@ -353,102 +353,6 @@ dupin_record_read_real (DupinDB * db, gchar * id, GError ** error,
   return record;
 }
 
-struct dupin_record_get_list_total_t
-{
-  gsize ret;
-  DupinCountType count_type;
-};
-
-static int
-dupin_record_get_list_total_cb (void *data, int argc, char **argv, char **col)
-{
-  struct dupin_record_get_list_total_t *count = data;
-
-  if (argv[0] && *argv[0])
-    {
-      switch (count->count_type)
-        {
-        case DP_COUNT_EXIST:
-          if (!g_strcmp0 (argv[0], "FALSE"))
-            count->ret++;
-          break;
-
-        case DP_COUNT_DELETE:
-          if (!g_strcmp0 (argv[0], "TRUE"))
-            count->ret++;
-          break;
-
-        case DP_COUNT_ALL:
-        default:
-          count->ret++;
-          break;
-        }
-    }
-
-  return 0;
-}
-
-gsize
-dupin_record_get_list_total (DupinDB *              db,
-                             DupinCountType         count_type,
-                             gsize                  created,
-                             DupinCreatedType       created_type,
-		             GError ** error)
-{
-  struct dupin_record_get_list_total_t count;
-  GString * str;
-  gchar *errmsg;
-  gchar *query;
-
-  g_return_val_if_fail (db != NULL, 0);
-
-  count.ret = 0;
-  count.count_type = count_type;
-
-  //str = g_string_new ("SELECT deleted, max(rev) as rev FROM Dupin as d ");
-  str = g_string_new ("SELECT deleted FROM Dupin as d WHERE d.rev = (select max(rev) as rev FROM Dupin WHERE id=d.id) ");
-
-  gchar * op = "AND";
-
-  if (created != 0)
-    {
-      if (created_type == DP_CREATED_SINCE)
-        g_string_append_printf (str, " %s d.tm >= %" G_GSIZE_FORMAT " ", op, created);
-      else if (created_type == DP_CREATED_UNTIL)
-        g_string_append_printf (str, " %s d.tm <= %" G_GSIZE_FORMAT " ", op, created);
-
-      op = "AND";
-    }
-
-  str = g_string_append (str, " GROUP BY id");
-
-  query = g_string_free (str, FALSE);
-
-//g_message("dupin_record_get_list_total: query=%s\n", query);
-
-  g_mutex_lock (db->mutex);
-
-  if (sqlite3_exec (db->db, query, dupin_record_get_list_total_cb, &count, &errmsg) !=
-      SQLITE_OK)
-    {
-      g_mutex_unlock (db->mutex);
-
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
-                   errmsg);
-
-      sqlite3_free (errmsg);
-      g_free (query);
-
-      return 0;
-    }
-
-  g_mutex_unlock (db->mutex);
-
-  g_free (query);
-
-  return count.ret;
-}
-
 struct dupin_record_get_list_t
 {
   DupinDB *db;
@@ -518,8 +422,6 @@ dupin_record_get_list (DupinDB * db,
 		       DupinCountType count_type,
 		       DupinOrderByType orderby_type,
 		       gboolean descending,
-		       gsize created,
-                       DupinCreatedType created_type,
 		       GList ** list,
 		       GError ** error)
 {
@@ -565,14 +467,6 @@ dupin_record_get_list (DupinDB * db,
     {
       g_string_append_printf (str, " %s %s ", op, check_deleted);
       op = "AND";
-    }
-
-  if (created != 0)
-    {
-      if (created_type == DP_CREATED_SINCE)
-        g_string_append_printf (str, " %s d.tm >= %" G_GSIZE_FORMAT " ", op, created);
-      else if (created_type == DP_CREATED_UNTIL)
-        g_string_append_printf (str, " %s d.tm <= %" G_GSIZE_FORMAT " ", op, created);
     }
 
   if (orderby_type == DP_ORDERBY_ROWID)

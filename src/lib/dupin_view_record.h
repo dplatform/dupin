@@ -18,9 +18,14 @@ DupinViewRecord *
 gboolean        dupin_view_record_get_total_records
     					(DupinView * view,
 					 gsize * total,
+					 gsize  		rowid_start,
+					 gsize  		rowid_end,
 					 gchar *		start_key,
 					 gchar *		end_key,
 					 gboolean		inclusive_end,
+					 gchar *		start_value,
+					 gchar *		end_value,
+					 gboolean		inclusive_end_value,
 					 GError **		error);
 
 /* get max rowid for view DB */
@@ -39,6 +44,9 @@ gboolean	dupin_view_record_get_list
 					 gchar *		start_key,
 					 gchar *		end_key,
 					 gboolean		inclusive_end,
+					 gchar *		start_value,
+					 gchar *		end_value,
+					 gboolean		inclusive_end_value,
 					 GList **		list,
 					 GError **		error);
 

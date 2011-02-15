@@ -31,13 +31,7 @@
   ");"
 
 #define DUPIN_LINKB_SQL_CREATE_INDEX \
-  "CREATE INDEX IF NOT EXISTS DupinId ON Dupin (id);" \
-  "CREATE INDEX IF NOT EXISTS DupinCreated ON Dupin (tm);" \
-  "CREATE INDEX IF NOT EXISTS DupinContextId ON Dupin (context_id);" \
-  "CREATE INDEX IF NOT EXISTS DupinRel ON Dupin (rel);" \
-  "CREATE INDEX IF NOT EXISTS DupinHref ON Dupin (href);" \
-  "CREATE INDEX IF NOT EXISTS DupinTag ON Dupin (tag);" \
-  "CREATE INDEX IF NOT EXISTS DupinHrefDeletedContextIdTag ON Dupin (href,deleted,tag);"
+  "CREATE INDEX IF NOT EXISTS DupinIdRevHashDeleted ON Dupin (id, rev, hash, deleted, context_id, rel, href, tag);"
 
 #define DUPIN_LINKB_SQL_DESC_CREATE \
   "CREATE TABLE IF NOT EXISTS DupinLinkB (\n" \
@@ -1201,7 +1195,7 @@ dupin_linkbase_thread_compact (DupinLinkB * linkb, gsize count)
   gsize start_rowid = (compact_id != NULL) ? atoi(compact_id)+1 : 1;
 
   if (dupin_link_record_get_list (linkb, count, 0, start_rowid, 0, DP_LINK_TYPE_ANY, DP_COUNT_ALL, DP_ORDERBY_ROWID, FALSE,
-				  0, DP_CREATED_SINCE, NULL, NULL, DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS,
+				  NULL, NULL, DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS,
                                   NULL, DP_FILTERBY_EQUALS, &results, NULL) ==
       FALSE || !results)
     {
@@ -1459,7 +1453,7 @@ dupin_linkbase_thread_check (DupinLinkB * linkb, gsize count)
   gsize start_rowid = (check_id != NULL) ? atoi(check_id)+1 : 1;
 
   if (dupin_link_record_get_list (linkb, count, 0, start_rowid, 0, DP_LINK_TYPE_ANY, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE,
-				  0, DP_CREATED_SINCE, NULL, NULL, DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS,
+				  NULL, NULL, DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS,
                                   NULL, DP_FILTERBY_EQUALS, &results, NULL) ==
       FALSE || !results)
     {

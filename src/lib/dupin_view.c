@@ -22,12 +22,16 @@ See http://wiki.apache.org/couchdb/Introduction_to_CouchDB_views
   "  id          CHAR(255) NOT NULL,\n" \
   "  pid         TEXT NOT NULL,\n" \
   "  key         TEXT NOT NULL COLLATE dupincmp,\n" \
-  "  obj         TEXT,\n" \
+  "  obj         TEXT COLLATE dupincmp,\n" \
   "  PRIMARY KEY(id)\n" \
   ");"
 
 #define DUPIN_VIEW_SQL_CREATE_INDEX \
-  "CREATE INDEX IF NOT EXISTS DupinKey ON Dupin (key);"
+  "CREATE INDEX IF NOT EXISTS DupinId ON Dupin (id);\n" \
+  "CREATE INDEX IF NOT EXISTS DupinPid ON Dupin (pid);\n" \
+  "CREATE INDEX IF NOT EXISTS DupinKey ON Dupin (key);\n" \
+  "CREATE INDEX IF NOT EXISTS DupinObj ON Dupin (obj);\n" \
+  "CREATE INDEX IF NOT EXISTS DupinKeyObj ON Dupin (key, obj);"
 
 #define DUPIN_VIEW_SQL_DESC_CREATE \
   "CREATE TABLE IF NOT EXISTS DupinView (\n" \
@@ -54,30 +58,6 @@ See http://wiki.apache.org/couchdb/Introduction_to_CouchDB_views
 	"SELECT count(id) as c FROM Dupin"
 
 #define VIEW_SYNC_COUNT	100
-
-#if 0
-static void
-dupin_view_debug_print_json_node (char * msg, JsonNode * node)
-{
-  g_assert (node != NULL);
- 
-  gchar * buffer;
-  if (json_node_get_node_type (node) == JSON_NODE_VALUE)
-    {
-     buffer = g_strdup ( json_node_get_string (node) ); /* we should check number, boolean too */
-    }
-  else
-   {
-     JsonGenerator *gen = json_generator_new();
-     json_generator_set_root (gen, node);
-     g_object_set (gen, "pretty", TRUE, NULL);
-     buffer = json_generator_to_data (gen,NULL);
-     g_object_unref (gen);
-   }
-  g_message("%s - Json Node of type %d: %s\n",msg, (gint)json_node_get_node_type (node), buffer);
-  g_free (buffer);
-}
-#endif
 
 static gchar *dupin_view_generate_id (DupinView * view);
 
@@ -487,46 +467,33 @@ dupin_view_p_record_delete (DupinViewP * p, gchar * pid)
 }
 
 void
-dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * key_node, JsonNode * obj_node)
+dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * key_node, JsonNode * node)
 {
   g_return_if_fail (view != NULL);
   g_return_if_fail (pid_node != NULL);
   g_return_if_fail (json_node_get_node_type (pid_node) == JSON_NODE_ARRAY);
   g_return_if_fail (key_node != NULL);
-  g_return_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT);
-
-  JsonObject *obj;
+  g_return_if_fail (node != NULL);
 
   const gchar *id = NULL;
-  gchar *tmp, *errmsg, *obj_serialized=NULL, *key_serialized=NULL, *pid_serialized=NULL;
+  gchar *tmp, *errmsg, *node_serialized=NULL, *key_serialized=NULL, *pid_serialized=NULL;
 
   if (!(id = dupin_view_generate_id (view)))
     {
       return;
     }
 
-  obj = json_node_get_object (obj_node);
-
-  if (obj == NULL)
-    return;
-
-  if (view->reduce == NULL)
-    {
-      json_object_set_string_member (obj, "id", (gchar *)json_node_get_string ( json_array_get_element ( json_node_get_array (pid_node), 0) ) );
-    }
-
-//dupin_view_debug_print_json_node ("dupin_view_record_save_map: KEY", key_node);
-//dupin_view_debug_print_json_node ("dupin_view_record_save_map: PID", pid_node);
+//DUPIN_UTIL_DUMP_JSON ("dupin_view_record_save_map: KEY", key_node);
+//DUPIN_UTIL_DUMP_JSON ("dupin_view_record_save_map: PID", pid_node);
+//DUPIN_UTIL_DUMP_JSON ("dupin_view_record_save_map: OBJ", node);
 
   g_mutex_lock (view->mutex);
 
-  /* serialize the obj */
+  /* serialize the node */
 
-  obj_serialized = dupin_util_json_serialize (obj_node);
+  node_serialized = dupin_util_json_serialize (node);
 
-//g_message ("dupin_view_record_save_map: OBJ %s", obj_serialized);
-
-  if (obj_serialized == NULL)
+  if (node_serialized == NULL)
     {
       g_mutex_unlock (view->mutex);
       g_free ((gchar *)id);
@@ -543,7 +510,7 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
         {
           g_mutex_unlock (view->mutex);
           g_free ((gchar *)id);
-          g_free (obj_serialized);
+          g_free (node_serialized);
           return;
         }
     }
@@ -556,14 +523,14 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
         {
           g_mutex_unlock (view->mutex);
           g_free ((gchar *)id);
-          g_free (obj_serialized);
+          g_free (node_serialized);
           if (key_serialized)
             g_free (key_serialized);
           return;
         }
     }
 
-  tmp = sqlite3_mprintf (DUPIN_VIEW_SQL_INSERT, id, pid_serialized, key_serialized, obj_serialized);
+  tmp = sqlite3_mprintf (DUPIN_VIEW_SQL_INSERT, id, pid_serialized, key_serialized, node_serialized);
 
 //g_message("query: %s\n",tmp);
 
@@ -576,7 +543,7 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
   g_mutex_unlock (view->mutex);
 
   sqlite3_free (tmp);
-  g_free (obj_serialized);
+  g_free (node_serialized);
   if (key_serialized)
     g_free (key_serialized);
   if (pid_serialized)
@@ -847,247 +814,6 @@ dupin_view_create_cb (void *data, int argc, char **argv, char **col)
   return 0;
 }
 
-/* see also http://wiki.apache.org/couchdb/View_collation */
-
-int
-dupin_view_collation_compare_pair (JsonNode * left_node,
-				   JsonNode * right_node)
-{
-  int ret = 0;
-
-/*
-g_message("dupin_view_collation_compare_pair: BEGIN");
-DUPIN_UTIL_DUMP_JSON ("left", left_node);
-DUPIN_UTIL_DUMP_JSON ("right", right_node);
-g_message("dupin_view_collation_compare_pair: BEGIN");
-*/
-
-  DupinCollateType left_type = dupin_util_get_collate_type (left_node);
-  DupinCollateType right_type = dupin_util_get_collate_type (right_node);
-
-  if (left_type == right_type)
-    {
-      if (left_type == DP_COLLATE_TYPE_EMPTY
-          || left_type == DP_COLLATE_TYPE_NULL)
-        ret = 0;
-
-      else if (left_type == DP_COLLATE_TYPE_STRING)
-        {
-          /* TODO - study how to get g_utf8_collate_key() to work - if we use it on left/right
-                    strings glib returns random values and sort order on strcmp() ?! */
-
-          gchar * left_val = (gchar *)json_node_get_string (left_node);
-          gchar * right_val = (gchar *)json_node_get_string (right_node);
-
-          ret = g_utf8_collate (left_val, right_val);
-        }
-
-      else if (left_type == DP_COLLATE_TYPE_DOUBLE)
-        {
-          gdouble left_val = json_node_get_double (left_node);
-          gdouble right_val = json_node_get_double (right_node);
-
-          if (left_val == right_val)
-            ret = 0;
-          else if (left_val < right_val)
-            ret = -1;
-          else if (left_val > right_val)
-            ret = 1;
-        }
-
-      else if (left_type == DP_COLLATE_TYPE_INTEGER)
-        {
-          gint left_val = json_node_get_int (left_node);
-          gint right_val = json_node_get_int (right_node);
-
-          if (left_val == right_val)
-            ret = 0;
-          else if (left_val < right_val)
-            ret = -1;
-          else if (left_val > right_val)
-            ret = 1;
-        }
-
-      else if (left_type == DP_COLLATE_TYPE_BOOLEAN)
-        {
-          gboolean left_val = json_node_get_boolean (left_node);
-          gboolean right_val = json_node_get_boolean (right_node);
-
-          if (left_val == right_val)
-            ret = 0;
-          else if (left_val == FALSE)
-            ret = -1;
-          else if (left_val == TRUE)
-            ret = 1;
-        }
-
-      else if (left_type == DP_COLLATE_TYPE_ARRAY)
-        {
-	  gint left_length = json_array_get_length (json_node_get_array (left_node));
-	  gint right_length = json_array_get_length (json_node_get_array (right_node));
-
-          if (left_length == right_length)
-            {
-              /* loop on the above, at first difference return -1 or 1 - otherwise 0 */
-	      GList *ln, *lnodes;
-	      GList *rn, *rnodes;
-              lnodes = json_array_get_elements (json_node_get_array (left_node));
-              rnodes = json_array_get_elements (json_node_get_array (right_node));
-
-              for (ln = lnodes, rn = rnodes; ln != NULL && rn != NULL ; ln = ln->next, rn = rn->next)
-                {
-		  JsonNode * ln_node = (JsonNode *)ln->data;
-		  JsonNode * rn_node = (JsonNode *)rn->data;
-
-                  ret = dupin_view_collation_compare_pair (ln_node, rn_node);
-
-/*
-g_message("dupin_view_collation_compare_pair: checking array element ret=%d", (gint)ret);
-DUPIN_UTIL_DUMP_JSON ("left array element", ln_node);
-DUPIN_UTIL_DUMP_JSON ("right array element", rn_node);
-g_message("dupin_view_collation_compare_pair: checking array element");
-*/
-
-		  if (ret != 0)
-		    break;
-                }
-	      g_list_free (lnodes);
-	      g_list_free (rnodes);
-            }
-          else if (left_length < right_length)
-            ret = -1;
-          else if (left_length > right_length)
-            ret = 1;
-        }
-
-      else if (left_type == DP_COLLATE_TYPE_OBJECT)
-        {
-	  gint left_length = json_object_get_size (json_node_get_object (left_node));
-	  gint right_length = json_object_get_size (json_node_get_object (right_node));
-
-          if (left_length == right_length)
-            {
-              /* loop on the above, at first difference return -1 or 1 - otherwise 0 */
-
-	      GList *ln, *lnodes;
-	      GList *rn, *rnodes;
-
-	      /* WARNING - bear in mind that there might be a bug in json-glib which 
-		           makes interger numbers to be returned as double in a json node value
-			   see for example the work around in dupin_view_sync_thread_real_map()
-			   we do not reparse here due to efficency reasons, and we will consider
-			   and object member of value 1 to be the same as 1.0 */
-
-              lnodes = json_object_get_members (json_node_get_object (left_node));
-              rnodes = json_object_get_members (json_node_get_object (right_node));
-
-	      /* NOTE - we assume json-glib will return object members returned somehow - see library source code */
-
-              for (ln = lnodes, rn = rnodes; ln != NULL && rn != NULL ; ln = ln->next, rn = rn->next)
-                {
-		  gchar * ln_member_name = (gchar *)ln->data;
-		  gchar * rn_member_name = (gchar *)rn->data;
-
-          	  ret = g_utf8_collate (ln_member_name, rn_member_name);
-
-		  if (ret != 0)
-		    break;
-
-		  JsonNode * ln_node = json_object_get_member (json_node_get_object (left_node), ln_member_name);
-		  JsonNode * rn_node = json_object_get_member (json_node_get_object (right_node), rn_member_name);
-
-                  ret = dupin_view_collation_compare_pair (ln_node, rn_node);
-
-/*
-g_message("dupin_view_collation_compare_pair: checking object member ret=%d", (gint)ret);
-DUPIN_UTIL_DUMP_JSON ("left array element", ln_node);
-DUPIN_UTIL_DUMP_JSON ("right array element", rn_node);
-g_message("dupin_view_collation_compare_pair: checking object member ");
-*/
-
-		  if (ret != 0)
-		    break;
-                }
-	      g_list_free (lnodes);
-	      g_list_free (rnodes);
-            }
-          else if (left_length < right_length)
-            ret = -1;
-          else if (left_length > right_length)
-            ret = 1;
-        }
-    }
-  else if (left_type < right_type)
-    {
-      ret = -1;
-    }
-  else if (left_type > right_type)
-    {
-      ret = 1;
-    }
-
-/*
-g_message("dupin_view_collation_compare_pair: END ret=%d", (gint)ret);
-DUPIN_UTIL_DUMP_JSON ("left", left_node);
-DUPIN_UTIL_DUMP_JSON ("right", right_node);
-g_message("dupin_view_collation_compare_pair: END\n");
-*/
-
-  return ret;
-}
-
-int
-dupin_view_collation (void        * ref,
-		      int         left_len,
-		      const void  *left_void,
-		      int         right_len,
-		      const void  *right_void)
-{
-  int ret = 0;
-
-  gchar * left  = g_string_free (g_string_new_len ((gchar*)left_void, (gint) left_len), FALSE);
-  gchar * right = g_string_free (g_string_new_len ((gchar*)right_void, (gint) right_len), FALSE);
-
-  int min_len = MIN(left_len, right_len);
-
-  if (min_len == 0)
-    {
-      // empty string sorts at end of list
-      if (left_len == right_len)
-        {
-          ret = 0;
-        }
-      else if (left_len == 0)
-        {
-          ret = 1;
-        }
-      else
-        {
-          ret = -1;
-        }
-    }
-  else
-    {
-      JsonParser * parser = (JsonParser *) ref;
-
-      json_parser_load_from_data (parser, left, -1, NULL);
-      JsonNode * left_node = json_node_copy (json_parser_get_root (parser));
-
-      json_parser_load_from_data (parser, right, -1, NULL);
-      JsonNode * right_node = json_node_copy (json_parser_get_root (parser));
-
-      ret = dupin_view_collation_compare_pair (left_node, right_node);
-
-      json_node_free (left_node);
-      json_node_free (right_node);
-    }
-
-  g_free (left);
-  g_free (right);
-
-  return ret;
-}
-
 DupinView *
 dupin_view_create (Dupin * d, gchar * name, gchar * path, GError ** error)
 {
@@ -1122,7 +848,7 @@ dupin_view_create (Dupin * d, gchar * name, gchar * path, GError ** error)
 
   /* NOTE - set simple collation functions for views - see http://wiki.apache.org/couchdb/View_collation */
 
-  if (sqlite3_create_collation (view->db, "dupincmp", SQLITE_UTF8,  view->collation_parser, dupin_view_collation) != SQLITE_OK)
+  if (sqlite3_create_collation (view->db, "dupincmp", SQLITE_UTF8,  view->collation_parser, dupin_util_collation) != SQLITE_OK)
     {
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
 		   "View error. Cannot create collation function 'dupincmp'");
@@ -1263,31 +989,16 @@ dupin_view_sync_thread_real_map (DupinView * view, GList * list)
 	      element_node = json_parser_get_root (parser);
 
               nobj = json_node_get_object (element_node);
+		
+	      JsonNode * key_node = json_object_get_member (nobj, DUPIN_VIEW_KEY);
+	      JsonNode * node = json_object_get_member (nobj, DUPIN_VIEW_VALUE);
 
-              GList *nodes, *n;
-              JsonNode *key_node=NULL;
-              nodes = json_object_get_members (nobj);
-              for (n = nodes; n != NULL; n = n->next)
-                {
-                  gchar *member_name = (gchar *) n->data;
-                  if (!g_strcmp0 (member_name, "key"))
-                    {
-		      /* we extract this for SQLite table indexing */
-
-                      key_node = json_node_copy ( json_object_get_member (nobj, member_name));
-		    }
-                }
-              g_list_free (nodes);
-
-	      dupin_view_record_save_map (view, data->pid, key_node, element_node);
+	      dupin_view_record_save_map (view, data->pid, key_node, node);
 
               g_mutex_lock (view->mutex);
               view->sync_map_processed_count++;
               g_mutex_unlock (view->mutex);
 
-              if (key_node != NULL)
-                json_node_free (key_node);
- 
 	      dupin_view_p_record_insert (&view->views, id, nobj);
             }
           g_list_free (nodes);
@@ -1337,7 +1048,7 @@ dupin_view_sync_thread_map_db (DupinView * view, gsize count)
 
   gsize start_rowid = (sync_map_id != NULL) ? atoi(sync_map_id)+1 : 1;
 
-  if (dupin_record_get_list (db, count, 0, start_rowid, 0, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE, 0, DP_CREATED_SINCE, &results, NULL) ==
+  if (dupin_record_get_list (db, count, 0, start_rowid, 0, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE, &results, NULL) ==
       FALSE || !results)
     {
       if (sync_map_id != NULL)
@@ -1482,7 +1193,7 @@ dupin_view_sync_thread_map_linkb (DupinView * view, gsize count)
   gsize start_rowid = (sync_map_id != NULL) ? atoi(sync_map_id)+1 : 1;
 
   if (dupin_link_record_get_list (linkb, count, 0, start_rowid, 0, DP_LINK_TYPE_ANY, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE,
-				  0, DP_CREATED_SINCE, NULL, NULL, DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS,
+				  NULL, NULL, DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS,
 				  NULL, DP_FILTERBY_EQUALS, &results, NULL) ==
       FALSE || !results)
     {
@@ -1662,7 +1373,7 @@ dupin_view_sync_thread_map_view (DupinView * view, gsize count)
 
   gsize start_rowid = (sync_map_id != NULL) ? atoi(sync_map_id)+1 : 1;
 
-  if (dupin_view_record_get_list (v, count, 0, start_rowid, 0, DP_ORDERBY_ROWID, FALSE, NULL, NULL, TRUE, &results, NULL) ==
+  if (dupin_view_record_get_list (v, count, 0, start_rowid, 0, DP_ORDERBY_ROWID, FALSE, NULL, NULL, TRUE, NULL, NULL, TRUE, &results, NULL) ==
       FALSE || !results)
     {
       if (sync_map_id != NULL)
@@ -1861,7 +1572,6 @@ dupin_view_sync_thread_reduce (DupinView * view, gsize count, gboolean rereduce,
 
   gchar *str, *errmsg;
 
-  JsonGenerator * gen=NULL;
   JsonNode * key=NULL;
   JsonNode * pid=NULL;
   JsonNode * reduce_parameters_obj_key=NULL;
@@ -1895,7 +1605,8 @@ dupin_view_sync_thread_reduce (DupinView * view, gsize count, gboolean rereduce,
 
   gsize start_rowid = (sync_reduce_id != NULL) ? atoi(sync_reduce_id)+1 : 1;
 
-  if (dupin_view_record_get_list (view, count, 0, start_rowid, 0, (rereduce) ? DP_ORDERBY_KEY : DP_ORDERBY_ROWID, FALSE, matching_key, matching_key, TRUE, &results, NULL) ==
+  if (dupin_view_record_get_list (view, count, 0, start_rowid, 0, (rereduce) ? DP_ORDERBY_KEY : DP_ORDERBY_ROWID, FALSE,
+					matching_key, matching_key, TRUE, NULL, NULL, TRUE, &results, NULL) ==
       FALSE || !results)
     {
       if (previous_sync_reduce_id != NULL)
@@ -1937,6 +1648,13 @@ dupin_view_sync_thread_reduce (DupinView * view, gsize count, gboolean rereduce,
       if (!key)
         continue;
 
+      key_string = dupin_util_json_serialize (key);
+      if (key_string == NULL)
+        {
+          // TODO - log something?
+	  continue;
+        }
+
       key = json_node_copy (key);
 
       if (pid)
@@ -1948,46 +1666,6 @@ dupin_view_sync_thread_reduce (DupinView * view, gsize count, gboolean rereduce,
  
       if (!pid)
         pid = json_node_new (JSON_NODE_NULL);
- 
-      if (json_node_get_node_type (key) == JSON_NODE_VALUE)
-        {
-          if (json_node_get_value_type (key) == G_TYPE_STRING)
-          {
-	    gchar *tmp;
-
-            tmp = dupin_util_json_strescape (json_node_get_string (key));
-
-            key_string = g_strdup_printf ("\"%s\"", tmp);
-
-            g_free (tmp);
-          }
-
-          if (json_node_get_value_type (key) == G_TYPE_DOUBLE
-                || json_node_get_value_type (key) == G_TYPE_FLOAT)
-          {
-            gdouble numb = json_node_get_double (key);
-            key_string = g_strdup_printf ("%f", numb);
-          }
-
-          if (json_node_get_value_type (key) == G_TYPE_INT
-                || json_node_get_value_type (key) == G_TYPE_INT64
-                || json_node_get_value_type (key) == G_TYPE_UINT)
-          {
-            gint numb = (gint) json_node_get_int (key);
-            key_string = g_strdup_printf ("%d", numb);
-          }
-          if (json_node_get_value_type (key) == G_TYPE_BOOLEAN)
-          {
-            key_string = g_strdup_printf (json_node_get_boolean (key) == TRUE ? "true" : "false");
-          }
-        }
-      else
-        {
-          gen = json_generator_new();
-          json_generator_set_root (gen, key );
-          key_string = json_generator_to_data (gen,NULL);
-          g_object_unref (gen);
-        }
 
 //g_message("key_string =%s\n",key_string);
 
@@ -2004,9 +1682,9 @@ dupin_view_sync_thread_reduce (DupinView * view, gsize count, gboolean rereduce,
           reduce_parameters_obj_key_pids = json_array_new ();
           reduce_parameters_obj_key_rowid = json_node_new (JSON_NODE_VALUE);
 
-          json_object_set_array_member (reduce_parameters_obj_key_o, "keys", reduce_parameters_obj_key_keys);
-          json_object_set_array_member (reduce_parameters_obj_key_o, "values", reduce_parameters_obj_key_values);
-          json_object_set_array_member (reduce_parameters_obj_key_o, "pids", reduce_parameters_obj_key_pids);
+          json_object_set_array_member (reduce_parameters_obj_key_o, DUPIN_VIEW_KEYS, reduce_parameters_obj_key_keys);
+          json_object_set_array_member (reduce_parameters_obj_key_o, DUPIN_VIEW_VALUES, reduce_parameters_obj_key_values);
+          json_object_set_array_member (reduce_parameters_obj_key_o, DUPIN_VIEW_PIDS, reduce_parameters_obj_key_pids);
           json_object_set_member (reduce_parameters_obj_key_o, "rowid", reduce_parameters_obj_key_rowid);
 
           /* TODO - check if we need double to gurantee larger number of rowids and use json_node_set_number () */
@@ -2016,13 +1694,13 @@ dupin_view_sync_thread_reduce (DupinView * view, gsize count, gboolean rereduce,
         }
       else
         {
-//dupin_view_debug_print_json_node("Key did exist \n",reduce_parameters_obj_key);
+//DUPIN_UTIL_DUMP_JSON("Key did exist \n",reduce_parameters_obj_key);
 
           reduce_parameters_obj_key_o = json_node_get_object (reduce_parameters_obj_key);
 
-          reduce_parameters_obj_key_keys = json_node_get_array (json_object_get_member (reduce_parameters_obj_key_o, "keys"));
-          reduce_parameters_obj_key_values = json_node_get_array (json_object_get_member (reduce_parameters_obj_key_o, "values"));
-          reduce_parameters_obj_key_pids = json_node_get_array (json_object_get_member (reduce_parameters_obj_key_o, "pids"));
+          reduce_parameters_obj_key_keys = json_node_get_array (json_object_get_member (reduce_parameters_obj_key_o, DUPIN_VIEW_KEYS));
+          reduce_parameters_obj_key_values = json_node_get_array (json_object_get_member (reduce_parameters_obj_key_o, DUPIN_VIEW_VALUES));
+          reduce_parameters_obj_key_pids = json_node_get_array (json_object_get_member (reduce_parameters_obj_key_o, DUPIN_VIEW_PIDS));
           reduce_parameters_obj_key_rowid = json_object_get_member (reduce_parameters_obj_key_o, "rowid");
 
           if ( json_node_get_int (reduce_parameters_obj_key_rowid) < rowid )
@@ -2039,13 +1717,12 @@ dupin_view_sync_thread_reduce (DupinView * view, gsize count, gboolean rereduce,
       JsonNode * reduce_parameters_obj_key_values_i = dupin_view_record_get (list->data);
       if (reduce_parameters_obj_key_values_i)
         {
-          reduce_parameters_obj_key_values_i = json_object_get_member (json_node_get_object (reduce_parameters_obj_key_values_i), "value");
-          if (reduce_parameters_obj_key_values_i)
-            reduce_parameters_obj_key_values_i = json_node_copy (reduce_parameters_obj_key_values_i);
+          reduce_parameters_obj_key_values_i = json_node_copy (reduce_parameters_obj_key_values_i);
         }
-
-      if (!reduce_parameters_obj_key_values_i)
+      else
+        {
           reduce_parameters_obj_key_values_i = json_node_new (JSON_NODE_NULL);
+        }
 
       json_array_add_element (reduce_parameters_obj_key_values, reduce_parameters_obj_key_values_i);
       json_array_add_element (reduce_parameters_obj_key_pids, json_node_copy (pid));
@@ -2055,7 +1732,7 @@ dupin_view_sync_thread_reduce (DupinView * view, gsize count, gboolean rereduce,
 
   json_node_take_object (reduce_parameters, reduce_parameters_obj);
 
-//dupin_view_debug_print_json_node ("REDUCE parameters:", reduce_parameters);
+//DUPIN_UTIL_DUMP_JSON ("REDUCE parameters:", reduce_parameters);
 
   nodes = json_object_get_members (reduce_parameters_obj);
   for (n = nodes; n != NULL; n = n->next)
@@ -2067,72 +1744,46 @@ dupin_view_sync_thread_reduce (DupinView * view, gsize count, gboolean rereduce,
       /* call function(keys, values, rereduce)  values = [ v1, v2... vN ] */
 
       JsonNode * result = dupin_mr_record_reduce (view,
-						  (rereduce) ? NULL : json_node_get_array (json_object_get_member ( json_node_get_object(json_object_get_member (reduce_parameters_obj, member_name)), "keys")),
-						  json_node_get_array (json_object_get_member ( json_node_get_object(json_object_get_member (reduce_parameters_obj, member_name)), "values")),
+						  (rereduce) ? NULL : json_node_get_array (json_object_get_member ( json_node_get_object(json_object_get_member (reduce_parameters_obj, member_name)), DUPIN_VIEW_KEYS)),
+						  json_node_get_array (json_object_get_member ( json_node_get_object(json_object_get_member (reduce_parameters_obj, member_name)), DUPIN_VIEW_VALUES)),
 						  rereduce);
 
       if (result != NULL)
         {
-          gchar * result_string=NULL;
-          gchar * pids_string=NULL;
-          JsonNode * result_obj_node = json_node_new (JSON_NODE_OBJECT);
-          JsonObject * result_obj = json_object_new ();
-          GError * error = NULL;
-
-          json_node_take_object (result_obj_node, result_obj);
-          
-          json_object_set_member (result_obj, "value", result);
-
-	  JsonParser * parser = json_parser_new ();
-
-          if (!json_parser_load_from_data (parser, member_name, strlen (member_name), &error))
+          gchar * pids_string = dupin_util_json_serialize (json_object_get_member ( json_node_get_object(json_object_get_member (reduce_parameters_obj, member_name)), "pids"));
+          if (pids_string == NULL)
             {
-              if (error)
-                {
-                  dupin_view_set_error (view, error->message);
-                  g_error_free (error);
-                }
-
-              if (parser != NULL)
-                g_object_unref (parser);
-              json_node_free (result_obj_node);
-              g_free (result_string);
-              g_free (pids_string);
-
+	      json_node_free (result);
 	      ret = FALSE;
               break;
             }
 
-          json_object_set_member (result_obj, "key", json_node_copy (json_parser_get_root (parser)));
+          gchar * value_string = dupin_util_json_serialize (result);
+          if (value_string == NULL)
+            {
+	      json_node_free (result);
+              g_free (pids_string);
+	      ret = FALSE;
+              break;
+            }
 
-          if (parser != NULL)
-            g_object_unref (parser);
+//g_message ("dupin_view_sync_thread_reduce: KEY: %s", member_name);
+//DUPIN_UTIL_DUMP_JSON ("dupin_view_sync_thread_reduce: PID", json_object_get_member ( json_node_get_object(json_object_get_member (reduce_parameters_obj, member_name)), "pids"));
+//DUPIN_UTIL_DUMP_JSON ("dupin_view_sync_thread_reduce: OBJ", result);
 
-          gen = json_generator_new();
-          json_generator_set_root (gen, result_obj_node );
-          result_string = json_generator_to_data (gen,NULL);
-          g_object_unref (gen);
-
-          json_node_free (result_obj_node);
-
-//g_message ("RESULT:%s\n", result_string);
-
-          gen = json_generator_new();
-          json_generator_set_root (gen, json_object_get_member ( json_node_get_object(json_object_get_member (reduce_parameters_obj, member_name)), "pids") );
-          pids_string = json_generator_to_data (gen,NULL);
-          g_object_unref (gen);
+	  json_node_free (result);
 
           /* TODO - check if we need double to gurantee larger number of rowids and use json_node_get_number () in the below */
 
 	  /* delete all rows but last one and replace last one with result where last one is rowid */
           dupin_view_sync_record_update (view,
-				    previous_sync_reduce_id,
-				    (gint)json_node_get_int (json_object_get_member ( json_node_get_object(json_object_get_member (reduce_parameters_obj, member_name)), "rowid")),
-                                    member_name,
-                                    result_string,
-				    pids_string);
+				         previous_sync_reduce_id,
+				         (gint)json_node_get_int (json_object_get_member ( json_node_get_object(json_object_get_member (reduce_parameters_obj, member_name)), "rowid")),
+                                         member_name,
+                                         value_string,
+				         pids_string);
 
-          g_free (result_string);
+          g_free (value_string);
           g_free (pids_string);
 
           g_mutex_lock (view->mutex);
@@ -2252,6 +1903,7 @@ dupin_view_sync_total_rereduce (DupinView * view, struct dupin_view_sync_total_r
 void
 dupin_view_sync_map_func (gpointer data, gpointer user_data)
 {
+  gchar * errmsg;
   DupinView * view = (DupinView*) data;
 
   dupin_view_ref (view);
@@ -2306,6 +1958,19 @@ dupin_view_sync_map_func (gpointer data, gpointer user_data)
     {
       g_mutex_lock (view->mutex);
       g_cond_signal(view->sync_map_has_new_work);
+      g_mutex_unlock (view->mutex);
+    }
+  else if (view->sync_map_processed_count > 0)
+    {
+//g_message("dupin_view_sync_map_func(%p): ANALYZE\n", g_thread_self ());
+
+      g_mutex_lock (view->mutex);
+      if (sqlite3_exec (view->db, "ANALYZE Dupin", NULL, NULL, &errmsg) != SQLITE_OK)
+        {
+          g_mutex_unlock (view->mutex);
+          g_error ("dupin_view_sync_reduce_func: %s", errmsg);
+          sqlite3_free (errmsg);
+        }
       g_mutex_unlock (view->mutex);
     }
 

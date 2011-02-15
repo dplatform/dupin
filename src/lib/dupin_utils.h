@@ -84,6 +84,16 @@ gboolean        dupin_util_mvcc_get_hash	(gchar * mvcc,
 DupinCollateType
 		dupin_util_get_collate_type	(JsonNode * node);
 
+int		dupin_util_collation		(void        * ref,
+						 int         left_len,
+						 const void  *left_void,
+						 int         right_len,
+						 const void  *right_void);
+
+int		dupin_util_collation_compare_pair
+						(JsonNode * left_node,
+						 JsonNode * right_node);
+
 gchar *        dupin_util_json_string_normalize	(gchar * input_string);
 
 /* k/v pairs for argument lists */

@@ -49,13 +49,6 @@ DupinRecord *	dupin_record_read	(DupinDB *		db,
 
 /* List of DupinRecord: */
 
-gsize           dupin_record_get_list_total
-					(DupinDB *		db,
-					 DupinCountType		count_type,
-					 gsize                  created,
-				         DupinCreatedType       created_type,
-					 GError ** 		error);
-
 gboolean	dupin_record_get_list	(DupinDB *		db,
 					 guint			count,
 					 guint			offset,
@@ -64,8 +57,6 @@ gboolean	dupin_record_get_list	(DupinDB *		db,
 					 DupinCountType		count_type,
 					 DupinOrderByType	orderby_type,
 					 gboolean		descending,
-					 gsize                  created,
-				         DupinCreatedType       created_type,
 					 GList **		list,
 					 GError **		error);
 

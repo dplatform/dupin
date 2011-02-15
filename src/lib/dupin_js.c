@@ -109,7 +109,8 @@ dupin_js_new_map (Dupin *    	 d,
   dupin_class_def.className = "Dupin";
   dupin_class_def.staticFunctions = dupin_js_dupin_class_static_functions;
   dupin_class_def.staticValues = dupin_js_dupin_class_static_values;
-  jsDupinClass = JSClassCreate (&dupin_class_def);
+  if (!jsDupinClass)
+    jsDupinClass = JSClassCreate (&dupin_class_def);
   JSObjectRef DupinObject = JSObjectMake(ctx, jsDupinClass, d);
   str = JSStringCreateWithUTF8CString("dupin");
   JSObjectSetProperty(ctx, globalObject, str, DupinObject, kJSPropertyAttributeNone, NULL);
@@ -327,7 +328,8 @@ dupin_js_new_reduce (Dupin *        d,
   dupin_class_def.className = "Dupin";
   dupin_class_def.staticFunctions = dupin_js_dupin_class_static_functions;
   dupin_class_def.staticValues = dupin_js_dupin_class_static_values;
-  jsDupinClass = JSClassCreate (&dupin_class_def);
+  if (!jsDupinClass)
+    jsDupinClass = JSClassCreate (&dupin_class_def);
   JSObjectRef DupinObject = JSObjectMake(ctx, jsDupinClass, d);
   str = JSStringCreateWithUTF8CString("dupin");
   JSObjectSetProperty(ctx, globalObject, str, DupinObject, kJSPropertyAttributeNone, NULL);
@@ -787,6 +789,7 @@ dupin_js_dupin_class_view_lookup(JSContextRef ctx,
 
   if ((dupin_view_record_get_list (view, count, offset, 0, 0, DP_ORDERBY_KEY, descending,
                                   lookupkey, lookupkey, inclusive_end,
+                                  NULL, NULL, TRUE,
                                   &results, NULL) == FALSE)
        || (g_list_length (results) <= 0))
     {
@@ -807,14 +810,22 @@ dupin_js_dupin_class_view_lookup(JSContextRef ctx,
     {
       gchar * record_id;
       JsonNode * doc = NULL;
-      JsonObject * match_obj = json_node_get_object (match);
-      JsonObject * match_obj2 = json_object_get_object_member (match_obj, "value");
+      JsonObject * match_obj;
 
-      if (match_obj2 != NULL
-              && json_object_has_member (match_obj2, "_id"))
-        record_id = (gchar *) json_object_get_string_member (match_obj2, "_id");
+      if (json_node_get_node_type (match) == JSON_NODE_OBJECT)
+        match_obj = json_node_get_object (match);
+
+      if (match_obj != NULL
+          && json_object_has_member (match_obj, REQUEST_OBJ_ID))
+        record_id = (gchar *) json_object_get_string_member (match_obj, REQUEST_OBJ_ID);
+      else if (match_obj != NULL
+	       && json_object_has_member (match_obj, RESPONSE_OBJ_ID))
+        record_id = (gchar *) json_object_get_string_member (match_obj, RESPONSE_OBJ_ID);
       else
-        record_id = (gchar *) json_object_get_string_member (match_obj, "id");
+        {
+          JsonNode * pid = dupin_view_record_get_pid (record);
+          record_id = (gchar *)json_array_get_string_element (json_node_get_array (pid), 0);
+        }
 
       if (dupin_view_get_parent_is_db (view) == TRUE)
         {

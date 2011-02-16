@@ -140,6 +140,9 @@ gboolean	dupin_link_record_get_list
 				         gsize			rowid_start,
 					 gsize			rowid_end,
 					 DupinLinksType		links_type,
+                                         gchar *                start_key,
+                                         gchar *                end_key,
+                                         gboolean               inclusive_end,
 					 DupinCountType		count_type,
 					 DupinOrderByType	orderby_type,
 					 gboolean		descending,
@@ -160,7 +163,12 @@ void		dupin_link_record_get_list_close
 
 gsize           dupin_link_record_get_list_total
 					(DupinLinkB *		linkb,
+					 gsize                  rowid_start,
+                                         gsize                  rowid_end,
                                          DupinLinksType 	links_type,
+                                         gchar *                start_key,
+                                         gchar *                end_key,
+                                         gboolean               inclusive_end,
                                          DupinCountType 	count_type,
                                          gchar *                context_id,
 					 gchar **               rels,

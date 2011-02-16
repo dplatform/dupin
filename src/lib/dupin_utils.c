@@ -124,11 +124,21 @@ dupin_util_timestamp_now ()
   gsize ttime=0;
   GTimeVal tnow;
 
-  /* time in nanoseconds */
   g_get_current_time(&tnow); 
   ttime= tnow.tv_sec * 1000000 + tnow.tv_usec;
 
   return ttime;
+}
+
+gchar *
+dupin_util_timestamp_to_iso8601 (gsize timestamp)
+{
+  GTimeVal tv;
+
+  tv.tv_sec = timestamp / 1000000;
+  tv.tv_usec = timestamp % 1000000;
+  
+  return g_time_val_to_iso8601 (&tv);
 }
 
 gboolean
@@ -1088,6 +1098,33 @@ dupin_util_json_string_normalize (gchar * input_string)
 
   if (!json_parser_load_from_data (parser, input_string, -1, &error)
       || (!(output_string = dupin_util_json_serialize (json_parser_get_root (parser)))) )
+    {
+      if (error != NULL)
+        g_error_free (error);
+
+      g_object_unref (parser);
+
+      return NULL;
+    }
+
+  g_object_unref (parser);
+
+  return output_string; 
+}
+
+gchar *
+dupin_util_json_string_normalize_docid (gchar * input_string_docid)
+{
+  g_return_val_if_fail (input_string_docid != NULL, NULL);
+
+  JsonParser *parser = json_parser_new ();
+  GError *error = NULL;
+  gchar * output_string = NULL;
+
+  if (!json_parser_load_from_data (parser, input_string_docid, -1, &error)
+      || (json_node_get_node_type (json_parser_get_root (parser)) != JSON_NODE_VALUE)
+      || (json_node_get_value_type (json_parser_get_root (parser)) != G_TYPE_STRING)
+      || (!(output_string = g_strdup (json_node_get_string (json_parser_get_root (parser))))))
     {
       if (error != NULL)
         g_error_free (error);

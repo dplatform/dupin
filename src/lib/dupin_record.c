@@ -353,6 +353,141 @@ dupin_record_read_real (DupinDB * db, gchar * id, GError ** error,
   return record;
 }
 
+struct dupin_record_get_list_total_t
+{
+  gsize ret;
+  DupinCountType count_type;
+};
+
+static int
+dupin_record_get_list_total_cb (void *data, int argc, char **argv, char **col)
+{
+  struct dupin_record_get_list_total_t *count = data;
+
+  if (argv[0] && *argv[0])
+    {
+      switch (count->count_type)
+        {
+        case DP_COUNT_EXIST:
+          if (!g_strcmp0 (argv[0], "FALSE"))
+            count->ret++;
+          break;
+
+        case DP_COUNT_DELETE:
+          if (!g_strcmp0 (argv[0], "TRUE"))
+            count->ret++;
+          break;
+
+        case DP_COUNT_ALL:
+        default:
+          count->ret++;
+          break;
+        }
+    }
+
+  return 0;
+}
+
+gsize
+dupin_record_get_list_total (DupinDB *      db,
+			     gsize          rowid_start,
+			     gsize          rowid_end,
+			     gchar *        start_key,
+			     gchar *        end_key,
+                             gboolean       inclusive_end,
+                             DupinCountType count_type,
+                             GError **      error)
+{
+  struct dupin_record_get_list_total_t count;
+  GString * str;
+  gchar *errmsg;
+  gchar *query;
+
+  g_return_val_if_fail (db != NULL, 0);
+
+  count.ret = 0;
+  count.count_type = count_type;
+
+  gchar * key_range=NULL;
+
+  if (start_key!=NULL && end_key!=NULL)
+    if (!g_utf8_collate (start_key, end_key) && inclusive_end == TRUE)
+      key_range = sqlite3_mprintf (" d.id = '%q' ", start_key);
+    else if (inclusive_end == TRUE)
+      key_range = sqlite3_mprintf (" d.id >= '%q' AND d.id <= '%q' ", start_key, end_key);
+    else
+      key_range = sqlite3_mprintf (" d.id >= '%q' AND d.id < '%q' ", start_key, end_key);
+  else if (start_key!=NULL)
+    {
+      key_range = sqlite3_mprintf (" d.id >= '%q' ", start_key);
+    }
+  else if (end_key!=NULL)
+    {
+      if (inclusive_end == TRUE)
+        key_range = sqlite3_mprintf (" d.id <= '%q' ", end_key);
+      else
+        key_range = sqlite3_mprintf (" d.id < '%q' ", end_key);
+    }
+
+  //str = g_string_new ("SELECT deleted, max(rev) as rev FROM Dupin as d ");
+  str = g_string_new ("SELECT deleted FROM Dupin as d WHERE d.rev = (select max(rev) as rev FROM Dupin WHERE id=d.id) ");
+
+  gchar * op = "AND";
+
+  if (rowid_start > 0 && rowid_end > 0)
+    {
+      g_string_append_printf (str, " %s d.ROWID >= %d AND d.ROWID <= %d ", op, (gint)rowid_start, (gint)rowid_end);
+      op = "AND";
+    }
+  else if (rowid_start > 0)
+    {
+      g_string_append_printf (str, " %s d.ROWID >= %d ", op, (gint)rowid_start);
+      op = "AND";
+    }
+  else if (rowid_end > 0)
+    {
+      g_string_append_printf (str, " %s d.ROWID <= %d ", op, (gint)rowid_end);
+      op = "AND";
+    }
+
+  if (key_range != NULL)
+    {
+      g_string_append_printf (str, " %s %s ", op, key_range);
+      op = "AND";
+    }
+
+  //str = g_string_append (str, " GROUP BY id");
+
+  query = g_string_free (str, FALSE);
+
+  if (key_range!=NULL)
+    sqlite3_free (key_range);
+
+//g_message("dupin_record_get_list_total: query=%s\n", query);
+
+  g_mutex_lock (db->mutex);
+
+  if (sqlite3_exec (db->db, query, dupin_record_get_list_total_cb, &count, &errmsg) !=
+      SQLITE_OK)
+    {
+      g_mutex_unlock (db->mutex);
+
+      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
+                   errmsg);
+
+      sqlite3_free (errmsg);
+      g_free (query);
+
+      return 0;
+    }
+
+  g_mutex_unlock (db->mutex);
+
+  g_free (query);
+
+  return count.ret;
+}
+
 struct dupin_record_get_list_t
 {
   DupinDB *db;
@@ -419,6 +554,9 @@ dupin_record_get_list (DupinDB * db,
 		       guint offset,
                        gsize rowid_start,
 		       gsize rowid_end,
+		       gchar * start_key,
+		       gchar * end_key,
+                       gboolean inclusive_end,
 		       DupinCountType count_type,
 		       DupinOrderByType orderby_type,
 		       gboolean descending,
@@ -438,12 +576,33 @@ dupin_record_get_list (DupinDB * db,
   memset (&s, 0, sizeof (s));
   s.db = db;
 
-  str = g_string_new ("SELECT *, ROWID as rowid FROM Dupin as d WHERE d.rev = (select max(rev) as rev FROM Dupin WHERE id=d.id) ");
+  gchar * key_range=NULL;
+
+  if (start_key!=NULL && end_key!=NULL)
+    if (!g_utf8_collate (start_key, end_key) && inclusive_end == TRUE)
+      key_range = sqlite3_mprintf (" d.id = '%q' ", start_key);
+    else if (inclusive_end == TRUE)
+      key_range = sqlite3_mprintf (" d.id >= '%q' AND d.id <= '%q' ", start_key, end_key);
+    else
+      key_range = sqlite3_mprintf (" d.id >= '%q' AND d.id < '%q' ", start_key, end_key);
+  else if (start_key!=NULL)
+    {
+      key_range = sqlite3_mprintf (" d.id >= '%q' ", start_key);
+    }
+  else if (end_key!=NULL)
+    {
+      if (inclusive_end == TRUE)
+        key_range = sqlite3_mprintf (" d.id <= '%q' ", end_key);
+      else
+        key_range = sqlite3_mprintf (" d.id < '%q' ", end_key);
+    }
 
   if (count_type == DP_COUNT_EXIST)
     check_deleted = " d.deleted = 'FALSE' ";
   else if (count_type == DP_COUNT_DELETE)
     check_deleted = " d.deleted = 'TRUE' ";
+
+  str = g_string_new ("SELECT *, ROWID as rowid FROM Dupin as d WHERE d.rev = (select max(rev) as rev FROM Dupin WHERE id=d.id) ");
 
   gchar * op = "AND";
 
@@ -463,6 +622,12 @@ dupin_record_get_list (DupinDB * db,
       op = "AND";
     }
 
+  if (key_range != NULL)
+    {
+      g_string_append_printf (str, " %s %s ", op, key_range);
+      op = "AND";
+    }
+
   if (g_strcmp0 (check_deleted, ""))
     {
       g_string_append_printf (str, " %s %s ", op, check_deleted);
@@ -474,7 +639,8 @@ dupin_record_get_list (DupinDB * db,
     str = g_string_append (str, " ORDER BY d.ROWID");
   else
     //str = g_string_append (str, " GROUP BY id ORDER BY d.ROWID");
-    str = g_string_append (str, " ORDER BY d.ROWID");
+    //str = g_string_append (str, " ORDER BY d.ROWID");
+    str = g_string_append (str, " ORDER BY d.id");
 
   if (descending)
     str = g_string_append (str, " DESC");
@@ -494,6 +660,9 @@ dupin_record_get_list (DupinDB * db,
     }
 
   tmp = g_string_free (str, FALSE);
+
+  if (key_range!=NULL)
+    sqlite3_free (key_range);
 
 //g_message("dupin_record_get_list() query=%s\n",tmp);
 
@@ -2058,6 +2227,9 @@ dupin_record_insert_bulk (DupinDB * db,
       if (rev!= NULL)
         g_free (rev);
     }
+
+//g_message("dupin_record_insert_bulk: inserted %d records into database %s\n", (gint)g_list_length (nodes), db->name);
+
   g_list_free (nodes); 
 
   return TRUE;

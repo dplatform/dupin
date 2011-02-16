@@ -37,6 +37,8 @@ void		dupin_util_generate_id		(gchar		id[DUPIN_ID_MAX_LEN]);
 
 gsize		dupin_util_timestamp_now	();
 
+gchar *		dupin_util_timestamp_to_iso8601	(gsize timestamp);
+
 gboolean	dupin_util_is_valid_mr_lang	(gchar *	lang);
 
 DupinMRLang	dupin_util_mr_lang_to_enum	(gchar *	lang);
@@ -95,6 +97,9 @@ int		dupin_util_collation_compare_pair
 						 JsonNode * right_node);
 
 gchar *        dupin_util_json_string_normalize	(gchar * input_string);
+
+gchar *        dupin_util_json_string_normalize_docid
+						(gchar * input_string_docid);
 
 /* k/v pairs for argument lists */
 

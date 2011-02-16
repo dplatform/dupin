@@ -1048,7 +1048,7 @@ dupin_view_sync_thread_map_db (DupinView * view, gsize count)
 
   gsize start_rowid = (sync_map_id != NULL) ? atoi(sync_map_id)+1 : 1;
 
-  if (dupin_record_get_list (db, count, 0, start_rowid, 0, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE, &results, NULL) ==
+  if (dupin_record_get_list (db, count, 0, start_rowid, 0, NULL, NULL, TRUE, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE, &results, NULL) ==
       FALSE || !results)
     {
       if (sync_map_id != NULL)
@@ -1080,7 +1080,9 @@ dupin_view_sync_thread_map_db (DupinView * view, gsize count)
 
 	  if (json_object_has_member (obj, "_created") == TRUE)
             json_object_remove_member (obj, "_created"); // ignore any record one if set by user, ever
-          json_object_set_int_member (obj, "_created", dupin_record_get_created (list->data));
+          gchar * created = dupin_util_timestamp_to_iso8601 (dupin_record_get_created (list->data));
+          json_object_set_string_member (obj, "_created", created);
+          g_free (created);
 
 	  /* NOTE - needed for m/r dupin.docpath() and dupin.links() methods - see dupin_js.c */
 
@@ -1192,7 +1194,7 @@ dupin_view_sync_thread_map_linkb (DupinView * view, gsize count)
 
   gsize start_rowid = (sync_map_id != NULL) ? atoi(sync_map_id)+1 : 1;
 
-  if (dupin_link_record_get_list (linkb, count, 0, start_rowid, 0, DP_LINK_TYPE_ANY, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE,
+  if (dupin_link_record_get_list (linkb, count, 0, start_rowid, 0, DP_LINK_TYPE_ANY, NULL, NULL, TRUE, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE,
 				  NULL, NULL, DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS,
 				  NULL, DP_FILTERBY_EQUALS, &results, NULL) ==
       FALSE || !results)
@@ -1226,7 +1228,9 @@ dupin_view_sync_thread_map_linkb (DupinView * view, gsize count)
 
           if (json_object_has_member (obj, "_created") == TRUE)
             json_object_remove_member (obj, "_created"); // ignore any record one if set by user, ever
-          json_object_set_int_member (obj, "_created", dupin_link_record_get_created (list->data));
+	  gchar * created = dupin_util_timestamp_to_iso8601 (dupin_link_record_get_created (list->data));
+          json_object_set_string_member (obj, "_created", created);
+          g_free (created);
 
 	  if (json_object_has_member (obj, "_context_id") == TRUE)
             json_object_remove_member (obj, "_context_id"); // ignore any record one if set by user, ever

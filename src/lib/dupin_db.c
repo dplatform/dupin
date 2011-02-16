@@ -17,11 +17,12 @@
   "  obj     TEXT,\n" \
   "  deleted BOOL DEFAULT FALSE,\n" \
   "  tm      INTEGER NOT NULL,\n" \
-  "  PRIMARY KEY(id, rev, hash)\n" \
+  "  PRIMARY KEY(id, rev)\n" \
   ");"
 
 #define DUPIN_DB_SQL_CREATE_INDEX \
-  "CREATE INDEX IF NOT EXISTS DupinIdRevHashDeleted ON Dupin (id, rev, hash, deleted);"
+  "CREATE INDEX IF NOT EXISTS DupinId ON Dupin (id);\n" \
+  "CREATE INDEX IF NOT EXISTS DupinIdRev ON Dupin (id,rev);"
 
 #define DUPIN_DB_SQL_DESC_CREATE \
   "CREATE TABLE IF NOT EXISTS DupinDB (\n" \
@@ -566,7 +567,9 @@ dupin_database_get_changes_list_cb (void *data, int argc, char **argv, char **co
       if (delete == TRUE)
         json_object_set_boolean_member (change, "deleted", delete);
 
-      json_object_set_int_member (change, "created", tm);
+      gchar * created = dupin_util_timestamp_to_iso8601 (tm);
+      json_object_set_string_member (change, RESPONSE_OBJ_CREATED, created);
+      g_free (created);
 
       JsonNode *change_details_node=json_node_new (JSON_NODE_ARRAY);
       JsonArray *change_details=json_array_new();
@@ -818,7 +821,7 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
 
   gsize start_rowid = (compact_id != NULL) ? atoi(compact_id)+1 : 1;
 
-  if (dupin_record_get_list (db, count, 0, start_rowid, 0, DP_COUNT_ALL, DP_ORDERBY_ROWID, FALSE, &results, NULL) ==
+  if (dupin_record_get_list (db, count, 0, start_rowid, 0, NULL, NULL, TRUE, DP_COUNT_ALL, DP_ORDERBY_ROWID, FALSE, &results, NULL) ==
       FALSE || !results)
     {
       if (compact_id != NULL)

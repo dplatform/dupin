@@ -27,11 +27,14 @@
   "  tag         TEXT DEFAULT NULL,\n" \
   "  idspath     TEXT NOT NULL,\n" \
   "  labelspath  TEXT NOT NULL,\n" \
-  "  PRIMARY     KEY(id, rev, hash)\n" \
+  "  PRIMARY     KEY(id, rev)\n" \
   ");"
 
 #define DUPIN_LINKB_SQL_CREATE_INDEX \
-  "CREATE INDEX IF NOT EXISTS DupinIdRevHashDeleted ON Dupin (id, rev, hash, deleted, context_id, rel, href, tag);"
+  "CREATE INDEX IF NOT EXISTS DupinId ON Dupin (id);\n" \
+  "CREATE INDEX IF NOT EXISTS DupinIdRev ON Dupin (id,rev);\n" \
+  "CREATE INDEX IF NOT EXISTS DupinContextId ON Dupin (context_id);\n" \
+  "CREATE INDEX IF NOT EXISTS DupinHrefDeletedContextIdTag ON Dupin (href,deleted,tag);"
 
 #define DUPIN_LINKB_SQL_DESC_CREATE \
   "CREATE TABLE IF NOT EXISTS DupinLinkB (\n" \
@@ -743,7 +746,9 @@ dupin_linkbase_get_changes_list_cb (void *data, int argc, char **argv, char **co
       if (delete == TRUE)
         json_object_set_boolean_member (change, "deleted", delete);
 
-      json_object_set_int_member (change, "created", tm);
+      gchar * created = dupin_util_timestamp_to_iso8601 (tm);
+      json_object_set_string_member (change, RESPONSE_OBJ_CREATED, created);
+      g_free (created);
 
       JsonNode *change_details_node=json_node_new (JSON_NODE_ARRAY);
       JsonArray *change_details=json_array_new();
@@ -1194,7 +1199,7 @@ dupin_linkbase_thread_compact (DupinLinkB * linkb, gsize count)
 
   gsize start_rowid = (compact_id != NULL) ? atoi(compact_id)+1 : 1;
 
-  if (dupin_link_record_get_list (linkb, count, 0, start_rowid, 0, DP_LINK_TYPE_ANY, DP_COUNT_ALL, DP_ORDERBY_ROWID, FALSE,
+  if (dupin_link_record_get_list (linkb, count, 0, start_rowid, 0, DP_LINK_TYPE_ANY, NULL, NULL, TRUE, DP_COUNT_ALL, DP_ORDERBY_ROWID, FALSE,
 				  NULL, NULL, DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS,
                                   NULL, DP_FILTERBY_EQUALS, &results, NULL) ==
       FALSE || !results)
@@ -1452,7 +1457,7 @@ dupin_linkbase_thread_check (DupinLinkB * linkb, gsize count)
 
   gsize start_rowid = (check_id != NULL) ? atoi(check_id)+1 : 1;
 
-  if (dupin_link_record_get_list (linkb, count, 0, start_rowid, 0, DP_LINK_TYPE_ANY, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE,
+  if (dupin_link_record_get_list (linkb, count, 0, start_rowid, 0, DP_LINK_TYPE_ANY, NULL, NULL, TRUE, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE,
 				  NULL, NULL, DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS,
                                   NULL, DP_FILTERBY_EQUALS, &results, NULL) ==
       FALSE || !results)

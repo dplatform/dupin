@@ -71,6 +71,7 @@ typedef enum
 typedef enum
 {
   DP_ORDERBY_ROWID,
+  DP_ORDERBY_ID,
   DP_ORDERBY_KEY,
   DP_ORDERBY_TITLE,
   DP_ORDERBY_REV,
@@ -130,6 +131,9 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 #define REQUEST_OBJ_CONTENT             "_content"
 #define REQUEST_OBJ_DELETED             "_deleted"
 
+#define REQUEST_LINK_OBJ_ID           	REQUEST_OBJ_ID
+#define REQUEST_LINK_OBJ_REV        	REQUEST_OBJ_REV 
+#define REQUEST_LINK_OBJ_DELETED        REQUEST_OBJ_DELETED
 #define REQUEST_LINK_OBJ_HREF           "_href"
 #define REQUEST_LINK_OBJ_REL            "_rel"
 #define REQUEST_LINK_OBJ_TAG            "_tag"
@@ -141,6 +145,7 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 
 #define RESPONSE_OBJ_ID                 "id"
 #define RESPONSE_OBJ_REV                "rev"
+#define RESPONSE_OBJ_CREATED            "created"
 #define RESPONSE_OBJ_ATTACHMENTS        REQUEST_OBJ_ATTACHMENTS
 #define RESPONSE_OBJ_LINKS              REQUEST_OBJ_LINKS
 #define RESPONSE_OBJ_RELATIONSHIPS      REQUEST_OBJ_RELATIONSHIPS
@@ -152,11 +157,12 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 
 #define RESPONSE_LINK_OBJ_ID            RESPONSE_OBJ_ID
 #define RESPONSE_LINK_OBJ_REV           RESPONSE_OBJ_REV
-#define RESPONSE_LINK_OBJ_HREF          REQUEST_LINK_OBJ_HREF
-#define RESPONSE_LINK_OBJ_REL           REQUEST_LINK_OBJ_REL
-#define RESPONSE_LINK_OBJ_TAG           REQUEST_LINK_OBJ_TAG
-#define RESPONSE_LINK_OBJ_LABEL         REQUEST_LINK_OBJ_LABEL
-#define RESPONSE_LINK_OBJ_CONTEXT_ID    "_context_id"
+#define RESPONSE_LINK_OBJ_HREF          "href"
+#define RESPONSE_LINK_OBJ_REL           "rel"
+#define RESPONSE_LINK_OBJ_TAG           "tag"
+#define RESPONSE_LINK_OBJ_LABEL         "label"
+#define RESPONSE_LINK_OBJ_CONTEXT_ID    "context_id"
+#define RESPONSE_LINK_OBJ_DOC		RESPONSE_OBJ_DOC
 #define RESPONSE_LINK_OBJ_DOC_IN        "doc_in"
 #define RESPONSE_LINK_OBJ_DOC_OUT       "doc_out"
 #define RESPONSE_LINK_OBJ_LINK          "link"

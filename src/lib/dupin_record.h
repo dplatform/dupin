@@ -49,11 +49,24 @@ DupinRecord *	dupin_record_read	(DupinDB *		db,
 
 /* List of DupinRecord: */
 
+gsize           dupin_record_get_list_total
+                                       	(DupinDB *              db,
+				         gsize			rowid_start,
+					 gsize			rowid_end,
+					 gchar *                start_key,
+                                         gchar *                end_key,
+                                         gboolean               inclusive_end,
+                                         DupinCountType         count_type,
+                                         GError **              error);
+
 gboolean	dupin_record_get_list	(DupinDB *		db,
 					 guint			count,
 					 guint			offset,
 				         gsize			rowid_start,
 					 gsize			rowid_end,
+					 gchar *                start_key,
+                                         gchar *                end_key,
+                                         gboolean               inclusive_end,
 					 DupinCountType		count_type,
 					 DupinOrderByType	orderby_type,
 					 gboolean		descending,

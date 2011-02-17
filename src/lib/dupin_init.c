@@ -35,17 +35,17 @@ dupin_init (DSGlobal *data, GError ** error)
 
   d->dbs =
     g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
-			   (GDestroyNotify) dupin_db_free);
+			   (GDestroyNotify) dupin_db_disconnect);
   d->linkbs =
     g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
-			   (GDestroyNotify) dupin_linkb_free);
+			   (GDestroyNotify) dupin_linkb_disconnect);
   d->views =
     g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
-			   (GDestroyNotify) dupin_view_free);
+			   (GDestroyNotify) dupin_view_disconnect);
 
   d->attachment_dbs =
     g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
-			   (GDestroyNotify) dupin_attachment_db_free);
+			   (GDestroyNotify) dupin_attachment_db_disconnect);
 
   d->db_compact_workers_pool = g_thread_pool_new (dupin_database_compact_func,
 					        NULL,
@@ -91,7 +91,7 @@ dupin_init (DSGlobal *data, GError ** error)
       name = g_strdup (filename);
       name[strlen (filename) - DUPIN_DB_SUFFIX_LEN] = 0;
 
-      if (!(db = dupin_db_create (d, name, path, error)))
+      if (!(db = dupin_db_connect (d, name, path, d->conf->sqlite_mode, error)))
 	{
 	  dupin_shutdown (d);
 	  g_free (path);
@@ -120,7 +120,7 @@ dupin_init (DSGlobal *data, GError ** error)
       name = g_strdup (filename);
       name[strlen (filename) - DUPIN_LINKB_SUFFIX_LEN] = 0;
 
-      if (!(linkb = dupin_linkb_create (d, name, path, error)))
+      if (!(linkb = dupin_linkb_connect (d, name, path, d->conf->sqlite_mode, error)))
 	{
 	  dupin_shutdown (d);
 	  g_free (path);
@@ -157,7 +157,7 @@ dupin_init (DSGlobal *data, GError ** error)
       name = g_strdup (filename);
       name[strlen (filename) - DUPIN_ATTACHMENT_DB_SUFFIX_LEN] = 0;
 
-      if (!(attachment_db = dupin_attachment_db_create (d, name, path, error)))
+      if (!(attachment_db = dupin_attachment_db_connect (d, name, path, d->conf->sqlite_mode, error)))
 	{
 	  dupin_shutdown (d);
 	  g_free (path);
@@ -194,7 +194,7 @@ dupin_init (DSGlobal *data, GError ** error)
       name = g_strdup (filename);
       name[strlen (filename) - DUPIN_VIEW_SUFFIX_LEN] = 0;
 
-      if (!(view = dupin_view_create (d, name, path, error)))
+      if (!(view = dupin_view_connect (d, name, path, d->conf->sqlite_mode, error)))
 	{
 	  dupin_shutdown (d);
 	  g_free (path);

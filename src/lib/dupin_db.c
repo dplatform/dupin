@@ -11,18 +11,20 @@
 
 #define DUPIN_DB_SQL_MAIN_CREATE \
   "CREATE TABLE IF NOT EXISTS Dupin (\n" \
-  "  id      CHAR(255) NOT NULL,\n" \
-  "  rev     INTEGER NOT NULL DEFAULT 1,\n" \
-  "  hash    CHAR(255) NOT NULL,\n" \
-  "  obj     TEXT,\n" \
-  "  deleted BOOL DEFAULT FALSE,\n" \
-  "  tm      INTEGER NOT NULL,\n" \
+  "  id       CHAR(255) NOT NULL,\n" \
+  "  rev      INTEGER NOT NULL DEFAULT 1,\n" \
+  "  hash     CHAR(255) NOT NULL,\n" \
+  "  obj      TEXT,\n" \
+  "  deleted  BOOL DEFAULT FALSE,\n" \
+  "  tm       INTEGER NOT NULL,\n" \
+  "  rev_head BOOL DEFAULT TRUE,\n" \
   "  PRIMARY KEY(id, rev)\n" \
   ");"
 
 #define DUPIN_DB_SQL_CREATE_INDEX \
   "CREATE INDEX IF NOT EXISTS DupinId ON Dupin (id);\n" \
-  "CREATE INDEX IF NOT EXISTS DupinIdRev ON Dupin (id,rev);"
+  "CREATE INDEX IF NOT EXISTS DupinIdRev ON Dupin (id,rev);\n" \
+  "CREATE INDEX IF NOT EXISTS DupinIdRevHead ON Dupin (id,rev_head);"
 
 #define DUPIN_DB_SQL_DESC_CREATE \
   "CREATE TABLE IF NOT EXISTS DupinDB (\n" \
@@ -32,7 +34,7 @@
   ");"
 
 #define DUPIN_DB_SQL_TOTAL \
-        "SELECT count(*) AS c, max(rev) as rev FROM Dupin AS d"
+        "SELECT count(*) AS c FROM Dupin AS d WHERE d.rev_head = 'TRUE' "
 
 #define DUPIN_DB_COMPACT_COUNT 100
 
@@ -136,7 +138,7 @@ dupin_database_new (Dupin * d, gchar * db, GError ** error)
   path = g_build_path (G_DIR_SEPARATOR_S, d->path, name, NULL);
   g_free (name);
 
-  if (!(ret = dupin_db_create (d, db, path, error)))
+  if (!(ret = dupin_db_connect (d, db, path, DP_SQLITE_OPEN_CREATE, error)))
     {
       g_mutex_unlock (d->mutex);
       g_free (path);
@@ -163,7 +165,7 @@ dupin_database_new (Dupin * d, gchar * db, GError ** error)
 
       sqlite3_free (errmsg);
       sqlite3_free (str);
-      dupin_db_free (ret);
+      dupin_db_disconnect (ret);
       return NULL;
     }
 
@@ -348,9 +350,9 @@ dupin_database_generate_id (DupinDB * db, GError ** error)
 
 /* Internal: */
 void
-dupin_db_free (DupinDB * db)
+dupin_db_disconnect (DupinDB * db)
 {
-  g_message("dupin_db_free: total number of changes for '%s' database: %d\n", db->name, (gint)sqlite3_total_changes (db->db));
+  g_message("dupin_db_disconnect: total number of changes for '%s' database: %d\n", db->name, (gint)sqlite3_total_changes (db->db));
 
   if (db->db)
     sqlite3_close (db->db);
@@ -392,7 +394,9 @@ dupin_db_free (DupinDB * db)
 }
 
 DupinDB *
-dupin_db_create (Dupin * d, gchar * name, gchar * path, GError ** error)
+dupin_db_connect (Dupin * d, gchar * name, gchar * path,
+ 		  DupinSQLiteOpenType mode,
+		  GError ** error)
 {
   gchar *errmsg;
   DupinDB *db;
@@ -411,23 +415,26 @@ dupin_db_create (Dupin * d, gchar * name, gchar * path, GError ** error)
   db->default_attachment_db_name = g_strdup (name);
   db->default_linkbase_name = g_strdup (name);
 
-  if (sqlite3_open (db->path, &db->db) != SQLITE_OK)
+  if (sqlite3_open_v2 (db->path, &db->db, dupin_util_dupin_mode_to_sqlite_mode (mode), NULL) != SQLITE_OK)
     {
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
 		   "Database error.");
-      dupin_db_free (db);
+      dupin_db_disconnect (db);
       return NULL;
     }
 
-  if (sqlite3_exec (db->db, DUPIN_DB_SQL_MAIN_CREATE, NULL, NULL, &errmsg) != SQLITE_OK
-      || sqlite3_exec (db->db, DUPIN_DB_SQL_CREATE_INDEX, NULL, NULL, &errmsg) != SQLITE_OK
-      || sqlite3_exec (db->db, DUPIN_DB_SQL_DESC_CREATE, NULL, NULL, &errmsg) != SQLITE_OK)
+  if (mode == DP_SQLITE_OPEN_CREATE)
     {
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
+      if (sqlite3_exec (db->db, DUPIN_DB_SQL_MAIN_CREATE, NULL, NULL, &errmsg) != SQLITE_OK
+          || sqlite3_exec (db->db, DUPIN_DB_SQL_CREATE_INDEX, NULL, NULL, &errmsg) != SQLITE_OK
+          || sqlite3_exec (db->db, DUPIN_DB_SQL_DESC_CREATE, NULL, NULL, &errmsg) != SQLITE_OK)
+        {
+          g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
 		   errmsg);
-      sqlite3_free (errmsg);
-      dupin_db_free (db);
-      return NULL;
+          sqlite3_free (errmsg);
+          dupin_db_disconnect (db);
+          return NULL;
+        }
     }
 
   db->mutex = g_mutex_new ();
@@ -625,7 +632,7 @@ dupin_database_get_changes_list (DupinDB *              db,
   memset (&s, 0, sizeof (s));
   s.style = changes_type;
 
-  str = g_string_new ("SELECT id, rev, hash, obj, deleted, tm, ROWID AS rowid FROM Dupin as d WHERE d.rev = (select max(rev) as rev FROM Dupin WHERE id=d.id) ");
+  str = g_string_new ("SELECT id, rev, hash, obj, deleted, tm, ROWID AS rowid FROM Dupin as d WHERE d.rev_head = 'TRUE' ");
 
   if (count_type == DP_COUNT_EXIST)
     check_deleted = " d.deleted = 'FALSE' ";
@@ -740,13 +747,13 @@ dupin_database_get_total_changes
     check_deleted = " d.deleted = 'TRUE' ";
 
   if (since > 0 && to > 0)
-    g_string_append_printf (str, " WHERE %s %s d.ROWID >= %d AND d.ROWID <= %d ", check_deleted, (g_strcmp0 (check_deleted, "")) ? "AND" : "", (gint)since, (gint)to);
+    g_string_append_printf (str, " AND %s %s d.ROWID >= %d AND d.ROWID <= %d ", check_deleted, (g_strcmp0 (check_deleted, "")) ? "AND" : "", (gint)since, (gint)to);
   else if (since > 0)
-    g_string_append_printf (str, " WHERE %s %s d.ROWID >= %d ", check_deleted, (g_strcmp0 (check_deleted, "")) ? "AND" : "", (gint)since);
+    g_string_append_printf (str, " AND %s %s d.ROWID >= %d ", check_deleted, (g_strcmp0 (check_deleted, "")) ? "AND" : "", (gint)since);
   else if (to > 0)
-    g_string_append_printf (str, " WHERE %s %s d.ROWID <= %d ", check_deleted, (g_strcmp0 (check_deleted, "")) ? "AND" : "", (gint)to);
+    g_string_append_printf (str, " AND %s %s d.ROWID <= %d ", check_deleted, (g_strcmp0 (check_deleted, "")) ? "AND" : "", (gint)to);
   else if (g_strcmp0 (check_deleted, ""))
-    g_string_append_printf (str, " WHERE %s ", check_deleted);
+    g_string_append_printf (str, " AND %s ", check_deleted);
 
   str = g_string_append (str, " GROUP BY d.id ");
 

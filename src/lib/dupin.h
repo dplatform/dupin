@@ -15,6 +15,14 @@ enum
 
 GQuark     	dupin_error_quark	(void);	
 
+/* SQLite Open type: */
+typedef enum
+{
+  DP_SQLITE_OPEN_READONLY,
+  DP_SQLITE_OPEN_READWRITE,
+  DP_SQLITE_OPEN_CREATE
+} DupinSQLiteOpenType;
+
 /* Count type: */
 typedef enum
 {
@@ -130,6 +138,7 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 #define REQUEST_OBJ_RELATIONSHIPS       "_relationships"
 #define REQUEST_OBJ_CONTENT             "_content"
 #define REQUEST_OBJ_DELETED             "_deleted"
+#define REQUEST_OBJ_PATCHED		"_patched"
 
 #define REQUEST_LINK_OBJ_ID           	REQUEST_OBJ_ID
 #define REQUEST_LINK_OBJ_REV        	REQUEST_OBJ_REV 

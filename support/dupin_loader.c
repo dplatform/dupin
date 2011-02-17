@@ -55,6 +55,7 @@ typedef struct _dupin_loader_options {
 	gboolean verbose;
 	gboolean silent;
 	gboolean strict_links;
+	gboolean use_latest_revision;
 	gchar * context_id;
 	gboolean links_cache;
 } dupin_loader_options;
@@ -78,16 +79,17 @@ dupin_loader_usage (char *argv[])
 	 , argv[0]);
   puts("\n"
        "options:\n"
-       "   --help             this usage statement\n"
-       "   --bulk             read one bulk per line\n"
-       "   --links            input is only about links (weblinks or relationships) no documents\n"
-       "   --strict_links     check that the context_id document is valid and not deleted\n"
-       "   --create-db        force (re)creation of database if it doesn't exist\n"
-       "   --verbose          verbose logging, more than normal logging\n"
-       "   --silent           silent, prints only errors\n"
-       "   --version          prints version information\n"
-       "   --context_id ID    the context_id to use to create the links if --links is used\n"
-       "   --no-links-cache   do not use links cache on insertion (it will be much slower)\n"
+       "   --help                 this usage statement\n"
+       "   --bulk                 read one bulk per line\n"
+       "   --links                input is only about links (weblinks or relationships) no documents\n"
+       "   --strict_links         check that the context_id document is valid and not deleted\n"
+       "   --use-latest-revision  allows to force update of records always using (implicitly) the latest revision. On new insertions is ignored.\n"
+       "   --create-db            force (re)creation of database if it doesn't exist\n"
+       "   --verbose              verbose logging, more than normal logging\n"
+       "   --silent               silent, prints only errors\n"
+       "   --version              prints version information\n"
+       "   --context_id ID        the context_id to use to create the links if --links is used\n"
+       "   --no-links-cache       do not use links cache on insertion (it will be much slower)\n"
        "   \n"
        "   When the --links option is specified without --context_id each input JSON object must have a 'context_id' field, including bulks.\n"
 );
@@ -116,6 +118,7 @@ dupin_loader_parse_options (int argc, char **argv,
   options->verbose = FALSE;
   options->context_id = NULL;
   options->strict_links = FALSE;
+  options->use_latest_revision = FALSE;
   options->links_cache = TRUE;
 
   if (argc > 1)
@@ -146,6 +149,11 @@ dupin_loader_parse_options (int argc, char **argv,
 		   options->strict_links = TRUE;
 		   argc_left--;
 		 }
+               else if (!g_strcmp0 (argv[i], "--use-latest-revision"))
+                 {
+		   options->use_latest_revision = TRUE;
+		   argc_left--;
+                 }
                else if (!g_strcmp0 (argv[i], "--context_id"))
                  {
                    if (argv[i+1] && dupin_link_record_util_is_valid_context_id (argv[i+1]) == FALSE)
@@ -342,7 +350,7 @@ main (int argc, char *argv[])
       goto dupin_loader_end;
     }
 
-  if (!(d = dupin_init (NULL, &error)))
+  if (!(d = dupin_init (d_conf, &error)))
     {
       fprintf (stderr, "Error: %s\n", error->message);
       g_error_free (error);
@@ -452,12 +460,12 @@ main (int argc, char *argv[])
 //g_message("context_id = %s\n", context_id);
 
 	      res =  dupin_link_record_insert_bulk (linkb, json_object_node, context_id, &response_list,
-						    options.strict_links);
+						    options.strict_links, options.use_latest_revision);
 
 	      g_free (context_id); 
             }
           else
-            res = dupin_record_insert_bulk (db, json_object_node, &response_list);
+            res = dupin_record_insert_bulk (db, json_object_node, &response_list, options.use_latest_revision);
         }
       else
        {
@@ -477,12 +485,12 @@ main (int argc, char *argv[])
                 }
 
 	      res = dupin_link_record_insert (linkb, json_object_node, NULL, NULL, context_id,
-					      DP_LINK_TYPE_ANY, &response_list, options.strict_links);
+					      DP_LINK_TYPE_ANY, &response_list, options.strict_links, options.use_latest_revision);
 
 	      g_free (context_id); 
             }
           else
-            res = dupin_record_insert (db, json_object_node, NULL, NULL, &response_list);
+            res = dupin_record_insert (db, json_object_node, NULL, NULL, &response_list, options.use_latest_revision);
        }
 
       if (res == TRUE)

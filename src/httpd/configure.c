@@ -119,6 +119,8 @@ configure_parser (xmlDocPtr xml, DSGlobal * data, GError ** error)
 
   cur = xmlDocGetRootElement (xml);
 
+  data->sqlite_mode = DP_SQLITE_OPEN_READWRITE;
+
   for (cur = cur->children; cur; cur = cur->next)
     {
       if (cur->type == XML_ELEMENT_NODE
@@ -194,6 +196,24 @@ configure_parser (xmlDocPtr xml, DSGlobal * data, GError ** error)
 		      if ((tmp = xmlNodeGetContent (cur)))
 			{
 			  data->group = g_strdup ((gchar *) tmp);
+			  xmlFree (tmp);
+			}
+		    }
+
+		  /* SQLite mode: */
+		  else if (!xmlStrcmp (cur->name, (xmlChar *) DS_SQLITE_MODE))
+		    {
+		      if ((tmp = xmlNodeGetContent (cur)))
+			{
+			  if (!xmlStrcmp (tmp, (xmlChar *) "readonly"))
+			    data->sqlite_mode = DP_SQLITE_OPEN_READONLY;
+
+			  else if (!xmlStrcmp (tmp, (xmlChar *) "readwrite"))
+			    data->sqlite_mode = DP_SQLITE_OPEN_READWRITE;
+
+			  else if (!xmlStrcmp (tmp, (xmlChar *) "create"))
+			    data->sqlite_mode = DP_SQLITE_OPEN_CREATE;
+
 			  xmlFree (tmp);
 			}
 		    }

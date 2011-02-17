@@ -19,6 +19,7 @@
 #define DS_BACKGROUND_TAG	"Background"
 #define DS_USER_TAG		"User"
 #define DS_GROUP_TAG		"Group"
+#define DS_SQLITE_MODE		"SQLiteMode"
 
 #define DS_HTTPD_TAG		"Network"
 #define DS_HTTPD_IPV6_TAG	"Ipv6"
@@ -74,6 +75,8 @@ struct ds_global_t
 
   gchar *       user;                   /* Permissions */
   gchar *       group;
+
+  DupinSQLiteOpenType sqlite_mode;
 
   GMainLoop *   loop;
 

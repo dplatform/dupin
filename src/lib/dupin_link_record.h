@@ -26,6 +26,27 @@ int		dupin_link_record_select_total_cb
 					 char **argv,
 					 char **col);
 
+#define DUPIN_LINKB_SQL_EXISTS \
+        "SELECT count(id) FROM Dupin WHERE id = '%q' "
+
+#define DUPIN_LINKB_SQL_INSERT \
+        "INSERT INTO Dupin (id, rev, hash, obj, tm, context_id, label, href, rel, tag, is_weblink, idspath, labelspath) " \
+        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%q', %Q, %Q, '%q','%q', '%q')"
+
+#define DUPIN_LINKB_SQL_UPDATE \
+        "INSERT OR REPLACE INTO Dupin (id, rev, hash, obj, tm, context_id, label, href, rel, tag, is_weblink, idspath, labelspath) " \
+        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%q', %Q, %Q, '%q', '%q', '%q')"
+
+#define DUPIN_LINKB_SQL_READ \
+        "SELECT rev, hash, obj, deleted, tm, ROWID AS rowid, context_id, label, href, rel, tag, is_weblink, idspath, labelspath FROM Dupin WHERE id='%q'"
+
+#define DUPIN_LINKB_SQL_DELETE \
+        "INSERT OR REPLACE INTO Dupin (id, rev, deleted, hash, tm, context_id, label, href, rel, tag, is_weblink, idspath, labelspath) " \
+        "VALUES('%q', '%" G_GSIZE_FORMAT "', 'TRUE', '%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%q', %Q, %Q, '%q', '%q', '%q')"
+
+#define DUPIN_LINKB_SQL_UPDATE_REV_HEAD \
+        "UPDATE Dupin SET rev_head = 'FALSE' WHERE id = '%q' "
+
 #define DUPIN_LINKB_SQL_GET_TOTALS \
         "SELECT total_webl_ins, total_webl_del, total_rel_ins, total_rel_del FROM DupinLinkB"
 
@@ -189,6 +210,15 @@ gboolean	dupin_link_record_update
                                          gchar *                tag,
 					 GError **		error);
 
+gboolean	dupin_link_record_patch
+					(DupinLinkRecord *		record,
+					 JsonNode *		obj_node,
+					 gchar *                label,
+                                         gchar *                href,
+                                         gchar *                rel,
+                                         gchar *                tag,
+					 GError **		error);
+
 gboolean	dupin_link_record_delete
 					(DupinLinkRecord *		record,
 					 GError **		error);
@@ -285,14 +315,16 @@ gboolean	dupin_link_record_insert
 					 gchar * context_id,
                                          DupinLinksType link_type,
                                          GList ** response_list,
-					 gboolean strict_links);
+					 gboolean strict_links,
+					 gboolean use_latest_revision);
 
 gboolean	dupin_link_record_insert_bulk
 					(DupinLinkB * linkb,
 					 JsonNode * bulk_node,
 					 gchar * context_id,
 					 GList ** response_list,
-					 gboolean strict_links);
+					 gboolean strict_links,
+					 gboolean use_latest_revision);
 
 /* Utility functions - mainly internal */
 

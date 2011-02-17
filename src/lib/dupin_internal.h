@@ -336,37 +336,44 @@ struct dupin_js_t
   JsonArray *	mapResults;
 };
 
-DupinDB *	dupin_db_create	(Dupin *	d,
-				 gchar *	name,
-				 gchar *	path,
-				 GError **	error);
+DupinDB *	dupin_db_connect
+				(Dupin *	     d,
+				 gchar *	     name,
+				 gchar *	     path,
+				 DupinSQLiteOpenType mode,
+				 GError **	     error);
 
-void		dupin_db_free	(DupinDB *	db);
+void		dupin_db_disconnect
+				(DupinDB *	db);
 
-DupinLinkB *	dupin_linkb_create
-				(Dupin *	d,
-				 gchar *	name,
-				 gchar *	path,
-				 GError **	error);
+DupinLinkB *	dupin_linkb_connect
+				(Dupin *	     d,
+				 gchar *	     name,
+				 gchar *	     path,
+				 DupinSQLiteOpenType mode,
+				 GError **	     error);
 
-void		dupin_linkb_free
+void		dupin_linkb_disconnect
 				(DupinLinkB *	linkb);
 
-DupinView *	dupin_view_create
-				(Dupin *	d,
-				 gchar *	name,
-				 gchar *	path,
-				 GError **	error);
+DupinView *	dupin_view_connect
+				(Dupin *	     d,
+				 gchar *	     name,
+				 gchar *	     path,
+				 DupinSQLiteOpenType mode,
+				 GError **	     error);
 
-void		dupin_view_free	(DupinView *	view);
+void		dupin_view_disconnect
+				(DupinView *	view);
 
-DupinAttachmentDB *	dupin_attachment_db_create
-				(Dupin *	d,
-				 gchar *	name,
-				 gchar *	path,
-				 GError **	error);
+DupinAttachmentDB *	dupin_attachment_db_connect
+				(Dupin *	     d,
+				 gchar *	     name,
+				 gchar *	     path,
+				 DupinSQLiteOpenType mode,
+				 GError **	     error);
 
-void		dupin_attachment_db_free
+void		dupin_attachment_db_disconnect
 				(DupinAttachmentDB *	attachment_db);
 
 gchar *		dupin_database_generate_id_real

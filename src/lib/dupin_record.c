@@ -12,24 +12,6 @@
 #include <json-glib/json-glib.h>
 #include <json-glib/json-gobject.h>
 
-#define DUPIN_DB_SQL_EXISTS \
-	"SELECT count(id) FROM Dupin WHERE id = '%q' "
-
-#define DUPIN_DB_SQL_INSERT \
-	"INSERT INTO Dupin (id, rev, hash, obj, tm) " \
-        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%" G_GSIZE_FORMAT "')"
-
-#define DUPIN_DB_SQL_UPDATE \
-	"INSERT OR REPLACE INTO Dupin (id, rev, hash, obj, tm) " \
-        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%" G_GSIZE_FORMAT "')"
-
-#define DUPIN_DB_SQL_READ \
-	"SELECT rev, hash, obj, deleted, tm, ROWID AS rowid FROM Dupin WHERE id='%q'"
-
-#define DUPIN_DB_SQL_DELETE \
-	"INSERT OR REPLACE INTO Dupin (id, rev, deleted, hash, tm) " \
-        "VALUES('%q', '%" G_GSIZE_FORMAT "', 'TRUE', '%q', '%" G_GSIZE_FORMAT "')"
-
 static DupinRecord *dupin_record_create_with_id_real (DupinDB * db,
 						      JsonNode * obj_node,
 						      gchar * id,
@@ -81,10 +63,10 @@ dupin_record_exists (DupinDB * db, gchar * id)
 static int
 dupin_record_exists_real_cb (void *data, int argc, char **argv, char **col)
 {
-  guint *numb = data;
+  gsize *numb = data;
 
-  if (argv[0])
-    *numb = atoi (argv[0]);
+  if (argv[0] && *argv[0])
+    *numb = atoi(argv[0]);
 
   return 0;
 }
@@ -353,37 +335,13 @@ dupin_record_read_real (DupinDB * db, gchar * id, GError ** error,
   return record;
 }
 
-struct dupin_record_get_list_total_t
-{
-  gsize ret;
-  DupinCountType count_type;
-};
-
 static int
 dupin_record_get_list_total_cb (void *data, int argc, char **argv, char **col)
 {
-  struct dupin_record_get_list_total_t *count = data;
+  gsize *numb = data;
 
   if (argv[0] && *argv[0])
-    {
-      switch (count->count_type)
-        {
-        case DP_COUNT_EXIST:
-          if (!g_strcmp0 (argv[0], "FALSE"))
-            count->ret++;
-          break;
-
-        case DP_COUNT_DELETE:
-          if (!g_strcmp0 (argv[0], "TRUE"))
-            count->ret++;
-          break;
-
-        case DP_COUNT_ALL:
-        default:
-          count->ret++;
-          break;
-        }
-    }
+    *numb = atoi(argv[0]);
 
   return 0;
 }
@@ -398,15 +356,13 @@ dupin_record_get_list_total (DupinDB *      db,
                              DupinCountType count_type,
                              GError **      error)
 {
-  struct dupin_record_get_list_total_t count;
+  gsize count = 0;
   GString * str;
   gchar *errmsg;
   gchar *query;
+  gchar *check_deleted="";
 
   g_return_val_if_fail (db != NULL, 0);
-
-  count.ret = 0;
-  count.count_type = count_type;
 
   gchar * key_range=NULL;
 
@@ -429,8 +385,12 @@ dupin_record_get_list_total (DupinDB *      db,
         key_range = sqlite3_mprintf (" d.id < '%q' ", end_key);
     }
 
-  //str = g_string_new ("SELECT deleted, max(rev) as rev FROM Dupin as d ");
-  str = g_string_new ("SELECT deleted FROM Dupin as d WHERE d.rev = (select max(rev) as rev FROM Dupin WHERE id=d.id) ");
+  if (count_type == DP_COUNT_EXIST)
+    check_deleted = " d.deleted = 'FALSE' ";
+  else if (count_type == DP_COUNT_DELETE)
+    check_deleted = " d.deleted = 'TRUE' ";
+
+  str = g_string_new ("SELECT count(*) FROM Dupin as d WHERE d.rev_head = 'TRUE' ");
 
   gchar * op = "AND";
 
@@ -453,6 +413,12 @@ dupin_record_get_list_total (DupinDB *      db,
   if (key_range != NULL)
     {
       g_string_append_printf (str, " %s %s ", op, key_range);
+      op = "AND";
+    }
+
+  if (g_strcmp0 (check_deleted, ""))
+    {
+      g_string_append_printf (str, " %s %s ", op, check_deleted);
       op = "AND";
     }
 
@@ -485,7 +451,7 @@ dupin_record_get_list_total (DupinDB *      db,
 
   g_free (query);
 
-  return count.ret;
+  return count;
 }
 
 struct dupin_record_get_list_t
@@ -602,7 +568,7 @@ dupin_record_get_list (DupinDB * db,
   else if (count_type == DP_COUNT_DELETE)
     check_deleted = " d.deleted = 'TRUE' ";
 
-  str = g_string_new ("SELECT *, ROWID as rowid FROM Dupin as d WHERE d.rev = (select max(rev) as rev FROM Dupin WHERE id=d.id) ");
+  str = g_string_new ("SELECT *, ROWID as rowid FROM Dupin as d WHERE d.rev_head = 'TRUE' ");
 
   gchar * op = "AND";
 
@@ -823,8 +789,8 @@ dupin_record_get_total_revisions_cb (void *data, int argc, char **argv,
 {
   gsize *numb = data;
 
-  if (argv[0])
-    *numb = atoi (argv[0]);
+  if (argv[0] && *argv[0])
+    *numb = atoi(argv[0]);
 
   return 0;
 }
@@ -902,6 +868,26 @@ dupin_record_update (DupinRecord * record, JsonNode * obj_node,
   g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, FALSE);
 
   g_mutex_lock (record->db->mutex);
+
+  /* NOTE - flag any previous revision as non head - we need this to optimise searches
+	    and avoid slowness of max(rev) as rev or even nested select like
+	    rev = (select max(rev) as rev FROM Dupin WHERE id=d.id) ... */
+
+  tmp = sqlite3_mprintf (DUPIN_DB_SQL_UPDATE_REV_HEAD, record->id);
+
+  if (sqlite3_exec (record->db->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
+    {
+      g_mutex_unlock (record->db->mutex);
+
+      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
+		   errmsg);
+
+      sqlite3_free (errmsg);
+      sqlite3_free (tmp);
+      return FALSE;
+    }
+
+  sqlite3_free (tmp);
 
   record_was_deleted = record->last->deleted;
 
@@ -992,6 +978,53 @@ dupin_record_update (DupinRecord * record, JsonNode * obj_node,
 }
 
 gboolean
+dupin_record_patch (DupinRecord * record, JsonNode * obj_node,
+		    GError ** error)
+{
+  g_return_val_if_fail (record != NULL, FALSE);
+  g_return_val_if_fail (obj_node != NULL, FALSE);
+  g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, FALSE);
+  g_return_val_if_fail (dupin_record_is_deleted (record, dupin_record_get_last_revision (record)) == FALSE, FALSE);
+
+  /* fetch last revision */
+
+  /* NOTE - we need to brew a deep copy before making any change */
+
+  JsonNode * node_copy = dupin_util_json_node_clone (
+				dupin_record_get_revision_node (record, dupin_record_get_last_revision (record)),
+				error);
+
+  if (node_copy == NULL)
+    return FALSE;
+
+/*
+g_message ("dupin_record_patch: to patch\n");
+DUPIN_UTIL_DUMP_JSON ("Input", node_copy);
+DUPIN_UTIL_DUMP_JSON ("Changes", obj_node);
+*/
+
+  /* MERGE the current revision with the one passed */
+
+  dupin_util_json_patch_node_object (node_copy, obj_node);
+
+/*
+g_message ("dupin_record_patch: patched\n");
+DUPIN_UTIL_DUMP_JSON ("Input", node_copy);
+DUPIN_UTIL_DUMP_JSON ("Changes", obj_node);
+*/
+
+  if (dupin_record_update (record, node_copy, error) == FALSE)
+    {
+      json_node_free (node_copy);
+      return FALSE;
+    }
+
+  json_node_free (node_copy);
+
+  return TRUE;
+}
+
+gboolean
 dupin_record_delete (DupinRecord * record, GError ** error)
 {
   guint rev;
@@ -1010,6 +1043,26 @@ dupin_record_delete (DupinRecord * record, GError ** error)
     }
 
   g_mutex_lock (record->db->mutex);
+
+  /* NOTE - flag any previous revision as non head - we need this to optimise searches
+            and avoid slowness of max(rev) as rev or even nested select like
+            rev = (select max(rev) as rev FROM Dupin WHERE id=d.id) ... */
+
+  tmp = sqlite3_mprintf (DUPIN_DB_SQL_UPDATE_REV_HEAD, record->id);
+
+  if (sqlite3_exec (record->db->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
+    {
+      g_mutex_unlock (record->db->mutex);
+
+      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
+                   errmsg);
+
+      sqlite3_free (errmsg);
+      sqlite3_free (tmp);
+      return FALSE;
+    }
+
+  sqlite3_free (tmp);
 
   rev = record->last->revision + 1;
 
@@ -1489,6 +1542,36 @@ dupin_record_insert_extract_deleted (DupinDB * db, JsonNode * obj_node)
   return deleted;
 }
 
+static gboolean
+dupin_record_insert_extract_patched (DupinDB * db, JsonNode * obj_node)
+{
+  g_return_val_if_fail (db != NULL, FALSE);
+
+  gboolean patched=FALSE;
+  JsonNode *node;
+  JsonObject *obj;
+
+  g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, FALSE);
+
+  obj = json_node_get_object (obj_node);
+
+  if (json_object_has_member (obj, REQUEST_OBJ_PATCHED) == FALSE)
+    return FALSE;
+
+  node = json_object_get_member (obj, REQUEST_OBJ_PATCHED);
+
+  if (node == NULL
+      || json_node_get_node_type  (node) != JSON_NODE_VALUE
+      || json_node_get_value_type (node) != G_TYPE_BOOLEAN)
+    return FALSE;
+
+  patched = json_node_get_boolean (node);
+
+  json_object_remove_member (obj, REQUEST_OBJ_PATCHED);
+
+  return patched;
+}
+
 /* insert = create or update */
 
 gboolean
@@ -1496,7 +1579,8 @@ dupin_record_insert (DupinDB * db,
 		     JsonNode * obj_node,
                      gchar * id,
 		     gchar * caller_mvcc,
-                     GList ** response_list)
+                     GList ** response_list,
+	             gboolean use_latest_revision)
 {
   g_return_val_if_fail (db != NULL, FALSE);
 
@@ -1522,6 +1606,13 @@ dupin_record_insert (DupinDB * db,
     }
 
   gboolean to_delete = dupin_record_insert_extract_deleted (db, obj_node);
+
+  gboolean to_patch = dupin_record_insert_extract_patched (db, obj_node);
+
+  /* NOTE - to_delete takes always precedence */
+  if (to_patch == TRUE
+      && to_delete == TRUE)
+    to_patch = FALSE; 
 
   JsonNode * record_response_node = json_node_new (JSON_NODE_OBJECT);
   JsonObject * record_response_obj = json_object_new ();
@@ -1589,14 +1680,31 @@ dupin_record_insert (DupinDB * db,
       json_object_remove_member (json_node_get_object (obj_node), REQUEST_OBJ_RELATIONSHIPS);
     }
 
-  if (mvcc != NULL)
+  if (mvcc != NULL
+      || (!id && use_latest_revision == TRUE))
     {
       record = dupin_record_read (db, id, &error);
+
+      /* NOTE - we this we allow selective update / PATCH if requested (outisde REST API alaways!) */
+      if (mvcc == NULL
+          && (!id && use_latest_revision == TRUE)
+          && record != NULL)
+        mvcc = g_strdup (dupin_record_get_last_revision (record)); 
 
       if ( to_delete == TRUE )
         {
           if (!record || dupin_util_mvcc_revision_cmp (mvcc, dupin_record_get_last_revision (record))
               || dupin_record_delete (record, &error) == FALSE)
+            {
+              if (record)
+                dupin_record_close (record);
+              record = NULL;
+            }
+        }
+      else if ( to_patch == TRUE )
+        {
+          if (!record || dupin_util_mvcc_revision_cmp (mvcc, dupin_record_get_last_revision (record))
+              || dupin_record_patch (record, obj_node, &error) == FALSE)
             {
               if (record)
                 dupin_record_close (record);
@@ -1915,7 +2023,7 @@ dupin_record_insert (DupinDB * db,
                           continue;
                         }
 
-                      if (dupin_link_record_insert (linkb, lnode, NULL, NULL, context_id, DP_LINK_TYPE_WEB_LINK, &links_response_list, FALSE) == FALSE)
+                      if (dupin_link_record_insert (linkb, lnode, NULL, NULL, context_id, DP_LINK_TYPE_WEB_LINK, &links_response_list, FALSE, use_latest_revision) == FALSE)
                         {
                           JsonObject * error_obj = json_object_new ();
                           GString * str = g_string_new("");
@@ -2037,7 +2145,7 @@ dupin_record_insert (DupinDB * db,
                           continue;
                         }
 
-                      if (dupin_link_record_insert (linkb, rnode, NULL, NULL, context_id, DP_LINK_TYPE_RELATIONSHIP, &relationships_response_list, FALSE) == FALSE)
+                      if (dupin_link_record_insert (linkb, rnode, NULL, NULL, context_id, DP_LINK_TYPE_RELATIONSHIP, &relationships_response_list, FALSE, use_latest_revision) == FALSE)
                         {
                           JsonObject * error_obj = json_object_new ();
                           GString * str = g_string_new("");
@@ -2127,7 +2235,8 @@ dupin_record_insert (DupinDB * db,
 gboolean
 dupin_record_insert_bulk (DupinDB * db,
 			  JsonNode * bulk_node,
-			  GList ** response_list)
+			  GList ** response_list,
+	                  gboolean use_latest_revision)
 {
   g_return_val_if_fail (db != NULL, FALSE);
 
@@ -2194,7 +2303,7 @@ dupin_record_insert_bulk (DupinDB * db,
       if (json_object_has_member (json_node_get_object (element_node), REQUEST_OBJ_REV) == TRUE)
         rev = g_strdup ((gchar *)json_object_get_string_member (json_node_get_object (element_node), REQUEST_OBJ_REV));
 
-      if (dupin_record_insert (db, element_node, NULL, NULL, response_list) == FALSE)
+      if (dupin_record_insert (db, element_node, NULL, NULL, response_list, use_latest_revision) == FALSE)
         {
           /* NOTE - we report errors inline in the JSON response */
 

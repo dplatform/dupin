@@ -20,6 +20,9 @@ gboolean	dupin_util_is_valid_view_name	(gchar *	view);
 gboolean	dupin_util_is_valid_attachment_db_name
 						(gchar * attachment_db);
 
+gint		dupin_util_dupin_mode_to_sqlite_mode
+						(DupinSQLiteOpenType dupin_mode);
+
 gboolean	dupin_util_is_valid_record_id	(gchar *	id);
 
 gboolean	dupin_util_is_valid_absolute_uri
@@ -29,7 +32,8 @@ gchar *		dupin_util_json_strescape	(const gchar *	string);
 
 gchar *		dupin_util_json_serialize	(JsonNode * node);
 
-JsonNode *	dupin_util_json_node_clone	(JsonNode * node);
+JsonNode *	dupin_util_json_node_clone	(JsonNode * node,
+						 GError **  error);
 
 gboolean	dupin_util_is_valid_obj		(JsonObject *obj);
 
@@ -100,6 +104,10 @@ gchar *        dupin_util_json_string_normalize	(gchar * input_string);
 
 gchar *        dupin_util_json_string_normalize_docid
 						(gchar * input_string_docid);
+
+void	       dupin_util_json_patch_node_object
+						(JsonNode * input,
+						 JsonNode * changes); 
 
 /* k/v pairs for argument lists */
 

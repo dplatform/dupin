@@ -27,14 +27,16 @@
   "  tag         TEXT DEFAULT NULL,\n" \
   "  idspath     TEXT NOT NULL,\n" \
   "  labelspath  TEXT NOT NULL,\n" \
+  "  rev_head    BOOL DEFAULT TRUE,\n" \
   "  PRIMARY     KEY(id, rev)\n" \
   ");"
 
 #define DUPIN_LINKB_SQL_CREATE_INDEX \
   "CREATE INDEX IF NOT EXISTS DupinId ON Dupin (id);\n" \
   "CREATE INDEX IF NOT EXISTS DupinIdRev ON Dupin (id,rev);\n" \
+  "CREATE INDEX IF NOT EXISTS DupinIdRevHead ON Dupin (id,rev_head);\n" \
   "CREATE INDEX IF NOT EXISTS DupinContextId ON Dupin (context_id);\n" \
-  "CREATE INDEX IF NOT EXISTS DupinHrefDeletedContextIdTag ON Dupin (href,deleted,tag);"
+  "CREATE INDEX IF NOT EXISTS DupinHrefDeletedTag ON Dupin (href,deleted,tag);"
 
 #define DUPIN_LINKB_SQL_DESC_CREATE \
   "CREATE TABLE IF NOT EXISTS DupinLinkB (\n" \
@@ -49,7 +51,7 @@
   ");"
 
 #define DUPIN_LINKB_SQL_TOTAL \
-        "SELECT count(*) AS c, max(rev) as rev FROM Dupin AS d"
+        "SELECT count(*) AS c FROM Dupin AS d WHERE d.rev_head = 'TRUE' "
 
 #define DUPIN_LINKB_COMPACT_COUNT 100
 #define DUPIN_LINKB_CHECK_COUNT   100
@@ -158,7 +160,7 @@ dupin_linkbase_new (Dupin * d, gchar * linkb,
   path = g_build_path (G_DIR_SEPARATOR_S, d->path, name, NULL);
   g_free (name);
 
-  if (!(ret = dupin_linkb_create (d, linkb, path, error)))
+  if (!(ret = dupin_linkb_connect (d, linkb, path, DP_SQLITE_OPEN_CREATE, error)))
     {
       g_mutex_unlock (d->mutex);
       g_free (path);
@@ -185,7 +187,7 @@ dupin_linkbase_new (Dupin * d, gchar * linkb,
 
       sqlite3_free (errmsg);
       sqlite3_free (str);
-      dupin_linkb_free (ret);
+      dupin_linkb_disconnect (ret);
       return NULL;
     }
 
@@ -195,7 +197,7 @@ dupin_linkbase_new (Dupin * d, gchar * linkb,
 
   if (dupin_linkbase_p_update (ret, error) == FALSE)
     {
-      dupin_linkb_free (ret);
+      dupin_linkb_disconnect (ret);
       return NULL;
     }
 
@@ -479,9 +481,9 @@ dupin_linkbase_get_parent_is_db (DupinLinkB * linkb)
 
 /* Internal: */
 void
-dupin_linkb_free (DupinLinkB * linkb)
+dupin_linkb_disconnect (DupinLinkB * linkb)
 {
-  g_message("dupin_linkb_free: total number of changes for '%s' linkbase: %d\n", linkb->name, (gint)sqlite3_total_changes (linkb->db));
+  g_message("dupin_linkb_disconnect: total number of changes for '%s' linkbase: %d\n", linkb->name, (gint)sqlite3_total_changes (linkb->db));
 
   if (linkb->cache_last_lookup_id)
     g_free (linkb->cache_last_lookup_id);
@@ -526,7 +528,9 @@ dupin_linkb_free (DupinLinkB * linkb)
 }
 
 DupinLinkB *
-dupin_linkb_create (Dupin * d, gchar * name, gchar * path, GError ** error)
+dupin_linkb_connect (Dupin * d, gchar * name, gchar * path,
+		     DupinSQLiteOpenType mode,
+		     GError ** error)
 {
   gchar *errmsg;
   DupinLinkB *linkb;
@@ -550,23 +554,26 @@ dupin_linkb_create (Dupin * d, gchar * name, gchar * path, GError ** error)
   linkb->cache_idspath = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
   linkb->cache_labelspath = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
  
-  if (sqlite3_open (linkb->path, &linkb->db) != SQLITE_OK)
+  if (sqlite3_open_v2 (linkb->path, &linkb->db, dupin_util_dupin_mode_to_sqlite_mode (mode), NULL) != SQLITE_OK)
     {
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
 		   "Linkbase error.");
-      dupin_linkb_free (linkb);
+      dupin_linkb_disconnect (linkb);
       return NULL;
     }
 
-  if (sqlite3_exec (linkb->db, DUPIN_LINKB_SQL_MAIN_CREATE, NULL, NULL, &errmsg) != SQLITE_OK
-      || sqlite3_exec (linkb->db, DUPIN_LINKB_SQL_CREATE_INDEX, NULL, NULL, &errmsg) != SQLITE_OK
-      || sqlite3_exec (linkb->db, DUPIN_LINKB_SQL_DESC_CREATE, NULL, NULL, &errmsg) != SQLITE_OK)
+  if (mode == DP_SQLITE_OPEN_CREATE)
     {
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
+      if (sqlite3_exec (linkb->db, DUPIN_LINKB_SQL_MAIN_CREATE, NULL, NULL, &errmsg) != SQLITE_OK
+          || sqlite3_exec (linkb->db, DUPIN_LINKB_SQL_CREATE_INDEX, NULL, NULL, &errmsg) != SQLITE_OK
+          || sqlite3_exec (linkb->db, DUPIN_LINKB_SQL_DESC_CREATE, NULL, NULL, &errmsg) != SQLITE_OK)
+        {
+          g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
 		   errmsg);
-      sqlite3_free (errmsg);
-      dupin_linkb_free (linkb);
-      return NULL;
+          sqlite3_free (errmsg);
+          dupin_linkb_disconnect (linkb);
+          return NULL;
+        }
     }
 
   linkb->mutex = g_mutex_new ();
@@ -821,7 +828,7 @@ dupin_linkbase_get_changes_list (DupinLinkB *              linkb,
   memset (&s, 0, sizeof (s));
   s.style = changes_type;
 
-  str = g_string_new ("SELECT id, rev, hash, obj, deleted, tm, ROWID AS rowid, context_id, href, rel, is_weblink, tag, label FROM Dupin as d WHERE d.rev = (select max(rev) as rev FROM Dupin WHERE id=d.id) ");
+  str = g_string_new ("SELECT id, rev, hash, obj, deleted, tm, ROWID AS rowid, context_id, href, rel, is_weblink, tag, label FROM Dupin as d WHERE d.rev_head = 'TRUE' ");
 
   if (count_type == DP_COUNT_EXIST)
     check_deleted = " d.deleted = 'FALSE' ";
@@ -848,6 +855,13 @@ dupin_linkbase_get_changes_list (DupinLinkB *              linkb,
       g_string_append_printf (str, " %s d.ROWID <= %d ", op, (gint)to);
     }
 
+  if (context_id != NULL)
+    {
+      gchar * tmp2 = sqlite3_mprintf (" %s d.context_id = '%q' ", op, context_id);
+      str = g_string_append (str, tmp2);
+      sqlite3_free (tmp2);
+    }
+
   if (g_strcmp0 (check_deleted, ""))
     {
       g_string_append_printf (str, " %s %s ", op, check_deleted);
@@ -856,13 +870,6 @@ dupin_linkbase_get_changes_list (DupinLinkB *              linkb,
   if (g_strcmp0 (check_linktype, ""))
     {
       g_string_append_printf (str, " %s %s ", op, check_linktype);
-    }
-
-  if (context_id != NULL)
-    {
-      gchar * tmp2 = sqlite3_mprintf (" %s d.context_id = '%q' ", op, context_id);
-      str = g_string_append (str, tmp2);
-      sqlite3_free (tmp2);
     }
 
   if (tags != NULL
@@ -972,13 +979,12 @@ dupin_linkbase_get_changes_list_close
 }
 
 static int
-dupin_linkbase_get_total_changes_cb
-				(void *data, int argc, char **argv, char **col)
+dupin_linkbase_get_total_changes_cb (void *data, int argc, char **argv, char **col)
 {
   gsize *numb = data;
 
-  if (argv[0])
-    *numb += 1;
+  if (argv[0] && *argv[0])
+    *numb=atoi(argv[0]);
 
   return 0;
 }

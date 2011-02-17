@@ -12,24 +12,6 @@
 #include <json-glib/json-glib.h>
 #include <json-glib/json-gobject.h>
 
-#define DUPIN_LINKB_SQL_EXISTS \
-	"SELECT count(id) FROM Dupin WHERE id = '%q' "
-
-#define DUPIN_LINKB_SQL_INSERT \
-	"INSERT INTO Dupin (id, rev, hash, obj, tm, context_id, label, href, rel, tag, is_weblink, idspath, labelspath) " \
-        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%q', %Q, %Q, '%q','%q', '%q')"
-
-#define DUPIN_LINKB_SQL_UPDATE \
-	"INSERT OR REPLACE INTO Dupin (id, rev, hash, obj, tm, context_id, label, href, rel, tag, is_weblink, idspath, labelspath) " \
-        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%q', %Q, %Q, '%q', '%q', '%q')"
-
-#define DUPIN_LINKB_SQL_READ \
-	"SELECT rev, hash, obj, deleted, tm, ROWID AS rowid, context_id, label, href, rel, tag, is_weblink, idspath, labelspath FROM Dupin WHERE id='%q'"
-
-#define DUPIN_LINKB_SQL_DELETE \
-	"INSERT OR REPLACE INTO Dupin (id, rev, deleted, hash, tm, context_id, label, href, rel, tag, is_weblink, idspath, labelspath) " \
-        "VALUES('%q', '%" G_GSIZE_FORMAT "', 'TRUE', '%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%q', %Q, %Q, '%q', '%q', '%q')"
-
 DSWeblinkingRelationRegistry DSWeblinkingRelationRegistryList[] = {
   {WEBLINKING_RELNAME_ALTERNATE, "alternate", "Designates a substitute for the link's context."}
   ,
@@ -633,37 +615,13 @@ dupin_link_record_read_real (DupinLinkB * linkb, gchar * id, GError ** error,
   return record;
 }
 
-struct dupin_link_record_get_list_total_t
-{
-  gsize ret;
-  DupinCountType count_type;
-};
-
 static int
 dupin_link_record_get_list_total_cb (void *data, int argc, char **argv, char **col)
 {
-  struct dupin_link_record_get_list_total_t *count = data;
+  gsize *numb = data;
 
   if (argv[0] && *argv[0])
-    {
-      switch (count->count_type)
-        {
-        case DP_COUNT_EXIST:
-          if (!g_strcmp0 (argv[0], "FALSE"))
-            count->ret++;
-          break;
-
-        case DP_COUNT_DELETE:
-          if (!g_strcmp0 (argv[0], "TRUE"))
-            count->ret++;
-          break;
-
-        case DP_COUNT_ALL:
-        default:
-          count->ret++;
-          break;
-        }
-    }
+    *numb=atoi(argv[0]);
 
   return 0;
 }
@@ -687,9 +645,10 @@ dupin_link_record_get_list_total (DupinLinkB * 		linkb,
                                   gchar **              tags,
                                   DupinFilterByType     tags_type)
 {
-  struct dupin_link_record_get_list_total_t count;
+  gsize count = 0;
   GString * str;
   gchar *query;
+  gchar *check_deleted="";
   gchar *check_linktype="";
   gint i=0;
 
@@ -725,9 +684,6 @@ dupin_link_record_get_list_total (DupinLinkB * 		linkb,
         }
     }
 
-  count.ret = 0;
-  count.count_type = count_type;
-
   gchar * key_range=NULL;
 
   if (start_key!=NULL && end_key!=NULL)
@@ -749,12 +705,17 @@ dupin_link_record_get_list_total (DupinLinkB * 		linkb,
         key_range = sqlite3_mprintf (" d.id < '%q' ", end_key);
     }
 
+  if (count_type == DP_COUNT_EXIST)
+    check_deleted = " d.deleted = 'FALSE' ";
+  else if (count_type == DP_COUNT_DELETE)
+    check_deleted = " d.deleted = 'TRUE' ";
+
   if (links_type == DP_LINK_TYPE_WEB_LINK)
     check_linktype = " d.is_weblink = 'TRUE' ";
   else if (links_type == DP_LINK_TYPE_RELATIONSHIP)
     check_linktype = " d.is_weblink = 'FALSE' ";
 
-  str = g_string_new ("SELECT deleted FROM Dupin as d WHERE d.rev = (select max(rev) as rev FROM Dupin WHERE id=d.id) ");
+  str = g_string_new ("SELECT count(*) as c FROM Dupin as d WHERE d.rev_head = 'TRUE' ");
 
   gchar * op = "AND";
 
@@ -780,12 +741,6 @@ dupin_link_record_get_list_total (DupinLinkB * 		linkb,
       op = "AND";
     }
 
-  if (g_strcmp0 (check_linktype, ""))
-    {
-      g_string_append_printf (str, " %s %s ", op, check_linktype);
-      op = "AND";
-    }
-
   if (context_id != NULL)
     {
       gchar * tmp2 = sqlite3_mprintf (" %s d.context_id = '%q' ", op, context_id);
@@ -794,36 +749,9 @@ dupin_link_record_get_list_total (DupinLinkB * 		linkb,
       op = "AND";
     }
 
-  if (rels != NULL
-      && rels_type != DP_FILTERBY_PRESENT)
+  if (g_strcmp0 (check_deleted, ""))
     {
-      if (rels[0])
-        {
-          gchar * tmp2 = sqlite3_mprintf (" %s ( ", op);
-          str = g_string_append (str, tmp2);
-          sqlite3_free (tmp2);
-        }
-
-      for (i = 0; rels[i]; i++)
-        {
-          gchar * tmp2;
-
-	  if (rels_type == DP_FILTERBY_EQUALS)
-            tmp2 = sqlite3_mprintf (" d.rel = '%q' ", rels[i]);
-	  else if (rels_type == DP_FILTERBY_CONTAINS)
-            tmp2 = sqlite3_mprintf (" d.rel LIKE '%%%q%%' ", rels[i]);
-	  else if (rels_type == DP_FILTERBY_STARTS_WITH)
-            tmp2 = sqlite3_mprintf (" d.rel LIKE '%q%%' ", rels[i]);
-
-          str = g_string_append (str, tmp2);
-          sqlite3_free (tmp2);
-          if (rels[i+1])
-            str = g_string_append (str, " OR ");
-        }
-
-      if (rels[0])
-        str = g_string_append (str, " ) ");
-
+      g_string_append_printf (str, " %s %s ", op, check_deleted);
       op = "AND";
     }
 
@@ -857,6 +785,12 @@ dupin_link_record_get_list_total (DupinLinkB * 		linkb,
       if (labels[0])
         str = g_string_append (str, " ) ");
 
+      op = "AND";
+    }
+
+  if (g_strcmp0 (check_linktype, ""))
+    {
+      g_string_append_printf (str, " %s %s ", op, check_linktype);
       op = "AND";
     }
 
@@ -945,6 +879,39 @@ dupin_link_record_get_list_total (DupinLinkB * 		linkb,
        }
     }
 
+  if (rels != NULL
+      && rels_type != DP_FILTERBY_PRESENT)
+    {
+      if (rels[0])
+        {
+          gchar * tmp2 = sqlite3_mprintf (" %s ( ", op);
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+        }
+
+      for (i = 0; rels[i]; i++)
+        {
+          gchar * tmp2;
+
+	  if (rels_type == DP_FILTERBY_EQUALS)
+            tmp2 = sqlite3_mprintf (" d.rel = '%q' ", rels[i]);
+	  else if (rels_type == DP_FILTERBY_CONTAINS)
+            tmp2 = sqlite3_mprintf (" d.rel LIKE '%%%q%%' ", rels[i]);
+	  else if (rels_type == DP_FILTERBY_STARTS_WITH)
+            tmp2 = sqlite3_mprintf (" d.rel LIKE '%q%%' ", rels[i]);
+
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+          if (rels[i+1])
+            str = g_string_append (str, " OR ");
+        }
+
+      if (rels[0])
+        str = g_string_append (str, " ) ");
+
+      op = "AND";
+    }
+
   //str = g_string_append (str, " GROUP BY id");
 
   query = g_string_free (str, FALSE);
@@ -970,7 +937,7 @@ dupin_link_record_get_list_total (DupinLinkB * 		linkb,
 
   g_free (query);
 
-  return count.ret;
+  return count;
 }
 
 struct dupin_link_record_get_list_t
@@ -1142,7 +1109,7 @@ dupin_link_record_get_list (DupinLinkB *       linkb,
   memset (&s, 0, sizeof (s));
   s.linkb = linkb;
 
-  str = g_string_new ("SELECT *, ROWID as rowid FROM Dupin as d WHERE d.rev = (select max(rev) as rev FROM Dupin WHERE id=d.id) ");
+  str = g_string_new ("SELECT *, ROWID as rowid FROM Dupin as d WHERE d.rev_head = 'TRUE' ");
 
   if (count_type == DP_COUNT_EXIST)
     check_deleted = " d.deleted = 'FALSE' ";
@@ -1199,18 +1166,6 @@ dupin_link_record_get_list (DupinLinkB *       linkb,
       op = "AND";
     }
 
-  if (g_strcmp0 (check_deleted, ""))
-    {
-      g_string_append_printf (str, " %s %s ", op, check_deleted);
-      op = "AND";
-    }
-
-  if (g_strcmp0 (check_linktype, ""))
-    {
-      g_string_append_printf (str, " %s %s ", op, check_linktype);
-      op = "AND";
-    }
-
   if (context_id != NULL)
     {
       gchar * tmp2 = sqlite3_mprintf (" %s d.context_id = '%q' ", op, context_id);
@@ -1219,36 +1174,9 @@ dupin_link_record_get_list (DupinLinkB *       linkb,
       op = "AND";
     }
 
-  if (rels != NULL
-      && rels_type != DP_FILTERBY_PRESENT)
+  if (g_strcmp0 (check_deleted, ""))
     {
-      if (rels[0])
-        {
-          gchar * tmp2 = sqlite3_mprintf (" %s ( ", op);
-          str = g_string_append (str, tmp2);
-          sqlite3_free (tmp2);
-        }
-
-      for (i = 0; rels[i]; i++)
-        {
-          gchar * tmp2;
-
-	  if (rels_type == DP_FILTERBY_EQUALS)
-            tmp2 = sqlite3_mprintf (" d.rel = '%q' ", rels[i]);
-	  else if (rels_type == DP_FILTERBY_CONTAINS)
-            tmp2 = sqlite3_mprintf (" d.rel LIKE '%%%q%%' ", rels[i]);
-	  else if (rels_type == DP_FILTERBY_STARTS_WITH)
-            tmp2 = sqlite3_mprintf (" d.rel LIKE '%q%%' ", rels[i]);
-
-          str = g_string_append (str, tmp2);
-          sqlite3_free (tmp2);
-          if (rels[i+1])
-            str = g_string_append (str, " OR ");
-        }
-
-      if (rels[0])
-        str = g_string_append (str, " ) ");
-
+      g_string_append_printf (str, " %s %s ", op, check_deleted);
       op = "AND";
     }
 
@@ -1282,6 +1210,12 @@ dupin_link_record_get_list (DupinLinkB *       linkb,
       if (labels[0])
         str = g_string_append (str, " ) ");
 
+      op = "AND";
+    }
+
+  if (g_strcmp0 (check_linktype, ""))
+    {
+      g_string_append_printf (str, " %s %s ", op, check_linktype);
       op = "AND";
     }
 
@@ -1368,6 +1302,39 @@ dupin_link_record_get_list (DupinLinkB *       linkb,
 
           op = "AND";
        }
+    }
+
+  if (rels != NULL
+      && rels_type != DP_FILTERBY_PRESENT)
+    {
+      if (rels[0])
+        {
+          gchar * tmp2 = sqlite3_mprintf (" %s ( ", op);
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+        }
+
+      for (i = 0; rels[i]; i++)
+        {
+          gchar * tmp2;
+
+	  if (rels_type == DP_FILTERBY_EQUALS)
+            tmp2 = sqlite3_mprintf (" d.rel = '%q' ", rels[i]);
+	  else if (rels_type == DP_FILTERBY_CONTAINS)
+            tmp2 = sqlite3_mprintf (" d.rel LIKE '%%%q%%' ", rels[i]);
+	  else if (rels_type == DP_FILTERBY_STARTS_WITH)
+            tmp2 = sqlite3_mprintf (" d.rel LIKE '%q%%' ", rels[i]);
+
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+          if (rels[i+1])
+            str = g_string_append (str, " OR ");
+        }
+
+      if (rels[0])
+        str = g_string_append (str, " ) ");
+
+      op = "AND";
     }
 
   if (orderby_type == DP_ORDERBY_ROWID)
@@ -1639,9 +1606,12 @@ dupin_link_record_update (DupinLinkRecord * record, JsonNode * obj_node,
 
   g_return_val_if_fail (record != NULL, FALSE);
   g_return_val_if_fail (obj_node != NULL, FALSE);
-  g_return_val_if_fail (href != NULL, FALSE);
-  g_return_val_if_fail (dupin_link_record_util_is_valid_href (href) == TRUE, FALSE);
   g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, FALSE);
+
+  if (href == NULL)
+    href = (gchar *)dupin_link_record_get_href (record);
+  else
+    g_return_val_if_fail (dupin_link_record_util_is_valid_href (href) == TRUE, FALSE);
 
   if (rel == NULL)
     rel = DUPIN_LINKB_DEFAULT_REL;
@@ -1654,6 +1624,26 @@ dupin_link_record_update (DupinLinkRecord * record, JsonNode * obj_node,
     g_return_val_if_fail (dupin_link_record_util_is_valid_label (label) == TRUE, FALSE);
 
   g_mutex_lock (record->linkb->mutex);
+
+  /* NOTE - flag any previous revision as non head - we need this to optimise searches
+            and avoid slowness of max(rev) as rev or even nested select like
+            rev = (select max(rev) as rev FROM Dupin WHERE id=d.id) ... */
+
+  tmp = sqlite3_mprintf (DUPIN_LINKB_SQL_UPDATE_REV_HEAD, record->id);
+
+  if (sqlite3_exec (record->linkb->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
+    {
+      g_mutex_unlock (record->linkb->mutex);
+
+      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
+                   errmsg);
+
+      sqlite3_free (errmsg);
+      sqlite3_free (tmp);
+      return FALSE;
+    }
+
+  sqlite3_free (tmp);
 
   record_was_deleted = record->last->deleted;
   record_was_weblink = record->last->is_weblink;
@@ -1819,6 +1809,57 @@ dupin_link_record_update (DupinLinkRecord * record, JsonNode * obj_node,
 }
 
 gboolean
+dupin_link_record_patch (DupinLinkRecord * record, JsonNode * obj_node,
+                         gchar * label,
+                         gchar * href,
+                         gchar * rel,
+                         gchar * tag,
+			 GError ** error)
+{
+  g_return_val_if_fail (record != NULL, FALSE);
+  g_return_val_if_fail (obj_node != NULL, FALSE);
+  g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, FALSE);
+  g_return_val_if_fail (dupin_link_record_is_deleted (record, dupin_link_record_get_last_revision (record)) == FALSE, FALSE);
+
+  /* fetch last revision */
+
+  /* NOTE - we need to brew a deep copy before making any change */
+
+  JsonNode * node_copy = dupin_util_json_node_clone (
+                                dupin_link_record_get_revision_node (record, dupin_link_record_get_last_revision (record)),
+                                error);
+
+  if (node_copy == NULL)
+    return FALSE;
+
+/*
+g_message ("dupin_link_record_patch: to patch\n");
+DUPIN_UTIL_DUMP_JSON ("Input", node_copy);
+DUPIN_UTIL_DUMP_JSON ("Changes", obj_node);
+*/
+
+  /* MERGE the current revision with the one passed */
+
+  dupin_util_json_patch_node_object (node_copy, obj_node);
+
+/*
+g_message ("dupin_link_record_patch: patched\n");
+DUPIN_UTIL_DUMP_JSON ("Input", node_copy);
+DUPIN_UTIL_DUMP_JSON ("Changes", obj_node);
+*/
+
+  if (dupin_link_record_update (record, node_copy, label, href, rel, tag, error) == FALSE)
+    {
+      json_node_free (node_copy);
+      return FALSE;
+    }
+
+  json_node_free (node_copy);
+
+  return TRUE;
+}
+
+gboolean
 dupin_link_record_delete (DupinLinkRecord * record, GError ** error)
 {
   guint rev;
@@ -1838,6 +1879,26 @@ dupin_link_record_delete (DupinLinkRecord * record, GError ** error)
     }
 
   g_mutex_lock (record->linkb->mutex);
+
+  /* NOTE - flag any previous revision as non head - we need this to optimise searches
+            and avoid slowness of max(rev) as rev or even nested select like
+            rev = (select max(rev) as rev FROM Dupin WHERE id=d.id) ... */
+
+  tmp = sqlite3_mprintf (DUPIN_LINKB_SQL_UPDATE_REV_HEAD, record->id);
+
+  if (sqlite3_exec (record->linkb->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
+    {
+      g_mutex_unlock (record->linkb->mutex);
+
+      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
+                   errmsg);
+
+      sqlite3_free (errmsg);
+      sqlite3_free (tmp);
+      return FALSE;
+    }
+
+  sqlite3_free (tmp);
 
   record_was_weblink = record->last->is_weblink;
 
@@ -2726,15 +2787,9 @@ dupin_link_record_util_get_paths_node (DupinLinkB * linkb,
 
       gchar *query;
       if (tag != NULL)
-        //query = sqlite3_mprintf ("SELECT idspath, labelspath, id as link_record_id FROM Dupin WHERE rev = (select max(rev) as rev FROM Dupin WHERE id=link_record_id) AND deleted = 'FALSE' AND href = '%q' AND tag = %Q GROUP BY context_id", source_id, tag); //slowest
-        //query = sqlite3_mprintf ("SELECT idspath, labelspath, ROWID as link_record_rowid FROM Dupin WHERE rowid = (select max(ROWID) as rowid FROM Dupin WHERE rowid=link_record_rowid) AND deleted = 'FALSE' AND href = '%q' AND tag = %Q LIMIT 1", source_id, tag);
-
-        query = sqlite3_mprintf ("SELECT idspath, labelspath, tag, id as link_record_id FROM Dupin WHERE rev = (select max(rev) as rev FROM Dupin WHERE id=link_record_id) AND deleted = 'FALSE' AND href = '%q' AND tag = %Q ORDER BY ROWID DESC LIMIT 1", source_id, tag);
+        query = sqlite3_mprintf ("SELECT idspath, labelspath, tag, id as link_record_id FROM Dupin WHERE rev_head = 'TRUE' AND deleted = 'FALSE' AND href = '%q' AND tag = %Q ORDER BY ROWID DESC LIMIT 1", source_id, tag);
       else
-        //query = sqlite3_mprintf ("SELECT idspath, labelspath, id as link_record_id FROM Dupin WHERE rev = (select max(rev) as rev FROM Dupin WHERE id=link_record_id) AND deleted = 'FALSE' AND href = '%q' GROUP BY context_id", source_id); //slowest
-        //query = sqlite3_mprintf ("SELECT idspath, labelspath, ROWID as link_record_rowid FROM Dupin WHERE rowid = (select max(ROWID) as rowid FROM Dupin WHERE rowid=link_record_rowid) AND deleted = 'FALSE' AND href = '%q' AND tag = NULL LIMIT 1", source_id);
-
-        query = sqlite3_mprintf ("SELECT idspath, labelspath, tag, id as link_record_id FROM Dupin WHERE rev = (select max(rev) as rev FROM Dupin WHERE id=link_record_id) AND deleted = 'FALSE' AND href = '%q' AND tag IS NULL ORDER BY ROWID DESC LIMIT 1 ", source_id);
+        query = sqlite3_mprintf ("SELECT idspath, labelspath, tag, id as link_record_id FROM Dupin WHERE rev_head = 'TRUE' AND deleted = 'FALSE' AND href = '%q' AND tag IS NULL ORDER BY ROWID DESC LIMIT 1 ", source_id);
 
 //g_message("dupin_link_record_util_get_paths_node: source_id=%s tag=%s lookup_key=%\n", source_id, tag, lookup_key);
 //g_message("dupin_link_record_util_get_paths_node: query=%s\n", query);
@@ -3290,6 +3345,36 @@ dupin_link_record_insert_extract_deleted (DupinLinkB * linkb, JsonNode * obj_nod
   return deleted;
 }
 
+static gboolean
+dupin_link_record_insert_extract_patched (DupinLinkB * linkb, JsonNode * obj_node)
+{
+  g_return_val_if_fail (linkb != NULL, FALSE);
+
+  gboolean patched=FALSE;
+  JsonNode *node;
+  JsonObject *obj;
+
+  g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, FALSE);
+
+  obj = json_node_get_object (obj_node);
+
+  if (json_object_has_member (obj, REQUEST_OBJ_PATCHED) == FALSE)
+    return FALSE;
+
+  node = json_object_get_member (obj, REQUEST_OBJ_PATCHED);
+
+  if (node == NULL
+      || json_node_get_node_type  (node) != JSON_NODE_VALUE
+      || json_node_get_value_type (node) != G_TYPE_BOOLEAN)
+    return FALSE;
+
+  patched = json_node_get_boolean (node);
+
+  json_object_remove_member (obj, REQUEST_OBJ_PATCHED);
+
+  return patched;
+}
+
 /* insert = create or update */
 
 gboolean
@@ -3375,7 +3460,8 @@ dupin_link_record_insert (DupinLinkB * linkb,
 			  gchar * context_id,
 			  DupinLinksType link_type,
 			  GList ** response_list,
-			  gboolean strict_links)
+			  gboolean strict_links,
+			  gboolean use_latest_revision)
 {
   g_return_val_if_fail (linkb != NULL, FALSE);
 
@@ -3411,6 +3497,14 @@ dupin_link_record_insert (DupinLinkB * linkb,
     }
 
   gboolean to_delete = dupin_link_record_insert_extract_deleted (linkb, obj_node);
+
+  /* NOTE - try to be fire safe on patch stuff */
+  gboolean to_patch = dupin_link_record_insert_extract_patched (linkb, obj_node);
+
+  /* NOTE - to_delete takes always precedence */
+  if (to_patch == TRUE
+      && to_delete == TRUE)
+    to_patch = FALSE;
 
   json_record_href = dupin_link_record_insert_extract_href (linkb, obj_node);
 
@@ -3490,14 +3584,32 @@ dupin_link_record_insert (DupinLinkB * linkb,
 //g_message("dupin_link_record_insert: json_record_rel=%s\n", json_record_rel);
 //g_message("dupin_link_record_insert: json_record_tag=%s\n", json_record_tag);
 
-  if (mvcc != NULL) // we either try to update an existing link
+  if (mvcc != NULL
+      || (!id && use_latest_revision == TRUE))
     {
       record = dupin_link_record_read (linkb, id, &error);
+
+      /* NOTE - we this we allow selective update / PATCH if requested (outisde REST API alaways!) */
+      if (mvcc == NULL
+          && (!id && use_latest_revision == TRUE)
+          && record != NULL)
+        mvcc = g_strdup (dupin_link_record_get_last_revision (record));
 
       if ( to_delete == TRUE )
         {
           if (!record || dupin_util_mvcc_revision_cmp (mvcc, dupin_link_record_get_last_revision (record))
               || dupin_link_record_delete (record, &error) == FALSE)
+            {
+              if (record)
+                dupin_link_record_close (record);
+              record = NULL;
+            }
+        }
+      else if ( to_patch == TRUE )
+        {
+          if (!record || dupin_util_mvcc_revision_cmp (mvcc, dupin_link_record_get_last_revision (record))
+              || dupin_link_record_patch (record, obj_node, json_record_label, json_record_href,
+						json_record_rel, json_record_tag, &error) == FALSE)
             {
               if (record)
                 dupin_link_record_close (record);
@@ -3529,7 +3641,7 @@ dupin_link_record_insert (DupinLinkB * linkb,
       else
         {
           /* NOTE - context_id is purely internal and can not be set in any way by the user if not via
-            the document is being linked from */
+                    the document is being linked from */
 
           if (context_id == NULL
               || (dupin_link_record_util_is_valid_context_id (context_id) == FALSE))
@@ -3565,40 +3677,28 @@ dupin_link_record_insert (DupinLinkB * linkb,
               return FALSE;
             }
 
-          record = dupin_link_record_create (linkb, obj_node,
-                                         context_id,
+          record = dupin_link_record_create (linkb, obj_node, context_id,
                                          json_record_label, json_record_href, json_record_rel, json_record_tag,
                                          &error);
         }
     }
   else
     {
-      dupin_linkbase_set_error (linkb, "Links ids can not be set and they are only atomatically generated by the system.");
-
-      if (json_record_id != NULL)
-        g_free (json_record_id);
-
-      if (json_record_label)
-        g_free (json_record_label);
-
-      if (json_record_href)
-        g_free (json_record_href);
-
-      if (json_record_rel)
-        g_free (json_record_rel);
-
-      if (json_record_tag)
-        g_free (json_record_tag);
-
-      if (mvcc != NULL)
-        g_free (mvcc);
-
-      if (record_response_node != NULL)
-        json_node_free (record_response_node);
-      if (json_record_href)
-        g_free (json_record_href);
-
-      return FALSE;
+      if ( to_delete == TRUE )
+        {
+          if (record)
+            dupin_link_record_close (record);
+          record = NULL;
+        }
+      else
+        {
+          if (dupin_link_record_exists (linkb, id) == FALSE)
+            record = dupin_link_record_create_with_id (linkb, obj_node, id,
+ 						       context_id, json_record_label, json_record_href,
+						       json_record_rel, json_record_tag, &error);
+          else
+            record = NULL;
+        }
     }
 
   if (json_record_label)
@@ -3665,7 +3765,8 @@ dupin_link_record_insert_bulk (DupinLinkB * linkb,
                                JsonNode * bulk_node,
 			       gchar * context_id,
                                GList ** response_list,
-			       gboolean strict_links)
+			       gboolean strict_links,
+			       gboolean use_latest_revision)
 {
   g_return_val_if_fail (linkb != NULL, FALSE);
   g_return_val_if_fail (context_id != NULL, FALSE);
@@ -3746,7 +3847,7 @@ dupin_link_record_insert_bulk (DupinLinkB * linkb,
       if (json_object_has_member (json_node_get_object (element_node), REQUEST_OBJ_REV) == TRUE)
         rev = g_strdup ((gchar *)json_object_get_string_member (json_node_get_object (element_node), REQUEST_OBJ_REV));
 
-      if (dupin_link_record_insert (linkb, element_node, NULL, NULL, context_id, DP_LINK_TYPE_ANY, response_list, FALSE) == FALSE)
+      if (dupin_link_record_insert (linkb, element_node, NULL, NULL, context_id, DP_LINK_TYPE_ANY, response_list, FALSE, use_latest_revision) == FALSE)
         {
           /* NOTE - we report errors inline in the JSON response */
 

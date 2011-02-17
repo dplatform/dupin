@@ -59,6 +59,23 @@ dupin_util_is_valid_attachment_db_name (gchar * attachment_db)
   return TRUE;
 }
 
+gint
+dupin_util_dupin_mode_to_sqlite_mode (DupinSQLiteOpenType dupin_mode)
+{
+  gint sqlite3_open_v2_mode;
+
+  if (dupin_mode == DP_SQLITE_OPEN_READONLY)
+    sqlite3_open_v2_mode = SQLITE_OPEN_READONLY;
+
+  else if (dupin_mode == DP_SQLITE_OPEN_READWRITE)
+    sqlite3_open_v2_mode = SQLITE_OPEN_READWRITE;
+
+  else if (dupin_mode == DP_SQLITE_OPEN_CREATE)
+    sqlite3_open_v2_mode = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE;
+
+  return sqlite3_open_v2_mode;
+}
+
 gboolean
 dupin_util_is_valid_record_id (gchar * id)
 {
@@ -278,7 +295,50 @@ dupin_util_json_serialize (JsonNode * node)
 /* NOTE - proper deep copy/clone of given JsonNode */
 
 JsonNode *
-dupin_util_json_node_clone (JsonNode * node)
+dupin_util_json_node_clone (JsonNode * node, GError **error)
+{
+  g_return_val_if_fail (node != NULL, NULL);
+
+  JsonParser * parser = json_parser_new ();
+
+  if (parser == NULL)
+    return NULL;
+
+  gchar * node_serialized = dupin_util_json_serialize (node);
+
+  if (node_serialized == NULL)
+    {
+      g_object_unref (parser);
+      return NULL;
+    }
+
+  if (node_serialized == NULL
+      || (!json_parser_load_from_data (parser, node_serialized, -1, error)))
+    {
+      if (*error)
+        g_error_free (*error);
+
+      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "Cannot parser JSON");
+
+      g_object_unref (parser);
+
+      if (node_serialized != NULL)
+        g_free (node_serialized);
+
+      return NULL;
+    }
+
+  g_free (node_serialized);
+
+  return json_node_copy (json_parser_get_root (parser));
+}
+
+
+/* WARNING - the following code even if correct, might have issues with
+             buggy json-glib and treating ints vs. double, with others - see the above version instead */
+
+JsonNode *
+dupin_util_json_node_clone_v1 (JsonNode * node)
 {
   g_return_val_if_fail (node != NULL, NULL);
 
@@ -293,7 +353,7 @@ dupin_util_json_node_clone (JsonNode * node)
       for (n = nodes; n != NULL; n = n->next)
         json_object_set_member (obj,
 				(const gchar *) n->data,
-				dupin_util_json_node_clone (
+				dupin_util_json_node_clone_v1 (
 					json_object_get_member (json_node_get_object (node), (const gchar *)n->data)));
       g_list_free (nodes);
       json_node_take_object(clone, obj);
@@ -305,7 +365,7 @@ dupin_util_json_node_clone (JsonNode * node)
       GList *nodes, *n;
       nodes = json_array_get_elements (json_node_get_array (node));
       for (n = nodes; n != NULL; n = n->next)
-        json_array_add_element(array, dupin_util_json_node_clone (n->data));
+        json_array_add_element(array, dupin_util_json_node_clone_v1 (n->data));
       g_list_free (nodes);
       json_node_take_array(clone, array);
     }
@@ -727,6 +787,15 @@ dupin_util_mvcc_revision_cmp (gchar * mvcc_a,
   gint status=-1;
 
   guint rev_a, rev_b;
+  gchar hash_a[DUPIN_ID_MAX_LEN];
+  gchar hash_b[DUPIN_ID_MAX_LEN];
+
+  if ((dupin_util_mvcc_get_hash( mvcc_a, hash_a) == FALSE)
+      || (dupin_util_mvcc_get_hash( mvcc_b, hash_b) == FALSE))
+    return status;
+
+  if (g_strcmp0 (hash_a, hash_b))
+    return status;
 
   if ((dupin_util_mvcc_get_revision( mvcc_a, &rev_a) == FALSE)
       || (dupin_util_mvcc_get_revision( mvcc_b, &rev_b) == FALSE))
@@ -1138,6 +1207,148 @@ dupin_util_json_string_normalize_docid (gchar * input_string_docid)
 
   return output_string; 
 }
+
+void
+dupin_util_json_patch_node_object_real (JsonNode * input,
+                                        JsonNode * changes)
+{
+  JsonNodeType input_type = json_node_get_node_type (input);
+  JsonNodeType changes_type = json_node_get_node_type (changes);
+
+  if (input_type != changes_type)
+    return;
+
+  /* 1 - process deletion of fields (deleted of whole record is done with dupin_record_delete) */
+
+  /* 2 - process changes (new fileds or old with new values) of fields and their structure using JSON collation and heuristics */
+
+  /* 2.1 if new field, add it - even if structured */
+
+  /* 2.2 if existing field
+        -> sort field JSON current field value node with new node value
+        -> if 
+   */
+
+  GList *n, *nodes;
+
+  if (changes_type == JSON_NODE_OBJECT)
+    {
+      JsonObject * changes_object = json_node_get_object (changes);
+      JsonObject * input_object = json_node_get_object (input);
+
+      nodes = json_object_get_members (changes_object);
+
+      for (n = nodes; n != NULL ; n = n->next)
+        {
+          gchar * member_name = (gchar *)n->data;
+
+          JsonNode * changes_node = json_object_get_member (changes_object, member_name);
+          JsonNodeType changes_node_type = json_node_get_node_type (changes_node);
+
+          JsonNode * input_node = NULL;
+          JsonNodeType input_node_type;
+          if (json_object_has_member (input_object, member_name) == TRUE)
+            {
+              input_node = json_object_get_member (input_object, member_name);
+              input_node_type = json_node_get_node_type (input_node);
+            }
+
+          if (changes_node_type == JSON_NODE_NULL
+              || changes_node_type == JSON_NODE_VALUE)
+            {
+              /* patch single field */
+
+	      if (input_node != NULL)
+                json_object_remove_member (input_object, member_name);
+              json_object_set_member (input_object, member_name, json_node_copy (changes_node));
+            }
+
+          else if (changes_node_type == JSON_NODE_OBJECT)
+            {
+              JsonObject * sub_obj = json_node_get_object (changes_node);
+	      JsonNode * deleted = NULL;
+
+	      if (json_object_has_member (sub_obj, REQUEST_OBJ_DELETED) == TRUE)
+	        deleted = json_object_get_member (sub_obj, REQUEST_OBJ_DELETED);
+
+	      if (deleted != NULL
+		  && json_node_get_node_type (deleted) == JSON_NODE_VALUE
+		  && json_node_get_value_type (deleted) == G_TYPE_BOOLEAN
+		  && json_node_get_boolean (deleted) == TRUE)
+                {
+		  /* remove single field */
+	          if (input_node != NULL)
+                    json_object_remove_member (input_object, member_name);
+                }
+              else
+                {
+                  if (input_node == NULL
+		      || input_node_type != JSON_NODE_OBJECT)
+                    {
+		      if (input_node != NULL)
+                        json_object_remove_member (input_object, member_name);
+                      input_node = json_node_new (JSON_NODE_OBJECT);
+		      JsonObject * input_node_obj = json_object_new ();
+		      json_node_take_object (input_node, input_node_obj);
+
+		      json_object_set_member (input_object, member_name, input_node);
+                    }
+                  
+		  dupin_util_json_patch_node_object_real (input_node, changes_node); 
+		}
+            }
+
+          else if (changes_node_type == JSON_NODE_ARRAY)
+            {
+              if (input_node == NULL
+		  || input_node_type != JSON_NODE_ARRAY)
+                {
+		  if (input_node != NULL)
+                    json_object_remove_member (input_object, member_name);
+                  input_node = json_node_new (JSON_NODE_ARRAY);
+		  JsonArray * input_node_array = json_array_new ();
+		  json_node_take_array (input_node, input_node_array);
+
+		  json_object_set_member (input_object, member_name, input_node);
+                }
+                  
+	      dupin_util_json_patch_node_object_real (input_node, changes_node); 
+            }
+        }
+      g_list_free (nodes);
+    }
+
+  else if (changes_type == JSON_NODE_ARRAY)
+    {
+      JsonArray * changes_array = json_node_get_array (changes);
+      JsonArray * input_array = json_node_get_array (input);
+
+      nodes = json_array_get_elements (changes_array);
+      gint i;
+      for (n = nodes, i=0; n != NULL ; n = n->next, i++)
+        {
+          JsonNode * changes_node = (JsonNode *)n->data;
+
+          /* patch single element */
+
+          json_array_add_element (input_array, json_node_copy (changes_node));
+        }
+      g_list_free (nodes);
+    }
+}
+
+void
+dupin_util_json_patch_node_object (JsonNode * input,
+                                   JsonNode * changes)
+{
+  g_return_if_fail (input != NULL);
+  g_return_if_fail (changes != NULL);
+  g_return_if_fail (json_node_get_node_type (input) == JSON_NODE_OBJECT);
+  g_return_if_fail (json_node_get_node_type (changes) == JSON_NODE_OBJECT);
+
+  dupin_util_json_patch_node_object_real (input, changes);
+}
+
 
 /* k/v pairs management functions for arguments list */
 

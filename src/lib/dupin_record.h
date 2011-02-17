@@ -23,6 +23,27 @@ int		dupin_record_select_total_cb
 					 char **argv,
 					 char **col);
 
+#define DUPIN_DB_SQL_EXISTS \
+        "SELECT count(id) FROM Dupin WHERE id = '%q' "
+
+#define DUPIN_DB_SQL_INSERT \
+        "INSERT INTO Dupin (id, rev, hash, obj, tm) " \
+        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%" G_GSIZE_FORMAT "')"
+
+#define DUPIN_DB_SQL_UPDATE \
+        "INSERT OR REPLACE INTO Dupin (id, rev, hash, obj, tm) " \
+        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%" G_GSIZE_FORMAT "')"
+
+#define DUPIN_DB_SQL_READ \
+        "SELECT rev, hash, obj, deleted, tm, ROWID AS rowid FROM Dupin WHERE id='%q'"
+
+#define DUPIN_DB_SQL_DELETE \
+        "INSERT OR REPLACE INTO Dupin (id, rev, deleted, hash, tm) " \
+        "VALUES('%q', '%" G_GSIZE_FORMAT "', 'TRUE', '%q', '%" G_GSIZE_FORMAT "')"
+
+#define DUPIN_DB_SQL_UPDATE_REV_HEAD \
+        "UPDATE Dupin SET rev_head = 'FALSE' WHERE id = '%q' "
+
 #define DUPIN_DB_SQL_GET_TOTALS \
         "SELECT total_doc_ins, total_doc_del FROM DupinDB"
 
@@ -80,6 +101,10 @@ gboolean	dupin_record_update	(DupinRecord *		record,
 					 JsonNode *		obj_node,
 					 GError **		error);
 
+gboolean	dupin_record_patch	(DupinRecord *		record,
+					 JsonNode *		obj_node,
+					 GError **		error);
+
 gboolean	dupin_record_delete	(DupinRecord *		record,
 					 GError **		error);
 
@@ -130,12 +155,14 @@ gboolean	dupin_record_is_deleted	(DupinRecord *		record,
 gboolean	dupin_record_insert	(DupinDB * db,
                                          JsonNode * obj_node,
                                          gchar * id, gchar * caller_mvcc,
-                                         GList ** response_list);
+                                         GList ** response_list,
+					 gboolean use_latest_revision);
 
 gboolean	dupin_record_insert_bulk
 					(DupinDB * db,
 					 JsonNode * bulk_node,
-                                         GList ** response_list);
+                                         GList ** response_list,
+					 gboolean use_latest_revision);
 
 G_END_DECLS
 

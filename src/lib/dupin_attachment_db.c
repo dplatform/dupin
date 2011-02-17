@@ -132,7 +132,7 @@ dupin_attachment_db_new (Dupin * d, gchar * attachment_db,
   path = g_build_path (G_DIR_SEPARATOR_S, d->path, name, NULL);
   g_free (name);
 
-  if (!(ret = dupin_attachment_db_create (d, attachment_db, path, error)))
+  if (!(ret = dupin_attachment_db_connect (d, attachment_db, path, DP_SQLITE_OPEN_CREATE, error)))
     {
       g_mutex_unlock (d->mutex);
       g_free (path);
@@ -158,7 +158,7 @@ dupin_attachment_db_new (Dupin * d, gchar * attachment_db,
 
       sqlite3_free (errmsg);
       sqlite3_free (str);
-      dupin_attachment_db_free (ret);
+      dupin_attachment_db_disconnect (ret);
       return NULL;
     }
 
@@ -168,7 +168,7 @@ dupin_attachment_db_new (Dupin * d, gchar * attachment_db,
 
   if (dupin_attachment_db_p_update (ret, error) == FALSE)
     {
-      dupin_attachment_db_free (ret);
+      dupin_attachment_db_disconnect (ret);
       return NULL;
     }
 
@@ -403,9 +403,9 @@ dupin_attachment_db_get_size (DupinAttachmentDB * attachment_db)
 
 /* Internal: */
 void
-dupin_attachment_db_free (DupinAttachmentDB * attachment_db)
+dupin_attachment_db_disconnect (DupinAttachmentDB * attachment_db)
 {
-  g_message("dupin_attachment_db_free: total number of changes for '%s' attachments database: %d\n", attachment_db->name, (gint)sqlite3_total_changes (attachment_db->db));
+  g_message("dupin_attachment_db_disconnect: total number of changes for '%s' attachments database: %d\n", attachment_db->name, (gint)sqlite3_total_changes (attachment_db->db));
 
   if (attachment_db->db)
     sqlite3_close (attachment_db->db);
@@ -435,7 +435,7 @@ dupin_attachment_db_free (DupinAttachmentDB * attachment_db)
 }
 
 static int
-dupin_attachment_db_create_cb (void *data, int argc, char **argv, char **col)
+dupin_attachment_db_connect_cb (void *data, int argc, char **argv, char **col)
 {
   DupinAttachmentDB *attachment_db = data;
 
@@ -448,7 +448,9 @@ dupin_attachment_db_create_cb (void *data, int argc, char **argv, char **col)
 }
 
 DupinAttachmentDB *
-dupin_attachment_db_create (Dupin * d, gchar * name, gchar * path, GError ** error)
+dupin_attachment_db_connect (Dupin * d, gchar * name, gchar * path,
+			     DupinSQLiteOpenType mode,
+			     GError ** error)
 {
   gchar *query;
   gchar *errmsg;
@@ -461,38 +463,41 @@ dupin_attachment_db_create (Dupin * d, gchar * name, gchar * path, GError ** err
   attachment_db->name = g_strdup (name);
   attachment_db->path = g_strdup (path);
 
-  if (sqlite3_open (attachment_db->path, &attachment_db->db) != SQLITE_OK)
+  if (sqlite3_open_v2 (attachment_db->path, &attachment_db->db, dupin_util_dupin_mode_to_sqlite_mode (mode), NULL) != SQLITE_OK)
     {
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
 		   "Attachment DB error.");
-      dupin_attachment_db_free (attachment_db);
+      dupin_attachment_db_disconnect (attachment_db);
       return NULL;
     }
 
-  if (sqlite3_exec (attachment_db->db, DUPIN_ATTACHMENT_DB_SQL_MAIN_CREATE, NULL, NULL, &errmsg)
-      				!= SQLITE_OK
-      || sqlite3_exec (attachment_db->db, DUPIN_ATTACHMENT_DB_SQL_DESC_CREATE, NULL, NULL,
-		       &errmsg) != SQLITE_OK
-      || sqlite3_exec (attachment_db->db, DUPIN_ATTACHMENT_DB_SQL_CREATE_INDEX, NULL, NULL,
-		       &errmsg) != SQLITE_OK)
+  if (mode == DP_SQLITE_OPEN_CREATE)
     {
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
+      if (sqlite3_exec (attachment_db->db, DUPIN_ATTACHMENT_DB_SQL_MAIN_CREATE, NULL, NULL, &errmsg)
+      				!= SQLITE_OK
+          || sqlite3_exec (attachment_db->db, DUPIN_ATTACHMENT_DB_SQL_DESC_CREATE, NULL, NULL,
+		       &errmsg) != SQLITE_OK
+          || sqlite3_exec (attachment_db->db, DUPIN_ATTACHMENT_DB_SQL_CREATE_INDEX, NULL, NULL,
+		       &errmsg) != SQLITE_OK)
+        {
+          g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
 		   errmsg);
-      sqlite3_free (errmsg);
-      dupin_attachment_db_free (attachment_db);
-      return NULL;
+          sqlite3_free (errmsg);
+          dupin_attachment_db_disconnect (attachment_db);
+          return NULL;
+        }
     }
 
   query =
     "SELECT parent FROM DupinAttachmentDB";
 
-  if (sqlite3_exec (attachment_db->db, query, dupin_attachment_db_create_cb, attachment_db, &errmsg) !=
+  if (sqlite3_exec (attachment_db->db, query, dupin_attachment_db_connect_cb, attachment_db, &errmsg) !=
       SQLITE_OK)
     {
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
 		   errmsg);
       sqlite3_free (errmsg);
-      dupin_attachment_db_free (attachment_db);
+      dupin_attachment_db_disconnect (attachment_db);
     }
 
   attachment_db->mutex = g_mutex_new ();

@@ -170,7 +170,7 @@ dupin_view_new (Dupin * d, gchar * view, gchar * parent, gboolean is_db, gboolea
   path = g_build_path (G_DIR_SEPARATOR_S, d->path, name, NULL);
   g_free (name);
 
-  if (!(ret = dupin_view_create (d, view, path, error)))
+  if (!(ret = dupin_view_connect (d, view, path, DP_SQLITE_OPEN_CREATE, error)))
     {
       g_mutex_unlock (d->mutex);
       g_free (path);
@@ -212,7 +212,7 @@ dupin_view_new (Dupin * d, gchar * view, gchar * parent, gboolean is_db, gboolea
 
       sqlite3_free (errmsg);
       sqlite3_free (str);
-      dupin_view_free (ret);
+      dupin_view_disconnect (ret);
       return NULL;
     }
 
@@ -229,7 +229,7 @@ dupin_view_new (Dupin * d, gchar * view, gchar * parent, gboolean is_db, gboolea
 
       sqlite3_free (errmsg);
       sqlite3_free (str);
-      dupin_view_free (ret);
+      dupin_view_disconnect (ret);
       return NULL;
     }
 
@@ -239,7 +239,7 @@ dupin_view_new (Dupin * d, gchar * view, gchar * parent, gboolean is_db, gboolea
 
   if (dupin_view_p_update (ret, error) == FALSE)
     {
-      dupin_view_free (ret);
+      dupin_view_disconnect (ret);
       return NULL;
     }
 
@@ -745,9 +745,9 @@ dupin_view_get_size (DupinView * view)
 
 /* Internal: */
 void
-dupin_view_free (DupinView * view)
+dupin_view_disconnect (DupinView * view)
 {
-  g_message("dupin_view_free: total number of changes for '%s' view database: %d\n", view->name, (gint)sqlite3_total_changes (view->db));
+  g_message("dupin_view_disconnect: total number of changes for '%s' view database: %d\n", view->name, (gint)sqlite3_total_changes (view->db));
 
   if (view->db)
     sqlite3_close (view->db);
@@ -791,7 +791,7 @@ dupin_view_free (DupinView * view)
 }
 
 static int
-dupin_view_create_cb (void *data, int argc, char **argv, char **col)
+dupin_view_connect_cb (void *data, int argc, char **argv, char **col)
 {
   DupinView *view = data;
 
@@ -815,7 +815,9 @@ dupin_view_create_cb (void *data, int argc, char **argv, char **col)
 }
 
 DupinView *
-dupin_view_create (Dupin * d, gchar * name, gchar * path, GError ** error)
+dupin_view_connect (Dupin * d, gchar * name, gchar * path,
+		    DupinSQLiteOpenType mode,
+		    GError ** error)
 {
   gchar *query;
   gchar *errmsg;
@@ -838,11 +840,11 @@ dupin_view_create (Dupin * d, gchar * name, gchar * path, GError ** error)
 
   view->collation_parser = json_parser_new ();
 
-  if (sqlite3_open (view->path, &view->db) != SQLITE_OK)
+  if (sqlite3_open_v2 (view->path, &view->db, dupin_util_dupin_mode_to_sqlite_mode (mode), NULL) != SQLITE_OK)
     {
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
 		   "View error.");
-      dupin_view_free (view);
+      dupin_view_disconnect (view);
       return NULL;
     }
 
@@ -852,34 +854,37 @@ dupin_view_create (Dupin * d, gchar * name, gchar * path, GError ** error)
     {
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
 		   "View error. Cannot create collation function 'dupincmp'");
-      dupin_view_free (view);
+      dupin_view_disconnect (view);
       return NULL;
     }
 
-  if (sqlite3_exec (view->db, DUPIN_VIEW_SQL_MAIN_CREATE, NULL, NULL, &errmsg)
-      				!= SQLITE_OK
-      || sqlite3_exec (view->db, DUPIN_VIEW_SQL_DESC_CREATE, NULL, NULL,
-		       &errmsg) != SQLITE_OK
-      || sqlite3_exec (view->db, DUPIN_VIEW_SQL_CREATE_INDEX, NULL, NULL,
-		       &errmsg) != SQLITE_OK)
+  if (mode == DP_SQLITE_OPEN_CREATE)
     {
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
+      if (sqlite3_exec (view->db, DUPIN_VIEW_SQL_MAIN_CREATE, NULL, NULL, &errmsg)
+      				!= SQLITE_OK
+          || sqlite3_exec (view->db, DUPIN_VIEW_SQL_DESC_CREATE, NULL, NULL,
+		       &errmsg) != SQLITE_OK
+          || sqlite3_exec (view->db, DUPIN_VIEW_SQL_CREATE_INDEX, NULL, NULL,
+		       &errmsg) != SQLITE_OK)
+        {
+          g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
 		   errmsg);
-      sqlite3_free (errmsg);
-      dupin_view_free (view);
-      return NULL;
+          sqlite3_free (errmsg);
+          dupin_view_disconnect (view);
+          return NULL;
+        }
     }
 
   query =
     "SELECT map, map_lang, reduce, reduce_lang, parent, isdb, islinkb FROM DupinView";
 
-  if (sqlite3_exec (view->db, query, dupin_view_create_cb, view, &errmsg) !=
+  if (sqlite3_exec (view->db, query, dupin_view_connect_cb, view, &errmsg) !=
       SQLITE_OK)
     {
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
 		   errmsg);
       sqlite3_free (errmsg);
-      dupin_view_free (view);
+      dupin_view_disconnect (view);
     }
 
   view->mutex = g_mutex_new ();

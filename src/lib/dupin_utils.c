@@ -404,6 +404,175 @@ dupin_util_json_node_clone_v1 (JsonNode * node)
   return clone;
 }
 
+gboolean
+dupin_util_json_node_object_filter_fields_real (JsonNode * node,
+                                                DupinFieldsFormatType format,
+					 	gchar ** iesim_field_splitted,
+				 	 	gint level,
+					 	JsonNode * result_node,
+                                 	 	GError **  error)
+{
+//g_message("dupin_util_json_node_object_filter_fields_real: level %d\n", level);
+
+  if (format == DP_FIELDS_FORMAT_DOTTED)
+    {
+//g_message("dupin_util_json_node_object_filter_fields_real: check member %s\n", iesim_field_splitted[level]);
+
+      if (json_object_has_member (json_node_get_object (node), iesim_field_splitted[level]) == TRUE)
+        {
+	  JsonNode * member = json_object_get_member (json_node_get_object (node), iesim_field_splitted[level]);
+
+//g_message("dupin_util_json_node_object_filter_fields_real: has member %s\n", iesim_field_splitted[level]);
+//DUPIN_UTIL_DUMP_JSON ("member", member);
+
+	  /* NOTE - deep first visit the children */
+          if (json_node_get_node_type (member) == JSON_NODE_OBJECT)
+ 	    {
+//g_message("dupin_util_json_node_object_filter_fields_real: member %s is object\n", iesim_field_splitted[level]);
+
+              JsonNode * sub_result_node = NULL;
+              if (json_object_has_member (json_node_get_object (result_node), iesim_field_splitted[level]) == FALSE)
+                {
+	          if (iesim_field_splitted[level+1])
+		    {
+                      sub_result_node = json_node_new (JSON_NODE_OBJECT);
+                      JsonObject * sub_result_node_obj = json_object_new ();
+                      json_node_take_object (sub_result_node, sub_result_node_obj);
+		    }
+		  else
+		    {
+                      sub_result_node = dupin_util_json_node_clone (member, error);
+		    }
+		}
+	      else
+	        {
+	          sub_result_node = json_object_get_member (json_node_get_object (result_node), iesim_field_splitted[level]);
+		}
+
+	      if (iesim_field_splitted[level+1])
+	        {
+                  if (dupin_util_json_node_object_filter_fields_real (member, format, iesim_field_splitted, level+1, sub_result_node, error) == FALSE)
+	            {
+                      if (json_object_has_member (json_node_get_object (result_node), iesim_field_splitted[level]) == FALSE)
+                        json_node_free (sub_result_node);
+
+		      return FALSE;
+ 		    }
+ 		}
+
+              if (json_object_has_member (json_node_get_object (result_node), iesim_field_splitted[level]) == FALSE)
+	        json_object_set_member (json_node_get_object (result_node),
+					iesim_field_splitted[level],
+					sub_result_node);
+	      return TRUE;
+            }
+
+          else
+            {
+//g_message("dupin_util_json_node_object_filter_fields_real: add member %s to result\n", iesim_field_splitted[level]);
+
+	      json_object_set_member (json_node_get_object (result_node),
+				      iesim_field_splitted[level],
+				      dupin_util_json_node_clone (member, error));
+              return TRUE;
+            }
+        }
+      else
+        {
+          return FALSE;
+        }
+    }
+
+  return FALSE;
+}
+
+JsonNode *
+dupin_util_json_node_object_filter_fields (JsonNode * node,
+                               	    	   DupinFieldsFormatType format,
+                               	    	   gchar *   fields,
+                               	    	   GError **  error)
+{
+  g_return_val_if_fail (node != NULL, NULL);
+  g_return_val_if_fail (json_node_get_node_type (node) == JSON_NODE_OBJECT, NULL);
+
+  JsonNode * filtered_node = NULL;
+  JsonObject * filtered_node_obj = NULL;
+
+  if (format == DP_FIELDS_FORMAT_NONE)
+    {
+      filtered_node = json_node_new (JSON_NODE_OBJECT);
+      filtered_node_obj = json_object_new ();
+      json_node_take_object (filtered_node, filtered_node_obj);
+      return filtered_node;
+    }
+
+  /* NOTE - parse the field names */
+
+  GList * parsed_fields = NULL;
+
+  /* TODO - with JSONPath we might have problems with commas, due
+	    URI-unescape already happened in httpd.c */
+
+  gint i;
+  gchar ** fields_splitted = g_strsplit (fields, ",", -1);
+  gboolean any = FALSE;
+  for (i = 0; fields_splitted[i]; i++)
+    {
+      if (!g_strcmp0 (fields_splitted[i], REQUEST_GET_ALL_ANY_FILTER_FIELDS_ALL)
+	  || !g_strcmp0 (fields_splitted[i], REQUEST_GET_ALL_ANY_FILTER_FIELDS_ALL_FIELDS))
+        {
+	  any = TRUE;
+	  break;
+        }
+
+      if (format == DP_FIELDS_FORMAT_DOTTED)
+        {
+	  gchar ** iesim_field_splitted = g_strsplit (fields_splitted[i], ".", -1);
+          parsed_fields = g_list_prepend (parsed_fields, iesim_field_splitted);
+        }
+      else if (format == DP_FIELDS_FORMAT_JSONPATH)
+        {
+        }
+    }
+
+  if (any == FALSE)
+    {
+      filtered_node = json_node_new (JSON_NODE_OBJECT);
+      filtered_node_obj = json_object_new ();
+      json_node_take_object (filtered_node, filtered_node_obj);
+
+      GList *f;
+      for (f = parsed_fields; f != NULL; f = f->next)
+        {
+          gchar ** iesim_field_splitted = f->data;
+
+          dupin_util_json_node_object_filter_fields_real (node, format, iesim_field_splitted, 0, filtered_node, error);
+	}
+    }
+  else
+    {
+      filtered_node = dupin_util_json_node_clone (node, error);
+    }
+
+  while (parsed_fields)
+    {
+      if (format == DP_FIELDS_FORMAT_DOTTED)
+        {
+          if (parsed_fields->data != NULL)
+            g_strfreev (parsed_fields->data);  
+        }
+      else if (format == DP_FIELDS_FORMAT_JSONPATH)
+        {
+        }
+      parsed_fields = g_list_remove (parsed_fields, parsed_fields->data);
+    }
+
+  if (fields_splitted != NULL)
+    g_strfreev (fields_splitted);  
+
+  return filtered_node;
+}
+
 /* UTF-8 utility functions from http://midnight-commander.org/
    updated to include glib gint/gchar and dupin_util namespace */
 

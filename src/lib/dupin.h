@@ -105,6 +105,14 @@ typedef enum
   DP_FILTERBY_PRESENT
 } DupinFilterByType;
 
+/* FieldsFormat type: */ 
+typedef enum
+{
+  DP_FIELDS_FORMAT_NONE,
+  DP_FIELDS_FORMAT_DOTTED,
+  DP_FIELDS_FORMAT_JSONPATH
+} DupinFieldsFormatType;
+
 /* SQLite key collation */
 typedef enum
 {
@@ -217,12 +225,19 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 #define REQUEST_UUIDS           "_uuids"
 #define REQUEST_UUIDS_COUNT     "count"
 
-#define REQUEST_GET_ALL_ANY_FILTER_OP_EQUALS		"equals"
-#define REQUEST_GET_ALL_ANY_FILTER_OP_CONTAINS		"contains"
-#define REQUEST_GET_ALL_ANY_FILTER_OP_STARTS_WITH	"starts_with"
-#define REQUEST_GET_ALL_ANY_FILTER_OP_PRESENT		"present"
-#define REQUEST_GET_ALL_ANY_FILTER_CREATED_SINCE   	"created_since"
-#define REQUEST_GET_ALL_ANY_FILTER_CREATED_UNTIL   	"created_until"
+#define REQUEST_GET_ALL_ANY_FILTER_FIELDS			"fields"
+#define REQUEST_GET_ALL_ANY_FILTER_FIELDS_ALL			"@all"
+#define REQUEST_GET_ALL_ANY_FILTER_FIELDS_ALL_FIELDS		"@all_fields"
+#define REQUEST_GET_ALL_ANY_FILTER_FIELDS_ALL_RELATIONSHIPS	"@all_relationships"
+#define REQUEST_GET_ALL_ANY_FILTER_FIELDS_FORMAT		"fieldsFormat"
+#define REQUEST_GET_ALL_ANY_FILTER_FIELDS_FORMAT_DOTTED		"dotted"
+#define REQUEST_GET_ALL_ANY_FILTER_FIELDS_FORMAT_JSONPATH	"jsonpath"
+#define REQUEST_GET_ALL_ANY_FILTER_OP_EQUALS			"equals"
+#define REQUEST_GET_ALL_ANY_FILTER_OP_CONTAINS			"contains"
+#define REQUEST_GET_ALL_ANY_FILTER_OP_STARTS_WITH		"starts_with"
+#define REQUEST_GET_ALL_ANY_FILTER_OP_PRESENT			"present"
+#define REQUEST_GET_ALL_ANY_FILTER_CREATED_SINCE   		"created_since"
+#define REQUEST_GET_ALL_ANY_FILTER_CREATED_UNTIL   		"created_until"
 
 #define REQUEST_GET_ALL_DOCS_DESCENDING           "descending"
 #define REQUEST_GET_ALL_DOCS_COUNT                "count"

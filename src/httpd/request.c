@@ -6674,6 +6674,7 @@ request_record_revision_obj (DSHttpdClient * client,
 
   JsonNode *obj_node;
   JsonObject *obj;
+  GList * list = NULL;
 
   if (dupin_record_is_deleted (record, mvcc) == TRUE)
     {
@@ -6693,19 +6694,46 @@ request_record_revision_obj (DSHttpdClient * client,
       json_node_take_object (obj_node, obj);
 
       json_object_set_boolean_member (obj, RESPONSE_OBJ_DELETED, TRUE);
+
+      return obj_node;
     }
 
-  else
+  obj_node = dupin_record_get_revision_node (record, mvcc);
+
+  if (obj_node == NULL)
+    return NULL;
+
+  /* filter fields */
+  gchar * fields = NULL;
+  DupinFieldsFormatType fields_format = DP_FIELDS_FORMAT_NONE;
+  for (list = arguments; list; list = list->next)
     {
-      obj_node = dupin_record_get_revision_node (record, mvcc);
+      dupin_keyvalue_t *kv = list->data;
 
-      if (obj_node == NULL)
-        return NULL;
-
-      obj_node = json_node_copy (obj_node);
-
-      obj = json_node_get_object (obj_node);
+      if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_ANY_FILTER_FIELDS))
+        {
+	  fields = kv->value;
+	}
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_ANY_FILTER_FIELDS_FORMAT))
+        {
+          if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_FIELDS_FORMAT_DOTTED))
+	    fields_format = DP_FIELDS_FORMAT_DOTTED;
+          else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_FIELDS_FORMAT_JSONPATH))
+	    fields_format = DP_FIELDS_FORMAT_JSONPATH;
+	}
     }
+
+//g_message("request_record_revision_obj: fields=%s fields_format=%d", fields, fields_format);
+ 
+  if (fields != NULL)
+    obj_node = dupin_util_json_node_object_filter_fields (obj_node, fields_format, fields, NULL);
+  else
+    obj_node = json_node_copy (obj_node);
+
+  if (obj_node == NULL)
+    return NULL;
+
+  obj = json_node_get_object (obj_node);
 
   /* Setting _id and _rev: */
   json_object_set_string_member (obj, REQUEST_OBJ_ID, id);
@@ -6735,8 +6763,6 @@ request_record_revision_obj (DSHttpdClient * client,
 
       gsize include_links_created = 0;
       DupinCreatedType include_links_created_op = DP_CREATED_SINCE;
-
-      GList * list = NULL;
 
       for (list = arguments; list; list = list->next)
         {
@@ -7061,6 +7087,7 @@ request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
 {
   JsonNode *obj_node;
   JsonObject *obj;
+  GList * list = NULL;
 
   if (dupin_link_record_is_deleted (record, mvcc) == TRUE)
     {
@@ -7080,33 +7107,60 @@ request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
       json_node_take_object (obj_node, obj);
 
       json_object_set_boolean_member (obj, RESPONSE_OBJ_DELETED, TRUE);
+
+      return obj_node;
     }
 
-  else
+  obj_node = dupin_link_record_get_revision_node (record, mvcc);
+
+  if (obj_node == NULL)
+    return NULL;
+
+  /* filter fields */
+  gchar * fields = NULL;
+  DupinFieldsFormatType fields_format = DP_FIELDS_FORMAT_NONE;
+  for (list = arguments; list; list = list->next)
     {
-      obj_node = dupin_link_record_get_revision_node (record, mvcc);
+      dupin_keyvalue_t *kv = list->data;
 
-      if (obj_node == NULL)
-        return NULL;
-
-      obj_node = json_node_copy (obj_node);
-
-      obj = json_node_get_object (obj_node);
-
-      //json_object_set_string_member (obj, RESPONSE_LINK_OBJ_CONTEXT_ID, dupin_link_record_get_context_id (record));
-      json_object_set_string_member (obj, REQUEST_LINK_OBJ_LABEL, dupin_link_record_get_label (record));
-      json_object_set_string_member (obj, REQUEST_LINK_OBJ_HREF, dupin_link_record_get_href (record));
-
-      gchar * rel = (gchar *)dupin_link_record_get_rel (record);
-
-      if (rel != NULL)
-        json_object_set_string_member (obj, REQUEST_LINK_OBJ_REL, rel);
-
-      gchar * tag = (gchar *)dupin_link_record_get_tag (record);
-
-      if (tag != NULL)
-        json_object_set_string_member (obj, REQUEST_LINK_OBJ_TAG, tag);
+      if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_ANY_FILTER_FIELDS))
+        {
+          fields = kv->value;
+        }
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_ANY_FILTER_FIELDS_FORMAT))
+        {
+          if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_FIELDS_FORMAT_DOTTED))
+            fields_format = DP_FIELDS_FORMAT_DOTTED;
+          else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_FIELDS_FORMAT_JSONPATH))
+            fields_format = DP_FIELDS_FORMAT_JSONPATH;
+        }
     }
+
+//g_message("request_link_record_revision_obj: fields=%s fields_format=%d", fields, fields_format);
+
+  if (fields != NULL)
+    obj_node = dupin_util_json_node_object_filter_fields (obj_node, fields_format, fields, NULL);
+  else
+    obj_node = json_node_copy (obj_node);
+
+  if (obj_node == NULL)
+    return NULL;
+
+  obj = json_node_get_object (obj_node);
+
+  //json_object_set_string_member (obj, RESPONSE_LINK_OBJ_CONTEXT_ID, dupin_link_record_get_context_id (record));
+  json_object_set_string_member (obj, REQUEST_LINK_OBJ_LABEL, dupin_link_record_get_label (record));
+  json_object_set_string_member (obj, REQUEST_LINK_OBJ_HREF, dupin_link_record_get_href (record));
+
+  gchar * rel = (gchar *)dupin_link_record_get_rel (record);
+
+  if (rel != NULL)
+    json_object_set_string_member (obj, REQUEST_LINK_OBJ_REL, rel);
+
+  gchar * tag = (gchar *)dupin_link_record_get_tag (record);
+
+  if (tag != NULL)
+    json_object_set_string_member (obj, REQUEST_LINK_OBJ_TAG, tag);
 
   /* Setting _id and _rev: */
   json_object_set_string_member (obj, REQUEST_LINK_OBJ_ID, id);
@@ -7117,8 +7171,6 @@ request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
   if (visit_docs == TRUE
       && arguments != NULL)
     {
-      GList * list = NULL;
-
       DupinLinkbaseIncludeDocsType include_linked_docs = DP_LINKBASE_INCLUDE_DOC_TYPE_NONE;
 
       for (list = arguments; list; list = list->next)

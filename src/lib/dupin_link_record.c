@@ -122,7 +122,8 @@ DSWeblinkingRelationRegistry DSWeblinkingRelationRegistryList[] = {
   {WEBLINKING_RELNAME__END, NULL, NULL}
 };
 
-#define DUPIN_LINKB_DEFAULT_REL	DSWeblinkingRelationRegistryList[WEBLINKING_RELNAME_ALTERNATE].rel
+#define DUPIN_LINKB_DEFAULT_WEBLINK_REL		DSWeblinkingRelationRegistryList[WEBLINKING_RELNAME_ALTERNATE].rel
+#define DUPIN_LINKB_DEFAULT_RELATIONSHIP_REL	DSWeblinkingRelationRegistryList[WEBLINKING_RELNAME_RELATED].rel
 
 #define DUPIN_LINKB_DEFAULT_PATH	"[ ]"
 
@@ -289,7 +290,12 @@ dupin_link_record_create (DupinLinkB * linkb, JsonNode * obj_node,
   g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, NULL);
 
   if (rel == NULL)
-    rel = DUPIN_LINKB_DEFAULT_REL;
+    {
+      if (dupin_util_is_valid_absolute_uri (href) == TRUE)
+        rel = DUPIN_LINKB_DEFAULT_WEBLINK_REL;
+      else
+        rel = DUPIN_LINKB_DEFAULT_RELATIONSHIP_REL;
+    }
   else
     g_return_val_if_fail (dupin_link_record_util_is_valid_rel (rel) == TRUE, NULL);
 
@@ -334,7 +340,12 @@ dupin_link_record_create_with_id (DupinLinkB * linkb, JsonNode * obj_node,
   g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, NULL);
 
   if (rel == NULL)
-    rel = DUPIN_LINKB_DEFAULT_REL;
+    {
+      if (dupin_util_is_valid_absolute_uri (href) == TRUE)
+        rel = DUPIN_LINKB_DEFAULT_WEBLINK_REL;
+      else
+        rel = DUPIN_LINKB_DEFAULT_RELATIONSHIP_REL;
+    }
   else
     g_return_val_if_fail (dupin_link_record_util_is_valid_rel (rel) == TRUE, NULL);
 
@@ -1614,7 +1625,12 @@ dupin_link_record_update (DupinLinkRecord * record, JsonNode * obj_node,
     g_return_val_if_fail (dupin_link_record_util_is_valid_href (href) == TRUE, FALSE);
 
   if (rel == NULL)
-    rel = DUPIN_LINKB_DEFAULT_REL;
+    {
+      if (dupin_util_is_valid_absolute_uri (href) == TRUE)
+        rel = DUPIN_LINKB_DEFAULT_WEBLINK_REL;
+      else
+        rel = DUPIN_LINKB_DEFAULT_RELATIONSHIP_REL;
+    }
   else
     g_return_val_if_fail (dupin_link_record_util_is_valid_rel (rel) == TRUE, FALSE);
 

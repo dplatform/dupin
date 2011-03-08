@@ -6705,7 +6705,7 @@ request_record_revision_obj (DSHttpdClient * client,
 
   /* filter fields */
   gchar * fields = NULL;
-  DupinFieldsFormatType fields_format = DP_FIELDS_FORMAT_NONE;
+  DupinFieldsFormatType fields_format = DP_FIELDS_FORMAT_DOTTED;
   for (list = arguments; list; list = list->next)
     {
       dupin_keyvalue_t *kv = list->data;
@@ -7118,7 +7118,7 @@ request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
 
   /* filter fields */
   gchar * fields = NULL;
-  DupinFieldsFormatType fields_format = DP_FIELDS_FORMAT_NONE;
+  DupinFieldsFormatType fields_format = DP_FIELDS_FORMAT_DOTTED;
   for (list = arguments; list; list = list->next)
     {
       dupin_keyvalue_t *kv = list->data;

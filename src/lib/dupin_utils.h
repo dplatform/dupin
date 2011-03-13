@@ -38,7 +38,7 @@ JsonNode *	dupin_util_json_node_clone	(JsonNode * node,
 JsonNode * 	dupin_util_json_node_object_filter_fields
 						(JsonNode * node,
 						 DupinFieldsFormatType format,
-						 gchar *   fields,
+						 gchar **   fields,
 						 GError **  error);
 
 gboolean	dupin_util_is_valid_obj		(JsonObject *obj);

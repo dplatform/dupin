@@ -6705,6 +6705,7 @@ request_record_revision_obj (DSHttpdClient * client,
 
   /* filter fields */
   gchar * fields = NULL;
+  gchar ** fields_splitted = NULL;
   DupinFieldsFormatType fields_format = DP_FIELDS_FORMAT_DOTTED;
   for (list = arguments; list; list = list->next)
     {
@@ -6726,12 +6727,20 @@ request_record_revision_obj (DSHttpdClient * client,
 //g_message("request_record_revision_obj: fields=%s fields_format=%d", fields, fields_format);
  
   if (fields != NULL)
-    obj_node = dupin_util_json_node_object_filter_fields (obj_node, fields_format, fields, NULL);
+    {
+      fields_splitted = g_strsplit (fields, ",", -1);
+      obj_node = dupin_util_json_node_object_filter_fields (obj_node, fields_format, fields_splitted, NULL);
+    }
   else
     obj_node = json_node_copy (obj_node);
 
   if (obj_node == NULL)
-    return NULL;
+    {
+      if (fields_splitted != NULL)
+        g_strfreev (fields_splitted);
+
+      return NULL;
+    }
 
   obj = json_node_get_object (obj_node);
 
@@ -6905,6 +6914,9 @@ request_record_revision_obj (DSHttpdClient * client,
 
               request_set_error (client, "Cannot connect to linkbase");
 
+	      if (fields_splitted != NULL)
+	        g_strfreev (fields_splitted);
+
 	      /* TODO - pass the ret code here as well ? */
               return NULL;
             }
@@ -7076,6 +7088,9 @@ request_record_revision_obj (DSHttpdClient * client,
         g_strfreev (include_links_tags);
     }
 
+  if (fields_splitted != NULL)
+    g_strfreev (fields_splitted);
+
   return obj_node;
 }
 
@@ -7118,6 +7133,7 @@ request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
 
   /* filter fields */
   gchar * fields = NULL;
+  gchar ** fields_splitted = NULL;
   DupinFieldsFormatType fields_format = DP_FIELDS_FORMAT_DOTTED;
   for (list = arguments; list; list = list->next)
     {
@@ -7139,12 +7155,20 @@ request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
 //g_message("request_link_record_revision_obj: fields=%s fields_format=%d", fields, fields_format);
 
   if (fields != NULL)
-    obj_node = dupin_util_json_node_object_filter_fields (obj_node, fields_format, fields, NULL);
+    {
+      fields_splitted = g_strsplit (fields, ",", -1);
+      obj_node = dupin_util_json_node_object_filter_fields (obj_node, fields_format, fields_splitted, NULL);
+    }
   else
     obj_node = json_node_copy (obj_node);
 
   if (obj_node == NULL)
-    return NULL;
+    {
+      if (fields_splitted != NULL)
+        g_strfreev (fields_splitted);
+
+      return NULL;
+    }
 
   obj = json_node_get_object (obj_node);
 
@@ -7188,6 +7212,9 @@ request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
 
                   request_set_error (client, "Invalid " REQUEST_GET_ALL_LINKS_INCLUDE_LINKED_DOCS " parameter. Allowed values are: " REQUEST_GET_ALL_LINKS_INCLUDE_LINKED_DOCS_IN ", " REQUEST_GET_ALL_LINKS_INCLUDE_LINKED_DOCS_OUT " or " REQUEST_GET_ALL_LINKS_INCLUDE_LINKED_DOCS_ALL ".");
 
+      		  if (fields_splitted != NULL)
+        	    g_strfreev (fields_splitted);
+
                   /* TODO - pass the ret code here as well ? */
                   return NULL;
                 }
@@ -7225,6 +7252,9 @@ request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
 
 	        request_set_error (client, "Cannot connect to parent database");
 
+      		if (fields_splitted != NULL)
+        	  g_strfreev (fields_splitted);
+
 	        /* TODO - pass the ret code here as well ? */
 	        return NULL;
 	      }
@@ -7254,6 +7284,10 @@ request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
                             dupin_record_close (doc_id_record);
                             dupin_database_unref (parent_db);
                             request_set_error (client, "Cannot read ancestor record from parent database");
+
+      			    if (fields_splitted != NULL)
+        	  	      g_strfreev (fields_splitted);
+
 	                    /* TODO - pass the ret code here as well ? */
 	                    return NULL;
                           }
@@ -7293,6 +7327,10 @@ request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
                             dupin_record_close (doc_id_record);
                             dupin_database_unref (parent_db);
                             request_set_error (client, "Cannot read child record from parent database");
+
+      			    if (fields_splitted != NULL)
+        	  	      g_strfreev (fields_splitted);
+
 	                    /* TODO - pass the ret code here as well ? */
 	                    return NULL;
                           }
@@ -7314,6 +7352,9 @@ request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
 	          json_node_free (obj_node);
 
                 request_set_error (client, "Cannot connect to parent linkbase");
+
+      		if (fields_splitted != NULL)
+        	  g_strfreev (fields_splitted);
 
 	        /* TODO - pass the ret code here as well ? */
 	        return NULL;
@@ -7344,6 +7385,10 @@ request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
                             dupin_link_record_close (link_id_record);
                             dupin_linkbase_unref (parent_linkb);
                             request_set_error (client, "Cannot read record from parent linkbase");
+
+      			    if (fields_splitted != NULL)
+        	  	      g_strfreev (fields_splitted);
+
 	                    /* TODO - pass the ret code here as well ? */
 	                    return NULL;
                           }
@@ -7383,6 +7428,10 @@ request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
                             dupin_link_record_close (link_id_record);
                             dupin_linkbase_unref (parent_linkb);
                             request_set_error (client, "Cannot read record from parent linkbase");
+
+      			    if (fields_splitted != NULL)
+        	  	      g_strfreev (fields_splitted);
+
 	                    /* TODO - pass the ret code here as well ? */
 	                    return NULL;
                           }
@@ -7434,6 +7483,9 @@ request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
           json_object_set_member (obj, RESPONSE_LINK_OBJ_DOC_OUT, node_out);
       }
     }
+
+  if (fields_splitted != NULL)
+    g_strfreev (fields_splitted);
 
   return obj_node;
 }

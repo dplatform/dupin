@@ -489,7 +489,7 @@ dupin_util_json_node_object_filter_fields_real (JsonNode * node,
 JsonNode *
 dupin_util_json_node_object_filter_fields (JsonNode * node,
                                	    	   DupinFieldsFormatType format,
-                               	    	   gchar *   fields,
+                               	    	   gchar **   fields,
                                	    	   GError **  error)
 {
   g_return_val_if_fail (node != NULL, NULL);
@@ -498,7 +498,8 @@ dupin_util_json_node_object_filter_fields (JsonNode * node,
   JsonNode * filtered_node = NULL;
   JsonObject * filtered_node_obj = NULL;
 
-  if (format == DP_FIELDS_FORMAT_NONE)
+  if (format == DP_FIELDS_FORMAT_NONE
+      || !fields[0])
     {
       filtered_node = json_node_new (JSON_NODE_OBJECT);
       filtered_node_obj = json_object_new ();
@@ -514,12 +515,11 @@ dupin_util_json_node_object_filter_fields (JsonNode * node,
 	    URI-unescape already happened in httpd.c */
 
   gint i;
-  gchar ** fields_splitted = g_strsplit (fields, ",", -1);
   gboolean any = FALSE;
-  for (i = 0; fields_splitted[i]; i++)
+  for (i = 0; fields[i]; i++)
     {
-      if (!g_strcmp0 (fields_splitted[i], REQUEST_GET_ALL_ANY_FILTER_FIELDS_ALL)
-	  || !g_strcmp0 (fields_splitted[i], REQUEST_GET_ALL_ANY_FILTER_FIELDS_ALL_FIELDS))
+      if (!g_strcmp0 (fields[i], REQUEST_GET_ALL_ANY_FILTER_FIELDS_ALL)
+	  || !g_strcmp0 (fields[i], REQUEST_GET_ALL_ANY_FILTER_FIELDS_ALL_FIELDS))
         {
 	  any = TRUE;
 	  break;
@@ -527,7 +527,7 @@ dupin_util_json_node_object_filter_fields (JsonNode * node,
 
       if (format == DP_FIELDS_FORMAT_DOTTED)
         {
-	  gchar ** iesim_field_splitted = g_strsplit (fields_splitted[i], ".", -1);
+	  gchar ** iesim_field_splitted = g_strsplit (fields[i], ".", -1);
           parsed_fields = g_list_prepend (parsed_fields, iesim_field_splitted);
         }
       else if (format == DP_FIELDS_FORMAT_JSONPATH)
@@ -566,9 +566,6 @@ dupin_util_json_node_object_filter_fields (JsonNode * node,
         }
       parsed_fields = g_list_remove (parsed_fields, parsed_fields->data);
     }
-
-  if (fields_splitted != NULL)
-    g_strfreev (fields_splitted);  
 
   return filtered_node;
 }

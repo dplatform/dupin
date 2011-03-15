@@ -14,6 +14,7 @@
   "  id       CHAR(255) NOT NULL,\n" \
   "  rev      INTEGER NOT NULL DEFAULT 1,\n" \
   "  hash     CHAR(255) NOT NULL,\n" \
+  "  type     CHAR(255) DEFAULT NULL,\n" \
   "  obj      TEXT,\n" \
   "  deleted  BOOL DEFAULT FALSE,\n" \
   "  tm       INTEGER NOT NULL,\n" \
@@ -24,6 +25,7 @@
 #define DUPIN_DB_SQL_CREATE_INDEX \
   "CREATE INDEX IF NOT EXISTS DupinId ON Dupin (id);\n" \
   "CREATE INDEX IF NOT EXISTS DupinIdRev ON Dupin (id,rev);\n" \
+  "CREATE INDEX IF NOT EXISTS DupinType ON Dupin (type);\n" \
   "CREATE INDEX IF NOT EXISTS DupinIdRevHead ON Dupin (id,rev_head);"
 
 #define DUPIN_DB_SQL_DESC_CREATE \
@@ -532,6 +534,7 @@ dupin_database_get_changes_list_cb (void *data, int argc, char **argv, char **co
   gsize tm = 0;
   gchar *id = NULL;
   gchar *hash = NULL;
+  gchar *type = NULL;
   gchar *obj = NULL;
   gboolean delete = FALSE;
   gsize rowid=0;
@@ -545,6 +548,9 @@ dupin_database_get_changes_list_cb (void *data, int argc, char **argv, char **co
 
       else if (!g_strcmp0 (col[i], "tm"))
         tm = (gsize)atof(argv[i]);
+
+      else if (!g_strcmp0 (col[i], "type"))
+        type = argv[i];
 
       else if (!g_strcmp0 (col[i], "hash"))
         hash = argv[i];
@@ -574,10 +580,6 @@ dupin_database_get_changes_list_cb (void *data, int argc, char **argv, char **co
       if (delete == TRUE)
         json_object_set_boolean_member (change, "deleted", delete);
 
-      gchar * created = dupin_util_timestamp_to_iso8601 (tm);
-      json_object_set_string_member (change, RESPONSE_OBJ_CREATED, created);
-      g_free (created);
-
       JsonNode *change_details_node=json_node_new (JSON_NODE_ARRAY);
       JsonArray *change_details=json_array_new();
       json_node_take_array (change_details_node, change_details);
@@ -592,6 +594,11 @@ dupin_database_get_changes_list_cb (void *data, int argc, char **argv, char **co
       dupin_util_mvcc_new (rev, hash, mvcc);
 
       json_object_set_string_member (node_obj, "rev", mvcc);
+      gchar * created = dupin_util_timestamp_to_iso8601 (tm);
+      json_object_set_string_member (node_obj, RESPONSE_OBJ_CREATED, created);
+      g_free (created);
+      if (type != NULL)
+        json_object_set_string_member (node_obj,RESPONSE_OBJ_TYPE, type);
 
       if (s->style == DP_CHANGES_MAIN_ONLY)
         {
@@ -616,6 +623,8 @@ dupin_database_get_changes_list (DupinDB *              db,
 				 DupinCountType         count_type,
                                  DupinOrderByType       orderby_type,
                                  gboolean               descending,
+				 gchar **               types,
+                                 DupinFilterByType      types_op,
                                  GList **               list,
                                  GError **              error)
 {
@@ -629,24 +638,89 @@ dupin_database_get_changes_list (DupinDB *              db,
   g_return_val_if_fail (db != NULL, FALSE);
   g_return_val_if_fail (list != NULL, FALSE);
 
+  gint i;
+  if (types != NULL
+      && types_op == DP_FILTERBY_EQUALS )
+    {
+      for (i = 0; types[i]; i++)
+        {
+          g_return_val_if_fail (dupin_util_is_valid_record_type (types[i]) == TRUE, FALSE);
+        }
+    }
+
   memset (&s, 0, sizeof (s));
   s.style = changes_type;
 
-  str = g_string_new ("SELECT id, rev, hash, obj, deleted, tm, ROWID AS rowid FROM Dupin as d WHERE d.rev_head = 'TRUE' ");
+  str = g_string_new ("SELECT id, rev, hash, type, obj, deleted, tm, ROWID AS rowid FROM Dupin as d WHERE d.rev_head = 'TRUE' ");
 
   if (count_type == DP_COUNT_EXIST)
     check_deleted = " d.deleted = 'FALSE' ";
   else if (count_type == DP_COUNT_DELETE)
     check_deleted = " d.deleted = 'TRUE' ";
 
+  gchar * op = "AND";
+
   if (since > 0 && to > 0)
-    g_string_append_printf (str, " AND %s %s d.ROWID >= %d AND d.ROWID <= %d ", check_deleted, (g_strcmp0 (check_deleted, "")) ? "AND" : "", (gint)since, (gint)to);
+    {
+      g_string_append_printf (str, " %s d.ROWID >= %d AND d.ROWID <= %d ", op, (gint)since, (gint)to);
+    }
   else if (since > 0)
-    g_string_append_printf (str, " AND %s %s d.ROWID >= %d ", check_deleted, (g_strcmp0 (check_deleted, "")) ? "AND" : "", (gint)since);
+    {
+      g_string_append_printf (str, " %s d.ROWID >= %d ", op, (gint)since);
+    }
   else if (to > 0)
-    g_string_append_printf (str, " AND %s %s d.ROWID <= %d ", check_deleted, (g_strcmp0 (check_deleted, "")) ? "AND" : "", (gint)to);
-  else if (g_strcmp0 (check_deleted, ""))
-    g_string_append_printf (str, " AND %s ", check_deleted);
+    {
+      g_string_append_printf (str, " %s d.ROWID <= %d ", op, (gint)to);
+    }
+
+  if (g_strcmp0 (check_deleted, ""))
+    {
+      g_string_append_printf (str, " %s %s ", op, check_deleted);
+    }
+
+  if (types != NULL
+      && types_op != DP_FILTERBY_PRESENT)
+    {
+      if (types[0])
+        {
+          gchar * tmp2 = sqlite3_mprintf (" %s ( ", op);
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+        }
+
+      for (i = 0; types[i]; i++)
+        {
+          gchar * tmp2;
+
+          if (types_op == DP_FILTERBY_EQUALS)
+            tmp2 = sqlite3_mprintf (" d.type = '%q' ", types[i]);
+          else if (types_op == DP_FILTERBY_CONTAINS)
+            tmp2 = sqlite3_mprintf (" d.type LIKE '%%%q%%' ", types[i]);
+          else if (types_op == DP_FILTERBY_STARTS_WITH)
+            tmp2 = sqlite3_mprintf (" d.type LIKE '%q%%' ", types[i]);
+
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+          if (types[i+1])
+            str = g_string_append (str, " OR ");
+        }
+
+      if (types[0])
+        str = g_string_append (str, " ) ");
+
+      op = "AND";
+    }
+  else
+    {
+      if (types_op == DP_FILTERBY_PRESENT)
+        {
+          gchar * tmp2 = tmp2 = sqlite3_mprintf (" %s ( d.type IS NOT NULL OR d.type != '' ) ", op);
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+
+          op = "AND";
+        }
+    }
 
   //str = g_string_append (str, " GROUP BY d.id ");
 
@@ -713,8 +787,8 @@ dupin_database_get_total_changes_cb
 {
   gsize *numb = data;
 
-  if (argv[0])
-    *numb += 1;
+  if (argv[0] && *argv[0])
+    *numb=atoi(argv[0]);
 
   return 0;
 }
@@ -727,6 +801,8 @@ dupin_database_get_total_changes
                                  gsize                  to,
 			 	 DupinCountType         count_type,
                                  gboolean               inclusive_end,
+				 gchar **               types,
+                                 DupinFilterByType      types_op,
                                  GError **              error)
 {
   g_return_val_if_fail (db != NULL, FALSE);
@@ -734,6 +810,16 @@ dupin_database_get_total_changes
   gchar *errmsg;
   gchar *tmp;
   GString *str;
+
+  gint i;
+  if (types != NULL
+      && types_op == DP_FILTERBY_EQUALS )
+    {
+      for (i = 0; types[i]; i++)
+        {
+          g_return_val_if_fail (dupin_util_is_valid_record_type (types[i]) == TRUE, FALSE);
+        }
+    }
 
   *total = 0;
 
@@ -746,16 +832,71 @@ dupin_database_get_total_changes
   else if (count_type == DP_COUNT_DELETE)
     check_deleted = " d.deleted = 'TRUE' ";
 
-  if (since > 0 && to > 0)
-    g_string_append_printf (str, " AND %s %s d.ROWID >= %d AND d.ROWID <= %d ", check_deleted, (g_strcmp0 (check_deleted, "")) ? "AND" : "", (gint)since, (gint)to);
-  else if (since > 0)
-    g_string_append_printf (str, " AND %s %s d.ROWID >= %d ", check_deleted, (g_strcmp0 (check_deleted, "")) ? "AND" : "", (gint)since);
-  else if (to > 0)
-    g_string_append_printf (str, " AND %s %s d.ROWID <= %d ", check_deleted, (g_strcmp0 (check_deleted, "")) ? "AND" : "", (gint)to);
-  else if (g_strcmp0 (check_deleted, ""))
-    g_string_append_printf (str, " AND %s ", check_deleted);
+  gchar * op = "AND";
 
-  str = g_string_append (str, " GROUP BY d.id ");
+  if (since > 0 && to > 0)
+    {
+      g_string_append_printf (str, " %s d.ROWID >= %d AND d.ROWID <= %d ", op, (gint)since, (gint)to);
+    }
+  else if (since > 0)
+    {
+      g_string_append_printf (str, " %s d.ROWID >= %d ", op, (gint)since);
+    }
+  else if (to > 0)
+    {
+      g_string_append_printf (str, " %s d.ROWID <= %d ", op, (gint)to);
+    }
+
+  if (g_strcmp0 (check_deleted, ""))
+    {
+      g_string_append_printf (str, " %s %s ", op, check_deleted);
+    }
+
+  if (types != NULL
+      && types_op != DP_FILTERBY_PRESENT)
+    {
+      if (types[0])
+        {
+          gchar * tmp2 = sqlite3_mprintf (" %s ( ", op);
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+        }
+  
+      for (i = 0; types[i]; i++)
+        {
+          gchar * tmp2;
+
+          if (types_op == DP_FILTERBY_EQUALS)
+            tmp2 = sqlite3_mprintf (" d.type = '%q' ", types[i]);
+          else if (types_op == DP_FILTERBY_CONTAINS)
+            tmp2 = sqlite3_mprintf (" d.type LIKE '%%%q%%' ", types[i]);
+          else if (types_op == DP_FILTERBY_STARTS_WITH)
+            tmp2 = sqlite3_mprintf (" d.type LIKE '%q%%' ", types[i]);
+
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+          if (types[i+1])
+            str = g_string_append (str, " OR ");
+        }
+
+      if (types[0])
+        str = g_string_append (str, " ) ");
+
+      op = "AND";
+    }
+  else
+    {
+      if (types_op == DP_FILTERBY_PRESENT)
+        {
+          gchar * tmp2 = tmp2 = sqlite3_mprintf (" %s ( d.type IS NOT NULL OR d.type != '' ) ", op);
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+
+          op = "AND";
+        }
+    }
+
+  //str = g_string_append (str, " GROUP BY d.id ");
 
   tmp = g_string_free (str, FALSE);
 
@@ -828,7 +969,7 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
 
   gsize start_rowid = (compact_id != NULL) ? atoi(compact_id)+1 : 1;
 
-  if (dupin_record_get_list (db, count, 0, start_rowid, 0, NULL, NULL, TRUE, DP_COUNT_ALL, DP_ORDERBY_ROWID, FALSE, &results, NULL) ==
+  if (dupin_record_get_list (db, count, 0, start_rowid, 0, NULL, NULL, TRUE, DP_COUNT_ALL, DP_ORDERBY_ROWID, FALSE, NULL, DP_FILTERBY_EQUALS, &results, NULL) ==
       FALSE || !results)
     {
       if (compact_id != NULL)

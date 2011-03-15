@@ -67,6 +67,8 @@ gboolean        dupin_database_get_total_changes
                                          gsize                  to,
 					 DupinCountType         count_type,
                                          gboolean               inclusive_end,
+					 gchar **               types,
+					 DupinFilterByType      types_op,
                                          GError **              error);
 
 gboolean        dupin_database_get_changes_list
@@ -79,6 +81,8 @@ gboolean        dupin_database_get_changes_list
 					 DupinCountType         count_type,
                                          DupinOrderByType       orderby_type,
                                          gboolean               descending,
+					 gchar **               types,
+					 DupinFilterByType      types_op,
                                          GList **               list,
                                          GError **              error);
 

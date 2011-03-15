@@ -259,6 +259,8 @@ struct dupin_record_rev_t
 
   gsize		rowid;
 
+  gchar *	type;
+
   gchar *	obj_serialized;
   gsize		obj_serialized_len;
   JsonNode *    obj;

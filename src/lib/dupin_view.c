@@ -1053,7 +1053,7 @@ dupin_view_sync_thread_map_db (DupinView * view, gsize count)
 
   gsize start_rowid = (sync_map_id != NULL) ? atoi(sync_map_id)+1 : 1;
 
-  if (dupin_record_get_list (db, count, 0, start_rowid, 0, NULL, NULL, TRUE, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE, &results, NULL) ==
+  if (dupin_record_get_list (db, count, 0, start_rowid, 0, NULL, NULL, TRUE, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE, NULL, DP_FILTERBY_EQUALS, &results, NULL) ==
       FALSE || !results)
     {
       if (sync_map_id != NULL)
@@ -1088,6 +1088,10 @@ dupin_view_sync_thread_map_db (DupinView * view, gsize count)
           gchar * created = dupin_util_timestamp_to_iso8601 (dupin_record_get_created (list->data));
           json_object_set_string_member (obj, "_created", created);
           g_free (created);
+
+	  if (json_object_has_member (obj, "_type") == TRUE)
+            json_object_remove_member (obj, "_type"); // ignore any record one if set by user, ever
+          json_object_set_string_member (obj, "_type", (gchar *)dupin_record_get_type (list->data));
 
 	  /* NOTE - needed for m/r dupin.docpath() and dupin.links() methods - see dupin_js.c */
 

@@ -141,6 +141,7 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 
 #define REQUEST_OBJ_ID                  "_id"
 #define REQUEST_OBJ_REV                 "_rev"
+#define REQUEST_OBJ_TYPE                "_type"
 #define REQUEST_OBJ_ATTACHMENTS         "_attachments"
 #define REQUEST_OBJ_LINKS               "_links"
 #define REQUEST_OBJ_RELATIONSHIPS       "_relationships"
@@ -163,6 +164,7 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 #define RESPONSE_OBJ_ID                 "id"
 #define RESPONSE_OBJ_REV                "rev"
 #define RESPONSE_OBJ_CREATED            "created"
+#define RESPONSE_OBJ_TYPE		"type"
 #define RESPONSE_OBJ_ATTACHMENTS        REQUEST_OBJ_ATTACHMENTS
 #define RESPONSE_OBJ_LINKS              REQUEST_OBJ_LINKS
 #define RESPONSE_OBJ_RELATIONSHIPS      REQUEST_OBJ_RELATIONSHIPS
@@ -253,6 +255,9 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 #define REQUEST_GET_ALL_DOCS_INCLUSIVEEND_VALUE   "inclusive_end_value"
 #define REQUEST_GET_ALL_DOCS_INCLUDE_DOCS         "include_docs"
 
+#define REQUEST_GET_ALL_DOCS_TYPES                "types"
+#define REQUEST_GET_ALL_DOCS_TYPES_OP             "types_op"
+
 #define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TYPE                 "include_links"
 #define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TYPE_ALL_LINKS       REQUEST_GET_ALL_LINKS_LINK_TYPE_ALL_LINKS
 #define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TYPE_WEBLINKS        REQUEST_GET_ALL_LINKS_LINK_TYPE_WEBLINKS
@@ -306,6 +311,8 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 #define REQUEST_GET_ALL_CHANGES_STYLE         "style"
 #define REQUEST_GET_ALL_CHANGES_FEED          "feed"
 #define REQUEST_GET_ALL_CHANGES_INCLUDE_DOCS  REQUEST_GET_ALL_DOCS_INCLUDE_DOCS
+#define REQUEST_GET_ALL_CHANGES_TYPES         REQUEST_GET_ALL_DOCS_TYPES
+#define REQUEST_GET_ALL_CHANGES_TYPES_OP      REQUEST_GET_ALL_DOCS_TYPES_OP
 #define REQUEST_GET_ALL_CHANGES_HEARTBEAT     "heartbeat"
 #define REQUEST_GET_ALL_CHANGES_TIMEOUT       "timeout"
 #define REQUEST_GET_ALL_CHANGES_INCLUDE_LINKS "include_links"

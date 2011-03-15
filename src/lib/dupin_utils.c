@@ -89,6 +89,14 @@ dupin_util_is_valid_record_id (gchar * id)
 }
 
 gboolean
+dupin_util_is_valid_record_type (gchar * type)
+{
+  g_return_val_if_fail (type != NULL, FALSE);
+
+  return g_strcmp0 (type, "") ? TRUE : FALSE;
+}
+
+gboolean
 dupin_util_is_valid_absolute_uri (gchar * uri)
 {
   g_return_val_if_fail (uri != NULL, FALSE);

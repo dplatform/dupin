@@ -1836,6 +1836,9 @@ httpd_client_free (DSHttpdClient * client)
       if (client->output.changes_comet.param_tags != NULL)
         g_strfreev (client->output.changes_comet.param_tags);
 
+      if (client->output.changes_comet.param_types != NULL)
+        g_strfreev (client->output.changes_comet.param_types);
+
       if (client->output.changes_comet.change_string != NULL)
         g_free (client->output.changes_comet.change_string);
 

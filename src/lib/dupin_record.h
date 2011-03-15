@@ -27,19 +27,19 @@ int		dupin_record_select_total_cb
         "SELECT count(id) FROM Dupin WHERE id = '%q' "
 
 #define DUPIN_DB_SQL_INSERT \
-        "INSERT INTO Dupin (id, rev, hash, obj, tm) " \
-        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%" G_GSIZE_FORMAT "')"
+        "INSERT INTO Dupin (id, rev, hash, type, obj, tm) " \
+        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', %Q, '%q', '%" G_GSIZE_FORMAT "')"
 
 #define DUPIN_DB_SQL_UPDATE \
-        "INSERT OR REPLACE INTO Dupin (id, rev, hash, obj, tm) " \
-        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%" G_GSIZE_FORMAT "')"
+        "INSERT OR REPLACE INTO Dupin (id, rev, hash, type, obj, tm) " \
+        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', %Q, '%q', '%" G_GSIZE_FORMAT "')"
 
 #define DUPIN_DB_SQL_READ \
-        "SELECT rev, hash, obj, deleted, tm, ROWID AS rowid FROM Dupin WHERE id='%q'"
+        "SELECT rev, hash, type, obj, deleted, tm, ROWID AS rowid FROM Dupin WHERE id='%q'"
 
 #define DUPIN_DB_SQL_DELETE \
-        "INSERT OR REPLACE INTO Dupin (id, rev, deleted, hash, tm) " \
-        "VALUES('%q', '%" G_GSIZE_FORMAT "', 'TRUE', '%q', '%" G_GSIZE_FORMAT "')"
+        "INSERT OR REPLACE INTO Dupin (id, rev, deleted, hash, type, tm) " \
+        "VALUES('%q', '%" G_GSIZE_FORMAT "', 'TRUE', '%q', %Q, '%" G_GSIZE_FORMAT "')"
 
 #define DUPIN_DB_SQL_UPDATE_REV_HEAD \
         "UPDATE Dupin SET rev_head = 'FALSE' WHERE id = '%q' "
@@ -78,6 +78,8 @@ gsize           dupin_record_get_list_total
                                          gchar *                end_key,
                                          gboolean               inclusive_end,
                                          DupinCountType         count_type,
+					 gchar **      		types,
+					 DupinFilterByType	types_op,
                                          GError **              error);
 
 gboolean	dupin_record_get_list	(DupinDB *		db,
@@ -91,6 +93,8 @@ gboolean	dupin_record_get_list	(DupinDB *		db,
 					 DupinCountType		count_type,
 					 DupinOrderByType	orderby_type,
 					 gboolean		descending,
+					 gchar **      		types,
+					 DupinFilterByType	types_op,
 					 GList **		list,
 					 GError **		error);
 
@@ -111,6 +115,8 @@ gboolean	dupin_record_delete	(DupinRecord *		record,
 void		dupin_record_close	(DupinRecord *		record);
 
 const gchar *	dupin_record_get_id	(DupinRecord *		record);
+
+gchar *		dupin_record_get_type	(DupinRecord *		record);
 
 gsize 	        dupin_record_get_rowid	(DupinRecord *		record);
 

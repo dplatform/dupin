@@ -28,7 +28,7 @@ static void dupin_record_add_revision_obj (DupinRecord * record, guint rev,
 					   gboolean delete,
 					   gsize created);
 static void dupin_record_add_revision_str (DupinRecord * record, guint rev,
-					   gchar * hash, gssize hash_size,
+					   gchar * hash, gchar * type, gssize hash_size,
 					   gchar * obj, gssize size,
 					   gboolean delete, gsize created, gsize rowid);
 static gboolean
@@ -169,6 +169,7 @@ dupin_record_create_with_id_real (DupinDB * db, JsonNode * obj_node,
 
   tmp =
     sqlite3_mprintf (DUPIN_DB_SQL_INSERT, id, 1, md5,
+		     record->last->type,
 		     record->last->obj_serialized, created);
 
 //g_message("dupin_record_create_with_id_real: query=%s\n", tmp);
@@ -244,6 +245,7 @@ dupin_record_read_cb (void *data, int argc, char **argv, char **col)
   guint rev = 0;
   gsize tm = 0;
   gchar *hash = NULL;
+  gchar *type = NULL;
   gchar *obj = NULL;
   gboolean delete = FALSE;
   gsize rowid=0;
@@ -261,6 +263,9 @@ dupin_record_read_cb (void *data, int argc, char **argv, char **col)
       else if (!g_strcmp0 (col[i], "hash"))
 	hash = argv[i];
 
+      else if (!g_strcmp0 (col[i], "type"))
+	type = argv[i];
+
       else if (!g_strcmp0 (col[i], "obj"))
 	obj = argv[i];
 
@@ -272,7 +277,7 @@ dupin_record_read_cb (void *data, int argc, char **argv, char **col)
     }
 
   if (rev && hash !=NULL)
-    dupin_record_add_revision_str (data, rev, hash, -1, obj, -1, delete, tm, rowid);
+    dupin_record_add_revision_str (data, rev, hash, type, -1, obj, -1, delete, tm, rowid);
 
   return 0;
 }
@@ -347,14 +352,16 @@ dupin_record_get_list_total_cb (void *data, int argc, char **argv, char **col)
 }
 
 gsize
-dupin_record_get_list_total (DupinDB *      db,
-			     gsize          rowid_start,
-			     gsize          rowid_end,
-			     gchar *        start_key,
-			     gchar *        end_key,
-                             gboolean       inclusive_end,
-                             DupinCountType count_type,
-                             GError **      error)
+dupin_record_get_list_total (DupinDB *         db,
+			     gsize             rowid_start,
+			     gsize             rowid_end,
+			     gchar *           start_key,
+			     gchar *           end_key,
+                             gboolean          inclusive_end,
+                             DupinCountType    count_type,
+			     gchar **          types,
+			     DupinFilterByType types_op,
+                             GError **         error)
 {
   gsize count = 0;
   GString * str;
@@ -363,6 +370,16 @@ dupin_record_get_list_total (DupinDB *      db,
   gchar *check_deleted="";
 
   g_return_val_if_fail (db != NULL, 0);
+
+  gint i;
+  if (types != NULL
+      && types_op == DP_FILTERBY_EQUALS )
+    {
+      for (i = 0; types[i]; i++)
+        {
+          g_return_val_if_fail (dupin_util_is_valid_record_type (types[i]) == TRUE, FALSE);
+        }
+    }
 
   gchar * key_range=NULL;
 
@@ -422,6 +439,50 @@ dupin_record_get_list_total (DupinDB *      db,
       op = "AND";
     }
 
+  if (types != NULL
+      && types_op != DP_FILTERBY_PRESENT)
+    {
+      if (types[0])
+        {
+          gchar * tmp2 = sqlite3_mprintf (" %s ( ", op);
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+        }
+
+      for (i = 0; types[i]; i++)
+        {
+          gchar * tmp2;
+
+          if (types_op == DP_FILTERBY_EQUALS)
+            tmp2 = sqlite3_mprintf (" d.type = '%q' ", types[i]);
+          else if (types_op == DP_FILTERBY_CONTAINS)
+            tmp2 = sqlite3_mprintf (" d.type LIKE '%%%q%%' ", types[i]);
+          else if (types_op == DP_FILTERBY_STARTS_WITH)
+            tmp2 = sqlite3_mprintf (" d.type LIKE '%q%%' ", types[i]);
+
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+          if (types[i+1])
+            str = g_string_append (str, " OR ");
+        }
+
+      if (types[0])
+        str = g_string_append (str, " ) ");
+
+      op = "AND";
+    }
+  else
+    {
+      if (types_op == DP_FILTERBY_PRESENT)
+        {
+          gchar * tmp2 = tmp2 = sqlite3_mprintf (" %s ( d.type IS NOT NULL OR d.type != '' ) ", op);
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+
+          op = "AND";
+        }
+    } 
+
   //str = g_string_append (str, " GROUP BY id");
 
   query = g_string_free (str, FALSE);
@@ -470,6 +531,7 @@ dupin_record_get_list_cb (void *data, int argc, char **argv, char **col)
   guint rev = 0;
   gsize tm = 0;
   gchar *hash = NULL;
+  gchar *type = NULL;
   gchar *obj = NULL;
   gboolean delete = FALSE;
   gsize rowid=0;
@@ -486,6 +548,9 @@ dupin_record_get_list_cb (void *data, int argc, char **argv, char **col)
 
       else if (!g_strcmp0 (col[i], "hash"))
         hash = argv[i];
+
+      else if (!g_strcmp0 (col[i], "type"))
+        type = argv[i];
 
       else if (!g_strcmp0 (col[i], "obj"))
         obj = argv[i];
@@ -506,7 +571,7 @@ dupin_record_get_list_cb (void *data, int argc, char **argv, char **col)
 
       record = dupin_record_new (s->db, id);
 
-      dupin_record_add_revision_str (record, rev, hash, -1, obj, -1, delete, tm, rowid);
+      dupin_record_add_revision_str (record, rev, hash, type, -1, obj, -1, delete, tm, rowid);
 
       s->list = g_list_append (s->list, record);
     }
@@ -526,6 +591,8 @@ dupin_record_get_list (DupinDB * db,
 		       DupinCountType count_type,
 		       DupinOrderByType orderby_type,
 		       gboolean descending,
+		       gchar ** types,
+		       DupinFilterByType types_op,
 		       GList ** list,
 		       GError ** error)
 {
@@ -538,6 +605,16 @@ dupin_record_get_list (DupinDB * db,
 
   g_return_val_if_fail (db != NULL, FALSE);
   g_return_val_if_fail (list != NULL, FALSE);
+
+  gint i;
+  if (types != NULL
+      && types_op == DP_FILTERBY_EQUALS )
+    {
+      for (i = 0; types[i]; i++)
+        {
+          g_return_val_if_fail (dupin_util_is_valid_record_type (types[i]) == TRUE, FALSE);
+        }
+    }
 
   memset (&s, 0, sizeof (s));
   s.db = db;
@@ -598,6 +675,50 @@ dupin_record_get_list (DupinDB * db,
     {
       g_string_append_printf (str, " %s %s ", op, check_deleted);
       op = "AND";
+    }
+
+  if (types != NULL
+      && types_op != DP_FILTERBY_PRESENT)
+    {
+      if (types[0])
+        {
+          gchar * tmp2 = sqlite3_mprintf (" %s ( ", op);
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+        }
+
+      for (i = 0; types[i]; i++)
+        {
+          gchar * tmp2;
+
+          if (types_op == DP_FILTERBY_EQUALS)
+            tmp2 = sqlite3_mprintf (" d.type = '%q' ", types[i]);
+          else if (types_op == DP_FILTERBY_CONTAINS)
+            tmp2 = sqlite3_mprintf (" d.type LIKE '%%%q%%' ", types[i]);
+          else if (types_op == DP_FILTERBY_STARTS_WITH)
+            tmp2 = sqlite3_mprintf (" d.type LIKE '%q%%' ", types[i]);
+
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+          if (types[i+1])
+            str = g_string_append (str, " OR ");
+        }
+
+      if (types[0])
+        str = g_string_append (str, " ) ");
+
+      op = "AND";
+    }
+  else
+    {
+      if (types_op == DP_FILTERBY_PRESENT)
+        {
+          gchar * tmp2 = tmp2 = sqlite3_mprintf (" %s ( d.type IS NOT NULL OR d.type != '' ) ", op);
+          str = g_string_append (str, tmp2);
+          sqlite3_free (tmp2);
+
+          op = "AND";
+        }
     }
 
   if (orderby_type == DP_ORDERBY_ROWID)
@@ -899,6 +1020,7 @@ dupin_record_update (DupinRecord * record, JsonNode * obj_node,
 
   tmp =
     sqlite3_mprintf (DUPIN_DB_SQL_INSERT, record->id, rev, md5,
+		     record->last->type,
 		     record->last->obj_serialized, created);
 
 //g_message("dupin_record_update: record->last->revision = %d - new rev=%d - query=%s\n", (gint) record->last->revision, (gint) rev, tmp);
@@ -1070,7 +1192,7 @@ dupin_record_delete (DupinRecord * record, GError ** error)
 
   dupin_record_add_revision_obj (record, rev, &md5, NULL, TRUE, created);
 
-  tmp = sqlite3_mprintf (DUPIN_DB_SQL_DELETE, record->id, rev, md5, created);
+  tmp = sqlite3_mprintf (DUPIN_DB_SQL_DELETE, record->id, rev, md5, record->last->type, created);
 
   if (sqlite3_exec (record->db->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
     {
@@ -1148,6 +1270,14 @@ dupin_record_get_id (DupinRecord * record)
   g_return_val_if_fail (record != NULL, 0);
 
   return record->id;
+}
+
+gchar *
+dupin_record_get_type (DupinRecord * record)
+{
+  g_return_val_if_fail (record != NULL, 0);
+
+  return record->last->type;
 }
 
 gsize
@@ -1285,6 +1415,9 @@ dupin_record_rev_close (DupinRecordRev * rev)
   if (rev->hash)
     g_free (rev->hash);
 
+  if (rev->type)
+    g_free (rev->type);
+
   if (rev->mvcc)
     g_free (rev->mvcc);
 
@@ -1308,6 +1441,20 @@ dupin_record_add_revision_obj (DupinRecord * record, guint rev,
 
   if (obj_node)
     {
+      /* NOTE - check if JSON object has _type and store it separately */
+      JsonObject *obj = json_node_get_object (obj_node);
+
+      if (json_object_has_member (obj, REQUEST_OBJ_TYPE) == TRUE)
+        {
+          JsonNode * type = json_object_get_member (obj, REQUEST_OBJ_TYPE);
+	  if (json_node_get_node_type (type) == JSON_NODE_VALUE
+	      && json_node_get_value_type (type) == G_TYPE_STRING)
+            {
+	      r->type = g_strdup (json_node_get_string (type));
+	      json_object_remove_member (obj, REQUEST_OBJ_TYPE);
+            }
+	}
+
       JsonGenerator * gen = json_generator_new();
 
       r->obj = json_node_copy (obj_node);
@@ -1345,7 +1492,7 @@ dupin_record_add_revision_obj (DupinRecord * record, guint rev,
 }
 
 static void
-dupin_record_add_revision_str (DupinRecord * record, guint rev, gchar * hash, gssize hash_size,
+dupin_record_add_revision_str (DupinRecord * record, guint rev, gchar * hash, gchar * type, gssize hash_size,
  			       gchar * str, gssize size, gboolean delete, gsize created, gsize rowid)
 {
   DupinRecordRev *r;
@@ -1362,6 +1509,8 @@ dupin_record_add_revision_str (DupinRecord * record, guint rev, gchar * hash, gs
       r->hash = g_strndup (hash, hash_size);
       r->hash_len = hash_size;
     }
+
+  r->type = g_strdup (type);
 
   if (str && *str)
     {

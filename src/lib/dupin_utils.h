@@ -25,6 +25,8 @@ gint		dupin_util_dupin_mode_to_sqlite_mode
 
 gboolean	dupin_util_is_valid_record_id	(gchar *	id);
 
+gboolean	dupin_util_is_valid_record_type	(gchar *	type);
+
 gboolean	dupin_util_is_valid_absolute_uri
 						(gchar *	uri);
 

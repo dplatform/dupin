@@ -753,10 +753,6 @@ dupin_linkbase_get_changes_list_cb (void *data, int argc, char **argv, char **co
       if (delete == TRUE)
         json_object_set_boolean_member (change, "deleted", delete);
 
-      gchar * created = dupin_util_timestamp_to_iso8601 (tm);
-      json_object_set_string_member (change, RESPONSE_OBJ_CREATED, created);
-      g_free (created);
-
       JsonNode *change_details_node=json_node_new (JSON_NODE_ARRAY);
       JsonArray *change_details=json_array_new();
       json_node_take_array (change_details_node, change_details);
@@ -771,6 +767,9 @@ dupin_linkbase_get_changes_list_cb (void *data, int argc, char **argv, char **co
       dupin_util_mvcc_new (rev, hash, mvcc);
 
       json_object_set_string_member (node_obj, "rev", mvcc);
+      gchar * created = dupin_util_timestamp_to_iso8601 (tm);
+      json_object_set_string_member (node_obj, RESPONSE_OBJ_CREATED, created);
+      g_free (created);
 
       json_object_set_string_member (node_obj, "context_id", context_id);
       json_object_set_string_member (node_obj, "label", label);
@@ -911,12 +910,7 @@ dupin_linkbase_get_changes_list (DupinLinkB *              linkb,
           str = g_string_append (str, tmp2);
           sqlite3_free (tmp2);
         }
-      else
-        {
-          gchar * tmp2 = tmp2 = sqlite3_mprintf (" %s d.tag IS NULL ", op);
-          str = g_string_append (str, tmp2);
-          sqlite3_free (tmp2);
-       }
+      /* NOTE - when querying links though if the tag is not passed we do not show them because is a special field */
     }
 
   //str = g_string_append (str, " GROUP BY d.id "); 
@@ -1029,21 +1023,21 @@ dupin_linkbase_get_total_changes
   else if (changes_type == DP_CHANGES_RELATIONSHIPS)
     check_linktype = " d.is_weblink = 'FALSE' ";
 
-  gchar * op = "";
+  gchar * op = "AND";
 
   if (since > 0 && to > 0)
     {
-      g_string_append_printf (str, " WHERE d.ROWID >= %d AND d.ROWID <= %d ", (gint)since, (gint)to);
+      g_string_append_printf (str, " %s d.ROWID >= %d AND d.ROWID <= %d ", op, (gint)since, (gint)to);
       op = "AND";
     }
   else if (since > 0)
     {
-      g_string_append_printf (str, " WHERE d.ROWID >= %d ", (gint)since);
+      g_string_append_printf (str, " %s d.ROWID >= %d ", op, (gint)since);
       op = "AND";
     }
   else if (to > 0)
     {
-      g_string_append_printf (str, " WHERE d.ROWID <= %d ", (gint)to);
+      g_string_append_printf (str, " %s d.ROWID <= %d ", op, (gint)to);
       op = "AND";
     }
 
@@ -1121,16 +1115,11 @@ dupin_linkbase_get_total_changes
           str = g_string_append (str, tmp2);
           sqlite3_free (tmp2);
         }
-      else
-        {
-          gchar * tmp2 = tmp2 = sqlite3_mprintf (" %s d.tag IS NULL ", op);
-          str = g_string_append (str, tmp2);
-          sqlite3_free (tmp2);
-       }
+      /* NOTE - when querying links though if the tag is not passed we do not show them because is a special field */
     }
 
   // TODO - check if we need this group by - see above dupin_linkbase_get_changes_list()
-  str = g_string_append (str, " GROUP BY d.id "); 
+  //str = g_string_append (str, " GROUP BY d.id "); 
 
   tmp = g_string_free (str, FALSE);
 

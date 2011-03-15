@@ -926,6 +926,8 @@ request_global_get_changes_database (DSHttpdClient * client, GList * path,
   DupinChangesType style = DP_CHANGES_MAIN_ONLY;
   DupinChangesFeedType feed = DP_CHANGES_FEED_POLL;
   gboolean include_docs = FALSE;
+  gchar ** types = NULL;
+  DupinFilterByType types_op = DP_FILTERBY_EQUALS;
 
   JsonObject *obj;
   JsonNode *node=NULL;
@@ -973,6 +975,8 @@ request_global_get_changes_database (DSHttpdClient * client, GList * path,
             }
           else
             {
+	      if (types)
+                g_strfreev (types);
               request_set_error (client, "Invalid " REQUEST_GET_ALL_CHANGES_FEED " parameter. Allowed values are: " REQUEST_GET_ALL_CHANGES_FEED_LONGPOLL ", " REQUEST_GET_ALL_CHANGES_FEED_CONTINUOUS ", " REQUEST_GET_ALL_CHANGES_FEED_POLL);
               return HTTP_STATUS_400;
             }
@@ -982,12 +986,32 @@ request_global_get_changes_database (DSHttpdClient * client, GList * path,
           if (g_strcmp0 (kv->value,"false") && g_strcmp0 (kv->value,"FALSE") &&
               g_strcmp0 (kv->value,"true") && g_strcmp0 (kv->value,"TRUE"))
             {
+	      if (types)
+                g_strfreev (types);
               request_set_error (client, "Invalid " REQUEST_GET_ALL_CHANGES_INCLUDE_DOCS " parameter. Allowed values are: true, false");
               return HTTP_STATUS_400;
             }
 
           include_docs = (!g_strcmp0 (kv->value,"false") || !g_strcmp0 (kv->value,"FALSE")) ? FALSE : TRUE;
         }
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_TYPES))
+        {
+          types = g_strsplit (kv->value, ",", -1);
+        }
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_TYPES_OP))
+        {
+          if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_OP_EQUALS))
+            types_op = DP_FILTERBY_EQUALS;
+          else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_OP_CONTAINS))
+            types_op = DP_FILTERBY_CONTAINS;
+          else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_OP_STARTS_WITH))
+            types_op = DP_FILTERBY_STARTS_WITH;
+          else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_OP_PRESENT))
+            types_op = DP_FILTERBY_PRESENT;
+        }
+
     }
 
   if (feed == DP_CHANGES_FEED_LONGPOLL
@@ -996,6 +1020,8 @@ request_global_get_changes_database (DSHttpdClient * client, GList * path,
       if (!  (client->output.changes_comet.db =
 			dupin_database_open (client->thread->data->dupin, path->data, NULL)))
         {
+	  if (types)
+	    g_strfreev (types);
           request_set_error (client, "Cannot connect to changes database");
           return HTTP_STATUS_404;
         }
@@ -1003,6 +1029,8 @@ request_global_get_changes_database (DSHttpdClient * client, GList * path,
       if (dupin_database_get_max_rowid (client->output.changes_comet.db, &client->output.changes_comet.change_max_rowid) == FALSE)
         {
           dupin_database_unref (client->output.changes_comet.db);
+	  if (types)
+            g_strfreev (types);
           request_set_error (client, "Cannot get last seq number from changes database");
           return HTTP_STATUS_500;
         }
@@ -1018,6 +1046,8 @@ request_global_get_changes_database (DSHttpdClient * client, GList * path,
       client->output.changes_comet.param_since = since;
       client->output.changes_comet.param_feed = feed;
       client->output.changes_comet.param_include_docs = include_docs;
+      client->output.changes_comet.param_types = types;
+      client->output.changes_comet.param_types_op = types_op;
       client->output.changes_comet.change_generated = FALSE;
       client->output.changes_comet.change_last_seq = 0;
 
@@ -1039,21 +1069,27 @@ request_global_get_changes_database (DSHttpdClient * client, GList * path,
       (db =
        dupin_database_open (client->thread->data->dupin, path->data, NULL)))
     {
+      if (types)
+        g_strfreev (types);
       request_set_error (client, "Cannot connect to changes database");
       return HTTP_STATUS_404;
     }
 
-  if (dupin_database_get_total_changes (db, &total_rows, since+1, 0, DP_COUNT_CHANGES, TRUE, NULL) == FALSE)
+  if (dupin_database_get_total_changes (db, &total_rows, since+1, 0, DP_COUNT_CHANGES, TRUE, types, types_op, NULL) == FALSE)
     {
       dupin_database_unref (db);
+      if (types)
+        g_strfreev (types);
       request_set_error (client, "Cannot get last seq number from changes database");
       return HTTP_STATUS_500;
     }
 
-  if (dupin_database_get_changes_list (db, count, 0, since+1, 0, style, DP_COUNT_CHANGES, DP_ORDERBY_ROWID, descending, &results, NULL) ==
+  if (dupin_database_get_changes_list (db, count, 0, since+1, 0, style, DP_COUNT_CHANGES, DP_ORDERBY_ROWID, descending, types, types_op, &results, NULL) ==
       FALSE)
     {
       dupin_database_unref (db);
+      if (types)
+        g_strfreev (types);
       request_set_error (client, "Cannot list of changes from database");
       return HTTP_STATUS_500;
     }
@@ -1065,6 +1101,8 @@ request_global_get_changes_database (DSHttpdClient * client, GList * path,
       if( results )
         dupin_database_get_changes_list_close (results);
       dupin_database_unref (db);
+      if (types)
+        g_strfreev (types);
       request_set_error (client, "Cannot list of changes from database");
       return HTTP_STATUS_500;
     }
@@ -1118,12 +1156,14 @@ request_global_get_changes_database (DSHttpdClient * client, GList * path,
 
   json_object_set_array_member (obj, "results", array );
 
-  if (dupin_database_get_max_rowid (db, &last_seq) == FALSE)
+  if (total_rows > 0)
     {
-      goto request_global_get_changes_database_error;
+      if (dupin_database_get_max_rowid (db, &last_seq) == FALSE)
+        {
+          goto request_global_get_changes_database_error;
+        }
+      json_object_set_int_member (obj, "last_seq", last_seq);
     }
-
-  json_object_set_int_member (obj, "last_seq", last_seq);
 
   client->output_mime = g_strdup (HTTP_MIME_JSON);
   client->output_type = DS_HTTPD_OUTPUT_STRING;
@@ -1158,6 +1198,9 @@ request_global_get_changes_database (DSHttpdClient * client, GList * path,
 
   json_object_unref (obj);
 
+  if (types)
+    g_strfreev (types);
+
   return HTTP_STATUS_200;
 
 request_global_get_changes_database_error:
@@ -1172,6 +1215,9 @@ request_global_get_changes_database_error:
   if (node != NULL)
     json_node_free (node);
   json_object_unref (obj);
+
+  if (types)
+    g_strfreev (types);
 
   request_set_error (client, "Cannot list of changes from database");
 
@@ -1204,6 +1250,9 @@ request_global_get_all_docs (DSHttpdClient * client, GList * path,
 
   gsize created = 0;
   DupinCreatedType created_op = DP_CREATED_SINCE;
+
+  gchar ** types = NULL;
+  DupinFilterByType types_op = DP_FILTERBY_EQUALS;
 
   if (!
       (db =
@@ -1252,6 +1301,9 @@ request_global_get_all_docs (DSHttpdClient * client, GList * path,
 
               dupin_database_unref (db);
 	      
+	      if (types)
+                g_strfreev (types);
+
               request_set_error (client, "Invalid " REQUEST_GET_ALL_DOCS_INCLUDE_DOCS " parameter. Allowed values are: true, false");
 
               return HTTP_STATUS_400;
@@ -1272,6 +1324,9 @@ request_global_get_all_docs (DSHttpdClient * client, GList * path,
                 g_free (endkey);
 
               dupin_database_unref (db);
+
+	      if (types)
+                g_strfreev (types);
 
               request_set_error (client, "Invalid " REQUEST_GET_ALL_DOCS_INCLUSIVEEND " parameter. Allowed values are: true, false");
 
@@ -1294,6 +1349,9 @@ request_global_get_all_docs (DSHttpdClient * client, GList * path,
 
               dupin_database_unref (db);
 
+	      if (types)
+                g_strfreev (types);
+
               request_set_error (client, "Invalid " REQUEST_GET_ALL_DOCS_KEY " parameter. It must be a valid JSON string.");
 
               return HTTP_STATUS_400;
@@ -1315,6 +1373,9 @@ request_global_get_all_docs (DSHttpdClient * client, GList * path,
 
               dupin_database_unref (db);
 
+	      if (types)
+                g_strfreev (types);
+
               request_set_error (client, "Invalid " REQUEST_GET_ALL_DOCS_STARTKEY " parameter. It must be a valid JSON string.");
 
               return HTTP_STATUS_400;
@@ -1334,23 +1395,44 @@ request_global_get_all_docs (DSHttpdClient * client, GList * path,
 
               dupin_database_unref (db);
 
+	      if (types)
+                g_strfreev (types);
+
               request_set_error (client, "Invalid " REQUEST_GET_ALL_DOCS_ENDKEY " parameter. It must be a valid JSON string.");
 
               return HTTP_STATUS_400;
             }
         }
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_TYPES))
+        {
+          types = g_strsplit (kv->value, ",", -1);
+        }
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_TYPES_OP))
+        {
+          if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_OP_EQUALS))
+            types_op = DP_FILTERBY_EQUALS;
+          else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_OP_CONTAINS))
+            types_op = DP_FILTERBY_CONTAINS;
+          else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_OP_STARTS_WITH))
+            types_op = DP_FILTERBY_STARTS_WITH;
+          else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_OP_PRESENT))
+            types_op = DP_FILTERBY_PRESENT;
+        }
+
     }
 
   if (startkey != NULL
       || endkey != NULL)
-      total_rows = dupin_record_get_list_total (db, 0, 0, startkey, endkey, inclusive_end, DP_COUNT_EXIST, NULL);
+      total_rows = dupin_record_get_list_total (db, 0, 0, startkey, endkey, inclusive_end, DP_COUNT_EXIST, types, types_op, NULL);
   else
       total_rows = dupin_database_count (db, DP_COUNT_EXIST);
 
   /* NOTE - bear in mind we are cheating bad (on our side) and we do a full fetch from underlying DB, always even if include_docs=false */
 
   if (dupin_record_get_list (db, count, offset, 0, 0, startkey, endkey, inclusive_end, DP_COUNT_EXIST,
-				DP_ORDERBY_ID, descending, &results, NULL) == FALSE)
+				DP_ORDERBY_ID, descending, types, types_op, &results, NULL) == FALSE)
     {
       if (startkey != NULL)
         g_free (startkey);
@@ -1359,6 +1441,9 @@ request_global_get_all_docs (DSHttpdClient * client, GList * path,
         g_free (endkey);
 
       dupin_database_unref (db);
+      if (types)
+        g_strfreev (types);
+
       request_set_error (client, "Cannot list of documents from database");
       return HTTP_STATUS_500;
     }
@@ -1377,6 +1462,8 @@ request_global_get_all_docs (DSHttpdClient * client, GList * path,
         g_free (endkey);
 
       dupin_database_unref (db);
+      if (types)
+        g_strfreev (types);
       request_set_error (client, "Cannot list of documents from database");
       return HTTP_STATUS_500;
     }
@@ -1405,6 +1492,9 @@ request_global_get_all_docs (DSHttpdClient * client, GList * path,
       gchar * created = dupin_util_timestamp_to_iso8601 (dupin_record_get_created (record));
       json_object_set_string_member (value_obj, RESPONSE_OBJ_CREATED, created);
       g_free (created);
+      gchar * type = (gchar *)dupin_record_get_type (record);
+      if (type != NULL)
+        json_object_set_string_member (value_obj, RESPONSE_OBJ_TYPE, type);
 
       json_object_set_object_member (kvd_obj, RESPONSE_VIEW_OBJ_VALUE, value_obj);
 
@@ -1466,6 +1556,9 @@ request_global_get_all_docs (DSHttpdClient * client, GList * path,
     json_node_free (node);
   json_object_unref (obj);
 
+  if (types)
+    g_strfreev (types);
+
   return HTTP_STATUS_200;
 
 request_global_get_all_docs_error:
@@ -1486,6 +1579,9 @@ request_global_get_all_docs_error:
   if (node != NULL)
     json_node_free (node);
   json_object_unref (obj);
+
+  if (types)
+    g_strfreev (types);
 
   request_set_error (client, "Cannot list of documents from database");
 
@@ -3021,12 +3117,14 @@ request_global_get_changes_linkbase (DSHttpdClient * client, GList * path,
 
   json_object_set_array_member (obj, "results", array );
 
-  if (dupin_linkbase_get_max_rowid (linkb, &last_seq) == FALSE)
+  if (total_rows > 0)
     {
-      goto request_global_get_changes_linkbase_error;
+      if (dupin_linkbase_get_max_rowid (linkb, &last_seq) == FALSE)
+        {
+          goto request_global_get_changes_linkbase_error;
+        }
+      json_object_set_int_member (obj, "last_seq", last_seq);
     }
-
-  json_object_set_int_member (obj, "last_seq", last_seq);
 
   client->output_mime = g_strdup (HTTP_MIME_JSON);
   client->output_type = DS_HTTPD_OUTPUT_STRING;
@@ -4344,7 +4442,7 @@ request_global_get_database_query (DSHttpdClient * client, GList * path,
 
   array = json_array_new ();
 
-  while (dupin_record_get_list (db, QUERY_BLOCK, offset, 0, 0, NULL, NULL, TRUE, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE, &results, NULL) == TRUE && results)
+  while (dupin_record_get_list (db, QUERY_BLOCK, offset, 0, 0, NULL, NULL, TRUE, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE, NULL, DP_FILTERBY_EQUALS, &results, NULL) == TRUE && results)
     {
       GList *list;
 
@@ -6748,6 +6846,10 @@ request_record_revision_obj (DSHttpdClient * client,
   json_object_set_string_member (obj, REQUEST_OBJ_ID, id);
   json_object_set_string_member (obj, REQUEST_OBJ_REV, mvcc);
 
+  gchar * type = (gchar *)dupin_record_get_type (record);
+  if (type != NULL)
+    json_object_set_string_member (obj, REQUEST_OBJ_TYPE, type);
+
   /* Setting links and relationships if requested */
   if (visit_links == TRUE)
     {
@@ -7539,7 +7641,10 @@ request_get_changes_comet_database_next:
                                        0,
                                        client->output.changes_comet.param_style,
                                        DP_COUNT_CHANGES, DP_ORDERBY_ROWID,
-                                       client->output.changes_comet.param_descending, &results, NULL) == FALSE)
+                                       client->output.changes_comet.param_descending,
+				       client->output.changes_comet.param_types,
+                                       client->output.changes_comet.param_types_op,
+				       &results, NULL) == FALSE)
         {
           goto request_get_changes_comet_database_error;
         }

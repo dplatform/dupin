@@ -882,6 +882,9 @@ dupin_link_record_get_list_total (DupinLinkB * 		linkb,
         }
       else
         {
+	  /* NOTE - we treat a set tag differently from an empty tag I.e. if  no tag is explicetly passed we do
+		    not return links having a tag */
+
           gchar * tmp2 = tmp2 = sqlite3_mprintf (" %s d.tag IS NULL ", op);
           str = g_string_append (str, tmp2);
           sqlite3_free (tmp2);
@@ -1307,6 +1310,9 @@ dupin_link_record_get_list (DupinLinkB *       linkb,
         }
       else
         {
+          /* NOTE - we treat a set tag differently from an empty tag I.e. if  no tag is explicetly passed we do 
+                    not return links having a tag */
+
           gchar * tmp2 = tmp2 = sqlite3_mprintf (" %s d.tag IS NULL ", op);
           str = g_string_append (str, tmp2);
           sqlite3_free (tmp2);

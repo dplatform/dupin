@@ -15,7 +15,7 @@ DupinViewRecord *
 					 GError **		error);
 
 /* get total of records into view */
-gboolean        dupin_view_record_get_total_records
+gboolean        dupin_view_record_get_list_total
     					(DupinView * view,
 					 gsize * total,
 					 gsize  		rowid_start,
@@ -26,6 +26,10 @@ gboolean        dupin_view_record_get_total_records
 					 gchar *		start_value,
 					 gchar *		end_value,
 					 gboolean		inclusive_end_value,
+					 gchar *                filter_by,
+                                         DupinFieldsFormatType  filter_by_format,
+                                         DupinFilterByType      filter_op,
+                                         gchar *                filter_values,
 					 GError **		error);
 
 /* get max rowid for view DB */
@@ -47,6 +51,10 @@ gboolean	dupin_view_record_get_list
 					 gchar *		start_value,
 					 gchar *		end_value,
 					 gboolean		inclusive_end_value,
+					 gchar *                filter_by,
+                                         DupinFieldsFormatType  filter_by_format,
+                                         DupinFilterByType      filter_op,
+                                         gchar *                filter_values,
 					 GList **		list,
 					 GError **		error);
 

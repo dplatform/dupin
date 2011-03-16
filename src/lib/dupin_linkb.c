@@ -36,6 +36,7 @@
   "CREATE INDEX IF NOT EXISTS DupinIdRev ON Dupin (id,rev);\n" \
   "CREATE INDEX IF NOT EXISTS DupinIdRevHead ON Dupin (id,rev_head);\n" \
   "CREATE INDEX IF NOT EXISTS DupinContextId ON Dupin (context_id);\n" \
+  "CREATE INDEX IF NOT EXISTS DupinObj ON Dupin (obj);\n" \
   "CREATE INDEX IF NOT EXISTS DupinHrefDeletedTag ON Dupin (href,deleted,tag);"
 
 #define DUPIN_LINKB_SQL_DESC_CREATE \
@@ -575,6 +576,10 @@ dupin_linkb_connect (Dupin * d, gchar * name, gchar * path,
           return NULL;
         }
     }
+
+  /* NOTE - we know this is inefficient, but we need it till proper Elastic search or lucene used as frontend */
+
+  sqlite3_create_function(linkb->db, "filterBy", 5, SQLITE_ANY, d, dupin_sqlite_json_filterby, NULL, NULL);
 
   linkb->mutex = g_mutex_new ();
 
@@ -1196,7 +1201,7 @@ dupin_linkbase_thread_compact (DupinLinkB * linkb, gsize count)
 
   if (dupin_link_record_get_list (linkb, count, 0, start_rowid, 0, DP_LINK_TYPE_ANY, NULL, NULL, TRUE, DP_COUNT_ALL, DP_ORDERBY_ROWID, FALSE,
 				  NULL, NULL, DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS,
-                                  NULL, DP_FILTERBY_EQUALS, &results, NULL) ==
+                                  NULL, DP_FILTERBY_EQUALS, NULL, DP_FIELDS_FORMAT_DOTTED, DP_FILTERBY_EQUALS, NULL, &results, NULL) ==
       FALSE || !results)
     {
       if (compact_id != NULL)
@@ -1454,7 +1459,7 @@ dupin_linkbase_thread_check (DupinLinkB * linkb, gsize count)
 
   if (dupin_link_record_get_list (linkb, count, 0, start_rowid, 0, DP_LINK_TYPE_ANY, NULL, NULL, TRUE, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE,
 				  NULL, NULL, DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS,
-                                  NULL, DP_FILTERBY_EQUALS, &results, NULL) ==
+                                  NULL, DP_FILTERBY_EQUALS, NULL, DP_FIELDS_FORMAT_DOTTED, DP_FILTERBY_EQUALS, NULL, &results, NULL) ==
       FALSE || !results)
     {
       if (check_id != NULL)

@@ -2,6 +2,7 @@
 #define _DUPIN_UTILS_H_
 
 #include <dupin.h>
+#include <sqlite3.h>
 
 G_BEGIN_DECLS
 
@@ -34,6 +35,8 @@ gchar *		dupin_util_json_strescape	(const gchar *	string);
 
 gchar *		dupin_util_json_serialize	(JsonNode * node);
 
+gchar *		dupin_util_json_value_to_string (JsonNode * node);
+
 JsonNode *	dupin_util_json_node_clone	(JsonNode * node,
 						 GError **  error);
 
@@ -42,6 +45,33 @@ JsonNode * 	dupin_util_json_node_object_filter_fields
 						 DupinFieldsFormatType format,
 						 gchar **   fields,
 						 GError **  error);
+
+JsonNode * 	dupin_util_json_node_object_grep_nodes
+						(JsonNode * node,
+						 DupinFieldsFormatType format,
+						 gchar **   fields,
+						 DupinFieldsFormatType filter_op,
+						 gchar **   filter_values,
+						 GError **  error);
+
+gboolean	dupin_util_poli_is_primary_field
+						(gchar **   profiles,
+						 gchar *    type,
+						 gchar *    field_name,
+						 GError **  error);
+
+GList * 	dupin_util_poli_get_primary_fields
+						(gchar **   profiles,
+						 gchar *    type,
+						 JsonNode * obj_node,
+						 GError **  error);
+
+void		dupin_util_poli_get_primary_fields_list_close
+						(GList * primary_fields);
+
+void		dupin_sqlite_json_filterby	(sqlite3_context *ctx,
+						 int argc,
+						 sqlite3_value **argv);
 
 gboolean	dupin_util_is_valid_obj		(JsonObject *obj);
 

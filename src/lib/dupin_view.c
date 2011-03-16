@@ -875,6 +875,10 @@ dupin_view_connect (Dupin * d, gchar * name, gchar * path,
         }
     }
 
+  /* NOTE - we know this is inefficient, but we need it till proper Elastic search or lucene used as frontend */
+
+  sqlite3_create_function(view->db, "filterBy", 5, SQLITE_ANY, d, dupin_sqlite_json_filterby, NULL, NULL);
+
   query =
     "SELECT map, map_lang, reduce, reduce_lang, parent, isdb, islinkb FROM DupinView";
 
@@ -1053,8 +1057,8 @@ dupin_view_sync_thread_map_db (DupinView * view, gsize count)
 
   gsize start_rowid = (sync_map_id != NULL) ? atoi(sync_map_id)+1 : 1;
 
-  if (dupin_record_get_list (db, count, 0, start_rowid, 0, NULL, NULL, TRUE, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE, NULL, DP_FILTERBY_EQUALS, &results, NULL) ==
-      FALSE || !results)
+  if (dupin_record_get_list (db, count, 0, start_rowid, 0, NULL, NULL, TRUE, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE, NULL, DP_FILTERBY_EQUALS,
+				NULL, DP_FIELDS_FORMAT_DOTTED, DP_FILTERBY_EQUALS, NULL, &results, NULL) == FALSE || !results)
     {
       if (sync_map_id != NULL)
         g_free(sync_map_id);
@@ -1205,7 +1209,7 @@ dupin_view_sync_thread_map_linkb (DupinView * view, gsize count)
 
   if (dupin_link_record_get_list (linkb, count, 0, start_rowid, 0, DP_LINK_TYPE_ANY, NULL, NULL, TRUE, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE,
 				  NULL, NULL, DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS,
-				  NULL, DP_FILTERBY_EQUALS, &results, NULL) ==
+				  NULL, DP_FILTERBY_EQUALS, NULL, DP_FIELDS_FORMAT_DOTTED, DP_FILTERBY_EQUALS, NULL, &results, NULL) ==
       FALSE || !results)
     {
       if (sync_map_id != NULL)
@@ -1386,7 +1390,8 @@ dupin_view_sync_thread_map_view (DupinView * view, gsize count)
 
   gsize start_rowid = (sync_map_id != NULL) ? atoi(sync_map_id)+1 : 1;
 
-  if (dupin_view_record_get_list (v, count, 0, start_rowid, 0, DP_ORDERBY_ROWID, FALSE, NULL, NULL, TRUE, NULL, NULL, TRUE, &results, NULL) ==
+  if (dupin_view_record_get_list (v, count, 0, start_rowid, 0, DP_ORDERBY_ROWID, FALSE, NULL, NULL, TRUE, NULL, NULL, TRUE,
+					NULL, DP_FIELDS_FORMAT_DOTTED, DP_FILTERBY_EQUALS, NULL, &results, NULL) ==
       FALSE || !results)
     {
       if (sync_map_id != NULL)
@@ -1619,7 +1624,8 @@ dupin_view_sync_thread_reduce (DupinView * view, gsize count, gboolean rereduce,
   gsize start_rowid = (sync_reduce_id != NULL) ? atoi(sync_reduce_id)+1 : 1;
 
   if (dupin_view_record_get_list (view, count, 0, start_rowid, 0, (rereduce) ? DP_ORDERBY_KEY : DP_ORDERBY_ROWID, FALSE,
-					matching_key, matching_key, TRUE, NULL, NULL, TRUE, &results, NULL) ==
+					matching_key, matching_key, TRUE, NULL, NULL, TRUE,
+					NULL, DP_FIELDS_FORMAT_DOTTED, DP_FILTERBY_EQUALS, NULL, &results, NULL) ==
       FALSE || !results)
     {
       if (previous_sync_reduce_id != NULL)

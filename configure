@@ -16887,3 +16887,6 @@ if test "$no_create" != yes; then
 fi
 
 
+echo "
+	****WARNING**** : You must make sure that the version of SQLite used is compiled with FreeText (FTS) and ICU collation support/modules.
+"

@@ -790,6 +790,7 @@ dupin_js_dupin_class_view_lookup(JSContextRef ctx,
   if ((dupin_view_record_get_list (view, count, offset, 0, 0, DP_ORDERBY_KEY, descending,
                                   lookupkey, lookupkey, inclusive_end,
                                   NULL, NULL, TRUE,
+				  NULL, DP_FIELDS_FORMAT_DOTTED, DP_FILTERBY_EQUALS, NULL,
                                   &results, NULL) == FALSE)
        || (g_list_length (results) <= 0))
     {

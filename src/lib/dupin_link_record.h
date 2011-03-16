@@ -176,6 +176,10 @@ gboolean	dupin_link_record_get_list
 					 DupinFilterByType	hrefs_type,
 					 gchar **               tags,
 					 DupinFilterByType	tags_type,
+					 gchar *                filter_by,
+                                         DupinFieldsFormatType  filter_by_format,
+                                         DupinFilterByType      filter_op,
+                                         gchar *                filter_values,
 					 GList **		list,
 					 GError **		error);
 
@@ -199,7 +203,11 @@ gsize           dupin_link_record_get_list_total
                                          gchar **               hrefs,
                                          DupinFilterByType      hrefs_type,
                                          gchar **               tags,
-                                         DupinFilterByType      tags_type);
+                                         DupinFilterByType      tags_type,
+					 gchar *                filter_by,
+                                         DupinFieldsFormatType  filter_by_format,
+                                         DupinFilterByType      filter_op,
+                                         gchar *                filter_values);
 
 gboolean	dupin_link_record_update
 					(DupinLinkRecord *		record,

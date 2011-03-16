@@ -80,6 +80,10 @@ gsize           dupin_record_get_list_total
                                          DupinCountType         count_type,
 					 gchar **      		types,
 					 DupinFilterByType	types_op,
+					 gchar *           	filter_by,
+					 DupinFieldsFormatType  filter_by_format,
+                             		 DupinFilterByType	filter_op,
+                             		 gchar *           	filter_values,
                                          GError **              error);
 
 gboolean	dupin_record_get_list	(DupinDB *		db,
@@ -95,6 +99,10 @@ gboolean	dupin_record_get_list	(DupinDB *		db,
 					 gboolean		descending,
 					 gchar **      		types,
 					 DupinFilterByType	types_op,
+					 gchar *           	filter_by,
+					 DupinFieldsFormatType  filter_by_format,
+                                         DupinFilterByType      filter_op,
+                             		 gchar *           	filter_values,
 					 GList **		list,
 					 GError **		error);
 

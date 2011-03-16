@@ -181,3 +181,6 @@ src/tests/Makefile
 support/Makefile
 ])
 
+echo "
+	****WARNING**** : You must make sure that the version of SQLite used is compiled with FreeText (FTS) and ICU collation support/modules.
+"

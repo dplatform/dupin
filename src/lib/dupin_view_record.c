@@ -97,16 +97,20 @@ dupin_view_record_get_total_records_cb (void *data, int argc, char **argv,
           see also ROWID and http://www.sqlite.org/autoinc.html */
 
 gboolean
-dupin_view_record_get_total_records (DupinView * view,
-				    gsize * total,
-			            gsize rowid_start, gsize rowid_end,
-				    gchar * start_key,
-                                    gchar * end_key,
-			    	    gboolean inclusive_end,
-				    gchar * start_value,
-                                    gchar * end_value,
-			    	    gboolean inclusive_end_value,
-                                    GError ** error)
+dupin_view_record_get_list_total (DupinView * view,
+				  gsize * total,
+			          gsize rowid_start, gsize rowid_end,
+				  gchar * start_key,
+                                  gchar * end_key,
+			    	  gboolean inclusive_end,
+				  gchar * start_value,
+                                  gchar * end_value,
+			    	  gboolean inclusive_end_value,
+				  gchar * filter_by,
+				  DupinFieldsFormatType filter_by_format,
+                                  DupinFilterByType filter_op,
+                                  gchar * filter_values,
+                                  GError ** error)
 {
   g_return_val_if_fail (view != NULL, FALSE);
 
@@ -160,7 +164,7 @@ dupin_view_record_get_total_records (DupinView * view,
         value_range = sqlite3_mprintf (" d.obj < '%q' ", end_value);
     }
 
-  gchar * op = "";
+  gchar * op = "WHERE";
 
   if (rowid_start > 0 && rowid_end > 0)
     {
@@ -198,6 +202,40 @@ dupin_view_record_get_total_records (DupinView * view,
         op = "WHERE";
       g_string_append_printf (str, " %s %s ", op, value_range);
       op = "AND";
+    }
+
+  if (filter_by != NULL
+      && g_strcmp0 (filter_by, ""))
+    {
+      gchar * filter_op_string = REQUEST_GET_ALL_ANY_FILTER_OP_EQUALS;
+      if (filter_op == DP_FILTERBY_EQUALS)
+        filter_op_string = REQUEST_GET_ALL_ANY_FILTER_OP_EQUALS;
+      else if (filter_op == DP_FILTERBY_CONTAINS)
+        filter_op_string = REQUEST_GET_ALL_ANY_FILTER_OP_CONTAINS;
+      else if (filter_op == DP_FILTERBY_STARTS_WITH)
+        filter_op_string = REQUEST_GET_ALL_ANY_FILTER_OP_STARTS_WITH;
+      else if (filter_op == DP_FILTERBY_PRESENT)
+        filter_op_string = REQUEST_GET_ALL_ANY_FILTER_OP_PRESENT;
+      else if (filter_op == DP_FILTERBY_UNDEF)
+        {
+          if (filter_values == NULL
+              || !g_strcmp0 (filter_values, ""))
+            filter_op_string = REQUEST_GET_ALL_ANY_FILTER_OP_PRESENT;
+        }
+
+      gchar * filter_by_format_string = REQUEST_GET_ALL_ANY_FILTER_FIELDS_FORMAT_DOTTED;
+      if (filter_by_format == DP_FIELDS_FORMAT_DOTTED)
+        filter_by_format_string = REQUEST_GET_ALL_ANY_FILTER_FIELDS_FORMAT_DOTTED;
+      else if (filter_by_format == DP_FIELDS_FORMAT_JSONPATH)
+        filter_by_format_string = REQUEST_GET_ALL_ANY_FILTER_FIELDS_FORMAT_JSONPATH;
+
+      gchar * tmp2 = sqlite3_mprintf (" %s filterBy('%s','%s','%s',obj,'%s') ", op,
+                                                                filter_by,
+                                                                filter_by_format_string,
+                                                                filter_op_string,
+                                                                filter_values);
+      str = g_string_append (str, tmp2);
+      sqlite3_free (tmp2);
     }
 
   tmp = g_string_free (str, FALSE);
@@ -396,6 +434,10 @@ dupin_view_record_get_list (DupinView * view, guint count, guint offset,
 		            gchar * start_value,
                             gchar * end_value,
 			    gboolean inclusive_end_value,
+			    gchar * filter_by,
+                            DupinFieldsFormatType filter_by_format,
+                            DupinFilterByType filter_op,
+                            gchar * filter_values,
 			    GList ** list, GError ** error)
 {
   GString *str;
@@ -457,7 +499,7 @@ dupin_view_record_get_list (DupinView * view, guint count, guint offset,
         value_range = sqlite3_mprintf (" d.obj < '%q' ", end_value);
     }
 
-  gchar * op = "";
+  gchar * op = "WHERE";
 
   if (rowid_start > 0 && rowid_end > 0)
     {
@@ -495,6 +537,40 @@ dupin_view_record_get_list (DupinView * view, guint count, guint offset,
         op = "WHERE";
       g_string_append_printf (str, " %s %s ", op, value_range);
       op = "AND";
+    }
+
+  if (filter_by != NULL
+      && g_strcmp0 (filter_by, ""))
+    {
+      gchar * filter_op_string = REQUEST_GET_ALL_ANY_FILTER_OP_EQUALS;
+      if (filter_op == DP_FILTERBY_EQUALS)
+        filter_op_string = REQUEST_GET_ALL_ANY_FILTER_OP_EQUALS;
+      else if (filter_op == DP_FILTERBY_CONTAINS)
+        filter_op_string = REQUEST_GET_ALL_ANY_FILTER_OP_CONTAINS;
+      else if (filter_op == DP_FILTERBY_STARTS_WITH)
+        filter_op_string = REQUEST_GET_ALL_ANY_FILTER_OP_STARTS_WITH;
+      else if (filter_op == DP_FILTERBY_PRESENT)
+        filter_op_string = REQUEST_GET_ALL_ANY_FILTER_OP_PRESENT;
+      else if (filter_op == DP_FILTERBY_UNDEF)
+        {
+          if (filter_values == NULL
+              || !g_strcmp0 (filter_values, ""))
+            filter_op_string = REQUEST_GET_ALL_ANY_FILTER_OP_PRESENT;
+        }
+
+      gchar * filter_by_format_string = REQUEST_GET_ALL_ANY_FILTER_FIELDS_FORMAT_DOTTED;
+      if (filter_by_format == DP_FIELDS_FORMAT_DOTTED)
+        filter_by_format_string = REQUEST_GET_ALL_ANY_FILTER_FIELDS_FORMAT_DOTTED;
+      else if (filter_by_format == DP_FIELDS_FORMAT_JSONPATH)
+        filter_by_format_string = REQUEST_GET_ALL_ANY_FILTER_FIELDS_FORMAT_JSONPATH;
+
+      gchar * tmp2 = sqlite3_mprintf (" %s filterBy('%s','%s','%s',obj,'%s') ", op,
+                                                                filter_by,
+                                                                filter_by_format_string,
+                                                                filter_op_string,
+                                                                filter_values);
+      str = g_string_append (str, tmp2);
+      sqlite3_free (tmp2);
     }
 
   if (orderby_type == DP_ORDERBY_KEY)

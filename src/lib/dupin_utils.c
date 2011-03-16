@@ -300,6 +300,55 @@ dupin_util_json_serialize (JsonNode * node)
   return node_serialized;
 }
 
+gchar *
+dupin_util_json_value_to_string (JsonNode * node)
+{
+  g_return_val_if_fail (node != NULL, NULL);
+  g_return_val_if_fail (json_node_get_node_type (node) == JSON_NODE_VALUE
+			|| json_node_get_node_type (node) == JSON_NODE_NULL, NULL);
+
+  gchar * node_serialized = NULL;
+
+  if (json_node_get_node_type (node) == JSON_NODE_VALUE)
+    {
+      if (json_node_get_value_type (node) == G_TYPE_STRING)
+        {
+          gchar *tmp = dupin_util_json_strescape (json_node_get_string (node));
+
+	  /* NOTE - the only difference with dupin_util_json_serialize() above ! */
+          node_serialized = g_strdup_printf ("%s", tmp);
+
+          g_free (tmp);
+        }
+
+      if (json_node_get_value_type (node) == G_TYPE_DOUBLE
+          || json_node_get_value_type (node) == G_TYPE_FLOAT)
+        {
+          gdouble numb = json_node_get_double (node);
+          node_serialized = g_strdup_printf ("%f", numb);
+        }
+
+      if (json_node_get_value_type (node) == G_TYPE_INT
+          || json_node_get_value_type (node) == G_TYPE_INT64
+          || json_node_get_value_type (node) == G_TYPE_UINT)
+        {
+          gint numb = (gint) json_node_get_int (node);
+          node_serialized = g_strdup_printf ("%" G_GUINT64_FORMAT, (long unsigned int)numb);
+        }
+
+      if (json_node_get_value_type (node) == G_TYPE_BOOLEAN)
+        {
+          node_serialized = g_strdup_printf (json_node_get_boolean (node) == TRUE ? "true" : "false");
+        }
+    }
+  else if (json_node_get_node_type (node) == JSON_NODE_NULL)
+    {
+      node_serialized = g_strdup ("null");
+    }
+
+  return node_serialized;
+}
+
 /* NOTE - proper deep copy/clone of given JsonNode */
 
 JsonNode *
@@ -338,7 +387,11 @@ dupin_util_json_node_clone (JsonNode * node, GError **error)
 
   g_free (node_serialized);
 
-  return json_node_copy (json_parser_get_root (parser));
+  JsonNode * clone = json_node_copy (json_parser_get_root (parser));
+
+  g_object_unref (parser);
+
+  return clone;
 }
 
 
@@ -576,6 +629,597 @@ dupin_util_json_node_object_filter_fields (JsonNode * node,
     }
 
   return filtered_node;
+}
+
+gboolean
+dupin_util_json_node_object_grep_nodes_real (JsonNode * node,
+                                             DupinFieldsFormatType format,
+					     gchar ** iesim_field_splitted,
+				 	     gint level,
+					     JsonNode * result_node,
+                                 	     GError **  error)
+{
+//g_message("dupin_util_json_node_object_grep_nodes_real: level %d\n", level);
+//DUPIN_UTIL_DUMP_JSON ("result_node: ", result_node);
+
+  if (format == DP_FIELDS_FORMAT_DOTTED)
+    {
+//g_message("dupin_util_json_node_object_filter_fields_real: check member %s\n", iesim_field_splitted[level]);
+
+      if (json_object_has_member (json_node_get_object (node), iesim_field_splitted[level]) == TRUE)
+        {
+	  JsonNode * member = json_object_get_member (json_node_get_object (node), iesim_field_splitted[level]);
+
+//g_message("dupin_util_json_node_object_grep_nodes_real: has member %s\n", iesim_field_splitted[level]);
+//DUPIN_UTIL_DUMP_JSON ("member", member);
+
+	  /* NOTE - deep first visit the children */
+          if (json_node_get_node_type (member) == JSON_NODE_OBJECT)
+ 	    {
+//g_message("dupin_util_json_node_object_grep_nodes_real: member %s is object\n", iesim_field_splitted[level]);
+
+	      if (iesim_field_splitted[level+1])
+	        {
+                  if (dupin_util_json_node_object_grep_nodes_real (member, format, iesim_field_splitted, level+1, result_node, error) == FALSE)
+	            {
+		      return FALSE;
+ 		    }
+ 		}
+              else
+                {
+	          json_array_add_element (json_node_get_array (result_node), dupin_util_json_node_clone (member, error));
+		}
+
+	      return TRUE;
+            }
+
+          else
+            {
+	      /* NOTE - leaf node (json value, null or array) */
+
+//g_message("dupin_util_json_node_object_grep_nodes_real: add member %s to result\n", iesim_field_splitted[level]);
+
+	      json_array_add_element (json_node_get_array (result_node), dupin_util_json_node_clone (member, error));
+              return TRUE;
+            }
+        }
+      else
+        {
+          return FALSE;
+        }
+    }
+
+  return FALSE;
+}
+
+JsonNode *
+dupin_util_json_node_object_grep_nodes (JsonNode * node,
+                               	    	DupinFieldsFormatType format,
+                               	    	gchar **   fields,
+				  	DupinFieldsFormatType filter_op,
+                               	    	gchar **   filter_values,
+                               	    	GError **  error)
+{
+  g_return_val_if_fail (node != NULL, NULL);
+  g_return_val_if_fail (json_node_get_node_type (node) == JSON_NODE_OBJECT, NULL);
+
+  JsonNode * grep_nodes = json_node_new (JSON_NODE_ARRAY);
+  JsonArray * grep_nodes_array = json_array_new ();
+  json_node_take_array (grep_nodes, grep_nodes_array);
+
+  if (format == DP_FIELDS_FORMAT_NONE
+      || !fields[0]
+      || (filter_op != DP_FILTERBY_PRESENT && !filter_values[0]))
+    {
+      json_array_add_element (grep_nodes_array, dupin_util_json_node_clone (node, error));
+      return grep_nodes;
+    }
+
+  /* NOTE - parse the field names */
+
+  GList * parsed_fields = NULL;
+
+  /* TODO - with JSONPath we might have problems with commas, due
+	    URI-unescape already happened in httpd.c */
+
+  gint i;
+  for (i = 0; fields[i]; i++)
+    {
+      if (format == DP_FIELDS_FORMAT_DOTTED)
+        {
+	  gchar ** iesim_field_splitted = g_strsplit (fields[i], ".", -1);
+          parsed_fields = g_list_prepend (parsed_fields, iesim_field_splitted);
+        }
+      else if (format == DP_FIELDS_FORMAT_JSONPATH)
+        {
+        }
+    }
+
+  /* TODO - add JsonPath logic */
+
+  JsonNode * matched_nodes = json_node_new (JSON_NODE_ARRAY);
+  JsonArray * matched_nodes_array = json_array_new ();
+  json_node_take_array (matched_nodes, matched_nodes_array);
+
+  GList *f;
+  for (f = parsed_fields; f != NULL; f = f->next)
+    {
+      gchar ** iesim_field_splitted = f->data;
+
+      /* NOTE - dotted selector */
+      dupin_util_json_node_object_grep_nodes_real (node, format, iesim_field_splitted, 0, matched_nodes, error);
+    }
+
+  /* NOTE - does the Portable Listings filterBy logic here - see http://www.portablelistings.net/spec/portable-listings-spec.html#filtering */
+
+  /* NOTE - we consider the comma a light 'OR' operator, return on first match
+            I.e. for each selected node (matched) check the operator on each of the values */
+
+#if 0
+g_message("dupin_util_json_node_object_grep_nodes: done selectors \n");
+g_message("dupin_util_json_node_object_grep_nodes: fields:\n");
+for (i = 0; fields[i]; i++)
+  {
+g_message("\t\tfields[%d]=%s\n", i, fields[i]);
+  }
+g_message("dupin_util_json_node_object_grep_nodes: op:\n");
+if (filter_op == DP_FILTERBY_PRESENT)
+  g_message("\t\tpresent\n");
+else if (filter_op == DP_FILTERBY_STARTS_WITH)
+  g_message("\t\tstarts with\n");
+else if (filter_op == DP_FILTERBY_EQUALS)
+  g_message("\t\tequals\n");
+else if (filter_op == DP_FILTERBY_CONTAINS)
+  g_message("\t\tcontains\n");
+g_message("dupin_util_json_node_object_grep_nodes: filter_values:\n");
+if (filter_values != NULL
+    && filter_values[0])
+{
+for (i = 0; filter_values[i]; i++)
+  {
+g_message("\t\tfilter_values[%d]=%s\n", i, filter_values[i]);
+  }
+}
+else
+{
+g_message("\t\t(EMPTY)\n");
+}
+DUPIN_UTIL_DUMP_JSON ("dupin_util_json_node_object_grep_nodes: matched nodes:", matched_nodes);
+#endif
+
+  GList *n, *nodes;
+  JsonNode * field_value_to_match=NULL;
+  nodes = json_array_get_elements (matched_nodes_array);
+  for (n = nodes; n != NULL ; n = n->next)
+    {
+      JsonNode * n_node = (JsonNode *)n->data;
+
+      gboolean matched = FALSE;
+
+//DUPIN_UTIL_DUMP_JSON ("dupin_util_json_node_object_grep_nodes: comparing node value:", n_node);
+
+      /* plural field */
+      if (json_node_get_node_type (n_node) == JSON_NODE_ARRAY)
+        {
+//g_message("dupin_util_json_node_object_grep_nodes: plural field\n");
+
+	  /* plural fields, stop at first match */
+          if (filter_op == DP_FILTERBY_PRESENT
+	      && json_array_get_length (json_node_get_array (n_node)) > 0)
+            {
+              matched = TRUE;
+
+//g_message("dupin_util_json_node_object_grep_nodes: OK it is PRESENT\n");
+	    }
+	  else
+	    {
+//g_message("dupin_util_json_node_object_grep_nodes: checking array elements\n");
+
+              GList *p, *pnodes;
+              pnodes = json_array_get_elements (json_node_get_array (n_node));
+	      for (p = pnodes; p != NULL ; p = p->next)
+                {
+                  JsonNode * p_node = (JsonNode *)p->data;
+
+	          field_value_to_match=p_node;
+
+//DUPIN_UTIL_DUMP_JSON ("dupin_util_json_node_object_grep_nodes: checking sub-field value:", p_node);
+
+	          /* complex */
+                  if (json_node_get_node_type (p_node) == JSON_NODE_OBJECT)
+                    {
+//g_message("dupin_util_json_node_object_grep_nodes: complex field\n");
+
+		      /* get primary sub-field */
+		      GList * primary_fields = dupin_util_poli_get_primary_fields (NULL, NULL,
+									       p_node, error);
+		      gchar * main_primary_field_name = (gchar *) primary_fields->data;
+
+//g_message("dupin_util_json_node_object_grep_nodes: got main primary field name = '%s'\n", main_primary_field_name);
+
+		      field_value_to_match = json_object_get_member (json_node_get_object (p_node), main_primary_field_name);
+ 
+//DUPIN_UTIL_DUMP_JSON ("dupin_util_json_node_object_grep_nodes: got main primary field value:", field_value_to_match);
+
+		      dupin_util_poli_get_primary_fields_list_close (primary_fields);
+	            }
+                  else if (json_node_get_node_type (p_node) == JSON_NODE_ARRAY)
+		    {
+//g_message("dupin_util_json_node_object_grep_nodes: plural inside complex field, ingnored\n");
+
+		      continue;
+                    }
+
+	          gchar * field_value_to_match_string=dupin_util_json_value_to_string (field_value_to_match);
+
+//g_message("dupin_util_json_node_object_grep_nodes: value to check is %s\n", field_value_to_match_string);
+
+  	          /* NOTE - per PoLi spec passed values are "strings" */
+  	          for (i = 0; filter_values[i]; i++)
+                    {
+                      if (filter_op == DP_FILTERBY_EQUALS )
+		        {
+			  matched = (g_utf8_collate (field_value_to_match_string, filter_values[i])) ? TRUE : FALSE;
+
+//if (matched)
+//g_message("dupin_util_json_node_object_grep_nodes: OK it is EQUALS to %s\n", filter_values[i]);
+			}
+
+                      else if (filter_op == DP_FILTERBY_STARTS_WITH)
+                        {
+			  matched = g_str_has_prefix (field_value_to_match_string, filter_values[i]);
+
+//if (matched)
+//g_message("dupin_util_json_node_object_grep_nodes: OK it STARTS-WITH %s\n", filter_values[i]);
+                        }
+
+                      else if (filter_op == DP_FILTERBY_CONTAINS)
+                        {
+			  matched = g_strrstr (field_value_to_match_string, filter_values[i]) ? TRUE : FALSE;
+
+//if (matched)
+//g_message("dupin_util_json_node_object_grep_nodes: OK it CONTAINS %s\n", filter_values[i]);
+                        }
+
+	              if (matched == TRUE)
+	                break;
+                    }
+
+                 g_free (field_value_to_match_string);
+	       }
+             g_list_free (pnodes);
+           }
+        }
+      else if (filter_op == DP_FILTERBY_PRESENT)
+        {
+          matched = TRUE;
+
+//g_message("dupin_util_json_node_object_grep_nodes: OK it is PRESENT\n");
+        }
+      else
+        {
+//g_message("dupin_util_json_node_object_grep_nodes: singular field\n");
+
+	  field_value_to_match=n_node;
+
+	  /* complex */
+          if (json_node_get_node_type (n_node) == JSON_NODE_OBJECT)
+            {
+//g_message("dupin_util_json_node_object_grep_nodes: complex field\n");
+
+              /* get primary sub-field */
+              GList * primary_fields = dupin_util_poli_get_primary_fields (NULL, NULL,
+                                                                               n_node, error);
+              gchar * main_primary_field_name = (gchar *) primary_fields->data;
+
+//g_message("dupin_util_json_node_object_grep_nodes: got main primary field name = '%s'\n", main_primary_field_name);
+
+              field_value_to_match = json_object_get_member (json_node_get_object (n_node), main_primary_field_name);
+
+//DUPIN_UTIL_DUMP_JSON ("dupin_util_json_node_object_grep_nodes: got main primary field value:", field_value_to_match);
+
+              dupin_util_poli_get_primary_fields_list_close (primary_fields);
+            }
+          else
+            {
+//g_message("dupin_util_json_node_object_grep_nodes: simple field\n");
+
+              gchar * field_value_to_match_string=dupin_util_json_value_to_string (field_value_to_match);
+
+//g_message("dupin_util_json_node_object_grep_nodes: value to check is %s\n", field_value_to_match_string);
+
+              /* NOTE - per PoLi spec passed values are "strings" */
+              for (i = 0; filter_values[i]; i++)
+                {
+                  if (filter_op == DP_FILTERBY_EQUALS )
+                    {
+                      matched = (g_utf8_collate (field_value_to_match_string, filter_values[i])) ? TRUE : FALSE;
+
+//if (matched)
+//g_message("dupin_util_json_node_object_grep_nodes: OK it is EQUALS to %s\n", filter_values[i]);
+                    }
+
+                  else if (filter_op == DP_FILTERBY_STARTS_WITH)
+                    {
+                      matched = g_str_has_prefix (field_value_to_match_string, filter_values[i]);
+
+//if (matched)
+//g_message("dupin_util_json_node_object_grep_nodes: OK it STARTS-WITH %s\n", filter_values[i]);
+                    }
+
+                  else if (filter_op == DP_FILTERBY_CONTAINS)
+                    {
+                      matched = g_strrstr (field_value_to_match_string, filter_values[i]) ? TRUE : FALSE;
+
+//if (matched)
+//g_message("dupin_util_json_node_object_grep_nodes: OK it CONTAINS %s\n", filter_values[i]);
+                    }  
+
+	          if (matched == TRUE)
+	            break;
+	        }
+
+              g_free (field_value_to_match_string);
+            }
+        }
+
+      if (matched == TRUE)
+        json_array_add_element (grep_nodes_array, json_node_copy (n_node));
+    }
+  g_list_free (nodes);
+
+  json_node_free (matched_nodes);
+
+  while (parsed_fields)
+    {
+      if (format == DP_FIELDS_FORMAT_DOTTED)
+        {
+          if (parsed_fields->data != NULL)
+            g_strfreev (parsed_fields->data);  
+        }
+      else if (format == DP_FIELDS_FORMAT_JSONPATH)
+        {
+        }
+      parsed_fields = g_list_remove (parsed_fields, parsed_fields->data);
+    }
+
+//DUPIN_UTIL_DUMP_JSON ("dupin_util_json_node_object_grep_nodes: returned nodes:", grep_nodes);
+
+  return grep_nodes;
+}
+
+static void
+dupin_sqlite_json_filterby_json_node_free (void *p)
+{
+  JsonNode *node = (JsonNode *)p;
+  json_node_free (node);
+}
+
+static void
+dupin_sqlite_json_filterby_strfreev (void *p)
+{
+  gchar ** c= (gchar **)p;
+  g_strfreev (c);
+}
+
+/* filterBy (fields, fields_format, filter_op, obj, filter_values) */
+
+void
+dupin_sqlite_json_filterby (sqlite3_context *ctx, int argc, sqlite3_value **argv)
+{
+  //Dupin * d = (Dupin *)sqlite3_user_data (ctx);
+
+  gchar *fields = NULL;
+  gchar *op;
+  gchar *filter_values;
+  gchar *obj;
+  DupinFieldsFormatType fields_format = DP_FIELDS_FORMAT_DOTTED; 
+  DupinFilterByType filter_op = DP_FILTERBY_EQUALS;
+
+  gchar **fields_splitted=NULL;
+  gchar **fields_values_splitted=NULL;
+  JsonNode * obj_node=NULL;
+  int ret;
+
+  if (argc != 5
+      || (fields = (gchar *)sqlite3_value_text(argv[0])) == NULL
+      || (!g_strcmp0 (fields, ""))
+      || (op = (gchar *)sqlite3_value_text(argv[2])) == NULL
+      || (!g_strcmp0 (op, ""))
+      || (obj = (gchar *)sqlite3_value_text(argv[3])) == NULL
+      || (!g_strcmp0 (obj, "")))
+    {
+      sqlite3_result_error(ctx, "SQL function filterBy() called with invalid arguments.\n", -1);
+      return;
+    }
+
+  /* cache param 1 - fields */
+
+  fields_splitted = (gchar **)sqlite3_get_auxdata(ctx, 0);
+  if (fields_splitted == NULL)
+    {
+      fields_splitted = g_strsplit (fields, ",", -1);
+      sqlite3_set_auxdata(ctx, 0, fields_splitted, dupin_sqlite_json_filterby_strfreev);
+    }
+
+  /* param 2 - fields_format */
+
+  gchar * fields_format_label = (gchar *) sqlite3_value_text(argv[1]);
+  if (!g_strcmp0 (fields_format_label, REQUEST_GET_ALL_ANY_FILTER_FIELDS_FORMAT_DOTTED))
+    {
+      fields_format = DP_FIELDS_FORMAT_DOTTED; 
+    }
+  //else if (!g_strcmp0 (fields_format_label, REQUEST_GET_ALL_ANY_FILTER_FIELDS_FORMAT_JSONPATH))
+  else
+    {
+      //fields_format = DP_FIELDS_FORMAT_JSONPATH; 
+      sqlite3_result_error(ctx, "SQL function filterBy() fields format not supported.\n", -1);
+      return;
+    }
+
+  /* param 3 - filter_op */
+
+  if (!g_strcmp0 (op, REQUEST_GET_ALL_ANY_FILTER_OP_EQUALS))
+    filter_op = DP_FILTERBY_EQUALS;
+  else if (!g_strcmp0 (op, REQUEST_GET_ALL_ANY_FILTER_OP_CONTAINS))
+    filter_op = DP_FILTERBY_CONTAINS;
+  else if (!g_strcmp0 (op, REQUEST_GET_ALL_ANY_FILTER_OP_STARTS_WITH))
+    filter_op = DP_FILTERBY_STARTS_WITH;
+  else if (!g_strcmp0 (op, REQUEST_GET_ALL_ANY_FILTER_OP_PRESENT))
+    filter_op = DP_FILTERBY_PRESENT;
+
+  /* cache param 4 - obj */
+
+  /* NOTE - value might be null e.g. op is 'present' */
+  obj = (gchar *)sqlite3_value_text(argv[3]);
+
+  obj_node = (JsonNode *)sqlite3_get_auxdata(ctx, 3);
+  if (obj_node == NULL)
+    {
+      JsonParser *parser = json_parser_new ();
+
+      if (parser == NULL)
+        {
+          sqlite3_result_error(ctx, "Cannot create parser to parse obj body.\n", -1);
+          return;
+        }
+
+      if (!json_parser_load_from_data (parser, obj, strlen(obj), NULL))
+        {
+          sqlite3_result_error(ctx, "Cannot parse obj body.\n", -1);
+          return;
+        }
+
+      obj_node = json_parser_get_root (parser);
+
+      if (obj_node == NULL)
+        {
+          sqlite3_result_error(ctx, "Cannot parse obj body.\n", -1);
+          return;
+        }
+
+      obj_node = json_node_copy (obj_node);
+
+      g_object_unref (parser);
+
+      sqlite3_set_auxdata(ctx, 3, obj_node, dupin_sqlite_json_filterby_json_node_free);
+    }
+
+  /* cache param 5 - filter_values */
+
+  filter_values = (gchar *)sqlite3_value_text(argv[4]);
+
+  fields_values_splitted = (gchar **)sqlite3_get_auxdata(ctx, 4);
+  if (filter_values != NULL
+      && g_strcmp0 (filter_values, "")
+      && fields_values_splitted == NULL)
+    {
+      fields_values_splitted = g_strsplit (filter_values, ",", -1);
+      sqlite3_set_auxdata(ctx, 4, fields_values_splitted, dupin_sqlite_json_filterby_strfreev);
+    }
+
+  if (filter_op != DP_FILTERBY_PRESENT
+      && (fields_values_splitted == NULL || !fields_values_splitted[0]))
+    {
+      ret = 0;
+    }
+  else
+    {
+      /* NOTE - the problem is, we can not cache any of the following?! ;( */
+
+      JsonNode * matched_nodes = dupin_util_json_node_object_grep_nodes (obj_node,
+								         fields_format,
+								         fields_splitted,
+								         filter_op,
+								         fields_values_splitted, NULL);
+
+      ret = 1;
+      if (matched_nodes == NULL
+          || json_array_get_length (json_node_get_array (matched_nodes)) == 0)
+        ret = 0;
+
+      json_node_free (matched_nodes);
+    }
+
+//g_message ("dupin_sqlite_json_filterby: matched=%d\n", ret);
+  
+  sqlite3_result_int(ctx, ret);
+}
+
+/* NOTE - Portable Listings related utilities - some of the above too should
+          be included into separated library/file */
+
+gboolean
+dupin_util_poli_is_primary_field (gchar **   profiles,
+                                  gchar *    type,
+                                  gchar *    field_name,
+                                  GError **  error)
+{
+  /* TODO - field_name may by dotted or jsonpath selection on a complex field/sub-field
+	    which needs to be looked up into profiles DB / schema */
+
+  gint ret = 0;
+
+  /*
+  ret = g_utf8_collate (field_name, LOOKUPSOMETHING(profiles, type, field_name)....);
+  */
+
+  ret = g_utf8_collate (field_name, "value");
+
+  return (ret == 0) ? TRUE : FALSE;
+}
+
+/* NOTE - it may return list of matches in decreasing order of relevance - first is the main */
+
+GList *
+dupin_util_poli_get_primary_fields (gchar **   profiles,
+                                    gchar *    type,
+				    JsonNode * obj_node,
+                                    GError **  error)
+{
+  g_return_val_if_fail (obj_node != NULL, NULL);
+  g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, NULL);
+
+  /* NOTE - profiles NULL, it is core profile - type NULL it is an 'entry' */
+
+  GList * primary_fields = NULL;
+
+  /* TODO */
+
+  GList * nodes = json_object_get_members (json_node_get_object (obj_node));
+  GList * l=NULL;
+
+  for (l = nodes; l != NULL ; l = l->next)
+    {
+      gint ret=0;
+
+      gchar * member_name = (gchar *)l->data;
+
+      /*
+      ret = g_utf8_collate (member_name, LOOKUPSOMETHING(profiles, type, member_name)....);
+      */
+
+      ret = g_utf8_collate (member_name, "value");
+
+      if (ret == 0)
+        {
+          primary_fields = g_list_prepend (primary_fields, g_strdup (member_name));
+          break;
+        }
+    }
+  g_list_free (nodes);
+
+  return primary_fields;
+}
+
+void
+dupin_util_poli_get_primary_fields_list_close (GList * primary_fields)
+{
+  while (primary_fields)
+    {
+      g_free (primary_fields->data);  
+      primary_fields = g_list_remove (primary_fields, primary_fields->data);
+    }
 }
 
 /* UTF-8 utility functions from http://midnight-commander.org/

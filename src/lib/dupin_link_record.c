@@ -654,7 +654,11 @@ dupin_link_record_get_list_total (DupinLinkB * 		linkb,
                                   gchar **              hrefs,
                                   DupinFilterByType     hrefs_type,
                                   gchar **              tags,
-                                  DupinFilterByType     tags_type)
+                                  DupinFilterByType     tags_type,
+				  gchar *                filter_by,
+				  DupinFieldsFormatType  filter_by_format,
+                                  DupinFilterByType      filter_op,
+                                  gchar *                filter_values)
 {
   gsize count = 0;
   GString * str;
@@ -926,6 +930,40 @@ dupin_link_record_get_list_total (DupinLinkB * 		linkb,
       op = "AND";
     }
 
+  if (filter_by != NULL
+      && g_strcmp0 (filter_by, ""))
+    {
+      gchar * filter_op_string = REQUEST_GET_ALL_ANY_FILTER_OP_EQUALS;
+      if (filter_op == DP_FILTERBY_EQUALS)
+        filter_op_string = REQUEST_GET_ALL_ANY_FILTER_OP_EQUALS;
+      else if (filter_op == DP_FILTERBY_CONTAINS)
+        filter_op_string = REQUEST_GET_ALL_ANY_FILTER_OP_CONTAINS;
+      else if (filter_op == DP_FILTERBY_STARTS_WITH)
+        filter_op_string = REQUEST_GET_ALL_ANY_FILTER_OP_STARTS_WITH;
+      else if (filter_op == DP_FILTERBY_PRESENT)
+        filter_op_string = REQUEST_GET_ALL_ANY_FILTER_OP_PRESENT;
+      else if (filter_op == DP_FILTERBY_UNDEF)
+        {
+          if (filter_values == NULL
+              || !g_strcmp0 (filter_values, ""))
+            filter_op_string = REQUEST_GET_ALL_ANY_FILTER_OP_PRESENT;
+        }
+
+      gchar * filter_by_format_string = REQUEST_GET_ALL_ANY_FILTER_FIELDS_FORMAT_DOTTED;
+      if (filter_by_format == DP_FIELDS_FORMAT_DOTTED)
+        filter_by_format_string = REQUEST_GET_ALL_ANY_FILTER_FIELDS_FORMAT_DOTTED;
+      else if (filter_by_format == DP_FIELDS_FORMAT_JSONPATH)
+        filter_by_format_string = REQUEST_GET_ALL_ANY_FILTER_FIELDS_FORMAT_JSONPATH;
+
+      gchar * tmp2 = sqlite3_mprintf (" %s filterBy('%s','%s','%s',obj,'%s') ", op,
+                                                                filter_by,
+                                                                filter_by_format_string,
+                                                                filter_op_string,
+                                                                filter_values);
+      str = g_string_append (str, tmp2);
+      sqlite3_free (tmp2);
+    }
+
   //str = g_string_append (str, " GROUP BY id");
 
   query = g_string_free (str, FALSE);
@@ -1072,6 +1110,10 @@ dupin_link_record_get_list (DupinLinkB *       linkb,
                             DupinFilterByType  hrefs_type,
                             gchar **           tags,
                             DupinFilterByType  tags_type,
+			    gchar *            filter_by,
+                            DupinFieldsFormatType  filter_by_format,
+                            DupinFilterByType  filter_op,
+                            gchar *            filter_values,
 		            GList ** 	       list,
 			    GError ** 	       error)
 {
@@ -1352,6 +1394,40 @@ dupin_link_record_get_list (DupinLinkB *       linkb,
         str = g_string_append (str, " ) ");
 
       op = "AND";
+    }
+
+  if (filter_by != NULL
+      && g_strcmp0 (filter_by, ""))
+    {
+      gchar * filter_op_string = REQUEST_GET_ALL_ANY_FILTER_OP_EQUALS;
+      if (filter_op == DP_FILTERBY_EQUALS)
+        filter_op_string = REQUEST_GET_ALL_ANY_FILTER_OP_EQUALS;
+      else if (filter_op == DP_FILTERBY_CONTAINS)
+        filter_op_string = REQUEST_GET_ALL_ANY_FILTER_OP_CONTAINS;
+      else if (filter_op == DP_FILTERBY_STARTS_WITH)
+        filter_op_string = REQUEST_GET_ALL_ANY_FILTER_OP_STARTS_WITH;
+      else if (filter_op == DP_FILTERBY_PRESENT)
+        filter_op_string = REQUEST_GET_ALL_ANY_FILTER_OP_PRESENT;
+      else if (filter_op == DP_FILTERBY_UNDEF)
+        {
+          if (filter_values == NULL
+              || !g_strcmp0 (filter_values, ""))
+            filter_op_string = REQUEST_GET_ALL_ANY_FILTER_OP_PRESENT;
+        }
+
+      gchar * filter_by_format_string = REQUEST_GET_ALL_ANY_FILTER_FIELDS_FORMAT_DOTTED;
+      if (filter_by_format == DP_FIELDS_FORMAT_DOTTED)
+        filter_by_format_string = REQUEST_GET_ALL_ANY_FILTER_FIELDS_FORMAT_DOTTED;
+      else if (filter_by_format == DP_FIELDS_FORMAT_JSONPATH)
+        filter_by_format_string = REQUEST_GET_ALL_ANY_FILTER_FIELDS_FORMAT_JSONPATH;
+
+      gchar * tmp2 = sqlite3_mprintf (" %s filterBy('%s','%s','%s',obj,'%s') ", op,
+                                                                filter_by,
+                                                                filter_by_format_string,
+                                                                filter_op_string,
+                                                                filter_values);
+      str = g_string_append (str, tmp2);
+      sqlite3_free (tmp2);
     }
 
   if (orderby_type == DP_ORDERBY_ROWID)

@@ -1254,6 +1254,11 @@ request_global_get_all_docs (DSHttpdClient * client, GList * path,
   gchar ** types = NULL;
   DupinFilterByType types_op = DP_FILTERBY_EQUALS;
 
+  gchar * filter_by = NULL;
+  DupinFieldsFormatType filter_by_format = DP_FIELDS_FORMAT_DOTTED;
+  DupinFilterByType filter_op = DP_FILTERBY_UNDEF;
+  gchar * filter_values = NULL;
+
   if (!
       (db =
        dupin_database_open (client->thread->data->dupin, path->data, NULL)))
@@ -1421,18 +1426,50 @@ request_global_get_all_docs (DSHttpdClient * client, GList * path,
             types_op = DP_FILTERBY_PRESENT;
         }
 
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_ANY_FILTER_BY))
+        {
+          filter_by = kv->value;
+        }
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_ANY_FILTER_BY_FORMAT))
+        {
+          if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_BY_FORMAT_DOTTED))
+            filter_by_format = DP_FIELDS_FORMAT_DOTTED;
+          else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_BY_FORMAT_JSONPATH))
+            filter_by_format = DP_FIELDS_FORMAT_JSONPATH;
+        }
+ 
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_ANY_FILTER_OP))
+        {
+          if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_OP_EQUALS))
+            filter_op = DP_FILTERBY_EQUALS;
+          else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_OP_CONTAINS))
+            filter_op = DP_FILTERBY_CONTAINS;
+          else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_OP_STARTS_WITH))
+            filter_op = DP_FILTERBY_STARTS_WITH;
+          else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_OP_PRESENT))
+            filter_op = DP_FILTERBY_PRESENT;
+        }
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_ANY_FILTER_VALUES))
+        {
+          filter_values = kv->value;
+        }
     }
 
   if (startkey != NULL
-      || endkey != NULL)
-      total_rows = dupin_record_get_list_total (db, 0, 0, startkey, endkey, inclusive_end, DP_COUNT_EXIST, types, types_op, NULL);
+      || endkey != NULL
+      || types != NULL
+      || filter_by != NULL)
+      total_rows = dupin_record_get_list_total (db, 0, 0, startkey, endkey, inclusive_end, DP_COUNT_EXIST, types, types_op, 
+						filter_by, filter_by_format, filter_op, filter_values, NULL);
   else
       total_rows = dupin_database_count (db, DP_COUNT_EXIST);
 
   /* NOTE - bear in mind we are cheating bad (on our side) and we do a full fetch from underlying DB, always even if include_docs=false */
 
   if (dupin_record_get_list (db, count, offset, 0, 0, startkey, endkey, inclusive_end, DP_COUNT_EXIST,
-				DP_ORDERBY_ID, descending, types, types_op, &results, NULL) == FALSE)
+				DP_ORDERBY_ID, descending, types, types_op,
+				filter_by, filter_by_format, filter_op, filter_values, &results, NULL) == FALSE)
     {
       if (startkey != NULL)
         g_free (startkey);
@@ -2388,6 +2425,11 @@ request_global_get_all_links_linkbase (DSHttpdClient * client, GList * path,
   DupinFilterByType link_tags_op = DP_FILTERBY_EQUALS;
   DupinLinksType link_type = DP_LINK_TYPE_ANY;
 
+  gchar * filter_by = NULL;
+  DupinFieldsFormatType filter_by_format = DP_FIELDS_FORMAT_DOTTED;
+  DupinFilterByType filter_op = DP_FILTERBY_UNDEF;
+  gchar * filter_values = NULL;
+
   gsize created = 0;
   DupinCreatedType created_op = DP_CREATED_SINCE;
 
@@ -2616,6 +2658,35 @@ request_global_get_all_links_linkbase (DSHttpdClient * client, GList * path,
               return HTTP_STATUS_400;
             }
         }
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_ANY_FILTER_BY))
+        {
+          filter_by = kv->value;
+        }
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_ANY_FILTER_BY_FORMAT))
+        {
+          if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_BY_FORMAT_DOTTED))
+            filter_by_format = DP_FIELDS_FORMAT_DOTTED;
+          else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_BY_FORMAT_JSONPATH))
+            filter_by_format = DP_FIELDS_FORMAT_JSONPATH;
+        }
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_ANY_FILTER_OP))
+        {
+          if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_OP_EQUALS))
+            filter_op = DP_FILTERBY_EQUALS;
+          else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_OP_CONTAINS))
+            filter_op = DP_FILTERBY_CONTAINS;
+          else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_OP_STARTS_WITH))
+            filter_op = DP_FILTERBY_STARTS_WITH;
+          else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_OP_PRESENT))
+            filter_op = DP_FILTERBY_PRESENT;
+        }
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_ANY_FILTER_VALUES))
+        {
+          filter_values = kv->value;
+        }
     }
 
   /* NOTE - try to optimize here */
@@ -2625,17 +2696,20 @@ request_global_get_all_links_linkbase (DSHttpdClient * client, GList * path,
       || link_rels != NULL
       || link_labels != NULL
       || link_hrefs != NULL
-      || link_tags != NULL)
+      || link_tags != NULL
+      || filter_by != NULL)
     total_rows = dupin_link_record_get_list_total (linkb, 0, 0, link_type, startkey, endkey, inclusive_end, DP_COUNT_EXIST, 
 						   context_id, link_rels, link_rels_op,
-						   link_labels, link_labels_op, link_hrefs, link_hrefs_op, link_tags, link_tags_op);
+						   link_labels, link_labels_op, link_hrefs, link_hrefs_op, link_tags, link_tags_op,
+						   filter_by, filter_by_format, filter_op, filter_values);
   else
     total_rows = dupin_linkbase_count (linkb, link_type, DP_COUNT_EXIST);
 
 
   if (dupin_link_record_get_list (linkb, count, offset, 0, 0, link_type, startkey, endkey, inclusive_end, DP_COUNT_EXIST, DP_ORDERBY_ID, descending, 
 				  context_id, link_rels, link_rels_op, link_labels, link_labels_op,
-				  link_hrefs, link_hrefs_op, link_tags, link_tags_op, &results, NULL) == FALSE)
+				  link_hrefs, link_hrefs_op, link_tags, link_tags_op,
+				  filter_by, filter_by_format, filter_op, filter_values, &results, NULL) == FALSE)
     {
       if (link_rels)
         g_strfreev (link_rels);
@@ -3674,6 +3748,11 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
   gchar * endvalue = NULL;
   gboolean inclusive_end_value = TRUE;
 
+  gchar * filter_by = NULL;
+  DupinFieldsFormatType filter_by_format = DP_FIELDS_FORMAT_DOTTED;
+  DupinFilterByType filter_op = DP_FILTERBY_UNDEF;
+  gchar * filter_values = NULL;
+
   JsonObject *obj;
   JsonNode *node=NULL;
   JsonArray *array;
@@ -3942,6 +4021,35 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
               return HTTP_STATUS_400;
             }
         }
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_ANY_FILTER_BY))
+        {
+          filter_by = kv->value;
+        }
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_ANY_FILTER_BY_FORMAT))
+        {
+          if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_BY_FORMAT_DOTTED))
+            filter_by_format = DP_FIELDS_FORMAT_DOTTED;
+          else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_BY_FORMAT_JSONPATH))
+            filter_by_format = DP_FIELDS_FORMAT_JSONPATH;
+        }
+ 
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_ANY_FILTER_OP))
+        {
+          if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_OP_EQUALS))
+            filter_op = DP_FILTERBY_EQUALS;
+          else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_OP_CONTAINS))
+            filter_op = DP_FILTERBY_CONTAINS;
+          else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_OP_STARTS_WITH))
+            filter_op = DP_FILTERBY_STARTS_WITH;
+          else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_OP_PRESENT))
+            filter_op = DP_FILTERBY_PRESENT;
+        }
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_ANY_FILTER_VALUES))
+        {
+          filter_values = kv->value;
+        }
     }
 
   if (include_docs == TRUE)
@@ -4011,8 +4119,9 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
         }
     }
 
-  if (dupin_view_record_get_total_records (view, &total_rows, 0, 0, startkey, endkey, inclusive_end, 
-							      startvalue, endvalue, inclusive_end_value, NULL) == FALSE)
+  if (dupin_view_record_get_list_total (view, &total_rows, 0, 0, startkey, endkey, inclusive_end, 
+						startvalue, endvalue, inclusive_end_value,
+						filter_by, filter_by_format, filter_op, filter_values, NULL) == FALSE)
     {
       if (startkey != NULL)
         g_free (startkey);
@@ -4045,6 +4154,7 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
   if (dupin_view_record_get_list (view, count, offset, 0, 0, DP_ORDERBY_KEY, descending,
 				  startkey, endkey, inclusive_end,
 				  startvalue, endvalue, inclusive_end_value,
+				  filter_by, filter_by_format, filter_op, filter_values,
 				  &results, NULL) == FALSE)
     {
       if (startkey != NULL)
@@ -4442,7 +4552,9 @@ request_global_get_database_query (DSHttpdClient * client, GList * path,
 
   array = json_array_new ();
 
-  while (dupin_record_get_list (db, QUERY_BLOCK, offset, 0, 0, NULL, NULL, TRUE, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE, NULL, DP_FILTERBY_EQUALS, &results, NULL) == TRUE && results)
+  while (dupin_record_get_list (db, QUERY_BLOCK, offset, 0, 0, NULL, NULL, TRUE, DP_COUNT_EXIST, DP_ORDERBY_ROWID,
+					FALSE, NULL, DP_FILTERBY_EQUALS, 
+					NULL, DP_FIELDS_FORMAT_DOTTED, DP_FILTERBY_EQUALS, NULL, &results, NULL) == TRUE && results)
     {
       GList *list;
 
@@ -4538,7 +4650,8 @@ request_global_get_linkbase_query (DSHttpdClient * client, GList * path,
 
   while (dupin_link_record_get_list (linkb, QUERY_BLOCK, offset, 0, 0, DP_LINK_TYPE_ANY, NULL, NULL, TRUE, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE,
 					NULL, NULL, DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS, NULL, 
-					DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS, &results, NULL) == TRUE && results)
+					DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS,
+					NULL, DP_FIELDS_FORMAT_DOTTED, DP_FILTERBY_EQUALS, NULL, &results, NULL) == TRUE && results)
     {
       GList *list;
 
@@ -4632,7 +4745,8 @@ request_global_get_view_query (DSHttpdClient * client, GList * path,
 
   array = json_array_new ();
 
-  while (dupin_view_record_get_list (view, QUERY_BLOCK, offset, 0, 0, DP_ORDERBY_KEY, FALSE, NULL, NULL, TRUE, NULL, NULL, TRUE, &results, NULL) == TRUE
+  while (dupin_view_record_get_list (view, QUERY_BLOCK, offset, 0, 0, DP_ORDERBY_KEY, FALSE, NULL, NULL, TRUE, NULL, NULL, TRUE,
+					NULL, DP_FIELDS_FORMAT_DOTTED, DP_FILTERBY_EQUALS, NULL, &results, NULL) == TRUE
 	 && results)
     {
       GList *list;
@@ -6872,6 +6986,11 @@ request_record_revision_obj (DSHttpdClient * client,
       gchar ** include_links_tags = NULL;
       DupinFilterByType include_links_tags_op = DP_FILTERBY_EQUALS;
 
+      gchar * include_links_filter_by = NULL;
+      DupinFieldsFormatType include_links_filter_by_format = DP_FIELDS_FORMAT_DOTTED;
+      DupinFilterByType include_links_filter_op = DP_FILTERBY_UNDEF;
+      gchar * include_links_filter_values = NULL;
+
       gsize include_links_created = 0;
       DupinCreatedType include_links_created_op = DP_CREATED_SINCE;
 
@@ -6988,6 +7107,36 @@ request_record_revision_obj (DSHttpdClient * client,
               else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_OP_PRESENT))
                 include_links_tags_op = DP_FILTERBY_PRESENT;
             }
+
+          else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_FILTER_BY))
+            {
+              include_links_filter_by = kv->value;
+            }
+
+          else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_FILTER_BY_FORMAT))
+            {
+              if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_FILTER_BY_FORMAT_DOTTED))
+                include_links_filter_by_format = DP_FIELDS_FORMAT_DOTTED;
+              else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_FILTER_BY_FORMAT_JSONPATH))
+                include_links_filter_by_format = DP_FIELDS_FORMAT_JSONPATH;
+            }
+
+          else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_FILTER_OP))
+            {
+              if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_OP_EQUALS))
+                include_links_filter_op = DP_FILTERBY_EQUALS;
+              else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_OP_CONTAINS))
+                include_links_filter_op = DP_FILTERBY_CONTAINS;
+              else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_OP_STARTS_WITH))
+                include_links_filter_op = DP_FILTERBY_STARTS_WITH;
+              else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_OP_PRESENT))
+                include_links_filter_op = DP_FILTERBY_PRESENT;
+           }
+
+         else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_FILTER_VALUES))
+           {
+             include_links_filter_values = kv->value;
+           }
         }
 
       if (include_links_type != DP_LINK_TYPE_NONE
@@ -7032,13 +7181,14 @@ request_record_revision_obj (DSHttpdClient * client,
 
               gsize total_links = dupin_link_record_get_list_total (linkb, 0, 0, DP_LINK_TYPE_WEB_LINK, NULL, NULL, TRUE, DP_COUNT_EXIST,
 						    (gchar *) dupin_record_get_id (record), include_links_rels, include_links_rels_op,
-						    include_links_labels, include_links_labels_op, include_links_hrefs, include_links_hrefs_op, include_links_tags, include_links_tags_op);
+						    include_links_labels, include_links_labels_op, include_links_hrefs, include_links_hrefs_op, include_links_tags, include_links_tags_op,
+						    include_links_filter_by, include_links_filter_by_format, include_links_filter_op, include_links_filter_values);
 
               if (dupin_link_record_get_list (linkb, include_links_weblinks_count, include_links_weblinks_offset,
 					      0, 0, DP_LINK_TYPE_WEB_LINK, NULL, NULL, TRUE, DP_COUNT_EXIST, DP_ORDERBY_ROWID, include_links_weblinks_descending,
 				              (gchar *) dupin_record_get_id (record), include_links_rels, include_links_rels_op,
 					      include_links_labels, include_links_labels_op, include_links_hrefs, include_links_hrefs_op, include_links_tags, include_links_tags_op,
-							&results, NULL) == FALSE)
+					      include_links_filter_by, include_links_filter_by_format, include_links_filter_op, include_links_filter_values, &results, NULL) == FALSE)
                 {
 		  // just log the error and reason into JSON
                 }
@@ -7102,13 +7252,14 @@ request_record_revision_obj (DSHttpdClient * client,
 
               gsize total_relationships = dupin_link_record_get_list_total (linkb, 0, 0, DP_LINK_TYPE_RELATIONSHIP, NULL, NULL, TRUE, DP_COUNT_EXIST,
 				              (gchar *) dupin_record_get_id (record), include_links_rels, include_links_rels_op,
-					      include_links_labels, include_links_labels_op, include_links_hrefs, include_links_hrefs_op, include_links_tags, include_links_tags_op);
+					      include_links_labels, include_links_labels_op, include_links_hrefs, include_links_hrefs_op, include_links_tags, include_links_tags_op,
+					      include_links_filter_by, include_links_filter_by_format, include_links_filter_op, include_links_filter_values);
 
               if (dupin_link_record_get_list (linkb, include_links_relationships_count, include_links_relationships_offset,
 					      0, 0, DP_LINK_TYPE_RELATIONSHIP, NULL, NULL, TRUE, DP_COUNT_EXIST, DP_ORDERBY_ROWID, include_links_relationships_descending,
 				 	      (gchar *) dupin_record_get_id (record), include_links_rels, include_links_rels_op,
 					      include_links_labels, include_links_labels_op, include_links_hrefs, include_links_hrefs_op, include_links_tags, include_links_tags_op,
-				              		&results, NULL) == FALSE)
+					      include_links_filter_by, include_links_filter_by_format, include_links_filter_op, include_links_filter_values, &results, NULL) == FALSE)
                 {
 		  // just log the error and reason into JSON
                 }

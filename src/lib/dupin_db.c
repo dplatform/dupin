@@ -26,6 +26,7 @@
   "CREATE INDEX IF NOT EXISTS DupinId ON Dupin (id);\n" \
   "CREATE INDEX IF NOT EXISTS DupinIdRev ON Dupin (id,rev);\n" \
   "CREATE INDEX IF NOT EXISTS DupinType ON Dupin (type);\n" \
+  "CREATE INDEX IF NOT EXISTS DupinObj ON Dupin (obj);\n" \
   "CREATE INDEX IF NOT EXISTS DupinIdRevHead ON Dupin (id,rev_head);"
 
 #define DUPIN_DB_SQL_DESC_CREATE \
@@ -438,6 +439,10 @@ dupin_db_connect (Dupin * d, gchar * name, gchar * path,
           return NULL;
         }
     }
+
+  /* NOTE - we know this is inefficient, but we need it till proper Elastic search or lucene used as frontend */
+
+  sqlite3_create_function(db->db, "filterBy", 5, SQLITE_ANY, d, dupin_sqlite_json_filterby, NULL, NULL);
 
   db->mutex = g_mutex_new ();
 
@@ -969,7 +974,8 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
 
   gsize start_rowid = (compact_id != NULL) ? atoi(compact_id)+1 : 1;
 
-  if (dupin_record_get_list (db, count, 0, start_rowid, 0, NULL, NULL, TRUE, DP_COUNT_ALL, DP_ORDERBY_ROWID, FALSE, NULL, DP_FILTERBY_EQUALS, &results, NULL) ==
+  if (dupin_record_get_list (db, count, 0, start_rowid, 0, NULL, NULL, TRUE, DP_COUNT_ALL, DP_ORDERBY_ROWID, FALSE, NULL, DP_FILTERBY_EQUALS,
+				NULL, DP_FIELDS_FORMAT_DOTTED, DP_FILTERBY_EQUALS, NULL, &results, NULL) ==
       FALSE || !results)
     {
       if (compact_id != NULL)
@@ -1085,6 +1091,10 @@ dupin_database_compact_func (gpointer data, gpointer user_data)
 
           g_mutex_lock (db->mutex);
 
+	  /*
+		IMPORTANT: rowids may change after a VACUUM, so the cursor of views should be reset as well, eventually !
+			   see http://www.sqlite.org/lang_vacuum.html
+           */
           if (sqlite3_exec (db->db, "VACUUM", NULL, NULL, &errmsg) != SQLITE_OK
              || sqlite3_exec (db->db, "ANALYZE Dupin", NULL, NULL, &errmsg) != SQLITE_OK)
             {

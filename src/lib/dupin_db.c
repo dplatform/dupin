@@ -476,6 +476,10 @@ dupin_database_count (DupinDB * db, DupinCountType type)
     {
       return count.total_doc_del;
     }
+  else if (type == DP_COUNT_CHANGES)
+    {
+      return count.total_doc_ins + count.total_doc_del;
+    }
   else
     {
       return count.total_doc_ins + count.total_doc_del;

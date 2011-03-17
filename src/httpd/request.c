@@ -1075,14 +1075,21 @@ request_global_get_changes_database (DSHttpdClient * client, GList * path,
       return HTTP_STATUS_404;
     }
 
-  if (dupin_database_get_total_changes (db, &total_rows, since+1, 0, DP_COUNT_CHANGES, TRUE, types, types_op, NULL) == FALSE)
-    {
-      dupin_database_unref (db);
-      if (types)
-        g_strfreev (types);
-      request_set_error (client, "Cannot get last seq number from changes database");
-      return HTTP_STATUS_500;
+  if (since == 0)
+    { 
+      total_rows = dupin_database_count (db, DP_COUNT_CHANGES);
     }
+  else
+    {
+      if (dupin_database_get_total_changes (db, &total_rows, since+1, 0, DP_COUNT_CHANGES, TRUE, types, types_op, NULL) == FALSE)
+        {
+          dupin_database_unref (db);
+          if (types)
+            g_strfreev (types);
+          request_set_error (client, "Cannot get last seq number from changes database");
+          return HTTP_STATUS_500;
+        }
+   }
 
   if (dupin_database_get_changes_list (db, count, 0, since+1, 0, style, DP_COUNT_CHANGES, DP_ORDERBY_ROWID, descending, types, types_op, &results, NULL) ==
       FALSE)
@@ -3105,14 +3112,21 @@ request_global_get_changes_linkbase (DSHttpdClient * client, GList * path,
       return HTTP_STATUS_404;
     }
 
-  if (dupin_linkbase_get_total_changes (linkb, &total_rows, since+1, 0, style, DP_COUNT_CHANGES, TRUE, context_id, tags, tags_op, NULL) == FALSE)
+  if (since == 0)
     {
-      if (tags != NULL)
-        g_strfreev (tags);
+      total_rows = dupin_linkbase_count (linkb, DP_LINK_TYPE_ANY, DP_COUNT_CHANGES);
+    }
+  else
+    {
+      if (dupin_linkbase_get_total_changes (linkb, &total_rows, since+1, 0, style, DP_COUNT_CHANGES, TRUE, context_id, tags, tags_op, NULL) == FALSE)
+        {
+          if (tags != NULL)
+            g_strfreev (tags);
 
-      dupin_linkbase_unref (linkb);
-      request_set_error (client, "Cannot get last seq number from changes linkbase");
-      return HTTP_STATUS_500;
+          dupin_linkbase_unref (linkb);
+          request_set_error (client, "Cannot get last seq number from changes linkbase");
+          return HTTP_STATUS_500;
+        }
     }
 
   if (dupin_linkbase_get_changes_list (linkb, count, 0, since+1, 0, style, DP_COUNT_CHANGES, DP_ORDERBY_ROWID, descending, context_id, tags, tags_op, &results, NULL) ==

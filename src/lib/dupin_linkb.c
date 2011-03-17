@@ -629,6 +629,10 @@ dupin_linkbase_count (DupinLinkB * linkb,
       else
         return count.total_webl_del + count.total_rel_del;
     }
+  else if (count_type == DP_COUNT_CHANGES)
+    {
+      return count.total_webl_ins + count.total_rel_ins + count.total_webl_del + count.total_rel_del;
+    }
   else
     {
       return count.total_webl_ins + count.total_rel_ins + count.total_webl_del + count.total_rel_del;

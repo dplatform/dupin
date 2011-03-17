@@ -25,44 +25,6 @@ if [ `uname` == "Darwin" ]; then
   fi
 fi
 
-aclocal --version &>/dev/null || {
-  echo
-  echo "**Error**: You must have \`aclocal' installed to compile this package."
-  exit 1
-}
-
-autoheader --version &>/dev/null || {
-  echo
-  echo "**Error**: You must have \`autoconf' installed to compile this package."
-  exit 1
-}
-
-if [ `uname` == "Darwin" ]; then
-  glibtoolize --version &>/dev/null || {
-    echo
-    echo "**Error**: You must have \`glibtool' installed to compile this package."
-    exit 1
-  }
-else
-  libtoolize --version &>/dev/null || {
-    echo
-    echo "**Error**: You must have \`libtool' installed to compile this package."
-    exit 1
-  }
-fi
-
-automake --version &>/dev/null || {
-  echo
-  echo "**Error**: You must have \`automake' installed to compile this package."
-  exit 1
-}
-
-autoconf --version &>/dev/null || {
-  echo
-  echo "**Error**: You must have \`autoconf' installed to compile this package."
-  exit 1
-}
-
 echo "aclocal..."
 aclocal &> /dev/null || exit 1
 

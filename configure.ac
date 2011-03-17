@@ -6,6 +6,8 @@ AC_CANONICAL_TARGET
 
 AC_PROG_MAKE_SET
 
+AC_CONFIG_MACRO_DIR([m4])
+
 AC_PATH_PROG(PKG_CONFIG, pkg-config)
 
 # host checking - inspired by the Webkit/GTK+ configure.in

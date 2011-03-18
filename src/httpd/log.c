@@ -87,14 +87,16 @@ log_write_before (DSGlobal * data)
   gchar *str;
 
   if (data->httpd_socket_source)
+    {
 #if GLIB_CHECK_VERSION (2, 27, 3)
     gint64 timestamp;
-    tm = g_source_get_time (data->httpd_socket_source);
+    timestamp = g_source_get_time (data->httpd_socket_source);
     tv.tv_sec = timestamp / 1000000;
     tv.tv_usec = timestamp % 1000000;
 #else
     g_source_get_current_time (data->httpd_socket_source, &tv);
 #endif
+    }
   else
     g_get_current_time (&tv);
 

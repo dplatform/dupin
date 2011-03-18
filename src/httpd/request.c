@@ -6310,7 +6310,7 @@ request_global_delete_record (DSHttpdClient * client, GList * path,
 			      GList * arguments)
 {
   DupinDB *db;
-  DupinAttachmentDB *attachment_db;
+  DupinAttachmentDB *attachment_db=NULL;
   DupinRecord *record;
   gchar * mvcc=NULL;
   gchar * title = NULL;

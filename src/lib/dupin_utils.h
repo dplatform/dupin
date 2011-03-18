@@ -3,6 +3,8 @@
 
 #include <dupin.h>
 #include <sqlite3.h>
+#include <errno.h>
+#include <stdlib.h>
 
 G_BEGIN_DECLS
 

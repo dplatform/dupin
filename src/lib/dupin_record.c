@@ -1811,7 +1811,7 @@ dupin_record_insert (DupinDB * db,
 
   DupinLinkB *linkb;
   DupinAttachmentDB *attachment_db;
-  DupinRecord *record;
+  DupinRecord *record=NULL;
   GError *error = NULL;
 
   gchar * mvcc=NULL;

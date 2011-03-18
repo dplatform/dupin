@@ -219,7 +219,14 @@ request_status (DSHttpdClient * client, GList * paths, GList * arguments)
   if (nobj == NULL)
     goto request_status_quit;
 
+#if GLIB_CHECK_VERSION (2, 27, 3)
+    gint64 timestamp;
+    tm = g_source_get_time (client->channel_source);
+    tv.tv_sec = timestamp / 1000000;
+    tv.tv_usec = timestamp % 1000000;
+#else
   g_source_get_current_time (client->channel_source, &tv);
+#endif
 
   /* timeval:tv_sec: */
   json_object_set_int_member (nobj, "sec", tv.tv_sec );

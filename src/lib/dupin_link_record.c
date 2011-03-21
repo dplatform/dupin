@@ -3685,8 +3685,16 @@ dupin_link_record_insert (DupinLinkB * linkb,
   if (mvcc != NULL
       || (id && use_latest_revision == TRUE))
     {
-      if (id != NULL)
-        record = dupin_link_record_read (linkb, id, &error);
+      if (dupin_link_record_exists (linkb, id) == TRUE)
+        {
+          record = dupin_link_record_read (linkb, id, &error);
+
+          if (record == NULL || error)
+            {
+              fprintf (stderr, "Error: %s\n", error->message);
+              g_error_free (error);
+            }
+	}
 
       /* NOTE - we this we allow selective update implicitly on the latest version if requested. For example
                 to allow incremental updates of a record - this is only used in support/dupin_loader

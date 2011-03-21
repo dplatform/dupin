@@ -1906,17 +1906,20 @@ dupin_record_insert (DupinDB * db,
     }
 
   if (mvcc != NULL
-      || (!id && use_latest_revision == TRUE))
+      || (id && use_latest_revision == TRUE))
     {
-      record = dupin_record_read (db, id, &error);
+      if (id != NULL)
+        record = dupin_record_read (db, id, &error);
 
-      /* NOTE - we this we allow selective update / PATCH if requested (outisde REST API alaways!) */
+      /* NOTE - we this we allow selective update implicitly on the latest version if requested. For example
+		to allow incremental updates of a record - this is only used in support/dupin_loader
+		and never made available via the REST API */
       if (mvcc == NULL
-          && (!id && use_latest_revision == TRUE)
+          && (id && use_latest_revision == TRUE)
           && record != NULL)
         mvcc = g_strdup (dupin_record_get_last_revision (record)); 
 
-      if ( to_delete == TRUE )
+      if (to_delete == TRUE)
         {
           if (!record || dupin_util_mvcc_revision_cmp (mvcc, dupin_record_get_last_revision (record))
               || dupin_record_delete (record, &error) == FALSE)
@@ -1926,7 +1929,14 @@ dupin_record_insert (DupinDB * db,
               record = NULL;
             }
         }
-      else if ( to_patch == TRUE )
+      else if (record == NULL)
+        {
+          if (dupin_record_exists (db, id) == FALSE)
+            record = dupin_record_create_with_id (db, obj_node, id, &error);
+          else
+            record = NULL;
+        }
+      else if (to_patch == TRUE)
         {
           if (!record || dupin_util_mvcc_revision_cmp (mvcc, dupin_record_get_last_revision (record))
               || dupin_record_patch (record, obj_node, &error) == FALSE)

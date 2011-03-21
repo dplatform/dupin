@@ -3683,17 +3683,20 @@ dupin_link_record_insert (DupinLinkB * linkb,
 //g_message("dupin_link_record_insert: json_record_tag=%s\n", json_record_tag);
 
   if (mvcc != NULL
-      || (!id && use_latest_revision == TRUE))
+      || (id && use_latest_revision == TRUE))
     {
-      record = dupin_link_record_read (linkb, id, &error);
+      if (id != NULL)
+        record = dupin_link_record_read (linkb, id, &error);
 
-      /* NOTE - we this we allow selective update / PATCH if requested (outisde REST API alaways!) */
+      /* NOTE - we this we allow selective update implicitly on the latest version if requested. For example
+                to allow incremental updates of a record - this is only used in support/dupin_loader
+                and never made available via the REST API */
       if (mvcc == NULL
-          && (!id && use_latest_revision == TRUE)
+          && (id && use_latest_revision == TRUE)
           && record != NULL)
         mvcc = g_strdup (dupin_link_record_get_last_revision (record));
 
-      if ( to_delete == TRUE )
+      if (to_delete == TRUE)
         {
           if (!record || dupin_util_mvcc_revision_cmp (mvcc, dupin_link_record_get_last_revision (record))
               || dupin_link_record_delete (record, &error) == FALSE)
@@ -3703,7 +3706,16 @@ dupin_link_record_insert (DupinLinkB * linkb,
               record = NULL;
             }
         }
-      else if ( to_patch == TRUE )
+      else if (record == NULL)
+        {
+          if (dupin_link_record_exists (linkb, id) == FALSE)
+            record = dupin_link_record_create_with_id (linkb, obj_node, id,
+ 						       context_id, json_record_label, json_record_href,
+						       json_record_rel, json_record_tag, &error);
+          else
+            record = NULL;
+        }
+      else if (to_patch == TRUE)
         {
           if (!record || dupin_util_mvcc_revision_cmp (mvcc, dupin_link_record_get_last_revision (record))
               || dupin_link_record_patch (record, obj_node, json_record_label, json_record_href,

@@ -118,7 +118,7 @@ if test -n "$PKG_CONFIG"; then
 		)
 
 	# json-glib
-	PKG_CHECK_MODULES(jsonglib, [ json-glib-1.0 >= 0.12.0 ],
+	PKG_CHECK_MODULES(jsonglib, [ json-glib-1.0 >= 0.10.0 ],
 		[	[jsonglib_LIBS=`$PKG_CONFIG --libs "json-glib-1.0" 2>/dev/null`]
 			[jsonglib_CFLAGS=`$PKG_CONFIG --cflags "json-glib-1.0" 2>/dev/null`]
 		],

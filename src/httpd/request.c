@@ -2102,6 +2102,9 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 					   &revisions, NULL) == FALSE)
          || (dupin_record_get_total_revisions (record, &total_rows, NULL) == FALSE))
 	{
+          if (node != NULL)
+            json_node_free (node);
+	  json_array_unref (array);
 	  dupin_record_close (record);
 	  dupin_database_unref (db);
           dupin_attachment_db_unref (attachment_db);
@@ -2134,6 +2137,8 @@ request_global_get_record (DSHttpdClient * client, GList * path,
               if (json_object_has_member (on_obj, (const gchar *)request_fields) == FALSE)
                 {
                   dupin_record_get_revisions_list_close (revisions);
+                  if (node != NULL)
+                    json_node_free (node);
 	          json_array_unref (array);
 	          dupin_record_close (record);
 	          dupin_database_unref (db);
@@ -7212,6 +7217,12 @@ request_record_revision_obj (DSHttpdClient * client,
 					      include_links_filter_by, include_links_filter_by_format, include_links_filter_op, include_links_filter_values, &results, NULL) == FALSE)
                 {
 		  // just log the error and reason into JSON
+		  gchar * msg = g_strdup_printf ("Cannot get list of web links for record %s\n", (gchar *)dupin_record_get_id (record));
+                  request_set_error (client, msg);
+		  fprintf (stderr, "%s", msg);
+		  g_free (msg);
+		  json_node_free (links_node);
+		  goto request_record_revision_obj_relationships;
                 }
 
               for (list = results; list; list = list->next)
@@ -7237,6 +7248,13 @@ request_record_revision_obj (DSHttpdClient * client,
 								 TRUE)))
         	    {
 		      // just log the error and reason into JSON
+		      gchar * msg = g_strdup_printf ("Cannot get web link with id %s and label %s in record %s\n",
+								(gchar *)dupin_link_record_get_id (link_record),
+								label, (gchar *)dupin_record_get_id (record));
+                      request_set_error (client, msg);
+		      fprintf (stderr, "%s", msg);
+		      g_free (msg);
+		      continue;
         	    }
 
                   // remove context_id and label due they are implied
@@ -7264,6 +7282,8 @@ request_record_revision_obj (DSHttpdClient * client,
 	      json_object_set_member (json_node_get_object (obj_node), RESPONSE_OBJ_LINKS, links_node);
             }
 
+request_record_revision_obj_relationships:
+
 	  if (include_links_type == DP_LINK_TYPE_ANY
 	      || include_links_type == DP_LINK_TYPE_RELATIONSHIP)
             {
@@ -7283,6 +7303,12 @@ request_record_revision_obj (DSHttpdClient * client,
 					      include_links_filter_by, include_links_filter_by_format, include_links_filter_op, include_links_filter_values, &results, NULL) == FALSE)
                 {
 		  // just log the error and reason into JSON
+		  gchar * msg = g_strdup_printf ("Cannot get list of relationships for record %s\n", (gchar *)dupin_record_get_id (record));
+                  request_set_error (client, msg);
+		  fprintf (stderr, "%s", msg);
+		  g_free (msg);
+		  json_node_free (relationships_node);
+		  goto request_record_revision_obj_end;
                 }
 
               for (list = results; list; list = list->next)
@@ -7308,6 +7334,13 @@ request_record_revision_obj (DSHttpdClient * client,
 								 TRUE)))
         	    {
 		      // just log the error and reason into JSON
+		      gchar * msg = g_strdup_printf ("Cannot get relationship with id %s and label %s in record %s\n",
+								(gchar *)dupin_link_record_get_id (link_record),
+								label, (gchar *)dupin_record_get_id (record));
+                      request_set_error (client, msg);
+		      fprintf (stderr, "%s", msg);
+		      g_free (msg);
+		      continue;
         	    }
 
                   // remove context_id and label due they are implied
@@ -7344,6 +7377,8 @@ request_record_revision_obj (DSHttpdClient * client,
 
 	      json_object_set_member (json_node_get_object (obj_node), RESPONSE_OBJ_RELATIONSHIPS, relationships_node);
             }
+
+request_record_revision_obj_end:
 
           if (linkb != NULL)
             dupin_linkbase_unref (linkb);

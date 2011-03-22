@@ -1531,6 +1531,10 @@ dupin_record_add_revision_obj (DupinRecord * record, guint rev,
             }
 	}
 
+      if (r->type == NULL
+	  && record->last)
+        r->type = g_strdup (record->last->type);
+
       JsonGenerator * gen = json_generator_new();
 
       r->obj = json_node_copy (obj_node);

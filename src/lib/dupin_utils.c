@@ -236,6 +236,9 @@ static const char dupin_util_json_exceptions[] = {
 gchar *
 dupin_util_json_strescape (const gchar *str)
 {
+  if (str == NULL)
+    return NULL;
+  
   return g_strescape (str, dupin_util_json_exceptions);
 }
 

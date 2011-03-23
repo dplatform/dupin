@@ -2318,7 +2318,7 @@ dupin_util_json_node_object_patch_real (JsonNode * input,
 
 	  JsonNode * input_node = NULL;
 
-	  if (json_array_get_length (patched_node_array) >= i)
+	  if (json_array_get_length (patched_node_array) > i)
 	    input_node = json_array_get_element (patched_node_array, i);
 
 //DUPIN_UTIL_DUMP_JSON ("Input_node", input_node);

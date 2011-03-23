@@ -236,9 +236,6 @@ static const char dupin_util_json_exceptions[] = {
 gchar *
 dupin_util_json_strescape (const gchar *str)
 {
-  if (str == NULL)
-    return NULL;
-  
   return g_strescape (str, dupin_util_json_exceptions);
 }
 
@@ -255,17 +252,9 @@ dupin_util_json_serialize (JsonNode * node)
     {
       if (json_node_get_value_type (node) == G_TYPE_STRING)
         {
-          gchar *tmp = (gchar *)json_node_get_string (node);
-	  if (tmp == NULL)
-            {
-              node_serialized = g_strdup ("null");
-            }
-          else
-            {
-              tmp = dupin_util_json_strescape (tmp);
-              node_serialized = g_strdup_printf ("\"%s\"", tmp);
-              g_free (tmp);
-            }
+          gchar *tmp = dupin_util_json_strescape (json_node_get_string (node)); 
+	  node_serialized = g_strdup_printf ("\"%s\"", tmp); 
+	  g_free (tmp);
         }
 
       if (json_node_get_value_type (node) == G_TYPE_DOUBLE
@@ -325,20 +314,12 @@ dupin_util_json_value_to_string (JsonNode * node)
     {
       if (json_node_get_value_type (node) == G_TYPE_STRING)
         {
-          gchar *tmp = (gchar *)json_node_get_string (node);
-	  if (tmp == NULL)
-            {
-              node_serialized = g_strdup ("null");
-            }
-          else
-            {
-              tmp = dupin_util_json_strescape (tmp);
+          gchar *tmp = dupin_util_json_strescape (json_node_get_string (node));
 
-	      /* NOTE - the only difference with dupin_util_json_serialize() above ! */
-              node_serialized = g_strdup_printf ("%s", tmp);
+	  /* NOTE - the only difference with dupin_util_json_serialize() above ! */
+          node_serialized = g_strdup_printf ("%s", tmp);
 
-              g_free (tmp);
-            }
+          g_free (tmp);
         }
 
       if (json_node_get_value_type (node) == G_TYPE_DOUBLE

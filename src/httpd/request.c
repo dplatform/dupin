@@ -275,7 +275,10 @@ request_status (DSHttpdClient * client, GList * paths, GList * arguments)
     goto request_status_quit;
 
   /* Interface: */
-  json_object_set_string_member (nobj, "interface", client->thread->data->httpd_interface);
+  if (client->thread->data->httpd_interface != NULL)
+    json_object_set_string_member (nobj, "interface", client->thread->data->httpd_interface);
+  else
+    json_object_set_null_member (nobj, "interface");
 
   /* port: */
   json_object_set_int_member (nobj, "port", client->thread->data->httpd_port);

@@ -149,6 +149,7 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 #define REQUEST_OBJ_CONTENT             "_content"
 #define REQUEST_OBJ_DELETED             "_deleted"
 #define REQUEST_OBJ_PATCHED		"_patched"
+#define REQUEST_OBJ_PATCHED_FIELDS	"_patched_fields"
 
 #define REQUEST_LINK_OBJ_ID           	REQUEST_OBJ_ID
 #define REQUEST_LINK_OBJ_REV        	REQUEST_OBJ_REV 

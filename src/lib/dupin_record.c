@@ -1184,40 +1184,25 @@ dupin_record_patch (DupinRecord * record, JsonNode * obj_node,
   g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, FALSE);
   g_return_val_if_fail (dupin_record_is_deleted (record, dupin_record_get_last_revision (record)) == FALSE, FALSE);
 
-  /* fetch last revision */
-
-  /* NOTE - we need to brew a deep copy before making any change */
-
-  JsonNode * node_copy = dupin_util_json_node_clone (
-				dupin_record_get_revision_node (record, dupin_record_get_last_revision (record)),
-				error);
-
-  if (node_copy == NULL)
-    return FALSE;
-
-/*
-g_message ("dupin_record_patch: to patch\n");
-DUPIN_UTIL_DUMP_JSON ("Input", node_copy);
-DUPIN_UTIL_DUMP_JSON ("Changes", obj_node);
-*/
-
   /* MERGE the current revision with the one passed */
 
-  dupin_util_json_patch_node_object (node_copy, obj_node);
+  JsonNode * patched_revision = dupin_util_json_node_object_patch (
+					dupin_record_get_revision_node (record, dupin_record_get_last_revision (record)),
+				     	obj_node);
 
-/*
-g_message ("dupin_record_patch: patched\n");
-DUPIN_UTIL_DUMP_JSON ("Input", node_copy);
-DUPIN_UTIL_DUMP_JSON ("Changes", obj_node);
-*/
+  if (patched_revision == NULL)
+    return FALSE;
 
-  if (dupin_record_update (record, node_copy, error) == FALSE)
+  if (dupin_record_update (record, patched_revision, error) == FALSE)
     {
-      json_node_free (node_copy);
+      if (patched_revision != NULL)
+        json_node_free (patched_revision);
+
       return FALSE;
     }
 
-  json_node_free (node_copy);
+  if (patched_revision != NULL)
+    json_node_free (patched_revision);
 
   return TRUE;
 }

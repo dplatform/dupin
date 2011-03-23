@@ -290,6 +290,9 @@ dupin_util_json_serialize (JsonNode * node)
       if (gen == NULL)
         return NULL;
 
+      //g_object_set (gen, "pretty", TRUE, NULL);
+      //g_object_set (gen, "indent", 2, NULL);
+
       json_generator_set_root (gen, node);
 
       node_serialized = json_generator_to_data (gen,NULL);
@@ -471,6 +474,7 @@ dupin_util_json_node_object_filter_fields_real (JsonNode * node,
 					 	gchar ** iesim_field_splitted,
 				 	 	gint level,
 					 	JsonNode * result_node,
+					   	gboolean not,
                                  	 	GError **  error)
 {
 //g_message("dupin_util_json_node_object_filter_fields_real: level %d\n", level);
@@ -494,34 +498,42 @@ dupin_util_json_node_object_filter_fields_real (JsonNode * node,
               JsonNode * sub_result_node = NULL;
               if (json_object_has_member (json_node_get_object (result_node), iesim_field_splitted[level]) == FALSE)
                 {
-	          if (iesim_field_splitted[level+1])
+		  if (not == FALSE)
 		    {
-                      sub_result_node = json_node_new (JSON_NODE_OBJECT);
-                      JsonObject * sub_result_node_obj = json_object_new ();
-                      json_node_take_object (sub_result_node, sub_result_node_obj);
-		    }
-		  else
-		    {
-                      sub_result_node = dupin_util_json_node_clone (member, error);
+	              if (iesim_field_splitted[level+1])
+		        {
+                          sub_result_node = json_node_new (JSON_NODE_OBJECT);
+                          JsonObject * sub_result_node_obj = json_object_new ();
+                          json_node_take_object (sub_result_node, sub_result_node_obj);
+		        }
+		      else
+		        {
+                          sub_result_node = dupin_util_json_node_clone (member, error);
+		        }
 		    }
 		}
 	      else
 	        {
-	          sub_result_node = json_object_get_member (json_node_get_object (result_node), iesim_field_splitted[level]);
+		  if (not == TRUE)
+	            json_object_remove_member (json_node_get_object (result_node), iesim_field_splitted[level]);
+                  else
+	            sub_result_node = json_object_get_member (json_node_get_object (result_node), iesim_field_splitted[level]);
 		}
 
 	      if (iesim_field_splitted[level+1])
 	        {
-                  if (dupin_util_json_node_object_filter_fields_real (member, format, iesim_field_splitted, level+1, sub_result_node, error) == FALSE)
+                  if (dupin_util_json_node_object_filter_fields_real (member, format, iesim_field_splitted, level+1, sub_result_node, not, error) == FALSE)
 	            {
-                      if (json_object_has_member (json_node_get_object (result_node), iesim_field_splitted[level]) == FALSE)
+                      if ((json_object_has_member (json_node_get_object (result_node), iesim_field_splitted[level]) == FALSE)
+		          && not == FALSE)
                         json_node_free (sub_result_node);
 
 		      return FALSE;
  		    }
  		}
 
-              if (json_object_has_member (json_node_get_object (result_node), iesim_field_splitted[level]) == FALSE)
+              if ((json_object_has_member (json_node_get_object (result_node), iesim_field_splitted[level]) == FALSE)
+		  && not == FALSE)
 	        json_object_set_member (json_node_get_object (result_node),
 					iesim_field_splitted[level],
 					sub_result_node);
@@ -530,11 +542,20 @@ dupin_util_json_node_object_filter_fields_real (JsonNode * node,
 
           else
             {
-//g_message("dupin_util_json_node_object_filter_fields_real: add member %s to result\n", iesim_field_splitted[level]);
+	      if (not == TRUE)
+                {
+//g_message("dupin_util_json_node_object_filter_fields_real: removed member %s from result\n", iesim_field_splitted[level]);
 
-	      json_object_set_member (json_node_get_object (result_node),
-				      iesim_field_splitted[level],
-				      dupin_util_json_node_clone (member, error));
+	          json_object_remove_member (json_node_get_object (result_node), iesim_field_splitted[level]);
+ 	        }
+	      else
+                {
+//g_message("dupin_util_json_node_object_filter_fields_real: added member %s to result\n", iesim_field_splitted[level]);
+
+	          json_object_set_member (json_node_get_object (result_node),
+				          iesim_field_splitted[level],
+				          dupin_util_json_node_clone (member, error));
+                }
               return TRUE;
             }
         }
@@ -551,6 +572,7 @@ JsonNode *
 dupin_util_json_node_object_filter_fields (JsonNode * node,
                                	    	   DupinFieldsFormatType format,
                                	    	   gchar **   fields,
+					   gboolean not,
                                	    	   GError **  error)
 {
   g_return_val_if_fail (node != NULL, NULL);
@@ -561,10 +583,18 @@ dupin_util_json_node_object_filter_fields (JsonNode * node,
 
   if (format == DP_FIELDS_FORMAT_NONE
       || !fields[0])
-    {
-      filtered_node = json_node_new (JSON_NODE_OBJECT);
-      filtered_node_obj = json_object_new ();
-      json_node_take_object (filtered_node, filtered_node_obj);
+    { 
+      if (not == TRUE)
+        {
+          filtered_node = dupin_util_json_node_clone (node, error);
+        }
+      else
+        {
+          filtered_node = json_node_new (JSON_NODE_OBJECT);
+          filtered_node_obj = json_object_new ();
+          json_node_take_object (filtered_node, filtered_node_obj);
+        }
+
       return filtered_node;
     }
 
@@ -598,21 +628,37 @@ dupin_util_json_node_object_filter_fields (JsonNode * node,
 
   if (any == FALSE)
     {
-      filtered_node = json_node_new (JSON_NODE_OBJECT);
-      filtered_node_obj = json_object_new ();
-      json_node_take_object (filtered_node, filtered_node_obj);
+      if (not == TRUE)
+        {
+          filtered_node = dupin_util_json_node_clone (node, error);
+        }
+      else
+        {
+          filtered_node = json_node_new (JSON_NODE_OBJECT);
+          filtered_node_obj = json_object_new ();
+          json_node_take_object (filtered_node, filtered_node_obj);
+	}
 
       GList *f;
       for (f = parsed_fields; f != NULL; f = f->next)
         {
           gchar ** iesim_field_splitted = f->data;
 
-          dupin_util_json_node_object_filter_fields_real (node, format, iesim_field_splitted, 0, filtered_node, error);
+          dupin_util_json_node_object_filter_fields_real (node, format, iesim_field_splitted, 0, filtered_node, not, error);
 	}
     }
   else
     {
-      filtered_node = dupin_util_json_node_clone (node, error);
+      if (not == TRUE)
+        {
+          filtered_node = json_node_new (JSON_NODE_OBJECT);
+          filtered_node_obj = json_object_new ();
+          json_node_take_object (filtered_node, filtered_node_obj);
+        }
+      else
+        {
+          filtered_node = dupin_util_json_node_clone (node, error);
+        }
     }
 
   while (parsed_fields)
@@ -644,7 +690,7 @@ dupin_util_json_node_object_grep_nodes_real (JsonNode * node,
 
   if (format == DP_FIELDS_FORMAT_DOTTED)
     {
-//g_message("dupin_util_json_node_object_filter_fields_real: check member %s\n", iesim_field_splitted[level]);
+//g_message("dupin_util_json_node_object_grep_nodes_real: check member %s\n", iesim_field_splitted[level]);
 
       if (json_object_has_member (json_node_get_object (node), iesim_field_splitted[level]) == TRUE)
         {
@@ -2026,17 +2072,40 @@ dupin_util_json_string_normalize_docid (gchar * input_string_docid)
   return output_string; 
 }
 
-void
-dupin_util_json_patch_node_object_real (JsonNode * input,
+/*
+   partial update request
+
+   see http://code.google.com/apis/gdata/docs/2.0/reference.html#PartialUpdate
+   and http://code.google.com/apis/youtube/2.0/developers_guide_protocol_partial_updates.html
+*/
+
+JsonNode *
+dupin_util_json_node_object_patch_real (JsonNode * input,
                                         JsonNode * changes)
 {
+  JsonNode * patched_node = NULL;
+
   JsonNodeType input_type = json_node_get_node_type (input);
   JsonNodeType changes_type = json_node_get_node_type (changes);
 
   if (input_type != changes_type)
-    return;
+    return patched_node;
 
-  /* 1 - process deletion of fields (deleted of whole record is done with dupin_record_delete) */
+//g_message("dupin_util_json_node_object_patch_real: going to process the following\n");
+//DUPIN_UTIL_DUMP_JSON ("Input_node", input);
+//DUPIN_UTIL_DUMP_JSON ("Changes_node", changes);
+
+  /* 1 - process deletion of fields (deleted of whole record is done with dupin_record_delete)
+
+	 there are two ways to delete input fields:
+
+		-> using the patch { "_patched_fields": { "fieldsFormat": "dotted", "fields": "field_to_delete" } ... }
+
+		or
+
+		-> using the patch { .... "field_to_delete": { "_deleted": true } ... }
+
+   */
 
   /* 2 - process changes (new fileds or old with new values) of fields and their structure using JSON collation and heuristics */
 
@@ -2044,7 +2113,8 @@ dupin_util_json_patch_node_object_real (JsonNode * input,
 
   /* 2.2 if existing field
         -> sort field JSON current field value node with new node value
-        -> if 
+        -> if equal do not ad it
+	-> if array - add using A <=> B
    */
 
   GList *n, *nodes;
@@ -2052,7 +2122,69 @@ dupin_util_json_patch_node_object_real (JsonNode * input,
   if (changes_type == JSON_NODE_OBJECT)
     {
       JsonObject * changes_object = json_node_get_object (changes);
-      JsonObject * input_object = json_node_get_object (input);
+
+      /* 1 - process deletion of fields */
+
+      if (json_object_has_member (changes_object, REQUEST_OBJ_PATCHED_FIELDS) == TRUE)
+        {
+          JsonNode * patched_fields_node = json_object_get_member (changes_object, REQUEST_OBJ_PATCHED_FIELDS);
+          JsonNodeType patched_fields_node_type = json_node_get_node_type (patched_fields_node);
+	  if (patched_fields_node_type == JSON_NODE_OBJECT)
+	    {
+	      /* { "_patched_fields": { "fieldsFormat": "dotted", "fields": "a,b,c" } ... } */
+
+	      DupinFieldsFormatType format = DP_FIELDS_FORMAT_DOTTED;
+	      gchar * fields = NULL;
+	      gchar ** fields_splitted = NULL;
+
+	      JsonObject * patched_fields_node_obj = json_node_get_object (patched_fields_node);
+
+      	      if (json_object_has_member (patched_fields_node_obj, REQUEST_GET_ALL_ANY_FILTER_FIELDS_FORMAT) == TRUE)
+	        {
+		  JsonNode * format_node = json_object_get_member (patched_fields_node_obj, REQUEST_GET_ALL_ANY_FILTER_FIELDS_FORMAT);
+		  if (json_node_get_node_type (format_node) == JSON_NODE_VALUE 
+		      && json_node_get_value_type (format_node) == G_TYPE_STRING)
+                    {
+		      gchar * format_value = (gchar *)json_node_get_string (format_node);
+		      if (!g_strcmp0 (format_value, REQUEST_GET_ALL_ANY_FILTER_BY_FORMAT_DOTTED))
+		        format = DP_FIELDS_FORMAT_DOTTED;
+          	      else if (!g_strcmp0 (format_value, REQUEST_GET_ALL_ANY_FILTER_BY_FORMAT_JSONPATH))
+            	        format = DP_FIELDS_FORMAT_JSONPATH;
+		    }
+		}
+
+      	      if (json_object_has_member (patched_fields_node_obj, REQUEST_GET_ALL_ANY_FILTER_FIELDS) == TRUE)
+	        {
+		  JsonNode * fields_node = json_object_get_member (patched_fields_node_obj, REQUEST_GET_ALL_ANY_FILTER_FIELDS);
+		  if (json_node_get_node_type (fields_node) == JSON_NODE_VALUE 
+		      && json_node_get_value_type (fields_node) == G_TYPE_STRING)
+                    {
+		      fields = (gchar *)json_node_get_string (fields_node);
+
+		      if (fields != NULL)
+		        {
+			  fields_splitted = g_strsplit (fields, ",", -1);
+
+			  patched_node = dupin_util_json_node_object_filter_fields (input, format, fields_splitted, TRUE, NULL);
+
+			  /* TODO - check and log any error if could not delete fields */
+
+			  if (fields_splitted != NULL)
+			    g_strfreev (fields_splitted);
+			}
+		    }
+		}
+	    }
+
+          json_object_remove_member (changes_object, REQUEST_OBJ_PATCHED_FIELDS);
+        }
+
+      if (patched_node == NULL)
+        patched_node = dupin_util_json_node_clone (input, NULL);
+
+      JsonObject * patched_node_object = json_node_get_object (patched_node);
+
+      /* 2 - process changes */
 
       nodes = json_object_get_members (changes_object);
 
@@ -2065,24 +2197,31 @@ dupin_util_json_patch_node_object_real (JsonNode * input,
 
           JsonNode * input_node = NULL;
           JsonNodeType input_node_type;
-          if (json_object_has_member (input_object, member_name) == TRUE)
+          if (json_object_has_member (patched_node_object, member_name) == TRUE)
             {
-              input_node = json_object_get_member (input_object, member_name);
+              input_node = json_object_get_member (patched_node_object, member_name);
               input_node_type = json_node_get_node_type (input_node);
             }
 
           if (changes_node_type == JSON_NODE_NULL
               || changes_node_type == JSON_NODE_VALUE)
             {
-              /* patch single field */
+	      /* If a non-repeating element in the PATCH request already appears in the resource,
+		 and the element does not have child elements, then the new element in the request replaces the existing element in the resource. */
+
+              /* patch single simple field */
 
 	      if (input_node != NULL)
-                json_object_remove_member (input_object, member_name);
-              json_object_set_member (input_object, member_name, json_node_copy (changes_node));
+                json_object_remove_member (patched_node_object, member_name);
+              json_object_set_member (patched_node_object, member_name, json_node_copy (changes_node));
             }
 
           else if (changes_node_type == JSON_NODE_OBJECT)
             {
+              /* If a non-repeating element in the PATCH request already appears in the resource, and the element has child elements, then 
+		 the child elements included in the request will replace the corresponding child elements in the resource. However, child elements
+		 that are not included in the PATCH request will not be affected by the update. */
+
               JsonObject * sub_obj = json_node_get_object (changes_node);
 	      JsonNode * deleted = NULL;
 
@@ -2094,25 +2233,31 @@ dupin_util_json_patch_node_object_real (JsonNode * input,
 		  && json_node_get_value_type (deleted) == G_TYPE_BOOLEAN
 		  && json_node_get_boolean (deleted) == TRUE)
                 {
-		  /* remove single field */
+		  /* remove single structured field */
+
 	          if (input_node != NULL)
-                    json_object_remove_member (input_object, member_name);
+                    json_object_remove_member (patched_node_object, member_name);
                 }
               else
                 {
                   if (input_node == NULL
 		      || input_node_type != JSON_NODE_OBJECT)
                     {
+		      /* replace array, value or null with object */
+
 		      if (input_node != NULL)
-                        json_object_remove_member (input_object, member_name);
+                        json_object_remove_member (patched_node_object, member_name);
                       input_node = json_node_new (JSON_NODE_OBJECT);
 		      JsonObject * input_node_obj = json_object_new ();
 		      json_node_take_object (input_node, input_node_obj);
-
-		      json_object_set_member (input_object, member_name, input_node);
                     }
                   
-		  dupin_util_json_patch_node_object_real (input_node, changes_node); 
+  		  JsonNode * patched_node = dupin_util_json_node_object_patch_real (input_node, changes_node); 
+
+	          if (patched_node != NULL)
+		    json_object_set_member (patched_node_object, member_name, patched_node);
+ 		  else
+		    json_object_set_member (patched_node_object, member_name, input_node);
 		}
             }
 
@@ -2121,16 +2266,27 @@ dupin_util_json_patch_node_object_real (JsonNode * input,
               if (input_node == NULL
 		  || input_node_type != JSON_NODE_ARRAY)
                 {
+		  /* replace object, value or null with array */
+
 		  if (input_node != NULL)
-                    json_object_remove_member (input_object, member_name);
+                    json_object_remove_member (patched_node_object, member_name);
                   input_node = json_node_new (JSON_NODE_ARRAY);
 		  JsonArray * input_node_array = json_array_new ();
 		  json_node_take_array (input_node, input_node_array);
 
-		  json_object_set_member (input_object, member_name, input_node);
+//g_message("dupin_util_json_node_object_patch_real: replaced member %s object, value or null with empty array \n", member_name);
                 }
+
+//g_message("dupin_util_json_node_object_patch_real: got array for member %s\n", member_name);
+//DUPIN_UTIL_DUMP_JSON ("Input_node", input_node);
+//DUPIN_UTIL_DUMP_JSON ("Changes_node", changes_node);
                   
-	      dupin_util_json_patch_node_object_real (input_node, changes_node); 
+  	      JsonNode * patched_node = dupin_util_json_node_object_patch_real (input_node, changes_node); 
+
+	      if (patched_node != NULL)
+	        json_object_set_member (patched_node_object, member_name, patched_node);
+ 	      else
+		json_object_set_member (patched_node_object, member_name, input_node);
             }
         }
       g_list_free (nodes);
@@ -2138,8 +2294,13 @@ dupin_util_json_patch_node_object_real (JsonNode * input,
 
   else if (changes_type == JSON_NODE_ARRAY)
     {
+      /* NOTE - the input node type is guaranteed to be the same as changes type when recursing - see above */
+
+      patched_node = dupin_util_json_node_clone (input, NULL);
+
+      JsonArray * patched_node_array = json_node_get_array (patched_node);
+
       JsonArray * changes_array = json_node_get_array (changes);
-      JsonArray * input_array = json_node_get_array (input);
 
       nodes = json_array_get_elements (changes_array);
       gint i;
@@ -2147,24 +2308,78 @@ dupin_util_json_patch_node_object_real (JsonNode * input,
         {
           JsonNode * changes_node = (JsonNode *)n->data;
 
+	  /* need to json collate compare A <=> B
+
+		A = input
+		B = patch
+
+		if A = B do nothing - no addition
+		if A > B adds B before A
+		if A < B adds B at the end of array (not immediately after B)
+	   */
+
+	  JsonNode * input_node = json_array_get_element (patched_node_array, i);
+
+//DUPIN_UTIL_DUMP_JSON ("Input_node", input_node);
+//DUPIN_UTIL_DUMP_JSON ("Changes_node", changes_node);
+
+	  gint ret;
+
+	  if (input_node == NULL)
+	    ret = -1;
+          else
+	    {
+	      ret = dupin_util_collation_compare_pair (input_node, changes_node);
+
+//g_message("dupin_util_json_node_object_patch_real: ret = %d\n", ret);
+	    }
+
           /* patch single element */
 
-          json_array_add_element (input_array, json_node_copy (changes_node));
+	  if (ret < 0)
+            {
+	      /* add patch after */
+              json_array_add_element (patched_node_array, json_node_copy (changes_node));
+            }
+	  else if (ret > 0)
+            {
+	      /* add patch before */
+
+	      input_node = json_node_copy (input_node);
+              json_array_remove_element (patched_node_array, i);
+              json_array_add_element (patched_node_array, json_node_copy (changes_node));
+              json_array_add_element (patched_node_array, input_node);
+            }
         }
       g_list_free (nodes);
     }
+
+  return patched_node;
 }
 
-void
-dupin_util_json_patch_node_object (JsonNode * input,
+JsonNode *
+dupin_util_json_node_object_patch (JsonNode * input,
                                    JsonNode * changes)
 {
-  g_return_if_fail (input != NULL);
-  g_return_if_fail (changes != NULL);
-  g_return_if_fail (json_node_get_node_type (input) == JSON_NODE_OBJECT);
-  g_return_if_fail (json_node_get_node_type (changes) == JSON_NODE_OBJECT);
+  g_return_val_if_fail (input != NULL, NULL);
+  g_return_val_if_fail (changes != NULL, NULL);
+  g_return_val_if_fail (json_node_get_node_type (input) == JSON_NODE_OBJECT, NULL);
+  g_return_val_if_fail (json_node_get_node_type (changes) == JSON_NODE_OBJECT, NULL);
 
-  dupin_util_json_patch_node_object_real (input, changes);
+/*
+g_message ("dupin_util_json_node_object_patch: to patch\n");
+DUPIN_UTIL_DUMP_JSON ("Input", input);
+DUPIN_UTIL_DUMP_JSON ("Changes", changes);
+*/
+
+  JsonNode * patched_node = dupin_util_json_node_object_patch_real (input, changes);
+
+/*
+g_message ("dupin_util_json_node_object_patch: patched\n");
+DUPIN_UTIL_DUMP_JSON ("Output", patched_node);
+*/
+
+  return patched_node;
 }
 
 

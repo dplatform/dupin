@@ -42,10 +42,15 @@ gchar *		dupin_util_json_value_to_string (JsonNode * node);
 JsonNode *	dupin_util_json_node_clone	(JsonNode * node,
 						 GError **  error);
 
+JsonNode *     	dupin_util_json_node_object_patch
+						(JsonNode * input,
+						 JsonNode * changes); 
+
 JsonNode * 	dupin_util_json_node_object_filter_fields
 						(JsonNode * node,
 						 DupinFieldsFormatType format,
 						 gchar **   fields,
+						 gboolean not,
 						 GError **  error);
 
 JsonNode * 	dupin_util_json_node_object_grep_nodes
@@ -144,10 +149,6 @@ gchar *        dupin_util_json_string_normalize	(gchar * input_string);
 
 gchar *        dupin_util_json_string_normalize_docid
 						(gchar * input_string_docid);
-
-void	       dupin_util_json_patch_node_object
-						(JsonNode * input,
-						 JsonNode * changes); 
 
 /* k/v pairs for argument lists */
 

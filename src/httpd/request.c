@@ -6967,7 +6967,7 @@ request_record_revision_obj (DSHttpdClient * client,
   if (fields != NULL)
     {
       fields_splitted = g_strsplit (fields, ",", -1);
-      obj_node = dupin_util_json_node_object_filter_fields (obj_node, fields_format, fields_splitted, NULL);
+      obj_node = dupin_util_json_node_object_filter_fields (obj_node, fields_format, fields_splitted, FALSE, NULL);
     }
   else
     obj_node = json_node_copy (obj_node);
@@ -7466,7 +7466,7 @@ request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
   if (fields != NULL)
     {
       fields_splitted = g_strsplit (fields, ",", -1);
-      obj_node = dupin_util_json_node_object_filter_fields (obj_node, fields_format, fields_splitted, NULL);
+      obj_node = dupin_util_json_node_object_filter_fields (obj_node, fields_format, fields_splitted, FALSE, NULL);
     }
   else
     obj_node = json_node_copy (obj_node);

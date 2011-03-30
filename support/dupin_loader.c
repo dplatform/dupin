@@ -228,8 +228,11 @@ void dupin_loader_close (void)
 {
 //g_message ("dupin_loader_close: closing down\n");
 
-  g_io_channel_shutdown (io, FALSE, NULL);
-  g_io_channel_unref (io);
+  if (io)
+    {
+      g_io_channel_shutdown (io, FALSE, NULL);
+      g_io_channel_unref (io);
+    }
 
   if (db)
     dupin_database_unref (db);
@@ -245,7 +248,8 @@ void dupin_loader_close (void)
 
   configure_free (d_conf);
 
-  dupin_shutdown (d);
+  if (d)
+    dupin_shutdown (d);
 
   if (error != NULL)
     g_error_free (error);

@@ -2221,6 +2221,8 @@ dupin_record_insert (DupinDB * db,
                       GList * links_response_list = NULL;
                       JsonNode * lnode = (JsonNode *) sn->data;
                       gchar * lnode_label = NULL;
+                      gchar * lnode_id = NULL;
+                      gchar * lnode_rev = NULL;
 
                       if (json_node_get_node_type (lnode) != JSON_NODE_OBJECT)
                         {
@@ -2237,6 +2239,12 @@ dupin_record_insert (DupinDB * db,
                       else
                         json_object_set_string_member (lobj, REQUEST_LINK_OBJ_LABEL, label);
 
+                      if (json_object_has_member (lobj, REQUEST_LINK_OBJ_ID) == TRUE)
+                        lnode_id = (gchar *)json_object_get_string_member (lobj, REQUEST_LINK_OBJ_ID);
+
+                      if (json_object_has_member (lobj, REQUEST_LINK_OBJ_REV) == TRUE)
+                        lnode_rev = (gchar *)json_object_get_string_member (lobj, REQUEST_LINK_OBJ_REV);
+
 //g_message("dupin_record_insert: context_id=%s label=%s lnode_label=%s\n", context_id, label, lnode_label);
 
                       /* TODO - rework this to report errors to poort user ! perhaps using contextual logging if useful */
@@ -2249,6 +2257,10 @@ dupin_record_insert (DupinDB * db,
                           gchar * error_msg = g_string_free (str, FALSE);
                           json_object_set_string_member (error_obj, RESPONSE_STATUS_REASON, error_msg);
                           json_object_set_string_member (error_obj, RESPONSE_STATUS_ERROR, "bad_request");
+		 	  if (lnode_id != NULL)
+			    json_object_set_string_member (error_obj, RESPONSE_OBJ_ID,lnode_id);
+          		  if (lnode_rev != NULL)
+            		    json_object_set_string_member (error_obj, RESPONSE_OBJ_REV,lnode_rev);
                           g_free (error_msg);
                           json_array_add_object_element (record_response_links_label_array, error_obj);
 
@@ -2271,6 +2283,10 @@ dupin_record_insert (DupinDB * db,
                           gchar * error_msg = g_string_free (str, FALSE);
                           json_object_set_string_member (error_obj, RESPONSE_STATUS_REASON, error_msg);
                           json_object_set_string_member (error_obj, RESPONSE_STATUS_ERROR, "bad_request");
+		 	  if (lnode_id != NULL)
+			    json_object_set_string_member (error_obj, RESPONSE_OBJ_ID,lnode_id);
+          		  if (lnode_rev != NULL)
+            		    json_object_set_string_member (error_obj, RESPONSE_OBJ_REV,lnode_rev);
                           g_free (error_msg);
                           json_array_add_object_element (record_response_links_label_array, error_obj);
 
@@ -2343,6 +2359,8 @@ dupin_record_insert (DupinDB * db,
                       GList * relationships_response_list = NULL;
                       JsonNode * rnode = (JsonNode *) sn->data;
                       gchar * rnode_label = NULL;
+		      gchar * rnode_id = NULL;
+                      gchar * rnode_rev = NULL;
 
                       if (json_node_get_node_type (rnode) != JSON_NODE_OBJECT)
                         {
@@ -2359,6 +2377,12 @@ dupin_record_insert (DupinDB * db,
                       else
                         json_object_set_string_member (robj, REQUEST_LINK_OBJ_LABEL, label);
 
+                      if (json_object_has_member (robj, REQUEST_LINK_OBJ_ID) == TRUE)
+                        rnode_id = (gchar *)json_object_get_string_member (robj, REQUEST_LINK_OBJ_ID);
+
+                      if (json_object_has_member (robj, REQUEST_LINK_OBJ_REV) == TRUE)
+                        rnode_rev = (gchar *)json_object_get_string_member (robj, REQUEST_LINK_OBJ_REV);
+
 //g_message("dupin_record_insert: context_id=%s label=%s rnode_label=%s\n", context_id, label, rnode_label);
 
                       /* TODO - rework this to report errors to poort user ! perhaps using contextual logging if useful */
@@ -2371,6 +2395,10 @@ dupin_record_insert (DupinDB * db,
                           gchar * error_msg = g_string_free (str, FALSE);
                           json_object_set_string_member (error_obj, RESPONSE_STATUS_REASON, error_msg);
                           json_object_set_string_member (error_obj, RESPONSE_STATUS_ERROR, "bad_request");
+		 	  if (rnode_id != NULL)
+			    json_object_set_string_member (error_obj, RESPONSE_OBJ_ID,rnode_id);
+          		  if (rnode_rev != NULL)
+            		    json_object_set_string_member (error_obj, RESPONSE_OBJ_REV,rnode_rev);
                           g_free (error_msg);
                           json_array_add_object_element (record_response_relationships_label_array, error_obj);
 
@@ -2393,6 +2421,10 @@ dupin_record_insert (DupinDB * db,
                           gchar * error_msg = g_string_free (str, FALSE);
                           json_object_set_string_member (error_obj, RESPONSE_STATUS_REASON, error_msg);
                           json_object_set_string_member (error_obj, RESPONSE_STATUS_ERROR, "bad_request");
+		 	  if (rnode_id != NULL)
+			    json_object_set_string_member (error_obj, RESPONSE_OBJ_ID,rnode_id);
+          		  if (rnode_rev != NULL)
+            		    json_object_set_string_member (error_obj, RESPONSE_OBJ_REV,rnode_rev);
                           g_free (error_msg);
                           json_array_add_object_element (record_response_relationships_label_array, error_obj);
 

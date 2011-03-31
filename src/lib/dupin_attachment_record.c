@@ -756,11 +756,11 @@ dupin_attachment_record_get (DupinAttachmentRecord * record)
 
   json_node_take_object (obj_node, obj);
 
-  json_object_set_string_member (obj, "type", dupin_attachment_record_get_type (record));
-  json_object_set_int_member (obj, "length", dupin_attachment_record_get_length (record));
+  json_object_set_string_member (obj, RESPONSE_OBJ_INLINE_ATTACHMENTS_TYPE, dupin_attachment_record_get_type (record));
+  json_object_set_int_member (obj, RESPONSE_OBJ_INLINE_ATTACHMENTS_LENGTH, dupin_attachment_record_get_length (record));
   hash = (gchar *)dupin_attachment_record_get_hash (record);
   if (hash != NULL)
-    json_object_set_string_member (obj, "hash", hash);
+    json_object_set_string_member (obj, RESPONSE_OBJ_INLINE_ATTACHMENTS_HASH, hash);
 
   return obj_node;
 }

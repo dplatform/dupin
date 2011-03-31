@@ -159,9 +159,13 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 #define REQUEST_LINK_OBJ_TAG            "_tag"
 #define REQUEST_LINK_OBJ_LABEL          "_label"
 
-#define REQUEST_OBJ_INLINE_ATTACHMENTS_STUB     "stub"
-#define REQUEST_OBJ_INLINE_ATTACHMENTS_DATA     "data"
-#define REQUEST_OBJ_INLINE_ATTACHMENTS_TYPE     "content_type"
+#define REQUEST_OBJ_INLINE_ATTACHMENTS_STUB     "_stub"
+#define REQUEST_OBJ_INLINE_ATTACHMENTS_DATA     "_data"
+#define REQUEST_OBJ_INLINE_ATTACHMENTS_TYPE     "_content_type"
+
+#define RESPONSE_OBJ_INLINE_ATTACHMENTS_TYPE     REQUEST_OBJ_INLINE_ATTACHMENTS_TYPE
+#define RESPONSE_OBJ_INLINE_ATTACHMENTS_HASH	"_hash"     
+#define RESPONSE_OBJ_INLINE_ATTACHMENTS_LENGTH	"_length"     
 
 #define RESPONSE_OBJ_ID                 "id"
 #define RESPONSE_OBJ_REV                "rev"

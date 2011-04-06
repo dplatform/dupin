@@ -955,8 +955,16 @@ httpd_client_request (DSHttpdClient * client)
 
   if (!client->request_path)
     {
+      client->request_included_docs_level = 0;
+      client->request_included_docs = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, (GDestroyNotify)json_node_free);
+      client->request_included_links_level = 0;
+      client->request_included_links = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, (GDestroyNotify)json_node_free);
+
       status = request_global (client, client->request_path,
 		      client->request_arguments);
+
+      g_hash_table_destroy (client->request_included_docs);
+      g_hash_table_destroy (client->request_included_links);
 
       /*
          Valgrind returns around here:
@@ -984,9 +992,19 @@ httpd_client_request (DSHttpdClient * client)
     }
 
   if (!request_types[i].request)
-    status =
-      request_global (client, client->request_path,
-		      client->request_arguments);
+    {
+      client->request_included_docs_level = 0;
+      client->request_included_docs = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, (GDestroyNotify)json_node_free);
+      client->request_included_links_level = 0;
+      client->request_included_links = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, (GDestroyNotify)json_node_free);
+
+      status =
+        request_global (client, client->request_path,
+	                client->request_arguments);
+
+      g_hash_table_destroy (client->request_included_docs);
+      g_hash_table_destroy (client->request_included_links);
+    }
 
   httpd_client_send (client, status);
 }

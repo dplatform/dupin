@@ -177,6 +177,7 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 #define RESPONSE_OBJ_CONTENT            REQUEST_OBJ_CONTENT
 #define RESPONSE_OBJ_DELETED            REQUEST_OBJ_DELETED
 #define RESPONSE_OBJ_EMPTY              "_empty"
+#define RESPONSE_OBJ_INCLUDED           "_included"
 #define RESPONSE_OBJ_LINKS_PAGING       "_paging"
 #define RESPONSE_OBJ_DOC                "doc"
 
@@ -192,6 +193,8 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 #define RESPONSE_LINK_OBJ_DOC_OUT       "doc_out"
 #define RESPONSE_LINK_OBJ_LINK          "link"
 #define RESPONSE_LINK_OBJ_EMPTY         RESPONSE_OBJ_EMPTY
+#define RESPONSE_LINK_OBJ_DELETED       REQUEST_OBJ_DELETED
+#define RESPONSE_LINK_OBJ_INCLUDED      RESPONSE_OBJ_INCLUDED
 
 #define RESPONSE_VIEW_OBJ_DOC           RESPONSE_OBJ_DOC
 #define RESPONSE_VIEW_OBJ_KEY           "key"
@@ -212,6 +215,9 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 #define DUPIN_ATTACHMENTS_COUNT     100
 #define DUPIN_REVISIONS_COUNT       100
 #define DUPIN_DB_MAX_CHANGES_COUNT  100
+
+#define DUPIN_INCLUDE_DOCS_MAX_LEVEL	1	
+#define DUPIN_INCLUDE_LINKS_MAX_LEVEL	1
 
 #define RESPONSE_STATUS_OK                      "ok"
 #define RESPONSE_STATUS_ERROR                   "error"

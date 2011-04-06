@@ -48,10 +48,19 @@ static JSValueRef dupin_js_dupin_class_path
 		   	       		    const JSValueRef arguments[],
 		   	       		    JSValueRef * exception);
 
+static JSValueRef dupin_js_dupin_class_links
+					   (JSContextRef ctx,
+					    JSObjectRef object,
+		   	       		    JSObjectRef thisObject,
+					    size_t argumentCount,
+		   	       		    const JSValueRef arguments[],
+		   	       		    JSValueRef * exception);
+
 static JSStaticFunction dupin_js_dupin_class_static_functions[] = {
     { "log", dupin_js_dupin_class_log, kJSPropertyAttributeNone },
     { "view_lookup", dupin_js_dupin_class_view_lookup, kJSPropertyAttributeNone },
     { "path", dupin_js_dupin_class_path, kJSPropertyAttributeNone },
+    { "links", dupin_js_dupin_class_links, kJSPropertyAttributeNone },
     { 0, 0, 0 }
 };
 
@@ -1007,6 +1016,674 @@ dupin_js_dupin_class_path (JSContextRef ctx,
     g_free (tag);
   json_node_free (doc_node);
   json_node_free (paths);
+
+  return result;
+}
+
+static JSValueRef
+dupin_js_dupin_class_links (JSContextRef ctx,
+                   	    JSObjectRef object,
+		   	    JSObjectRef thisObject, size_t argumentCount,
+		   	    const JSValueRef arguments[],
+		   	    JSValueRef * exception)
+{
+  JSValueRef result=NULL;
+
+  Dupin * d = (Dupin *) JSObjectGetPrivate(thisObject);
+  DupinLinkB *linkb=NULL;
+
+  /*
+     we pass two arguments:
+	-> the document
+	-> the request parameters (named as in the src/lib/dupin.h and used in request.c):
+
+	{
+	  "count": number,
+	  "offset": number,
+	  "rowid_start": number,
+	  "rowid_end": number,
+	  "links_type": type,
+	  "key": string,
+	  "start_key": string,
+	  "end_key": string,
+	  "inclusive_end": boolean,
+	  "count_type": string,
+	  "orderby_type": string,
+	  "descending": boolean,
+	  "rels": "string, string...",
+	  "rels_type": string,
+	  "labels": "string, string ... ",
+	  "labels_type": string,
+	  "hrefs": "string, string ... ",
+	  "hrefs_type": string,
+	  "tags": "string, string .. ",
+	  "tags_type": string,
+	  "filter_by": string,
+	  "filter_by_format": string,
+	  "filter_op": string,
+	  "filter_values": "string, string ..."
+        }
+   */
+  if (argumentCount != 2)
+    {
+      *exception = JSValueMakeNumber (ctx, 1);
+      return JSValueMakeNull(ctx);
+    }
+//g_message("dupin_js_dupin_class_links: checking params...\n");
+
+  if (((!arguments[0]))
+      || (!arguments[1]))
+    return JSValueMakeNull(ctx);
+
+//g_message("dupin_js_dupin_class_links: ok params...\n");
+
+  JsonNode * doc_node = NULL;
+  dupin_js_value (ctx, arguments[0], &doc_node);
+  if (doc_node == NULL
+      || json_node_get_node_type (doc_node) != JSON_NODE_OBJECT
+      || json_object_has_member (json_node_get_object (doc_node), "_linkbase") == FALSE)
+    {
+      if (doc_node != NULL) 
+        json_node_free (doc_node);
+
+      return JSValueMakeNull(ctx);
+    }
+
+  JsonNode * params_node = NULL;
+  dupin_js_value (ctx, arguments[1], &params_node);
+  if (params_node == NULL
+      || json_node_get_node_type (params_node) != JSON_NODE_OBJECT)
+    {
+      if (doc_node != NULL) 
+        json_node_free (doc_node);
+      if (params_node != NULL) 
+        json_node_free (params_node);
+
+      return JSValueMakeNull(ctx);
+    }
+  JsonObject * params_node_obj = json_node_get_object (params_node);
+
+//DUPIN_UTIL_DUMP_JSON ("dupin_js_dupin_class_links: doc:", doc_node);
+//DUPIN_UTIL_DUMP_JSON ("dupin_js_dupin_class_links: params:", params_node);
+
+  /* parse parameters */
+
+  gchar * context_id = (gchar *)json_object_get_string_member (json_node_get_object (doc_node), "_id");
+  if (context_id == NULL)
+    {
+      if (doc_node != NULL) 
+        json_node_free (doc_node);
+      if (params_node != NULL) 
+        json_node_free (params_node);
+
+      return JSValueMakeNull(ctx);
+    }
+
+  gboolean descending = FALSE;
+  guint count = DUPIN_LINKB_MAX_LINKS_COUNT;
+  guint offset = 0;
+  gchar * startkey = NULL;
+  gchar * endkey = NULL;
+  gboolean inclusive_end = TRUE;
+  gchar ** link_rels = NULL;
+  DupinFilterByType link_rels_op = DP_FILTERBY_EQUALS;
+  gchar ** link_labels = NULL;
+  DupinFilterByType link_labels_op = DP_FILTERBY_EQUALS;
+  gchar ** link_hrefs = NULL;
+  DupinFilterByType link_hrefs_op = DP_FILTERBY_EQUALS;
+  gchar ** link_tags = NULL;
+  DupinFilterByType link_tags_op = DP_FILTERBY_EQUALS;
+  DupinLinksType link_type = DP_LINK_TYPE_ANY;
+  gchar * filter_by = NULL;
+  DupinFieldsFormatType filter_by_format = DP_FIELDS_FORMAT_DOTTED;
+  DupinFilterByType filter_op = DP_FILTERBY_UNDEF;
+  gchar * filter_values = NULL;
+  gsize created = 0;
+  DupinCreatedType created_op = DP_CREATED_SINCE;
+
+  GList * nodes = json_object_get_members (params_node_obj);
+  GList * l=NULL;
+
+  for (l = nodes; l != NULL ; l = l->next)
+    {
+      gchar * member_name = (gchar *)l->data;
+      JsonNode * member = json_object_get_member (params_node_obj, member_name);
+
+      if (!g_strcmp0 (member_name, REQUEST_GET_ALL_LINKS_DESCENDING))
+        {
+ 	  if (json_node_get_node_type (member) == JSON_NODE_VALUE
+	      && json_node_get_value_type (member) == G_TYPE_BOOLEAN)
+	    {
+              descending = json_node_get_boolean (member);
+            }
+        }
+
+      else if (!g_strcmp0 (member_name, REQUEST_GET_ALL_LINKS_COUNT))
+        {
+ 	  if (json_node_get_node_type (member) == JSON_NODE_VALUE
+	      && (json_node_get_value_type (member) == G_TYPE_INT
+	          || json_node_get_value_type (member) == G_TYPE_INT64
+		  || json_node_get_value_type (member) == G_TYPE_UINT))
+            {
+              count = json_node_get_int (member);
+            }
+        }
+
+      else if (!g_strcmp0 (member_name, REQUEST_GET_ALL_LINKS_OFFSET))
+        {
+ 	  if (json_node_get_node_type (member) == JSON_NODE_VALUE
+	      && (json_node_get_value_type (member) == G_TYPE_INT
+	          || json_node_get_value_type (member) == G_TYPE_INT64
+		  || json_node_get_value_type (member) == G_TYPE_UINT))
+            {
+              offset = json_node_get_int (member);
+            }
+        }
+
+      else if (!g_strcmp0 (member_name, REQUEST_GET_ALL_ANY_FILTER_CREATED_SINCE))
+        {
+ 	  if (json_node_get_node_type (member) == JSON_NODE_VALUE
+	      && (json_node_get_value_type (member) == G_TYPE_DOUBLE
+	          || json_node_get_value_type (member) == G_TYPE_FLOAT))
+	    {
+	      created = (gsize) json_node_get_double (member);
+              created_op = DP_CREATED_SINCE;
+            }
+        }
+
+      else if (!g_strcmp0 (member_name, REQUEST_GET_ALL_ANY_FILTER_CREATED_UNTIL))
+        {
+ 	  if (json_node_get_node_type (member) == JSON_NODE_VALUE
+	      && (json_node_get_value_type (member) == G_TYPE_DOUBLE
+	          || json_node_get_value_type (member) == G_TYPE_FLOAT))
+	    {
+	      created = (gsize) json_node_get_double (member);
+              created_op = DP_CREATED_SINCE;
+            }
+        }
+
+      else if (!g_strcmp0 (member_name, REQUEST_GET_ALL_LINKS_RELS))
+        {
+ 	  if (json_node_get_node_type (member) == JSON_NODE_VALUE
+	      && json_node_get_value_type (member) == G_TYPE_STRING)
+            {
+	      link_rels = g_strsplit (json_node_get_string (member), ",", -1);
+	    }
+        }
+
+      else if (!g_strcmp0 (member_name, REQUEST_GET_ALL_LINKS_RELS_OP))
+        {
+	  if (json_node_get_node_type (member) == JSON_NODE_VALUE
+	      && json_node_get_value_type (member) == G_TYPE_STRING)
+            {
+	      gchar * op = (gchar *)json_node_get_string (member);
+              if (!g_strcmp0 (op, REQUEST_GET_ALL_ANY_FILTER_OP_EQUALS))
+                link_rels_op = DP_FILTERBY_EQUALS;
+              else if (!g_strcmp0 (op, REQUEST_GET_ALL_ANY_FILTER_OP_CONTAINS))
+                link_rels_op = DP_FILTERBY_CONTAINS;
+              else if (!g_strcmp0 (op, REQUEST_GET_ALL_ANY_FILTER_OP_STARTS_WITH))
+                link_rels_op = DP_FILTERBY_STARTS_WITH;
+              else if (!g_strcmp0 (op, REQUEST_GET_ALL_ANY_FILTER_OP_PRESENT))
+                link_rels_op = DP_FILTERBY_PRESENT;
+	    }
+        }
+
+      else if (!g_strcmp0 (member_name, REQUEST_GET_ALL_LINKS_LABELS))
+        {
+          if (json_node_get_node_type (member) == JSON_NODE_VALUE
+              && json_node_get_value_type (member) == G_TYPE_STRING)
+            {
+              link_labels = g_strsplit (json_node_get_string (member), ",", -1);
+            }
+        }
+
+      else if (!g_strcmp0 (member_name, REQUEST_GET_ALL_LINKS_LABELS_OP))
+        {
+          if (json_node_get_node_type (member) == JSON_NODE_VALUE
+              && json_node_get_value_type (member) == G_TYPE_STRING)
+            {
+              gchar * op = (gchar *)json_node_get_string (member);
+              if (!g_strcmp0 (op, REQUEST_GET_ALL_ANY_FILTER_OP_EQUALS))
+                link_labels_op = DP_FILTERBY_EQUALS;
+              else if (!g_strcmp0 (op, REQUEST_GET_ALL_ANY_FILTER_OP_CONTAINS))
+                link_labels_op = DP_FILTERBY_CONTAINS;
+              else if (!g_strcmp0 (op, REQUEST_GET_ALL_ANY_FILTER_OP_STARTS_WITH))
+                link_labels_op = DP_FILTERBY_STARTS_WITH;
+              else if (!g_strcmp0 (op, REQUEST_GET_ALL_ANY_FILTER_OP_PRESENT))
+                link_labels_op = DP_FILTERBY_PRESENT;
+            }
+        }
+
+      else if (!g_strcmp0 (member_name, REQUEST_GET_ALL_LINKS_HREFS))
+        {
+          if (json_node_get_node_type (member) == JSON_NODE_VALUE
+              && json_node_get_value_type (member) == G_TYPE_STRING)
+            {
+              link_hrefs = g_strsplit (json_node_get_string (member), ",", -1);
+            }
+        }
+
+      else if (!g_strcmp0 (member_name, REQUEST_GET_ALL_LINKS_HREFS_OP))
+        {
+          if (json_node_get_node_type (member) == JSON_NODE_VALUE
+              && json_node_get_value_type (member) == G_TYPE_STRING)
+            {
+              gchar * op = (gchar *)json_node_get_string (member);
+              if (!g_strcmp0 (op, REQUEST_GET_ALL_ANY_FILTER_OP_EQUALS))
+                link_hrefs_op = DP_FILTERBY_EQUALS;
+              else if (!g_strcmp0 (op, REQUEST_GET_ALL_ANY_FILTER_OP_CONTAINS))
+                link_hrefs_op = DP_FILTERBY_CONTAINS;
+              else if (!g_strcmp0 (op, REQUEST_GET_ALL_ANY_FILTER_OP_STARTS_WITH))
+                link_hrefs_op = DP_FILTERBY_STARTS_WITH;
+              else if (!g_strcmp0 (op, REQUEST_GET_ALL_ANY_FILTER_OP_PRESENT))
+                link_hrefs_op = DP_FILTERBY_PRESENT;
+            }
+        }
+
+      else if (!g_strcmp0 (member_name, REQUEST_GET_ALL_LINKS_TAGS))
+        {
+          if (json_node_get_node_type (member) == JSON_NODE_VALUE
+              && json_node_get_value_type (member) == G_TYPE_STRING)
+            {
+              link_tags = g_strsplit (json_node_get_string (member), ",", -1);
+            }
+        }
+
+      else if (!g_strcmp0 (member_name, REQUEST_GET_ALL_LINKS_TAGS_OP))
+        {
+          if (json_node_get_node_type (member) == JSON_NODE_VALUE
+              && json_node_get_value_type (member) == G_TYPE_STRING)
+            {
+              gchar * op = (gchar *)json_node_get_string (member);
+              if (!g_strcmp0 (op, REQUEST_GET_ALL_ANY_FILTER_OP_EQUALS))
+                link_tags_op = DP_FILTERBY_EQUALS;
+              else if (!g_strcmp0 (op, REQUEST_GET_ALL_ANY_FILTER_OP_CONTAINS))
+                link_tags_op = DP_FILTERBY_CONTAINS;
+              else if (!g_strcmp0 (op, REQUEST_GET_ALL_ANY_FILTER_OP_STARTS_WITH))
+                link_tags_op = DP_FILTERBY_STARTS_WITH;
+              else if (!g_strcmp0 (op, REQUEST_GET_ALL_ANY_FILTER_OP_PRESENT))
+                link_tags_op = DP_FILTERBY_PRESENT;
+            }
+        }
+
+      else if (!g_strcmp0 (member_name, REQUEST_GET_ALL_LINKS_LINK_TYPE))
+        {
+          if (json_node_get_node_type (member) == JSON_NODE_VALUE
+              && json_node_get_value_type (member) == G_TYPE_STRING)
+            {
+              gchar * t = (gchar *)json_node_get_string (member);
+              if (!g_strcmp0 (t, REQUEST_GET_ALL_LINKS_LINK_TYPE_WEBLINKS))
+                link_type = DP_LINK_TYPE_WEB_LINK;
+              else if (!g_strcmp0 (t, REQUEST_GET_ALL_LINKS_LINK_TYPE_RELATIONSHIPS))
+                link_type = DP_LINK_TYPE_RELATIONSHIP;
+            }
+        }
+
+      else if (!g_strcmp0 (member_name, REQUEST_GET_ALL_DOCS_INCLUSIVEEND))
+        {
+ 	  if (json_node_get_node_type (member) == JSON_NODE_VALUE
+	      && json_node_get_value_type (member) == G_TYPE_BOOLEAN)
+	    {
+              inclusive_end = json_node_get_boolean (member);
+            }
+        }
+
+      else if (!g_strcmp0 (member_name, REQUEST_GET_ALL_DOCS_KEY))
+        {
+          if (json_node_get_node_type (member) == JSON_NODE_VALUE
+              && json_node_get_value_type (member) == G_TYPE_STRING)
+            {
+              if (startkey != NULL)
+                g_free (startkey);
+
+              startkey = dupin_util_json_string_normalize_docid ((gchar *)json_node_get_string (member));
+              if (startkey == NULL)
+                {
+                  if (link_rels)
+                    g_strfreev (link_rels);
+
+                  if (link_labels)
+                    g_strfreev (link_labels);
+
+                  if (link_hrefs)
+                    g_strfreev (link_hrefs);
+
+                  if (link_tags)
+                    g_strfreev (link_tags);
+
+                  if (endkey != NULL)
+                    g_free (endkey);
+
+                  if (doc_node != NULL) 
+                    json_node_free (doc_node);
+
+                  if (params_node != NULL) 
+                    json_node_free (params_node);
+
+                  return JSValueMakeNull(ctx);
+                }
+
+              endkey = g_strdup (startkey);
+	    }
+        }
+
+      else if (!g_strcmp0 (member_name, REQUEST_GET_ALL_DOCS_STARTKEY))
+        {
+          if (json_node_get_node_type (member) == JSON_NODE_VALUE
+              && json_node_get_value_type (member) == G_TYPE_STRING)
+            {
+              if (startkey != NULL)
+                g_free (startkey);
+
+              startkey = dupin_util_json_string_normalize_docid ((gchar *)json_node_get_string (member));
+              if (startkey == NULL)
+                {
+                  if (link_rels)
+                    g_strfreev (link_rels);
+
+                  if (link_labels)
+                    g_strfreev (link_labels);
+
+                  if (link_hrefs)
+                    g_strfreev (link_hrefs);
+
+                  if (link_tags)
+                    g_strfreev (link_tags);
+
+                  if (endkey != NULL)
+                    g_free (endkey);
+
+                  if (doc_node != NULL) 
+                    json_node_free (doc_node);
+
+                  if (params_node != NULL) 
+                    json_node_free (params_node);
+
+                  return JSValueMakeNull(ctx);
+                }
+	    }
+        }
+
+      else if (!g_strcmp0 (member_name, REQUEST_GET_ALL_DOCS_ENDKEY))
+        {
+          if (json_node_get_node_type (member) == JSON_NODE_VALUE
+              && json_node_get_value_type (member) == G_TYPE_STRING)
+            {
+              if (endkey != NULL)
+                g_free (endkey);
+
+              endkey = dupin_util_json_string_normalize_docid ((gchar *)json_node_get_string (member));
+              if (endkey == NULL)
+                {
+                  if (link_rels)
+                    g_strfreev (link_rels);
+
+                  if (link_labels)
+                    g_strfreev (link_labels);
+
+                  if (link_hrefs)
+                    g_strfreev (link_hrefs);
+
+                  if (link_tags)
+                    g_strfreev (link_tags);
+
+                  if (startkey != NULL)
+                    g_free (startkey);
+
+                  if (doc_node != NULL) 
+                    json_node_free (doc_node);
+
+                  if (params_node != NULL) 
+                    json_node_free (params_node);
+
+                  return JSValueMakeNull(ctx);
+                }
+	    }
+        }
+
+      else if (!g_strcmp0 (member_name, REQUEST_GET_ALL_ANY_FILTER_BY))
+        {
+          if (json_node_get_node_type (member) == JSON_NODE_VALUE
+              && json_node_get_value_type (member) == G_TYPE_STRING)
+            {
+	      filter_by = (gchar *)json_node_get_string (member);
+            }
+        }
+
+      else if (!g_strcmp0 (member_name, REQUEST_GET_ALL_ANY_FILTER_BY_FORMAT))
+        {
+          if (json_node_get_node_type (member) == JSON_NODE_VALUE
+              && json_node_get_value_type (member) == G_TYPE_STRING)
+            {
+              gchar * f = (gchar *)json_node_get_string (member);
+              if (!g_strcmp0 (f, REQUEST_GET_ALL_ANY_FILTER_BY_FORMAT_DOTTED))
+                filter_by_format = DP_FIELDS_FORMAT_DOTTED;
+              else if (!g_strcmp0 (f, REQUEST_GET_ALL_ANY_FILTER_BY_FORMAT_JSONPATH))
+                filter_by_format = DP_FIELDS_FORMAT_JSONPATH;
+            }
+        }
+
+      else if (!g_strcmp0 (member_name, REQUEST_GET_ALL_ANY_FILTER_OP))
+        {
+          if (json_node_get_node_type (member) == JSON_NODE_VALUE
+              && json_node_get_value_type (member) == G_TYPE_STRING)
+            {
+              gchar * op = (gchar *)json_node_get_string (member);
+              if (!g_strcmp0 (op, REQUEST_GET_ALL_ANY_FILTER_OP_EQUALS))
+                filter_op = DP_FILTERBY_EQUALS;
+              else if (!g_strcmp0 (op, REQUEST_GET_ALL_ANY_FILTER_OP_CONTAINS))
+                filter_op = DP_FILTERBY_CONTAINS;
+              else if (!g_strcmp0 (op, REQUEST_GET_ALL_ANY_FILTER_OP_STARTS_WITH))
+                filter_op = DP_FILTERBY_STARTS_WITH;
+              else if (!g_strcmp0 (op, REQUEST_GET_ALL_ANY_FILTER_OP_PRESENT))
+                filter_op = DP_FILTERBY_PRESENT;
+            }
+        }
+
+      else if (!g_strcmp0 (member_name, REQUEST_GET_ALL_ANY_FILTER_VALUES))
+        {
+ 	  if (json_node_get_node_type (member) == JSON_NODE_VALUE
+	      && json_node_get_value_type (member) == G_TYPE_STRING)
+            {
+	      filter_values = (gchar *)json_node_get_string (member);
+	    }
+        }
+
+    }
+  g_list_free (nodes);
+
+  if (!
+      (linkb = dupin_linkbase_open (d, (gchar *)json_object_get_string_member (json_node_get_object (doc_node), "_linkbase"), NULL)))
+    {
+      if (link_rels)
+        g_strfreev (link_rels);
+
+      if (link_labels)
+        g_strfreev (link_labels);
+
+      if (link_hrefs)
+        g_strfreev (link_hrefs);
+
+      if (link_tags)
+        g_strfreev (link_tags);
+
+      if (startkey != NULL)
+        g_free (startkey);
+
+      if (endkey != NULL)
+        g_free (endkey);
+
+      if (doc_node != NULL) 
+        json_node_free (doc_node);
+      if (params_node != NULL) 
+        json_node_free (params_node);
+
+      return JSValueMakeNull(ctx);
+    }
+
+  GList *list;
+  GList *results;
+
+  if (dupin_link_record_get_list (linkb, count, offset, 0, 0, link_type, startkey, endkey, inclusive_end, DP_COUNT_EXIST, DP_ORDERBY_ID, descending,
+                                  context_id, link_rels, link_rels_op, link_labels, link_labels_op,
+                                  link_hrefs, link_hrefs_op, link_tags, link_tags_op,
+                                  filter_by, filter_by_format, filter_op, filter_values, &results, NULL) == FALSE)
+    {
+      if (link_rels)
+        g_strfreev (link_rels);
+
+      if (link_labels)
+        g_strfreev (link_labels);
+
+      if (link_hrefs)
+        g_strfreev (link_hrefs);
+
+      if (link_tags)
+        g_strfreev (link_tags);
+
+      if (startkey != NULL)
+        g_free (startkey);
+
+      if (endkey != NULL)
+        g_free (endkey);
+
+      if (doc_node != NULL) 
+        json_node_free (doc_node);
+      if (params_node != NULL) 
+        json_node_free (params_node);
+
+      dupin_linkbase_unref (linkb);
+
+      return JSValueMakeNull(ctx);
+    }
+
+  JsonNode * links = json_node_new (JSON_NODE_OBJECT);
+  JsonObject * links_obj = json_object_new ();
+  json_node_take_object (links, links_obj);
+
+  JsonNode * weblinks_node = NULL;
+  JsonObject * weblinks_obj = NULL;
+  JsonNode * relationships_node = NULL;
+  JsonObject * relationships_obj = NULL;
+
+  for (list = results; list; list = list->next)
+    {
+      DupinLinkRecord *record = list->data;
+
+      gchar * mvcc = dupin_link_record_get_last_revision (record);
+
+      if (dupin_link_record_is_deleted (record, mvcc) == TRUE)
+        continue;
+
+      JsonNode * obj_node = json_node_copy (dupin_link_record_get_revision_node (record, mvcc));
+      JsonObject * obj = json_node_get_object (obj_node);
+
+      json_object_set_string_member (obj, REQUEST_LINK_OBJ_HREF, dupin_link_record_get_href (record));
+
+      gchar * rel = (gchar *)dupin_link_record_get_rel (record);
+
+      if (rel != NULL)
+        json_object_set_string_member (obj, REQUEST_LINK_OBJ_REL, rel);
+
+      gchar * tag = (gchar *)dupin_link_record_get_tag (record);
+
+      if (tag != NULL)
+        json_object_set_string_member (obj, REQUEST_LINK_OBJ_TAG, tag);
+
+      /* Setting _id and _rev: */
+      json_object_set_string_member (obj, REQUEST_LINK_OBJ_ID, (gchar *) dupin_link_record_get_id (record));
+      json_object_set_string_member (obj, REQUEST_LINK_OBJ_REV, mvcc);
+
+      gchar * created = dupin_util_timestamp_to_iso8601 (dupin_link_record_get_created (record));
+      json_object_set_string_member (obj, RESPONSE_OBJ_CREATED, created);
+      g_free (created);
+
+      gchar * label = (gchar *)dupin_link_record_get_label (record);
+
+      if (dupin_link_record_is_weblink (record) == TRUE)
+        {
+	  if (weblinks_node == NULL)
+            {
+              weblinks_node = json_node_new (JSON_NODE_OBJECT);
+              weblinks_obj = json_object_new ();
+              json_node_take_object (weblinks_node, weblinks_obj);
+              json_object_set_member (links_obj, RESPONSE_OBJ_LINKS, weblinks_node);
+            }
+
+          if (json_object_has_member (weblinks_obj, label) == FALSE)
+            {
+              JsonNode * links_label_node = json_node_new (JSON_NODE_ARRAY);
+              JsonArray * links_label_array = json_array_new ();
+              json_node_take_array (links_label_node, links_label_array);
+              json_object_set_member (weblinks_obj, label, links_label_node);
+            }
+
+          json_array_add_element( json_node_get_array ( json_object_get_member (weblinks_obj, label)), obj_node);
+        }
+      else
+        {
+	  if (relationships_node == NULL)
+            {
+              relationships_node = json_node_new (JSON_NODE_OBJECT);
+              relationships_obj = json_object_new ();
+              json_node_take_object (relationships_node, relationships_obj);
+              json_object_set_member (links_obj, RESPONSE_OBJ_RELATIONSHIPS, relationships_node);
+            }
+
+          if (json_object_has_member (relationships_obj, label) == FALSE)
+            {
+              JsonNode * relationships_label_node = json_node_new (JSON_NODE_ARRAY);
+              JsonArray * relationships_label_array = json_array_new ();
+              json_node_take_array (relationships_label_node, relationships_label_array);
+              json_object_set_member (relationships_obj, label, relationships_label_node);
+            } 
+
+          json_array_add_element( json_node_get_array ( json_object_get_member (relationships_obj, label)), obj_node);
+        }
+    }
+
+  gchar * links_json = dupin_util_json_serialize (links); 
+
+  gchar *b=NULL;
+  GString * buffer = g_string_new ("var result = ");
+  buffer = g_string_append (buffer, links_json);
+  buffer = g_string_append (buffer, "; result;");
+  b = g_string_free (buffer, FALSE);
+  JSStringRef string=JSStringCreateWithUTF8CString(b);
+  result = JSEvaluateScript (ctx, string, NULL, NULL, 1, NULL);
+  JSStringRelease(string);
+  g_free (b);
+  g_free (links_json);
+
+  if (link_rels)
+    g_strfreev (link_rels);
+
+  if (link_labels)
+    g_strfreev (link_labels);
+
+  if (link_hrefs)
+    g_strfreev (link_hrefs);
+
+  if (link_tags)
+    g_strfreev (link_tags);
+
+  if (startkey != NULL)
+    g_free (startkey);
+
+  if (endkey != NULL)
+    g_free (endkey);
+
+  if( results )
+    dupin_link_record_get_list_close (results);
+
+  dupin_linkbase_unref (linkb);
+
+  if (doc_node != NULL)
+    json_node_free (doc_node);
+  if (params_node != NULL)
+    json_node_free (params_node);
+ 
+  json_node_free (links);
 
   return result;
 }

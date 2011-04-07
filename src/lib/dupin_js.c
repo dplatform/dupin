@@ -1061,7 +1061,8 @@ dupin_js_dupin_class_links (JSContextRef ctx,
 	  "filter_by": string,
 	  "filter_by_format": string,
 	  "filter_op": string,
-	  "filter_values": "string, string ..."
+	  "filter_values": "string, string ...",
+	  "include_linked_docs_out": boolean
         }
    */
   if (argumentCount != 2)
@@ -1140,6 +1141,8 @@ dupin_js_dupin_class_links (JSContextRef ctx,
   gchar * filter_values = NULL;
   gsize created = 0;
   DupinCreatedType created_op = DP_CREATED_SINCE;
+
+  gboolean include_linked_docs_out = false;
 
   GList * nodes = json_object_get_members (params_node_obj);
   GList * l=NULL;
@@ -1489,11 +1492,22 @@ dupin_js_dupin_class_links (JSContextRef ctx,
 	    }
         }
 
+      else if (!g_strcmp0 (member_name, "include_linked_docs_out"))
+        {
+ 	  if (json_node_get_node_type (member) == JSON_NODE_VALUE
+	      && json_node_get_value_type (member) == G_TYPE_BOOLEAN)
+	    {
+              include_linked_docs_out = json_node_get_boolean (member);
+            }
+        }
+
     }
   g_list_free (nodes);
 
+  gchar * linkbase_name = (gchar *)json_object_get_string_member (json_node_get_object (doc_node), "_linkbase");
+
   if (!
-      (linkb = dupin_linkbase_open (d, (gchar *)json_object_get_string_member (json_node_get_object (doc_node), "_linkbase"), NULL)))
+      (linkb = dupin_linkbase_open (d, linkbase_name, NULL)))
     {
       if (link_rels)
         g_strfreev (link_rels);
@@ -1572,13 +1586,203 @@ dupin_js_dupin_class_links (JSContextRef ctx,
 
       gchar * mvcc = dupin_link_record_get_last_revision (record);
 
+      JsonNode * obj_node = NULL;
+      JsonObject * obj = NULL;
+
       if (dupin_link_record_is_deleted (record, mvcc) == TRUE)
-        continue;
+        {
+          obj_node = json_node_new (JSON_NODE_OBJECT);
+          obj = json_object_new ();
+          json_node_take_object (obj_node, obj);
+          json_object_set_boolean_member (obj, RESPONSE_OBJ_DELETED, TRUE);
+        }
+      else
+        {
+          obj_node = json_node_copy (dupin_link_record_get_revision_node (record, mvcc));
+          obj = json_node_get_object (obj_node);
+	}
 
-      JsonNode * obj_node = json_node_copy (dupin_link_record_get_revision_node (record, mvcc));
-      JsonObject * obj = json_node_get_object (obj_node);
+      gchar * href = (gchar *)dupin_link_record_get_href (record);
 
-      json_object_set_string_member (obj, REQUEST_LINK_OBJ_HREF, dupin_link_record_get_href (record));
+      if (dupin_link_record_is_weblink (record) == FALSE
+	  && include_linked_docs_out == TRUE)
+        {
+          DupinDB * parent_db=NULL;
+          DupinLinkB * parent_linkb=NULL;
+          JsonNode * node_out = NULL;
+          JsonObject * node_out_obj = NULL;
+
+//g_message("request_link_record_revision_obj: generating links for link record id=%s with mvcc=%s for context_id=%s href=%s\n", id, mvcc, context_id, href);
+
+          if (dupin_linkbase_get_parent_is_db (linkb) == TRUE )
+            {
+              if (! (parent_db = dupin_database_open (d, linkb->parent, NULL)))
+                {
+      		  if (link_rels)
+        	    g_strfreev (link_rels);
+
+      		  if (link_labels)
+        	    g_strfreev (link_labels);
+
+      		  if (link_hrefs)
+        	    g_strfreev (link_hrefs);
+
+      		  if (link_tags)
+        	    g_strfreev (link_tags);
+
+      		  if (startkey != NULL)
+        	    g_free (startkey);
+
+      		  if (endkey != NULL)
+        	    g_free (endkey);
+
+      		  if (doc_node != NULL) 
+         	    json_node_free (doc_node);
+      		  if (params_node != NULL) 
+        	    json_node_free (params_node);
+
+      		  if (obj_node != NULL) 
+        	    json_node_free (obj_node);
+
+      		  dupin_linkbase_unref (linkb);
+
+      		  return JSValueMakeNull(ctx);
+                }
+
+              DupinRecord * doc_id_record = dupin_record_read (parent_db, href, NULL);
+
+              if (doc_id_record == NULL)
+	        {
+                  node_out = json_node_new (JSON_NODE_OBJECT);
+                  node_out_obj = json_object_new ();
+                  json_node_take_object (node_out, node_out_obj);
+                  json_object_set_boolean_member (node_out_obj, RESPONSE_OBJ_EMPTY, TRUE);
+		}
+              else
+                {
+                  if (dupin_record_is_deleted (doc_id_record, NULL) == FALSE)
+                    {
+		      node_out = json_node_copy (dupin_record_get_revision_node (doc_id_record,
+							(gchar *)dupin_record_get_last_revision (doc_id_record)));
+		      node_out_obj = json_node_get_object (node_out);
+                    }
+                  else
+		    {
+                      node_out = json_node_new (JSON_NODE_OBJECT);
+            	      node_out_obj = json_object_new ();
+            	      json_node_take_object (node_out, node_out_obj);
+            	      json_object_set_boolean_member (node_out_obj, RESPONSE_OBJ_DELETED, TRUE);
+		    }
+
+                  json_object_set_string_member (node_out_obj, "_id", (gchar *) dupin_record_get_id (doc_id_record));
+                  json_object_set_string_member (node_out_obj, "_rev", dupin_record_get_last_revision (doc_id_record));
+
+                  if (json_object_has_member (node_out_obj, "_created") == TRUE)
+                    json_object_remove_member (node_out_obj, "_created"); // ignore any record one if set by user, ever
+                  gchar * created = dupin_util_timestamp_to_iso8601 (dupin_record_get_created (doc_id_record));
+                  json_object_set_string_member (node_out_obj, "_created", created);
+                  g_free (created);
+
+                  if (json_object_has_member (node_out_obj, "_type") == TRUE)
+                    json_object_remove_member (node_out_obj, "_type"); // ignore any record one if set by user, ever
+                  json_object_set_string_member (node_out_obj, "_type", (gchar *)dupin_record_get_type (doc_id_record));
+
+                  dupin_record_close (doc_id_record);
+                }
+
+              if (json_object_has_member (node_out_obj, "_linkbase") == TRUE)
+                json_object_remove_member (node_out_obj, "_linkbase"); // ignore any record one if set by user, ever
+              json_object_set_string_member (node_out_obj, "_linkbase", dupin_database_get_default_linkbase_name (parent_db));
+
+              dupin_database_unref (parent_db);
+	  }
+	else
+	  {
+	    if (!(parent_linkb = dupin_linkbase_open (d, linkb->parent, NULL)))
+              {
+      	        if (link_rels)
+        	  g_strfreev (link_rels);
+
+      		if (link_labels)
+        	  g_strfreev (link_labels);
+
+      		if (link_hrefs)
+        	  g_strfreev (link_hrefs);
+
+      		if (link_tags)
+        	  g_strfreev (link_tags);
+
+      		if (startkey != NULL)
+        	  g_free (startkey);
+
+      		if (endkey != NULL)
+        	  g_free (endkey);
+
+      		if (doc_node != NULL) 
+         	  json_node_free (doc_node);
+      		if (params_node != NULL) 
+        	  json_node_free (params_node);
+
+      		if (obj_node != NULL) 
+        	  json_node_free (obj_node);
+
+      		dupin_linkbase_unref (linkb);
+
+      		return JSValueMakeNull(ctx);
+              }
+
+            DupinLinkRecord * link_id_record = dupin_link_record_read (parent_linkb, href, NULL);
+
+            if (link_id_record == NULL)
+	      {
+                node_out = json_node_new (JSON_NODE_OBJECT);
+                node_out_obj = json_object_new ();
+                json_node_take_object (node_out, node_out_obj);
+                json_object_set_boolean_member (node_out_obj, RESPONSE_OBJ_EMPTY, TRUE);
+	      }
+            else
+              {
+                if (dupin_link_record_is_deleted (link_id_record, NULL) == FALSE)
+                  {
+                    node_out = json_node_copy (dupin_link_record_get_revision_node (link_id_record,
+                                                        (gchar *)dupin_link_record_get_last_revision (link_id_record)));
+		    node_out_obj = json_node_get_object (node_out);
+                  }
+                else
+		  {
+                    node_out = json_node_new (JSON_NODE_OBJECT);
+            	    node_out_obj = json_object_new ();
+            	    json_node_take_object (node_out, node_out_obj);
+            	    json_object_set_boolean_member (node_out_obj, RESPONSE_OBJ_DELETED, TRUE);
+		  }
+
+	        json_object_set_string_member (node_out_obj, "_id", (gchar *) dupin_link_record_get_id (link_id_record));
+                json_object_set_string_member (node_out_obj, "_rev", dupin_link_record_get_last_revision (link_id_record));
+
+                if (json_object_has_member (node_out_obj, "_created") == TRUE)
+                  json_object_remove_member (node_out_obj, "_created"); // ignore any record one if set by user, ever
+                gchar * created = dupin_util_timestamp_to_iso8601 (dupin_link_record_get_created (link_id_record));
+                json_object_set_string_member (node_out_obj, "_created", created);
+                g_free (created);
+
+                dupin_link_record_close (link_id_record);
+              }
+
+            if (json_object_has_member (node_out_obj, "_linkbase") == TRUE)
+              json_object_remove_member (node_out_obj, "_linkbase"); // ignore any record one if set by user, ever
+            json_object_set_string_member (node_out_obj, "_linkbase", linkbase_name);
+
+            dupin_linkbase_unref (parent_linkb);
+	  }
+	
+
+        if (node_out != NULL)
+          json_object_set_member (obj, RESPONSE_LINK_OBJ_DOC_OUT, node_out);
+      }
+
+      /* NOTE - set standard internal fields */
+
+      json_object_set_string_member (obj, REQUEST_LINK_OBJ_HREF, href);
 
       gchar * rel = (gchar *)dupin_link_record_get_rel (record);
 

@@ -1557,7 +1557,7 @@ request_global_get_all_docs (DSHttpdClient * client, GList * path,
           JsonNode *on;
           if (!  (on = request_record_revision_obj (client, arguments,
 					record, (gchar *) dupin_record_get_id (record),
-					dupin_record_get_last_revision (record), FALSE)))
+					dupin_record_get_last_revision (record), TRUE)))
             {
 	      json_array_unref (array);
 	      json_node_free (kvd);
@@ -2851,7 +2851,7 @@ request_global_get_all_links_linkbase (DSHttpdClient * client, GList * path,
           if (!  (on = request_link_record_revision_obj (client, arguments,
 					     record, (gchar *) dupin_link_record_get_id (record),
 			       		     dupin_link_record_get_last_revision (record),
-					     FALSE)))
+					     TRUE)))
             {
 	      json_array_unref (array);
               json_node_free (kvd);
@@ -4318,7 +4318,7 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
                                                            db_record,
                                                            record_id,
                                                            (gchar *)dupin_record_get_last_revision (db_record),
-							   FALSE)))
+							   TRUE)))
                     {
                       // TODO - log error
                       doc = json_node_new (JSON_NODE_NULL);
@@ -4341,7 +4341,7 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
                                                                 linkb_record,
 								record_id,
 								(gchar *)dupin_link_record_get_last_revision (linkb_record),
-								FALSE)))
+								TRUE)))
                     {
                       // TODO - log error
                       doc = json_node_new (JSON_NODE_NULL);

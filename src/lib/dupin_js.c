@@ -64,12 +64,20 @@ static JSValueRef dupin_js_dupin_class_insert_bulk
 		   	       		    const JSValueRef arguments[],
 		   	       		    JSValueRef * exception);
 
+static JSValueRef dupin_js_dupin_class_util_hash (JSContextRef ctx,
+					          JSObjectRef object,
+					          JSObjectRef thisObject,
+					          size_t argumentCount,
+					          const JSValueRef arguments[],
+					          JSValueRef * exception);
+
 static JSStaticFunction dupin_js_dupin_class_static_functions[] = {
     { "log", dupin_js_dupin_class_log, kJSPropertyAttributeNone },
     { "view_lookup", dupin_js_dupin_class_view_lookup, kJSPropertyAttributeNone },
     { "path", dupin_js_dupin_class_path, kJSPropertyAttributeNone },
     { "links", dupin_js_dupin_class_links, kJSPropertyAttributeNone },
     { "insert_bulk", dupin_js_dupin_class_insert_bulk, kJSPropertyAttributeNone },
+    { "util_hash", dupin_js_dupin_class_util_hash, kJSPropertyAttributeNone },
     { 0, 0, 0 }
 };
 
@@ -2038,6 +2046,38 @@ dupin_js_dupin_class_insert_bulk (JSContextRef ctx,
     g_free (dbname);
  
   json_node_free (response_node);
+
+  return result;
+}
+
+static JSValueRef
+dupin_js_dupin_class_util_hash (JSContextRef ctx,
+                   	        JSObjectRef object,
+		   	        JSObjectRef thisObject, size_t argumentCount,
+		   	        const JSValueRef arguments[],
+		   	        JSValueRef * exception)
+{
+  JSValueRef result=NULL;
+
+  if (argumentCount != 1)
+    {
+      *exception = JSValueMakeNumber (ctx, 1);
+      return JSValueMakeNull(ctx);
+    }
+
+  if ((!arguments[0])
+      || (!JSValueIsString(ctx, arguments[0])))
+    return JSValueMakeNull(ctx);
+
+  JSStringRef string = JSValueToStringCopy (ctx, arguments[0], NULL);
+  gchar * input = dupin_js_string_utf8 (string);
+  JSStringRelease (string);
+
+  gchar *md5 = g_compute_checksum_for_string (DUPIN_ID_HASH_ALGO, input, 32);
+  string=JSStringCreateWithUTF8CString(md5);
+  g_free (md5);
+  result = JSValueMakeString(ctx, string);
+  JSStringRelease(string);
 
   return result;
 }

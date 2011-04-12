@@ -903,7 +903,7 @@ DUPIN_UTIL_DUMP_JSON ("dupin_util_json_node_object_grep_nodes: matched nodes:", 
                     {
                       if (filter_op == DP_FILTERBY_EQUALS )
 		        {
-			  matched = (g_utf8_collate (field_value_to_match_string, filter_values[i])) ? TRUE : FALSE;
+			  matched = (g_utf8_collate (field_value_to_match_string, filter_values[i]) == 0) ? TRUE : FALSE;
 
 //if (matched)
 //g_message("dupin_util_json_node_object_grep_nodes: OK it is EQUALS to %s\n", filter_values[i]);
@@ -977,7 +977,7 @@ DUPIN_UTIL_DUMP_JSON ("dupin_util_json_node_object_grep_nodes: matched nodes:", 
                 {
                   if (filter_op == DP_FILTERBY_EQUALS )
                     {
-                      matched = (g_utf8_collate (field_value_to_match_string, filter_values[i])) ? TRUE : FALSE;
+                      matched = (g_utf8_collate (field_value_to_match_string, filter_values[i]) == 0) ? TRUE : FALSE;
 
 //if (matched)
 //g_message("dupin_util_json_node_object_grep_nodes: OK it is EQUALS to %s\n", filter_values[i]);

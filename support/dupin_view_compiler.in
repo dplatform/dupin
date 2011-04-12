@@ -155,12 +155,12 @@ if ($reduce)
 
 if ($opt_islinkb)
   {
-    $view->{'parent'}->{'isdb'} = JSON::false;
-    $view->{'parent'}->{'islinkb'} = JSON::true;
+    $view->{'parent'}->{'is_db'} = JSON::false;
+    $view->{'parent'}->{'is_linkb'} = JSON::true;
   }
 else
   {
-    $view->{'parent'}->{'isdb'} = JSON::true;
+    $view->{'parent'}->{'is_db'} = JSON::true;
   }
 
 print $json->encode ($view);

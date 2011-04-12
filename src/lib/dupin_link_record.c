@@ -3385,7 +3385,7 @@ dupin_link_record_insert_extract_id (DupinLinkB * linkb, JsonNode * obj_node)
   else
     {
       GString * str = g_string_new (NULL);
-      g_string_append_printf (str, "Identifier is of type %s and not string. The system has generated a new ID automaticlaly.", json_node_type_name (node));
+      g_string_append_printf (str, "Identifier is of type %s and not string. The system has generated a new ID automatically.", json_node_type_name (node));
       gchar * tmp = g_string_free (str, FALSE);
       dupin_linkbase_set_warning (linkb, tmp);
       g_free (tmp);

@@ -2073,9 +2073,14 @@ dupin_js_dupin_class_util_hash (JSContextRef ctx,
   gchar * input = dupin_js_string_utf8 (string);
   JSStringRelease (string);
 
-  gchar *md5 = g_compute_checksum_for_string (DUPIN_ID_HASH_ALGO, input, 32);
+//g_message ("dupin_js_dupin_class_util_hash: input=%s\n", input);
+
+  gchar *md5 = g_compute_checksum_for_string (DUPIN_ID_HASH_ALGO, input, -1);
   string=JSStringCreateWithUTF8CString(md5);
   g_free (input);
+
+//g_message ("dupin_js_dupin_class_util_hash: hash=%s\n", md5);
+
   g_free (md5);
   result = JSValueMakeString(ctx, string);
   JSStringRelease(string);

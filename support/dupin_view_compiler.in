@@ -1,0 +1,166 @@
+#!/usr/bin/env perl
+
+=head1 NAME
+
+dupin_view_compiler - A compiler which generates Dupin views from Javascript code
+
+=head1 SYNOPSIS
+
+   dupin_view_compiler [-v] [--parent-name parent] [--islinkb]
+		            [--map-file file.js] [--reduce-file file.js]
+
+=head1 DESCRIPTION
+
+Takes Javascript files and compile them into map and optionally reduce view functions suitable for
+Dupin REST API. Output goes to STDOUT.
+
+=over
+
+=item --parent-name name
+
+The name of the parent DB or LinkB.
+
+=item --islinkb
+
+If flag is set the view is assumed to be over a Linkbase.
+
+=item --map-file file.js
+
+The map Javascript code file.
+
+The map code must be like:
+
+function (doc)
+{
+
+...
+..
+
+  emit (k,v);
+}
+
+=item --reduce-file file.js
+
+The reduce Javascript code file. If not specified, the view is assumed to be map only.
+
+The reduce code must be like:
+
+
+function (key, values, rereduce)
+{
+....
+...
+  return value;
+}
+
+=back
+
+=head1 AUTHOR
+
+Alberto Reggiori, E<lt>areggiori@cpan.orgE<gt>
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (c) 2011 All rights reserved Derrick Media Ltd.
+
+=cut
+
+use strict;
+
+use Getopt::Long;
+use Encode;
+use JSON;
+
+use Fcntl;
+
+my $opt_verbose;
+my $opt_help;
+my $opt_parent_name;
+my $opt_islinkb;
+my $opt_map_file;
+my $opt_reduce_file;
+
+Getopt::Long::Configure ("posix_default","bundling", "no_ignore_case", "require_order");
+
+my $opt_params = {};
+
+my $usage = "\nUsage: $0 [-v] [--parent-name parent] [--islinkb] [--map-file file.js] [--reduce-file file.js] \n";
+
+GetOptions(
+   "v"   => \$opt_verbose,
+   "h"   => \$opt_help,
+   "parent-name=s" => \$opt_parent_name,
+   "islinkb" => \$opt_islinkb,
+   "map-file=s" => \$opt_map_file,
+   "reduce-file=s" => \$opt_reduce_file,
+) or die $usage."\n";
+
+die $usage."\n\nSee more details on man page running the command: perldoc `which dupin_view_compiler`\n"
+  if ($opt_help or !$opt_parent_name or !$opt_map_file or (! -e $opt_map_file));
+
+my $json = new JSON;
+$json->allow_nonref(1);
+$json->utf8(1);
+
+my $map;
+open (MAP, $opt_map_file);
+while (<MAP>)
+{
+  $map .= $_;
+}
+close (MAP);
+
+{
+local $@ = undef;
+eval { $map = $json->encode ($map) };
+die "Cannot ganerate valid JSON from input map file $opt_map_file: $@"
+  if ($@);
+}
+
+my $reduce;
+if ($opt_reduce_file)
+{
+  die $usage."\n\nSee more details on man page running the command: perldoc `which dupin_view_compiler`\n"
+    unless (-e $opt_reduce_file);
+
+  open (REDUCE, $opt_reduce_file);
+  while (<REDUCE>)
+    {
+      $reduce .= $_;
+    }
+  close (REDUCE);
+
+  {
+    local $@ = undef;
+    eval { $reduce = $json->encode ($reduce) };
+    die "Cannot ganerate valid JSON from input reduce file $opt_reduce_file: $@"
+      if ($@);
+  }
+}
+
+my $view = {
+  "parent" => {
+	"name" => $opt_parent_name,
+	},
+  "map" => {
+	"code" => $json->decode ($map)
+	}
+};
+
+if ($reduce)
+  {
+    $view->{'reduce'} = {};
+    $view->{'reduce'}->{'code'} = $json->decode ($reduce);
+  }
+
+if ($opt_islinkb)
+  {
+    $view->{'parent'}->{'isdb'} = JSON::false;
+    $view->{'parent'}->{'islinkb'} = JSON::true;
+  }
+else
+  {
+    $view->{'parent'}->{'isdb'} = JSON::true;
+  }
+
+print $json->encode ($view);

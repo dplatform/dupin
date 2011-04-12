@@ -1,4 +1,4 @@
-bin_SCRIPTS = dupinctl
+bin_SCRIPTS = dupinctl dupin_view_compiler
 
 bin_PROGRAMS = dupin_loader
 
@@ -14,7 +14,7 @@ LDADD = ../src/lib/libdupin.la \
 
 CLEANFILES = $(bin_SCRIPTS) $(bin_PROGRAMS)
 
-DUPINSUPPORTSOURCES = dupinctl dupin_loader.c
+DUPINSUPPORTSOURCES = dupinctl dupin_view_compiler dupin_loader.c
 
 EXTRA_DIST = $(DUPINSUPPORTSOURCES)
 
@@ -22,7 +22,8 @@ TARGETS  = $(DUPINSUPPORTSOURCES)
 
 uninstall-hook:
 	cd $(DESTDIR)$(bindir) && rm -f dupinctl \
-	cd $(DESTDIR)$(bindir) && rm -f dupin_loader
+	cd $(DESTDIR)$(bindir) && rm -f dupin_loader \
+	cd $(DESTDIR)$(bindir) && rm -f dupin_view_compiler
 
 ## We can't use configure to do the substitution here; we must do it
 ## by hand.  We use a funny notation here to avoid configure
@@ -38,6 +39,15 @@ do_subst = sed \
 dupinctl: dupinctl.in
 
 dupinctl: Makefile
+	rm -f $@ $@.tmp
+	$(do_subst) $(srcdir)/$@.in >$@.tmp
+	chmod +x $@.tmp
+	chmod a-w $@.tmp
+	mv -f $@.tmp $@
+
+dupin_view_compiler: dupin_view_compiler.in
+
+dupin_view_compiler: Makefile
 	rm -f $@ $@.tmp
 	$(do_subst) $(srcdir)/$@.in >$@.tmp
 	chmod +x $@.tmp

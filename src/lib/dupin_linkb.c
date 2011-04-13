@@ -1221,9 +1221,65 @@ dupin_linkbase_thread_compact (DupinLinkB * linkb, gsize count)
     {
       DupinLinkRecord * record = list->data;
 
-      guint last_revision = record->last->revision;
+      gchar *tmp;
 
-      gchar *tmp = sqlite3_mprintf ("DELETE FROM Dupin WHERE id = '%q' AND rev < %d", (gchar *) dupin_link_record_get_id (record), (gint)last_revision);
+      if (dupin_link_record_is_deleted (record, NULL) == TRUE)
+        {
+	  /* NOTE - need to decrese deleted counter */
+
+          g_mutex_lock (linkb->mutex);
+
+	  struct dupin_link_record_select_total_t t;
+          memset (&t, 0, sizeof (t));
+
+          if (sqlite3_exec (linkb->db, DUPIN_LINKB_SQL_GET_TOTALS, dupin_link_record_select_total_cb, &t, &errmsg) != SQLITE_OK)
+            {
+              g_mutex_unlock (linkb->mutex);
+
+              g_error ("dupin_linkbase_thread_compact: %s", errmsg);
+              sqlite3_free (errmsg);
+
+              return FALSE;
+            }
+          else
+            {
+              if (dupin_link_record_is_weblink (record) == TRUE)
+                {
+                  t.total_webl_del--;
+                }
+              else
+                {
+                  t.total_rel_del--;
+                }
+
+              tmp = sqlite3_mprintf (DUPIN_LINKB_SQL_SET_TOTALS, (gint)t.total_webl_ins, (gint)t.total_webl_del, (gint)t.total_rel_ins, (gint)t.total_rel_del);
+
+              if (sqlite3_exec (linkb->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
+                {
+                  g_mutex_unlock (linkb->mutex);
+
+                  g_error ("dupin_linkbase_thread_compact: %s", errmsg);
+                  sqlite3_free (errmsg);
+
+                  sqlite3_free (tmp);
+
+                  return FALSE;
+                }
+            }
+
+          g_mutex_unlock (linkb->mutex);
+
+          if (tmp != NULL)
+            sqlite3_free (tmp);
+
+          /* wipe anything about ID */
+          tmp = sqlite3_mprintf ("DELETE FROM Dupin WHERE id = '%q'", (gchar *) dupin_link_record_get_id (record));
+	}
+      else
+        {
+          guint last_revision = record->last->revision;
+          tmp = sqlite3_mprintf ("DELETE FROM Dupin WHERE id = '%q' AND rev < %d", (gchar *) dupin_link_record_get_id (record), (gint)last_revision);
+	}
 
 //g_message("dupin_linkbase_thread_compact: query=%s\n", tmp);
 
@@ -1249,6 +1305,11 @@ dupin_linkbase_thread_compact (DupinLinkB * linkb, gsize count)
       sqlite3_free (tmp);
 
       rowid = dupin_link_record_get_rowid (record);
+
+      /* TODO - double check that if we DELETE all about a record ID we can still rely on ROWID - SQLite doc "says no" */
+
+      if (dupin_link_record_is_deleted (record, NULL) == TRUE)
+        rowid--;
 
       if (compact_id != NULL)
         g_free(compact_id);

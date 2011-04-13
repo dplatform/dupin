@@ -960,6 +960,16 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
 
   gchar *str;
 
+  DupinAttachmentDB *attachment_db;
+
+  if (!
+      (attachment_db =
+       dupin_attachment_db_open (db->d, db->default_attachment_db_name, NULL)))
+    {
+      dupin_database_set_error (db, "Cannot connect to default attachments database");
+      return FALSE;
+    }
+
   /* get last position we reduced and get anything up to count after that */
   gchar * query = "SELECT compact_id as c FROM DupinDB";
   g_mutex_lock (db->mutex);
@@ -970,6 +980,8 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
 
       g_error("dupin_database_thread_compact: %s", errmsg);
       sqlite3_free (errmsg);
+
+      dupin_attachment_db_unref (attachment_db);
 
       return FALSE;
     }
@@ -985,6 +997,8 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
       if (compact_id != NULL)
         g_free(compact_id);
 
+      dupin_attachment_db_unref (attachment_db);
+
       return FALSE;
     }
 
@@ -995,9 +1009,69 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
     {
       DupinRecord * record = list->data;
 
-      guint last_revision = record->last->revision;
+      gchar *tmp;
 
-      gchar *tmp = sqlite3_mprintf ("DELETE FROM Dupin WHERE id = '%q' AND rev < %d", (gchar *) dupin_record_get_id (record), (gint)last_revision);
+      if (dupin_record_is_deleted (record, NULL) == TRUE)
+        {
+	  /* remove any attachments */
+	  if (dupin_attachment_record_delete_all (attachment_db, (gchar *) dupin_record_get_id (record)) == FALSE)
+	    {
+	      g_warning ("dupin_database_thread_compact: Cannot delete all attachments for id %s\n", (gchar *) dupin_record_get_id (record));
+	      continue;
+	    }
+
+	  /* NOTE - need to decrese deleted counter */
+
+	  g_mutex_lock (db->mutex);
+
+          struct dupin_record_select_total_t t;
+          memset (&t, 0, sizeof (t));
+
+          if (sqlite3_exec (db->db, DUPIN_DB_SQL_GET_TOTALS, dupin_record_select_total_cb, &t, &errmsg) != SQLITE_OK)
+            {
+              g_mutex_unlock (db->mutex);
+
+              g_error ("dupin_database_thread_compact: %s", errmsg);
+              sqlite3_free (errmsg);
+
+	      dupin_attachment_db_unref (attachment_db);
+
+              return FALSE;
+            }
+          else
+            {
+              t.total_doc_del--;
+
+              tmp = sqlite3_mprintf (DUPIN_DB_SQL_SET_TOTALS, (gint)t.total_doc_ins, (gint)t.total_doc_del);
+
+              if (sqlite3_exec (db->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
+                {
+                  g_mutex_unlock (db->mutex);
+
+                  g_error ("dupin_database_thread_compact: %s", errmsg);
+                  sqlite3_free (errmsg);
+
+	          dupin_attachment_db_unref (attachment_db);
+
+                  sqlite3_free (tmp);
+
+                  return FALSE;
+                }
+            }
+
+          g_mutex_unlock (db->mutex);
+
+          if (tmp != NULL)
+            sqlite3_free (tmp);
+
+	  /* wipe anything about ID */
+          tmp = sqlite3_mprintf ("DELETE FROM Dupin WHERE id = '%q'", (gchar *) dupin_record_get_id (record));
+        }
+      else
+        {
+          guint last_revision = record->last->revision;
+          tmp = sqlite3_mprintf ("DELETE FROM Dupin WHERE id = '%q' AND rev < %d", (gchar *) dupin_record_get_id (record), (gint)last_revision);
+        }
 
 //g_message("dupin_database_thread_compact: query=%s\n", tmp);
 
@@ -1013,6 +1087,8 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
 
           sqlite3_free (errmsg);
 
+	  dupin_attachment_db_unref (attachment_db);
+
           return FALSE;
         }
 
@@ -1023,6 +1099,11 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
       sqlite3_free (tmp);
 
       rowid = dupin_record_get_rowid (record);
+
+      /* TODO - double check that if we DELETE all about a record ID we can still rely on ROWID - SQLite doc "says no" */
+
+      if (dupin_record_is_deleted (record, NULL) == TRUE)
+        rowid--;
 
       if (compact_id != NULL)
         g_free(compact_id);
@@ -1053,12 +1134,16 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
       g_error("dupin_database_thread_compact: %s", errmsg);
       sqlite3_free (errmsg);
 
+      dupin_attachment_db_unref (attachment_db);
+
       return FALSE;
     }
 
   g_mutex_unlock (db->mutex);
 
   sqlite3_free (str);
+
+  dupin_attachment_db_unref (attachment_db);
 
   return ret;
 }

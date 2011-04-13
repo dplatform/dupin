@@ -24,6 +24,9 @@
 #define DUPIN_ATTACHMENT_DB_SQL_DELETE \
         "DELETE FROM Dupin WHERE id = '%q' AND title = '%q' "
 
+#define DUPIN_ATTACHMENT_DB_SQL_DELETE_ALL \
+        "DELETE FROM Dupin WHERE id = '%q' "
+
 #define DUPIN_ATTACHMENT_DB_SQL_HASHES \
 	"SELECT group_concat(hash,'') AS h from Dupin where id = '%q' "
 
@@ -142,6 +145,52 @@ dupin_attachment_record_delete (DupinAttachmentDB * attachment_db,
   sqlite3_free (query);
 
 //g_message("dupin_attachment_record_delete: VACUUM and ANALYZE\n");
+
+  g_mutex_lock (attachment_db->mutex);
+
+  if (sqlite3_exec (attachment_db->db, "VACUUM", NULL, NULL, &errmsg) != SQLITE_OK
+      || sqlite3_exec (attachment_db->db, "ANALYZE Dupin", NULL, NULL, &errmsg) != SQLITE_OK)
+    {
+      g_mutex_unlock (attachment_db->mutex);
+      g_error("dupin_attachment_db_p_record_delete: %s", errmsg);
+      sqlite3_free (errmsg);
+      return FALSE;
+    }
+
+  g_mutex_unlock (attachment_db->mutex);
+
+  return TRUE;
+}
+
+gboolean
+dupin_attachment_record_delete_all (DupinAttachmentDB * attachment_db,
+                                    gchar *        id)
+{
+  g_return_val_if_fail (attachment_db != NULL, FALSE);
+  g_return_val_if_fail (id != NULL, FALSE);
+
+  gchar *query, *errmsg;
+
+  query = sqlite3_mprintf (DUPIN_ATTACHMENT_DB_SQL_DELETE_ALL, id);
+
+//g_message("dupin_attachment_record_delete_all: query=%s\n",query);
+
+  g_mutex_lock (attachment_db->mutex);
+
+  if (sqlite3_exec (attachment_db->db, query, NULL, NULL, &errmsg) != SQLITE_OK)
+    {
+      g_mutex_unlock (attachment_db->mutex);
+      g_error("dupin_attachment_db_p_record_delete: %s", errmsg);
+      sqlite3_free (errmsg);
+      sqlite3_free (query);
+      return FALSE;
+    }
+
+  g_mutex_unlock (attachment_db->mutex);
+
+  sqlite3_free (query);
+
+//g_message("dupin_attachment_record_delete_all: VACUUM and ANALYZE\n");
 
   g_mutex_lock (attachment_db->mutex);
 

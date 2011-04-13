@@ -22,6 +22,10 @@ gboolean	dupin_attachment_record_delete
                                 	 gchar *        id,
                                 	 gchar *        title);
 
+gboolean	dupin_attachment_record_delete_all
+					(DupinAttachmentDB * attachment_db,
+                                	 gchar *        id);
+
 gboolean	dupin_attachment_record_exists
 					(DupinAttachmentDB * attachment_db,
                                 	 gchar *        id,

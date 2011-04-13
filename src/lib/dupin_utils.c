@@ -2301,56 +2301,32 @@ dupin_util_json_node_object_patch_real (JsonNode * input,
       JsonArray * changes_array = json_node_get_array (changes);
 
       nodes = json_array_get_elements (changes_array);
-      gint i;
-      for (n = nodes, i=0; n != NULL ; n = n->next, i++)
+      for (n = nodes; n != NULL ; n = n->next)
         {
           JsonNode * changes_node = (JsonNode *)n->data;
 
-	  /* need to json collate compare A <=> B
+	  /* NOTE - if changes_node does not already exists into 
+		    input it is added to the end */
 
-		A = input
-		B = patch
-
-		if A = B do nothing - no addition
-		if A > B adds B before A
-		if A < B adds B at the end of array (not immediately after B)
-	   */
-
-	  JsonNode * input_node = NULL;
-
-	  if (json_array_get_length (patched_node_array) > i)
-	    input_node = json_array_get_element (patched_node_array, i);
-
-//DUPIN_UTIL_DUMP_JSON ("Input_node", input_node);
-//DUPIN_UTIL_DUMP_JSON ("Changes_node", changes_node);
-
-	  gint ret;
-
-	  if (input_node == NULL)
-	    ret = -1;
-          else
-	    {
-	      ret = dupin_util_collation_compare_pair (input_node, changes_node);
-
-//g_message("dupin_util_json_node_object_patch_real: ret = %d\n", ret);
-	    }
-
-          /* patch single element */
-
-	  if (ret < 0)
+	  GList * n1=NULL;
+          GList * input_nodes = json_array_get_elements (patched_node_array);
+	  gboolean matched = FALSE;
+          for (n1 = input_nodes; n1 != NULL ; n1 = n1->next)
             {
-	      /* add patch after */
-              json_array_add_element (patched_node_array, json_node_copy (changes_node));
-            }
-	  else if (ret > 0)
-            {
-	      /* add patch before */
+	      JsonNode * input_node = (JsonNode *)n1->data;
 
-	      input_node = json_node_copy (input_node);
-              json_array_remove_element (patched_node_array, i);
-              json_array_add_element (patched_node_array, json_node_copy (changes_node));
-              json_array_add_element (patched_node_array, input_node);
-            }
+	      gint ret = dupin_util_collation_compare_pair (input_node, changes_node);
+
+	      if (ret == 0)
+                {
+		  matched = TRUE;
+		  break;
+		}
+	    } 
+          g_list_free (input_nodes);
+
+	  if (matched == FALSE)
+            json_array_add_element (patched_node_array, json_node_copy (changes_node));
         }
       g_list_free (nodes);
     }

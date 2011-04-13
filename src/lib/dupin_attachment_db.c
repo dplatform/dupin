@@ -471,6 +471,8 @@ dupin_attachment_db_connect (Dupin * d, gchar * name, gchar * path,
       return NULL;
     }
 
+  sqlite3_busy_timeout (attachment_db->db, DUPIN_SQLITE_TIMEOUT);
+
   if (mode == DP_SQLITE_OPEN_CREATE)
     {
       if (sqlite3_exec (attachment_db->db, DUPIN_ATTACHMENT_DB_SQL_MAIN_CREATE, NULL, NULL, &errmsg)

@@ -546,6 +546,8 @@ dupin_linkb_connect (Dupin * d, gchar * name, gchar * path,
       return NULL;
     }
 
+  sqlite3_busy_timeout (linkb->db, DUPIN_SQLITE_TIMEOUT);
+
   if (mode == DP_SQLITE_OPEN_CREATE)
     {
       if (sqlite3_exec (linkb->db, DUPIN_LINKB_SQL_MAIN_CREATE, NULL, NULL, &errmsg) != SQLITE_OK

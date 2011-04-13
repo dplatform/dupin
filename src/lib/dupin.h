@@ -138,6 +138,9 @@ typedef struct dupin_js_t		DupinJs;
 typedef struct dupin_linkb_t		DupinLinkB;
 typedef struct dupin_link_record_t	DupinLinkRecord;
 
+/* wait 30 second timeout by default if "database is locked" before failing */
+#define DUPIN_SQLITE_TIMEOUT		30000
+
 /* NOTE - requests and record API common macros - to be renamed/rearranged later */
 
 #define REQUEST_OBJ_ID                  "_id"

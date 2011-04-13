@@ -848,6 +848,8 @@ dupin_view_connect (Dupin * d, gchar * name, gchar * path,
       return NULL;
     }
 
+  sqlite3_busy_timeout (view->db, DUPIN_SQLITE_TIMEOUT);
+
   /* NOTE - set simple collation functions for views - see http://wiki.apache.org/couchdb/View_collation */
 
   if (sqlite3_create_collation (view->db, "dupincmp", SQLITE_UTF8,  view->collation_parser, dupin_util_collation) != SQLITE_OK)

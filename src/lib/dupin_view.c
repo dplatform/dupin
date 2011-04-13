@@ -1269,23 +1269,6 @@ dupin_view_sync_thread_map_linkb (DupinView * view, gsize count)
             json_object_remove_member (obj, "_is_weblink"); // ignore any record one if set by user, ever
           json_object_set_boolean_member (obj, "_is_weblink", dupin_link_record_is_weblink (list->data));
 
-          /* special path ones */
-          JsonNode * ids_path = dupin_link_record_get_revision_idspath_node (list->data, NULL);
-          if (ids_path != NULL)
-            {
-	      if (json_object_has_member (obj, "_idspath") == TRUE)
-                json_object_remove_member (obj, "_idspath"); // ignore any record one if set by user, ever
-              json_object_set_member (obj, "_idspath", json_node_copy (ids_path));
-	    }
-
-          JsonNode * labels_path = dupin_link_record_get_revision_labelspath_node (list->data, NULL);
-          if (labels_path != NULL)
-            {
-	      if (json_object_has_member (obj, "_labelspath") == TRUE)
-                json_object_remove_member (obj, "_labelspath"); // ignore any record one if set by user, ever
-              json_object_set_member (obj, "_labelspath", json_node_copy (labels_path));
-            }
-
           data->obj = json_node_copy (obj_node);
         }
 

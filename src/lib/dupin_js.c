@@ -40,14 +40,6 @@ static JSValueRef dupin_js_dupin_class_view_lookup
 					    const JSValueRef arguments[],
 					    JSValueRef * exception);
 
-static JSValueRef dupin_js_dupin_class_path
-					   (JSContextRef ctx,
-					    JSObjectRef object,
-		   	       		    JSObjectRef thisObject,
-					    size_t argumentCount,
-		   	       		    const JSValueRef arguments[],
-		   	       		    JSValueRef * exception);
-
 static JSValueRef dupin_js_dupin_class_links
 					   (JSContextRef ctx,
 					    JSObjectRef object,
@@ -74,7 +66,6 @@ static JSValueRef dupin_js_dupin_class_util_hash (JSContextRef ctx,
 static JSStaticFunction dupin_js_dupin_class_static_functions[] = {
     { "log", dupin_js_dupin_class_log, kJSPropertyAttributeNone },
     { "view_lookup", dupin_js_dupin_class_view_lookup, kJSPropertyAttributeNone },
-    { "path", dupin_js_dupin_class_path, kJSPropertyAttributeNone },
     { "links", dupin_js_dupin_class_links, kJSPropertyAttributeNone },
     { "insert_bulk", dupin_js_dupin_class_insert_bulk, kJSPropertyAttributeNone },
     { "util_hash", dupin_js_dupin_class_util_hash, kJSPropertyAttributeNone },
@@ -935,104 +926,6 @@ dupin_js_dupin_class_view_lookup_error:
   g_free (lookupkey);
   g_free (view_name);
   json_node_free (key);
-
-  return result;
-}
-
-static JSValueRef
-dupin_js_dupin_class_path (JSContextRef ctx,
-                   	   JSObjectRef object,
-		   	   JSObjectRef thisObject, size_t argumentCount,
-		   	   const JSValueRef arguments[],
-		   	   JSValueRef * exception)
-{
-  JSValueRef result=NULL;
-
-  Dupin * d = (Dupin *) JSObjectGetPrivate(thisObject);
-  DupinLinkB *linkb=NULL;
-
-  if (argumentCount != 2)
-    {
-      *exception = JSValueMakeNumber (ctx, 1);
-      return JSValueMakeNull(ctx);
-    }
-//g_message("dupin_js_dupin_class_path: checking params...\n");
-
-  if (((!arguments[0]))
-      || (!arguments[1]))
-    return JSValueMakeNull(ctx);
-
-//g_message("dupin_js_dupin_class_path: ok params...\n");
-
-  JsonNode * doc_node = NULL;
-  dupin_js_value (ctx, arguments[0], &doc_node);
-  if (doc_node == NULL
-      || json_node_get_node_type (doc_node) != JSON_NODE_OBJECT
-      || json_object_has_member (json_node_get_object (doc_node), "_linkbase") == FALSE)
-    {
-      if (doc_node != NULL) 
-        json_node_free (doc_node);
-
-      return JSValueMakeNull(ctx);
-    }
-
-  gchar * tag = NULL;
-  JSStringRef string = NULL;
-  if (JSValueIsNull (ctx, arguments[1]) == FALSE)
-    {
-      string = JSValueToStringCopy (ctx, arguments[1], NULL);
-      tag = dupin_js_string_utf8 (string);
-      JSStringRelease (string);
-    }
-
-//g_message("dupin_js_dupin_class_path: doc:\n");
-//DUPIN_UTIL_DUMP_JSON (doc_node);
-//g_message("dupin_js_dupin_class_path: tag=%s\n", tag);
-
-  if (!
-      (linkb = dupin_linkbase_open (d, (gchar *)json_object_get_string_member (json_node_get_object (doc_node), "_linkbase"), NULL)))
-    {
-      if (tag != NULL)
-        g_free (tag);
-      json_node_free (doc_node);
-      return JSValueMakeNull(ctx);
-    }
-
-  gchar * source_id = (gchar *)json_object_get_string_member (json_node_get_object (doc_node), "_id");
-
-  /* NOTE - we might want to have the caller to enable cache on this one, if needed with dupin_link_record_cache_on() */
-
-  JsonNode * paths = dupin_link_record_util_get_paths_node (linkb, source_id, tag, NULL, TRUE);
-
-  if (paths == NULL
-      || json_node_get_node_type (paths) != JSON_NODE_ARRAY)
-    {
-      if (tag != NULL)
-        g_free (tag);
-      json_node_free (doc_node);
-      dupin_linkbase_unref (linkb);
-      return JSValueMakeNull(ctx);
-    }
-
-  gchar * paths_json = dupin_util_json_serialize (paths); 
-
-  gchar *b=NULL;
-  GString * buffer = g_string_new ("var result = ");
-  buffer = g_string_append (buffer, paths_json);
-  buffer = g_string_append (buffer, "; result;");
-  b = g_string_free (buffer, FALSE);
-  string=JSStringCreateWithUTF8CString(b);
-  result = JSEvaluateScript (ctx, string, NULL, NULL, 1, NULL);
-  JSStringRelease(string);
-  g_free (b);
-  g_free (paths_json);
-
-  dupin_linkbase_unref (linkb);
-
-  if (tag != NULL)
-    g_free (tag);
-  json_node_free (doc_node);
-  json_node_free (paths);
 
   return result;
 }

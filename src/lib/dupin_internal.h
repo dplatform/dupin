@@ -144,11 +144,6 @@ struct dupin_linkb_t
 
   gchar *       error_msg;
   gchar *       warning_msg;
-
-  gboolean 	cache_on;
-  gchar *	cache_last_lookup_id;
-  GHashTable *	cache_idspath;
-  GHashTable *	cache_labelspath;
 };
 
 struct dupin_view_t
@@ -292,14 +287,6 @@ struct dupin_link_record_rev_t
   gchar	*	rel;
   gboolean	is_weblink;
   gchar	*	tag; /* E.g. to tag named hierarchies */
-
-  JsonNode *	idspath;
-  gchar *	idspath_serialized;
-  gsize		idspath_serialized_len;
-
-  JsonNode *	labelspath;
-  gchar *	labelspath_serialized;
-  gsize		labelspath_serialized_len;
 
   gboolean	deleted;
 

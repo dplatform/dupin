@@ -25,8 +25,6 @@
   "  rel         TEXT NOT NULL,\n" \
   "  is_weblink  BOOL DEFAULT FALSE,\n" \
   "  tag         TEXT DEFAULT NULL,\n" \
-  "  idspath     TEXT NOT NULL,\n" \
-  "  labelspath  TEXT NOT NULL,\n" \
   "  rev_head    BOOL DEFAULT TRUE,\n" \
   "  PRIMARY     KEY(id, rev)\n" \
   ");"
@@ -486,15 +484,6 @@ dupin_linkb_disconnect (DupinLinkB * linkb)
 {
   g_message("dupin_linkb_disconnect: total number of changes for '%s' linkbase: %d\n", linkb->name, (gint)sqlite3_total_changes (linkb->db));
 
-  if (linkb->cache_last_lookup_id)
-    g_free (linkb->cache_last_lookup_id);
-
-  if (linkb->cache_idspath)
-    g_hash_table_destroy (linkb->cache_idspath);
-
-  if (linkb->cache_labelspath)
-    g_hash_table_destroy (linkb->cache_labelspath);
-
   if (linkb->db)
     sqlite3_close (linkb->db);
 
@@ -549,12 +538,6 @@ dupin_linkb_connect (Dupin * d, gchar * name, gchar * path,
   linkb->tocheck = FALSE;
   linkb->check_processed_count = 0;
 
-  /* NOTE - caches for ids and labels path generation, especially useful on bulk inserts */
-  linkb->cache_on = FALSE;
-  linkb->cache_last_lookup_id = NULL;
-  linkb->cache_idspath = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
-  linkb->cache_labelspath = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
- 
   if (sqlite3_open_v2 (linkb->path, &linkb->db, dupin_util_dupin_mode_to_sqlite_mode (mode), NULL) != SQLITE_OK)
     {
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
@@ -1820,37 +1803,6 @@ gchar * dupin_linkbase_get_warning (DupinLinkB * linkb)
   g_return_val_if_fail (linkb != NULL, NULL);
 
   return linkb->warning_msg;
-}
-
-gboolean
-dupin_linkbase_is_cache_on (DupinLinkB *   linkb,
-			    GError **      error)
-{
-  g_return_val_if_fail (linkb != NULL, FALSE);
-
-  return linkb->cache_on;
-}
-
-void
-dupin_linkbase_cache_on (DupinLinkB *   linkb,
-			 GError **      error)
-{
-  g_return_if_fail (linkb != NULL);
-
-  linkb->cache_on = TRUE;
-
-  return;
-}
-
-void
-dupin_linkbase_cache_off (DupinLinkB *   linkb,
-			  GError **      error)
-{
-  g_return_if_fail (linkb != NULL);
-
-  linkb->cache_on = FALSE;
-
-  return;
 }
 
 /* EOF */

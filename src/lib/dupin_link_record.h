@@ -30,19 +30,19 @@ int		dupin_link_record_select_total_cb
         "SELECT count(id) FROM Dupin WHERE id = '%q' "
 
 #define DUPIN_LINKB_SQL_INSERT \
-        "INSERT INTO Dupin (id, rev, hash, obj, tm, context_id, label, href, rel, tag, is_weblink, idspath, labelspath) " \
-        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%q', %Q, %Q, '%q','%q', '%q')"
+        "INSERT INTO Dupin (id, rev, hash, obj, tm, context_id, label, href, rel, tag, is_weblink) " \
+        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%q', %Q, %Q, '%q')"
 
 #define DUPIN_LINKB_SQL_UPDATE \
-        "INSERT OR REPLACE INTO Dupin (id, rev, hash, obj, tm, context_id, label, href, rel, tag, is_weblink, idspath, labelspath) " \
-        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%q', %Q, %Q, '%q', '%q', '%q')"
+        "INSERT OR REPLACE INTO Dupin (id, rev, hash, obj, tm, context_id, label, href, rel, tag, is_weblink) " \
+        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%q', %Q, %Q, '%q')"
 
 #define DUPIN_LINKB_SQL_READ \
-        "SELECT rev, hash, obj, deleted, tm, ROWID AS rowid, context_id, label, href, rel, tag, is_weblink, idspath, labelspath FROM Dupin WHERE id='%q'"
+        "SELECT rev, hash, obj, deleted, tm, ROWID AS rowid, context_id, label, href, rel, tag, is_weblink FROM Dupin WHERE id='%q'"
 
 #define DUPIN_LINKB_SQL_DELETE \
-        "INSERT OR REPLACE INTO Dupin (id, rev, deleted, hash, tm, context_id, label, href, rel, tag, is_weblink, idspath, labelspath) " \
-        "VALUES('%q', '%" G_GSIZE_FORMAT "', 'TRUE', '%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%q', %Q, %Q, '%q', '%q', '%q')"
+        "INSERT OR REPLACE INTO Dupin (id, rev, deleted, hash, tm, context_id, label, href, rel, tag, is_weblink) " \
+        "VALUES('%q', '%" G_GSIZE_FORMAT "', 'TRUE', '%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%q', %Q, %Q, '%q')"
 
 #define DUPIN_LINKB_SQL_UPDATE_REV_HEAD \
         "UPDATE Dupin SET rev_head = 'FALSE' WHERE id = '%q' "
@@ -268,14 +268,6 @@ gsize		dupin_link_record_get_created
 gchar *		dupin_link_record_get_last_revision
 					(DupinLinkRecord *		record);
 
-JsonNode *	dupin_link_record_get_revision_idspath_node
-					(DupinLinkRecord *		record,
-					 gchar *			mvcc);
-
-JsonNode *	dupin_link_record_get_revision_labelspath_node
-					(DupinLinkRecord *		record,
-					 gchar *			mvcc);
-
 JsonNode *
 		dupin_link_record_get_revision_node
 					(DupinLinkRecord *		record,
@@ -304,15 +296,6 @@ void		dupin_link_record_get_revisions_list_close
 gboolean	dupin_link_record_is_deleted
 					(DupinLinkRecord *		record,
 					 gchar *		mvcc);
-
-/* Special utility function for paths - used into map/reduce code too */
-
-JsonNode *	dupin_link_record_util_get_paths_node
-					(DupinLinkB * linkb,
-                                       	 gchar * source_id,
-                                       	 gchar * tag,
-                                       	 GError ** error,
-					 gboolean lock);
 
 /* insert = create or update */
 

@@ -3,7 +3,7 @@
 
 /* see GChecksumType */
 #define DUPIN_ID_MAX_LEN	255
-#define DUPIN_ID_HASH_ALGO	G_CHECKSUM_SHA1
+#define DUPIN_ID_HASH_ALGO	G_CHECKSUM_MD5
 #define DUPIN_ID_HASH_ALGO_LEN	32
 
 /* see dupin_link_record.c */

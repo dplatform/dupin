@@ -4888,13 +4888,16 @@ request_global_post (DSHttpdClient * client, GList * path, GList * arguments)
 
   if (!g_strcmp0 (path->data, REQUEST_LINKBS))
     {
-      /* POST /_linkbs/linkbase/_compact */
-      if (!g_strcmp0 (path->next->next->data, REQUEST_POST_COMPACT_LINKBASE))
-        return request_global_post_compact_linkbase (client, path->next, arguments);
+      if (path->next && path->next->next)
+        {
+          /* POST /_linkbs/linkbase/_compact */
+	  if (!g_strcmp0 (path->next->next->data, REQUEST_POST_COMPACT_LINKBASE))
+            return request_global_post_compact_linkbase (client, path->next, arguments);
 
-      /* POST /_linkbs/linkbase/_check */
-      if (!g_strcmp0 (path->next->next->data, REQUEST_POST_CHECK_LINKBASE))
-        return request_global_post_check_linkbase (client, path->next, arguments);
+          /* POST /_linkbs/linkbase/_check */
+          if (!g_strcmp0 (path->next->next->data, REQUEST_POST_CHECK_LINKBASE))
+            return request_global_post_check_linkbase (client, path->next, arguments);
+        }
 
       request_set_error (client, "POST /_linkbs allowed commands are: /_linkbs/linkbase/_compact and /_linkbs/linkbase/_check");
 

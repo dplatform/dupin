@@ -373,7 +373,7 @@ dupin_util_json_node_clone (JsonNode * node, GError **error)
   if (node_serialized == NULL
       || (!json_parser_load_from_data (parser, node_serialized, -1, error)))
     {
-      if (*error)
+      if (error && *error)
         g_error_free (*error);
 
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "Cannot parser JSON");

@@ -164,8 +164,10 @@ request_www (DSHttpdClient * client, GList * paths, GList * arguments)
 static DSHttpStatusCode
 request_quit (DSHttpdClient * client, GList * paths, GList * arguments)
 {
-  if (g_strcmp0 (client->ip, "127.0.0.1")
-      && g_strcmp0 (client->ip, "localhost"))
+  if (1 /* DISABLED FOR THE MOMENT */
+      ||
+      (g_strcmp0 (client->ip, "127.0.0.1")
+       && g_strcmp0 (client->ip, "localhost")))
     {
       request_set_error (client, "Quit command forbidden");
       return HTTP_STATUS_403;

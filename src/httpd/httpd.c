@@ -407,6 +407,11 @@ httpd_read (GIOChannel * source, GIOCondition cond, DSGlobal * data)
 #endif
   g_io_channel_set_encoding (client->channel, NULL, NULL);
 
+  client->request_included_docs_level = 0;
+  client->request_included_docs = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, (GDestroyNotify)json_node_free);
+  client->request_included_links_level = 0;
+  client->request_included_links = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, (GDestroyNotify)json_node_free);
+
   if (httpd_client_add (data, client) == FALSE)
     {
       httpd_client_free (client);
@@ -955,16 +960,8 @@ httpd_client_request (DSHttpdClient * client)
 
   if (!client->request_path)
     {
-      client->request_included_docs_level = 0;
-      client->request_included_docs = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, (GDestroyNotify)json_node_free);
-      client->request_included_links_level = 0;
-      client->request_included_links = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, (GDestroyNotify)json_node_free);
-
       status = request_global (client, client->request_path,
 		      client->request_arguments);
-
-      g_hash_table_destroy (client->request_included_docs);
-      g_hash_table_destroy (client->request_included_links);
 
       /*
          Valgrind returns around here:
@@ -993,17 +990,9 @@ httpd_client_request (DSHttpdClient * client)
 
   if (!request_types[i].request)
     {
-      client->request_included_docs_level = 0;
-      client->request_included_docs = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, (GDestroyNotify)json_node_free);
-      client->request_included_links_level = 0;
-      client->request_included_links = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, (GDestroyNotify)json_node_free);
-
       status =
         request_global (client, client->request_path,
 	                client->request_arguments);
-
-      g_hash_table_destroy (client->request_included_docs);
-      g_hash_table_destroy (client->request_included_links);
     }
 
   httpd_client_send (client, status);
@@ -1818,6 +1807,9 @@ httpd_client_free (DSHttpdClient * client)
 
   if (client->dupin_warning_msg)
     g_free (client->dupin_warning_msg);
+
+  g_hash_table_destroy (client->request_included_docs);
+  g_hash_table_destroy (client->request_included_links);
 
   switch (client->output_type)
     {

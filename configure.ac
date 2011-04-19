@@ -118,13 +118,13 @@ if test -n "$PKG_CONFIG"; then
 		)
 
 	# json-glib
-	PKG_CHECK_MODULES(jsonglib, [ json-glib-1.0 >= 0.10.0 ],
+	PKG_CHECK_MODULES(jsonglib, [ json-glib-1.0 >= 0.10.4 ],
 		[	[jsonglib_LIBS=`$PKG_CONFIG --libs "json-glib-1.0" 2>/dev/null`]
 			[jsonglib_CFLAGS=`$PKG_CONFIG --cflags "json-glib-1.0" 2>/dev/null`]
 		],
 		[
-  			AC_CHECK_HEADER(json-glib/json-glib.h,,AC_MSG_ERROR(jsonglib is required to build Dupin))
-			AC_CHECK_LIB(json-glib,json_parser_load_from_file,, AC_MSG_ERROR(jsonglib is required to build Dupin))
+  			AC_CHECK_HEADER(json-glib/json-glib.h,,AC_MSG_ERROR(jsonglib 0.10.4 or newer is required to build Dupin))
+			AC_CHECK_LIB(json-glib,json_parser_load_from_file,, AC_MSG_ERROR(jsonglib 0.10.4 or newer is required to build Dupin - see http://live.gnome.org/JsonGlib))
 		]
 		)
 

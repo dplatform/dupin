@@ -117,6 +117,15 @@ if test -n "$PKG_CONFIG"; then
 		]
 		)
 
+	# libsoup
+	PKG_CHECK_MODULES(libsoup, [ libsoup-2.4 >= 2.24.0 ],
+		[	[libsoup_LIBS=`$PKG_CONFIG --libs "libsoup-2.4" 2>/dev/null`]
+			[libsoup_CFLAGS=`$PKG_CONFIG --cflags "libsoup-2.4" 2>/dev/null`]
+		],
+		[	AC_CHECK_HEADER(libsoup/soup.h,,AC_MSG_ERROR(libsoup is required to build Dupin))
+		]
+		)
+
 	# json-glib
 	PKG_CHECK_MODULES(jsonglib, [ json-glib-1.0 >= 0.10.4 ],
 		[	[jsonglib_LIBS=`$PKG_CONFIG --libs "json-glib-1.0" 2>/dev/null`]
@@ -157,8 +166,8 @@ if test -n "$PKG_CONFIG"; then
 	fi
 
   # 3. set env
-  LDFLAGS="$LDFLAGS $webkit_LIBS $sqlite_LIBS $libxml2_LIBS $glib_LIBS $jsonglib_LIBS"
-  CFLAGS="$CFLAGS $webkit_CFLAGS $sqlite_CFLAGS $libxml2_CFLAGS $glib_CFLAGS $jsonglib_CFLAGS -DG_DISABLE_DEPRECATED"
+  LDFLAGS="$LDFLAGS $webkit_LIBS $sqlite_LIBS $libxml2_LIBS $libsoup_LIBS $glib_LIBS $jsonglib_LIBS"
+  CFLAGS="$CFLAGS $webkit_CFLAGS $sqlite_CFLAGS $libxml2_CFLAGS $libsoup_CFLAGS $glib_CFLAGS $jsonglib_CFLAGS -DG_DISABLE_DEPRECATED"
 
 else
 	AC_MSG_ERROR(pkg-config is required to build Dupin)

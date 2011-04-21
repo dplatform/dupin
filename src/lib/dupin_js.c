@@ -63,12 +63,39 @@ static JSValueRef dupin_js_dupin_class_util_hash (JSContextRef ctx,
 					          const JSValueRef arguments[],
 					          JSValueRef * exception);
 
+static JSValueRef dupin_js_dupin_class_util_base64_encode
+						(JSContextRef ctx,
+					         JSObjectRef object,
+					         JSObjectRef thisObject,
+					         size_t argumentCount,
+					         const JSValueRef arguments[],
+					         JSValueRef * exception);
+
+static JSValueRef dupin_js_dupin_class_util_base64_decode
+						(JSContextRef ctx,
+					         JSObjectRef object,
+					         JSObjectRef thisObject,
+					         size_t argumentCount,
+					         const JSValueRef arguments[],
+					         JSValueRef * exception);
+
+static JSValueRef dupin_js_dupin_class_util_http_client
+					   (JSContextRef ctx,
+					    JSObjectRef object,
+		   	       		    JSObjectRef thisObject,
+					    size_t argumentCount,
+		   	       		    const JSValueRef arguments[],
+		   	       		    JSValueRef * exception);
+
 static JSStaticFunction dupin_js_dupin_class_static_functions[] = {
     { "log", dupin_js_dupin_class_log, kJSPropertyAttributeNone },
     { "view_lookup", dupin_js_dupin_class_view_lookup, kJSPropertyAttributeNone },
     { "links", dupin_js_dupin_class_links, kJSPropertyAttributeNone },
     { "insert_bulk", dupin_js_dupin_class_insert_bulk, kJSPropertyAttributeNone },
     { "util_hash", dupin_js_dupin_class_util_hash, kJSPropertyAttributeNone },
+    { "util_base64_encode", dupin_js_dupin_class_util_base64_encode, kJSPropertyAttributeNone },
+    { "util_base64_decode", dupin_js_dupin_class_util_base64_decode, kJSPropertyAttributeNone },
+    { "util_http_client", dupin_js_dupin_class_util_http_client, kJSPropertyAttributeNone },
     { 0, 0, 0 }
 };
 
@@ -1802,6 +1829,276 @@ dupin_js_dupin_class_links (JSContextRef ctx,
   return result;
 }
 
+static void
+dupin_js_dupin_class_util_http_client_return_headers (const gchar *name,
+						      const gchar *value,
+						      gpointer data)
+{
+  json_object_set_string_member (data, name, value);
+}
+
+static JSValueRef
+dupin_js_dupin_class_util_http_client (JSContextRef ctx,
+                   	    	       JSObjectRef object,
+		   	    	       JSObjectRef thisObject, size_t argumentCount,
+		   	    	       const JSValueRef arguments[],
+		   	    	       JSValueRef * exception)
+{
+  JSValueRef result=NULL;
+
+  SoupSession *session = NULL;
+  SoupURI *proxy = NULL, *parsed;
+  SoupMessage *msg;
+
+  /*
+     input one argument:
+
+	{
+	  "headers": { .... },
+	  "params": { .... },
+	  "method": "get / post",
+	  "body": " body to post ... "
+        }
+
+     returns:
+
+	{
+	  "status": ...,
+	  "content-type": ....,
+	  "headers": ....
+	  "rawbody": alway base64 encoded
+	  "body": if application/json returns the JSON node, otherwise a string
+	}
+   */
+  if (argumentCount != 1)
+    {
+      *exception = JSValueMakeNumber (ctx, 1);
+      return JSValueMakeNull(ctx);
+    }
+
+  if ((!arguments[0]))
+    return JSValueMakeNull(ctx);
+
+  JsonNode * params_node = NULL;
+  dupin_js_value (ctx, arguments[0], &params_node);
+  if (params_node == NULL
+      || json_node_get_node_type (params_node) != JSON_NODE_OBJECT)
+    {
+      if (params_node != NULL) 
+        json_node_free (params_node);
+
+      return JSValueMakeNull(ctx);
+    }
+  JsonObject * params_node_obj = json_node_get_object (params_node);
+
+  /* NOTE - parse paramaters */
+
+  gchar * url = NULL;
+
+  if (json_object_has_member (params_node_obj, "url"))
+    url = (gchar *)json_object_get_string_member (params_node_obj, "url");
+  if (url == NULL)
+    {
+      if (params_node != NULL) 
+        json_node_free (params_node);
+
+      return JSValueMakeNull(ctx);
+    }
+  parsed = soup_uri_new (url);
+  if (parsed == NULL)
+    {
+      g_warning ("Could not parse '%s' as a URL\n", url);
+
+      if (params_node != NULL) 
+        json_node_free (params_node);
+
+      return JSValueMakeNull(ctx);
+    }
+  soup_uri_free (parsed);
+
+  gchar * proxy_str = NULL;
+
+  if (json_object_has_member (params_node_obj, "proxy"))
+    proxy_str = (gchar *)json_object_get_string_member (params_node_obj, "proxy");
+  if (proxy_str != NULL)
+    {
+      proxy = soup_uri_new (proxy_str);
+      if (proxy == NULL)
+        {
+          g_warning ("Could not parse proxy '%s' as a URL\n", proxy_str);
+
+          if (params_node != NULL) 
+            json_node_free (params_node);
+
+          return JSValueMakeNull(ctx);
+        }
+    }
+
+  gchar * method = NULL;
+  if (json_object_has_member (params_node_obj, "method"))
+    method = (gchar *)json_object_get_string_member (params_node_obj, "method");
+  if ((method == NULL)
+       || (!g_strcmp0 (method, "get")))
+    {
+      method = (gchar *)SOUP_METHOD_GET;
+    }
+  else
+    {
+      if (params_node != NULL) 
+        json_node_free (params_node);
+
+      return JSValueMakeNull(ctx);
+    }
+
+  gchar * user_agent = NULL;
+  if (json_object_has_member (params_node_obj, "user_agent"))
+    user_agent = (gchar *)json_object_get_string_member (params_node_obj, "user_agent");
+  if (user_agent == NULL)
+    {
+      user_agent = "Dupin/" VERSION;
+    }
+
+  gboolean debug = FALSE;
+
+  if (json_object_has_member (params_node_obj, "debug"))
+    debug = json_object_get_boolean_member (params_node_obj, "debug");
+
+//DUPIN_UTIL_DUMP_JSON ("dupin_js_dupin_class_util_http_client: params:", params_node);
+
+
+  session = soup_session_sync_new_with_options (
+#ifdef HAVE_GNOME
+              SOUP_SESSION_ADD_FEATURE_BY_TYPE, SOUP_TYPE_GNOME_FEATURES_2_26,
+#endif
+              SOUP_SESSION_ADD_FEATURE_BY_TYPE, SOUP_TYPE_CONTENT_DECODER,
+              SOUP_SESSION_ADD_FEATURE_BY_TYPE, SOUP_TYPE_COOKIE_JAR,
+              SOUP_SESSION_USER_AGENT, user_agent,
+              SOUP_SESSION_ACCEPT_LANGUAGE_AUTO, TRUE,
+              NULL);
+
+  /* Need to do this after creating the session, since adding
+   * SOUP_TYPE_GNOME_FEATURE_2_26 will add a proxy resolver, thereby
+   * bashing over the manually-set proxy.
+   */
+  if (proxy)
+    {
+      g_object_set (G_OBJECT (session), SOUP_SESSION_PROXY_URI, proxy, NULL);
+    }
+
+  /* NOTE - do HTTP GET */
+
+  msg = soup_message_new (method, url);
+
+  soup_session_send_message (session, msg);
+
+  gchar * name = soup_message_get_uri (msg)->path;
+
+  if (debug)
+    {
+      SoupMessageHeadersIter iter;
+      const gchar *hname, *value;
+      gchar *path = soup_uri_to_string (soup_message_get_uri (msg), TRUE);
+
+      g_message ("%s %s HTTP/1.%d\n", method, path,
+                        soup_message_get_http_version (msg));
+      soup_message_headers_iter_init (&iter, msg->request_headers);
+      while (soup_message_headers_iter_next (&iter, &hname, &value))
+        g_message ("%s: %s\r\n", hname, value);
+      g_message ("\n");
+
+      g_message ("HTTP/1.%d %d %s\n", soup_message_get_http_version (msg),
+                        msg->status_code, msg->reason_phrase);
+
+      soup_message_headers_iter_init (&iter, msg->response_headers);
+      while (soup_message_headers_iter_next (&iter, &hname, &value))
+        g_message ("%s: %s\r\n", hname, value);
+      g_message ("\n");
+    }
+  else if (SOUP_STATUS_IS_TRANSPORT_ERROR (msg->status_code))
+    g_message ("%s: %d %s\n", name, msg->status_code, msg->reason_phrase);
+
+  JsonNode * response = json_node_new (JSON_NODE_OBJECT);
+  JsonObject * response_obj = json_object_new ();
+  json_node_take_object (response, response_obj);
+
+  JsonNode * response_headers = json_node_new (JSON_NODE_OBJECT);
+  JsonObject * response_headers_obj = json_object_new ();
+  json_node_take_object (response_headers, response_headers_obj);
+
+  json_object_set_int_member (response_obj, "status_code", (gint)msg->status_code);
+  json_object_set_member (response_obj, "response_headers", response_headers);
+
+  soup_message_headers_foreach (msg->response_headers,
+			        dupin_js_dupin_class_util_http_client_return_headers,
+				response_headers_obj);
+
+  if (msg->status_code == SOUP_STATUS_OK)
+    {
+      const gchar *header = soup_message_headers_get_one (msg->response_headers,
+								"Content-Type");
+
+      if (g_str_has_prefix (header, "application/json") == TRUE)
+        {
+          /* NOTE - try to parse response */
+          JsonParser *parser = json_parser_new ();
+
+          if (json_parser_load_from_data (parser, msg->response_body->data,
+						  msg->response_body->length, NULL))
+            {
+              json_object_set_member (response_obj, "doc",
+			json_node_copy (json_parser_get_root (parser)));
+            }
+          else
+            {
+              json_object_set_null_member (response_obj, "doc");
+            }
+
+          g_object_unref (parser);
+        }
+      else
+        {
+          json_object_set_null_member (response_obj, "doc");
+	}
+      
+      gchar *base64 = g_base64_encode ((const guchar *)msg->response_body->data,
+				       msg->response_body->length);
+
+      json_object_set_string_member (response_obj, "response_body", base64);
+
+      g_free (base64);
+    }
+  else
+    {
+      json_object_set_string_member (response_obj, "reason_phrase", msg->reason_phrase);
+    }
+
+  soup_session_abort (session);
+  g_object_unref (session);
+
+  if (proxy != NULL)
+    soup_uri_free (proxy);
+
+  gchar * response_json = dupin_util_json_serialize (response); 
+
+  gchar *b=NULL;
+  GString * buffer = g_string_new ("var result = ");
+  buffer = g_string_append (buffer, response_json);
+  buffer = g_string_append (buffer, "; result;");
+  b = g_string_free (buffer, FALSE);
+  JSStringRef string=JSStringCreateWithUTF8CString(b);
+  result = JSEvaluateScript (ctx, string, NULL, NULL, 1, NULL);
+  JSStringRelease(string);
+  g_free (b);
+  g_free (response_json);
+
+  if (params_node != NULL)
+    json_node_free (params_node);
+ 
+  json_node_free (response);
+
+  return result;
+}
+
 /*
 	dupin.insert_bulk ('dbname', { 'docs': [ { ... }, ... ] })
 
@@ -1975,6 +2272,83 @@ dupin_js_dupin_class_util_hash (JSContextRef ctx,
 //g_message ("dupin_js_dupin_class_util_hash: hash=%s\n", md5);
 
   g_free (md5);
+  result = JSValueMakeString(ctx, string);
+  JSStringRelease(string);
+
+  return result;
+}
+
+static JSValueRef
+dupin_js_dupin_class_util_base64_encode (JSContextRef ctx,
+                   	        	 JSObjectRef object,
+		   	        	 JSObjectRef thisObject, size_t argumentCount,
+		   	        	 const JSValueRef arguments[],
+		   	        	 JSValueRef * exception)
+{
+  JSValueRef result=NULL;
+
+  if (argumentCount != 1)
+    {
+      *exception = JSValueMakeNumber (ctx, 1);
+      return JSValueMakeNull(ctx);
+    }
+
+  if ((!arguments[0])
+      || (!JSValueIsString(ctx, arguments[0])))
+    return JSValueMakeNull(ctx);
+
+  JSStringRef string = JSValueToStringCopy (ctx, arguments[0], NULL);
+  gchar * input = dupin_js_string_utf8 (string);
+  JSStringRelease (string);
+
+//g_message ("dupin_js_dupin_class_util_base64_encode: input=%s\n", input);
+
+  gchar *base64 = g_base64_encode ((const guchar *)input, strlen(input));
+  string=JSStringCreateWithUTF8CString(base64);
+  g_free (input);
+
+//g_message ("dupin_js_dupin_class_util_base64_encode: base64=%s\n", base64);
+
+  g_free (base64);
+  result = JSValueMakeString(ctx, string);
+  JSStringRelease(string);
+
+  return result;
+}
+
+static JSValueRef
+dupin_js_dupin_class_util_base64_decode (JSContextRef ctx,
+                   	        	 JSObjectRef object,
+		   	        	 JSObjectRef thisObject, size_t argumentCount,
+		   	        	 const JSValueRef arguments[],
+		   	        	 JSValueRef * exception)
+{
+  JSValueRef result=NULL;
+
+  if (argumentCount != 1)
+    {
+      *exception = JSValueMakeNumber (ctx, 1);
+      return JSValueMakeNull(ctx);
+    }
+
+  if ((!arguments[0])
+      || (!JSValueIsString(ctx, arguments[0])))
+    return JSValueMakeNull(ctx);
+
+  JSStringRef string = JSValueToStringCopy (ctx, arguments[0], NULL);
+  gchar * base64 = dupin_js_string_utf8 (string);
+  JSStringRelease (string);
+
+//g_message ("dupin_js_dupin_class_util_base64_decode: base64=%s\n", base64);
+
+  gsize buff_size;
+  guchar * buff = g_base64_decode ((const gchar *)base64, &buff_size);
+  string=JSStringCreateWithUTF8CString((gchar *)buff);
+  g_free (base64);
+
+//g_message ("dupin_js_dupin_class_util_base64_decode: buff=%s\n", buff);
+
+  g_free (buff);
   result = JSValueMakeString(ctx, string);
   JSStringRelease(string);
 

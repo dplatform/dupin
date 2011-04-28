@@ -1124,13 +1124,13 @@ dupin_sqlite_json_filterby (sqlite3_context *ctx, int argc, sqlite3_value **argv
 
       if (parser == NULL)
         {
-          sqlite3_result_error(ctx, "Cannot create parser to parse obj body.\n", -1);
+          //sqlite3_result_error(ctx, "Cannot create parser to parse obj body.\n", -1);
           return;
         }
 
       if (!json_parser_load_from_data (parser, obj, strlen(obj), NULL))
         {
-          sqlite3_result_error(ctx, "Cannot parse obj body.\n", -1);
+          //sqlite3_result_error(ctx, "Cannot parse obj body.\n", -1);
           return;
         }
 
@@ -1138,7 +1138,7 @@ dupin_sqlite_json_filterby (sqlite3_context *ctx, int argc, sqlite3_value **argv
 
       if (obj_node == NULL)
         {
-          sqlite3_result_error(ctx, "Cannot parse obj body.\n", -1);
+          //sqlite3_result_error(ctx, "Cannot parse obj body.\n", -1);
           return;
         }
 

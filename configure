@@ -619,6 +619,8 @@ glib_LIBS
 glib_CFLAGS
 jsonglib_LIBS
 jsonglib_CFLAGS
+libsoup_LIBS
+libsoup_CFLAGS
 libxml2_LIBS
 libxml2_CFLAGS
 sqlite_LIBS
@@ -768,6 +770,8 @@ sqlite_CFLAGS
 sqlite_LIBS
 libxml2_CFLAGS
 libxml2_LIBS
+libsoup_CFLAGS
+libsoup_LIBS
 jsonglib_CFLAGS
 jsonglib_LIBS
 glib_CFLAGS
@@ -1438,6 +1442,10 @@ Some influential environment variables:
               C compiler flags for libxml2, overriding pkg-config
   libxml2_LIBS
               linker flags for libxml2, overriding pkg-config
+  libsoup_CFLAGS
+              C compiler flags for libsoup, overriding pkg-config
+  libsoup_LIBS
+              linker flags for libsoup, overriding pkg-config
   jsonglib_CFLAGS
               C compiler flags for jsonglib, overriding pkg-config
   jsonglib_LIBS
@@ -13045,6 +13053,95 @@ $as_echo "yes" >&6; }
 
 fi
 
+	# libsoup
+
+pkg_failed=no
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for libsoup" >&5
+$as_echo_n "checking for libsoup... " >&6; }
+
+if test -n "$libsoup_CFLAGS"; then
+    pkg_cv_libsoup_CFLAGS="$libsoup_CFLAGS"
+ elif test -n "$PKG_CONFIG"; then
+    if test -n "$PKG_CONFIG" && \
+    { { $as_echo "$as_me:${as_lineno-$LINENO}: \$PKG_CONFIG --exists --print-errors \" libsoup-2.4 >= 2.24.0 \""; } >&5
+  ($PKG_CONFIG --exists --print-errors " libsoup-2.4 >= 2.24.0 ") 2>&5
+  ac_status=$?
+  $as_echo "$as_me:${as_lineno-$LINENO}: \$? = $ac_status" >&5
+  test $ac_status = 0; }; then
+  pkg_cv_libsoup_CFLAGS=`$PKG_CONFIG --cflags " libsoup-2.4 >= 2.24.0 " 2>/dev/null`
+else
+  pkg_failed=yes
+fi
+ else
+    pkg_failed=untried
+fi
+if test -n "$libsoup_LIBS"; then
+    pkg_cv_libsoup_LIBS="$libsoup_LIBS"
+ elif test -n "$PKG_CONFIG"; then
+    if test -n "$PKG_CONFIG" && \
+    { { $as_echo "$as_me:${as_lineno-$LINENO}: \$PKG_CONFIG --exists --print-errors \" libsoup-2.4 >= 2.24.0 \""; } >&5
+  ($PKG_CONFIG --exists --print-errors " libsoup-2.4 >= 2.24.0 ") 2>&5
+  ac_status=$?
+  $as_echo "$as_me:${as_lineno-$LINENO}: \$? = $ac_status" >&5
+  test $ac_status = 0; }; then
+  pkg_cv_libsoup_LIBS=`$PKG_CONFIG --libs " libsoup-2.4 >= 2.24.0 " 2>/dev/null`
+else
+  pkg_failed=yes
+fi
+ else
+    pkg_failed=untried
+fi
+
+
+
+if test $pkg_failed = yes; then
+
+if $PKG_CONFIG --atleast-pkgconfig-version 0.20; then
+        _pkg_short_errors_supported=yes
+else
+        _pkg_short_errors_supported=no
+fi
+        if test $_pkg_short_errors_supported = yes; then
+	        libsoup_PKG_ERRORS=`$PKG_CONFIG --short-errors --print-errors " libsoup-2.4 >= 2.24.0 " 2>&1`
+        else
+	        libsoup_PKG_ERRORS=`$PKG_CONFIG --print-errors " libsoup-2.4 >= 2.24.0 " 2>&1`
+        fi
+	# Put the nasty error message in config.log where it belongs
+	echo "$libsoup_PKG_ERRORS" >&5
+
+	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+                	ac_fn_c_check_header_mongrel "$LINENO" "libsoup/soup.h" "ac_cv_header_libsoup_soup_h" "$ac_includes_default"
+if test "x$ac_cv_header_libsoup_soup_h" = xyes; then :
+
+else
+  as_fn_error $? "libsoup is required to build Dupin" "$LINENO" 5
+fi
+
+
+
+
+elif test $pkg_failed = untried; then
+		ac_fn_c_check_header_mongrel "$LINENO" "libsoup/soup.h" "ac_cv_header_libsoup_soup_h" "$ac_includes_default"
+if test "x$ac_cv_header_libsoup_soup_h" = xyes; then :
+
+else
+  as_fn_error $? "libsoup is required to build Dupin" "$LINENO" 5
+fi
+
+
+
+
+else
+	libsoup_CFLAGS=$pkg_cv_libsoup_CFLAGS
+	libsoup_LIBS=$pkg_cv_libsoup_LIBS
+        { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+$as_echo "yes" >&6; }
+		libsoup_LIBS=`$PKG_CONFIG --libs "libsoup-2.4" 2>/dev/null`
+			libsoup_CFLAGS=`$PKG_CONFIG --cflags "libsoup-2.4" 2>/dev/null`
+
+fi
+
 	# json-glib
 
 pkg_failed=no
@@ -13436,8 +13533,8 @@ fi
 	fi
 
   # 3. set env
-  LDFLAGS="$LDFLAGS $webkit_LIBS $sqlite_LIBS $libxml2_LIBS $glib_LIBS $jsonglib_LIBS"
-  CFLAGS="$CFLAGS $webkit_CFLAGS $sqlite_CFLAGS $libxml2_CFLAGS $glib_CFLAGS $jsonglib_CFLAGS -DG_DISABLE_DEPRECATED"
+  LDFLAGS="$LDFLAGS $webkit_LIBS $sqlite_LIBS $libxml2_LIBS $libsoup_LIBS $glib_LIBS $jsonglib_LIBS"
+  CFLAGS="$CFLAGS $webkit_CFLAGS $sqlite_CFLAGS $libxml2_CFLAGS $libsoup_CFLAGS $glib_CFLAGS $jsonglib_CFLAGS -DG_DISABLE_DEPRECATED"
 
 else
 	as_fn_error $? "pkg-config is required to build Dupin" "$LINENO" 5

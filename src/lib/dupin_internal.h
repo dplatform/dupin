@@ -17,6 +17,12 @@
 #include <json-glib/json-glib.h>
 #include <json-glib/json-gobject.h>
 
+#ifdef HAVE_GNOME
+#include <libsoup/soup-gnome.h>
+#else
+#include <libsoup/soup.h>
+#endif
+
 #ifdef WEBKIT_FRAMEWORK
 #  include <JavaScriptCore.h>
 #else

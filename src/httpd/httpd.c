@@ -1808,8 +1808,11 @@ httpd_client_free (DSHttpdClient * client)
   if (client->dupin_warning_msg)
     g_free (client->dupin_warning_msg);
 
-  g_hash_table_destroy (client->request_included_docs);
-  g_hash_table_destroy (client->request_included_links);
+  if (client->request_included_docs)
+    g_hash_table_destroy (client->request_included_docs);
+
+  if (client->request_included_links)
+    g_hash_table_destroy (client->request_included_links);
 
   switch (client->output_type)
     {

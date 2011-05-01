@@ -158,7 +158,7 @@ dupin_database_new (Dupin * d, gchar * db, GError ** error)
 
   
   /* NOTE - the respective map and reduce threads will add +1 top the these values */
-  str = sqlite3_mprintf ("INSERT INTO DupinDB (compact_id) VALUES (0)");
+  str = sqlite3_mprintf ("INSERT OR REPLACE INTO DupinDB (compact_id) VALUES (0)");
 
   if (sqlite3_exec (ret->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
     {

@@ -174,7 +174,7 @@ dupin_linkbase_new (Dupin * d, gchar * linkb,
   /* fprintf(stderr,"ref++\n"); */
   ret->ref++;
 
-  str = sqlite3_mprintf ("INSERT INTO DupinLinkB "
+  str = sqlite3_mprintf ("INSERT OR REPLACE INTO DupinLinkB "
                          "(parent, isdb, compact_id, check_id) "
                          "VALUES('%q', '%s', 0, 0)", parent, is_db ? "TRUE" : "FALSE");
 
@@ -253,7 +253,7 @@ dupin_linkbase_p_update (DupinLinkB * linkb, GError ** error)
 {
   gchar *errmsg;
   struct dupin_linkbase_p_update_t update;
-  gchar *query = "SELECT parent, isdb FROM DupinLinkB";
+  gchar *query = "SELECT parent, isdb FROM DupinLinkB LIMIT 1";
 
   memset (&update, 0, sizeof (struct dupin_linkbase_p_update_t));
 
@@ -309,7 +309,7 @@ dupin_linkbase_p_update (DupinLinkB * linkb, GError ** error)
       dupin_linkbase_p_update_real (&l->linkbs, linkb);
       g_mutex_unlock (l->mutex);
 
-      dupin_linkbase_unref (linkb);
+      dupin_linkbase_unref (l);
     }
 
   /* make sure parameters are set after dupin server restart on existing link base */
@@ -1171,7 +1171,7 @@ dupin_linkbase_thread_compact (DupinLinkB * linkb, gsize count)
   gchar *str;
 
   /* get last position we compacted and get anything up to count after that */
-  gchar * query = "SELECT compact_id as c FROM DupinLinkB";
+  gchar * query = "SELECT compact_id as c FROM DupinLinkB LIMIT 1";
   g_mutex_lock (linkb->mutex);
 
   if (sqlite3_exec (linkb->db, query, dupin_linkbase_compact_cb, &compact_id, &errmsg) != SQLITE_OK)
@@ -1471,7 +1471,7 @@ dupin_linkbase_thread_check (DupinLinkB * linkb, gsize count)
   gchar *str;
 
   /* get last position we checked and get anything up to count after that */
-  gchar * query = "SELECT check_id as c FROM DupinLinkB";
+  gchar * query = "SELECT check_id as c FROM DupinLinkB LIMIT 1";
   g_mutex_lock (linkb->mutex);
 
   if (sqlite3_exec (linkb->db, query, dupin_linkbase_check_cb, &check_id, &errmsg) != SQLITE_OK)

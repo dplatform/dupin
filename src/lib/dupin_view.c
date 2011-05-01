@@ -194,7 +194,7 @@ dupin_view_new (Dupin * d, gchar * view, gchar * parent, gboolean is_db, gboolea
   ret->ref++;
 
   str =
-    sqlite3_mprintf ("INSERT INTO DupinView "
+    sqlite3_mprintf ("INSERT OR REPLACE INTO DupinView "
 		     "(parent, isdb, islinkb, map, map_lang, reduce, reduce_lang) "
 		     "VALUES('%q', '%s', '%s', '%q', '%q', '%q' ,'%q')", parent,
 		     is_db ? "TRUE" : "FALSE",
@@ -324,7 +324,7 @@ dupin_view_p_update (DupinView * view, GError ** error)
 {
   gchar *errmsg;
   struct dupin_view_p_update_t update;
-  gchar *query = "SELECT parent, isdb, islinkb, map, map_lang, reduce, reduce_lang FROM DupinView";
+  gchar *query = "SELECT parent, isdb, islinkb, map, map_lang, reduce, reduce_lang FROM DupinView LIMIT 1";
 
   memset (&update, 0, sizeof (struct dupin_view_p_update_t));
 
@@ -363,6 +363,13 @@ dupin_view_p_update (DupinView * view, GError ** error)
       if (!(db = dupin_database_open (view->d, update.parent, error)))
 	{
 	  g_free (update.parent);
+
+          if (update.map != NULL)
+            g_free (update.map);
+
+          if (update.reduce != NULL)
+            g_free (update.reduce);
+
 	  return FALSE;
 	}
 
@@ -379,6 +386,13 @@ dupin_view_p_update (DupinView * view, GError ** error)
       if (!(linkb = dupin_linkbase_open (view->d, update.parent, error)))
 	{
 	  g_free (update.parent);
+
+          if (update.map != NULL)
+            g_free (update.map);
+
+          if (update.reduce != NULL)
+            g_free (update.reduce);
+
 	  return FALSE;
 	}
 
@@ -395,6 +409,13 @@ dupin_view_p_update (DupinView * view, GError ** error)
       if (!(v = dupin_view_open (view->d, update.parent, error)))
 	{
 	  g_free (update.parent);
+
+          if (update.map != NULL)
+            g_free (update.map);
+
+          if (update.reduce != NULL)
+            g_free (update.reduce);
+
 	  return FALSE;
 	}
 
@@ -402,7 +423,7 @@ dupin_view_p_update (DupinView * view, GError ** error)
       dupin_view_p_update_real (&v->views, view);
       g_mutex_unlock (v->mutex);
 
-      dupin_view_unref (view);
+      dupin_view_unref (v);
     }
 
   /* make sure parameters are set after dupin server restart on existing view */
@@ -882,7 +903,7 @@ dupin_view_connect (Dupin * d, gchar * name, gchar * path,
   sqlite3_create_function(view->db, "filterBy", 5, SQLITE_ANY, d, dupin_sqlite_json_filterby, NULL, NULL);
 
   query =
-    "SELECT map, map_lang, reduce, reduce_lang, parent, isdb, islinkb FROM DupinView";
+    "SELECT map, map_lang, reduce, reduce_lang, parent, isdb, islinkb FROM DupinView LIMIT 1";
 
   if (sqlite3_exec (view->db, query, dupin_view_connect_cb, view, &errmsg) !=
       SQLITE_OK)
@@ -1041,7 +1062,7 @@ dupin_view_sync_thread_map_db (DupinView * view, gsize count)
     return FALSE;
 
   /* get last position we reduced and get anything up to count after that */
-  gchar * query = "SELECT sync_map_id as c FROM DupinView";
+  gchar * query = "SELECT sync_map_id as c FROM DupinView LIMIT 1";
   g_mutex_lock (view->mutex);
 
   if (sqlite3_exec (view->db, query, dupin_view_sync_cb, &sync_map_id, &errmsg) != SQLITE_OK)
@@ -1191,7 +1212,7 @@ dupin_view_sync_thread_map_linkb (DupinView * view, gsize count)
     return FALSE;
 
   /* get last position we reduced and get anything up to count after that */
-  gchar * query = "SELECT sync_map_id as c FROM DupinView";
+  gchar * query = "SELECT sync_map_id as c FROM DupinView LIMIT 1";
   g_mutex_lock (view->mutex);
 
   if (sqlite3_exec (view->db, query, dupin_view_sync_cb, &sync_map_id, &errmsg) != SQLITE_OK)
@@ -1357,7 +1378,7 @@ dupin_view_sync_thread_map_view (DupinView * view, gsize count)
     return FALSE;
 
   /* get last position we reduced and get anything up to count after that */
-  gchar * query = "SELECT sync_map_id as c FROM DupinView";
+  gchar * query = "SELECT sync_map_id as c FROM DupinView LIMIT 1";
   g_mutex_lock (view->mutex);
 
   if (sqlite3_exec (view->db, query, dupin_view_sync_cb, &sync_map_id, &errmsg) != SQLITE_OK)
@@ -1589,7 +1610,7 @@ dupin_view_sync_thread_reduce (DupinView * view, gsize count, gboolean rereduce,
   gchar * query;
 
   /* get last position we reduced and get anything up to count after that */
-  query = "SELECT sync_reduce_id as c FROM DupinView";
+  query = "SELECT sync_reduce_id as c FROM DupinView LIMIT 1";
   g_mutex_lock (view->mutex);
 
   if (sqlite3_exec (view->db, query, dupin_view_sync_cb, &sync_reduce_id, &errmsg) != SQLITE_OK)
@@ -2022,7 +2043,7 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
   /* TODO - added processing step when restarted and sync_reduce_id is set to the ID of view table latest record processed, and continue
             and when done, wait for another bunch ... */
 
-  query = "SELECT sync_rereduce as c FROM DupinView";
+  query = "SELECT sync_rereduce as c FROM DupinView LIMIT 1";
   g_mutex_lock (view->mutex);
 
   if (sqlite3_exec (view->db, query, dupin_view_rereduce_cb, &rereduce, &errmsg) != SQLITE_OK)

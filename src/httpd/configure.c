@@ -119,7 +119,10 @@ configure_parser (xmlDocPtr xml, DSGlobal * data, GError ** error)
 
   cur = xmlDocGetRootElement (xml);
 
-  data->sqlite_mode = DP_SQLITE_OPEN_READWRITE;
+  data->sqlite_db_mode = DP_SQLITE_OPEN_READWRITE;
+  data->sqlite_linkb_mode = DP_SQLITE_OPEN_READWRITE;
+  data->sqlite_attachment_db_mode = DP_SQLITE_OPEN_READWRITE;
+  data->sqlite_view_mode = DP_SQLITE_OPEN_READWRITE;
 
   for (cur = cur->children; cur; cur = cur->next)
     {
@@ -200,23 +203,296 @@ configure_parser (xmlDocPtr xml, DSGlobal * data, GError ** error)
 			}
 		    }
 
+		  /* NOTE - general SQLite params */
+
+		  /* SQLite path: */
+		  else if (!xmlStrcmp (cur->name, (xmlChar *) DS_SQLITE_PATH_TAG))
+		    {
+		      if ((tmp = xmlNodeGetContent (cur)))
+                        {
+                          data->sqlite_path = g_strdup ((gchar *) tmp);
+                          xmlFree (tmp);
+                        }
+		    }
+
 		  /* SQLite mode: */
-		  else if (!xmlStrcmp (cur->name, (xmlChar *) DS_SQLITE_MODE))
+		  else if (!xmlStrcmp (cur->name, (xmlChar *) DS_SQLITE_MODE_TAG))
 		    {
 		      if ((tmp = xmlNodeGetContent (cur)))
 			{
 			  if (!xmlStrcmp (tmp, (xmlChar *) "readonly"))
-			    data->sqlite_mode = DP_SQLITE_OPEN_READONLY;
+			    {
+			      data->sqlite_db_mode = DP_SQLITE_OPEN_READONLY;
+			      data->sqlite_linkb_mode = DP_SQLITE_OPEN_READONLY;
+			      data->sqlite_attachment_db_mode = DP_SQLITE_OPEN_READONLY;
+			      data->sqlite_view_mode = DP_SQLITE_OPEN_READONLY;
+			    }
 
 			  else if (!xmlStrcmp (tmp, (xmlChar *) "readwrite"))
-			    data->sqlite_mode = DP_SQLITE_OPEN_READWRITE;
+			    {
+			      data->sqlite_db_mode = DP_SQLITE_OPEN_READWRITE;
+			      data->sqlite_linkb_mode = DP_SQLITE_OPEN_READWRITE;
+			      data->sqlite_attachment_db_mode = DP_SQLITE_OPEN_READWRITE;
+			      data->sqlite_view_mode = DP_SQLITE_OPEN_READWRITE;
+			    }
 
 			  else if (!xmlStrcmp (tmp, (xmlChar *) "create"))
-			    data->sqlite_mode = DP_SQLITE_OPEN_CREATE;
+			    {
+			      data->sqlite_db_mode = DP_SQLITE_OPEN_CREATE;
+			      data->sqlite_linkb_mode = DP_SQLITE_OPEN_CREATE;
+			      data->sqlite_attachment_db_mode = DP_SQLITE_OPEN_CREATE;
+			      data->sqlite_view_mode = DP_SQLITE_OPEN_CREATE;
+			    }
 
 			  xmlFree (tmp);
 			}
 		    }
+
+		  /* SQLite allow: */
+		  else if (!xmlStrcmp (cur->name, (xmlChar *) DS_SQLITE_ALLOW_TAG))
+		    {
+		      if ((tmp = xmlNodeGetContent (cur)))
+			{
+			  data->sqlite_allow = g_regex_new ((gchar *) tmp, 0, 0, NULL);
+
+			  xmlFree (tmp);
+			}
+		    }
+
+		  /* SQLite deny: */
+		  else if (!xmlStrcmp (cur->name, (xmlChar *) DS_SQLITE_DENY_TAG))
+		    {
+		      if ((tmp = xmlNodeGetContent (cur)))
+			{
+			  data->sqlite_deny = g_regex_new ((gchar *) tmp, 0, 0, NULL);
+
+			  xmlFree (tmp);
+			}
+		    }
+
+		  /* SQLite connect: */
+		  else if (!xmlStrcmp (cur->name, (xmlChar *) DS_SQLITE_CONNECT_TAG))
+		    {
+		      if ((tmp = xmlNodeGetContent (cur)))
+			{
+			  data->sqlite_connect = g_regex_new ((gchar *) tmp, 0, 0, NULL);
+
+			  xmlFree (tmp);
+			}
+		    }
+
+		  /* NOTE - database specific SQLite params */
+
+		  /* SQLite database mode: */
+		  else if (!xmlStrcmp (cur->name, (xmlChar *) DS_SQLITE_DB_MODE_TAG))
+		    {
+		      if ((tmp = xmlNodeGetContent (cur)))
+			{
+			  if (!xmlStrcmp (tmp, (xmlChar *) "readonly"))
+			    data->sqlite_db_mode = DP_SQLITE_OPEN_READONLY;
+
+			  else if (!xmlStrcmp (tmp, (xmlChar *) "readwrite"))
+			    data->sqlite_db_mode = DP_SQLITE_OPEN_READWRITE;
+
+			  else if (!xmlStrcmp (tmp, (xmlChar *) "create"))
+			    data->sqlite_db_mode = DP_SQLITE_OPEN_CREATE;
+
+			  xmlFree (tmp);
+			}
+		    }
+
+		  /* SQLite database allow: */
+		  else if (!xmlStrcmp (cur->name, (xmlChar *) DS_SQLITE_DB_ALLOW_TAG))
+		    {
+		      if ((tmp = xmlNodeGetContent (cur)))
+			{
+			  data->sqlite_db_allow = g_regex_new ((gchar *) tmp, 0, 0, NULL);
+
+			  xmlFree (tmp);
+			}
+		    }
+
+		  /* SQLite database deny: */
+		  else if (!xmlStrcmp (cur->name, (xmlChar *) DS_SQLITE_DB_DENY_TAG))
+		    {
+		      if ((tmp = xmlNodeGetContent (cur)))
+			{
+			  data->sqlite_db_deny = g_regex_new ((gchar *) tmp, 0, 0, NULL);
+
+			  xmlFree (tmp);
+			}
+		    }
+
+		  /* SQLite database connect: */
+		  else if (!xmlStrcmp (cur->name, (xmlChar *) DS_SQLITE_DB_CONNECT_TAG))
+		    {
+		      if ((tmp = xmlNodeGetContent (cur)))
+			{
+			  data->sqlite_db_connect = g_regex_new ((gchar *) tmp, 0, 0, NULL);
+
+			  xmlFree (tmp);
+			}
+		    }
+
+		  /* NOTE - linkbase specific SQLite params */
+
+		  /* SQLite linkbase mode: */
+		  else if (!xmlStrcmp (cur->name, (xmlChar *) DS_SQLITE_LINKB_MODE_TAG))
+		    {
+		      if ((tmp = xmlNodeGetContent (cur)))
+			{
+			  if (!xmlStrcmp (tmp, (xmlChar *) "readonly"))
+			    data->sqlite_linkb_mode = DP_SQLITE_OPEN_READONLY;
+
+			  else if (!xmlStrcmp (tmp, (xmlChar *) "readwrite"))
+			    data->sqlite_linkb_mode = DP_SQLITE_OPEN_READWRITE;
+
+			  else if (!xmlStrcmp (tmp, (xmlChar *) "create"))
+			    data->sqlite_linkb_mode = DP_SQLITE_OPEN_CREATE;
+
+			  xmlFree (tmp);
+			}
+		    }
+
+		  /* SQLite linkbase allow: */
+		  else if (!xmlStrcmp (cur->name, (xmlChar *) DS_SQLITE_LINKB_ALLOW_TAG))
+		    {
+		      if ((tmp = xmlNodeGetContent (cur)))
+			{
+			  data->sqlite_linkb_allow = g_regex_new ((gchar *) tmp, 0, 0, NULL);
+
+			  xmlFree (tmp);
+			}
+		    }
+
+		  /* SQLite linkbase deny: */
+		  else if (!xmlStrcmp (cur->name, (xmlChar *) DS_SQLITE_LINKB_DENY_TAG))
+		    {
+		      if ((tmp = xmlNodeGetContent (cur)))
+			{
+			  data->sqlite_linkb_deny = g_regex_new ((gchar *) tmp, 0, 0, NULL);
+
+			  xmlFree (tmp);
+			}
+		    }
+
+		  /* SQLite linkbase connect: */
+		  else if (!xmlStrcmp (cur->name, (xmlChar *) DS_SQLITE_LINKB_CONNECT_TAG))
+		    {
+		      if ((tmp = xmlNodeGetContent (cur)))
+			{
+			  data->sqlite_linkb_connect = g_regex_new ((gchar *) tmp, 0, 0, NULL);
+
+			  xmlFree (tmp);
+			}
+		    }
+
+		  /* NOTE - attachment database specific SQLite params */
+
+		  /* SQLite attachment database mode: */
+		  else if (!xmlStrcmp (cur->name, (xmlChar *) DS_SQLITE_ATTACHMENT_DB_MODE_TAG))
+		    {
+		      if ((tmp = xmlNodeGetContent (cur)))
+			{
+			  if (!xmlStrcmp (tmp, (xmlChar *) "readonly"))
+			    data->sqlite_attachment_db_mode = DP_SQLITE_OPEN_READONLY;
+
+			  else if (!xmlStrcmp (tmp, (xmlChar *) "readwrite"))
+			    data->sqlite_attachment_db_mode = DP_SQLITE_OPEN_READWRITE;
+
+			  else if (!xmlStrcmp (tmp, (xmlChar *) "create"))
+			    data->sqlite_attachment_db_mode = DP_SQLITE_OPEN_CREATE;
+
+			  xmlFree (tmp);
+			}
+		    }
+
+		  /* SQLite attachment database allow: */
+		  else if (!xmlStrcmp (cur->name, (xmlChar *) DS_SQLITE_ATTACHMENT_DB_ALLOW_TAG))
+		    {
+		      if ((tmp = xmlNodeGetContent (cur)))
+			{
+			  data->sqlite_attachment_db_allow = g_regex_new ((gchar *) tmp, 0, 0, NULL);
+
+			  xmlFree (tmp);
+			}
+		    }
+
+		  /* SQLite attachment database deny: */
+		  else if (!xmlStrcmp (cur->name, (xmlChar *) DS_SQLITE_ATTACHMENT_DB_DENY_TAG))
+		    {
+		      if ((tmp = xmlNodeGetContent (cur)))
+			{
+			  data->sqlite_attachment_db_deny = g_regex_new ((gchar *) tmp, 0, 0, NULL);
+
+			  xmlFree (tmp);
+			}
+		    }
+
+		  /* SQLite attachment database connect: */
+		  else if (!xmlStrcmp (cur->name, (xmlChar *) DS_SQLITE_ATTACHMENT_DB_CONNECT_TAG))
+		    {
+		      if ((tmp = xmlNodeGetContent (cur)))
+			{
+			  data->sqlite_attachment_db_connect = g_regex_new ((gchar *) tmp, 0, 0, NULL);
+
+			  xmlFree (tmp);
+			}
+		    }
+
+		  /* NOTE - view specific SQLite params */
+
+		  /* SQLite view mode: */
+		  else if (!xmlStrcmp (cur->name, (xmlChar *) DS_SQLITE_VIEW_MODE_TAG))
+		    {
+		      if ((tmp = xmlNodeGetContent (cur)))
+			{
+			  if (!xmlStrcmp (tmp, (xmlChar *) "readonly"))
+			    data->sqlite_view_mode = DP_SQLITE_OPEN_READONLY;
+
+			  else if (!xmlStrcmp (tmp, (xmlChar *) "readwrite"))
+			    data->sqlite_view_mode = DP_SQLITE_OPEN_READWRITE;
+
+			  else if (!xmlStrcmp (tmp, (xmlChar *) "create"))
+			    data->sqlite_view_mode = DP_SQLITE_OPEN_CREATE;
+
+			  xmlFree (tmp);
+			}
+		    }
+
+		  /* SQLite view allow: */
+		  else if (!xmlStrcmp (cur->name, (xmlChar *) DS_SQLITE_VIEW_ALLOW_TAG))
+		    {
+		      if ((tmp = xmlNodeGetContent (cur)))
+			{
+			  data->sqlite_view_allow = g_regex_new ((gchar *) tmp, 0, 0, NULL);
+
+			  xmlFree (tmp);
+			}
+		    }
+
+		  /* SQLite view deny: */
+		  else if (!xmlStrcmp (cur->name, (xmlChar *) DS_SQLITE_VIEW_DENY_TAG))
+		    {
+		      if ((tmp = xmlNodeGetContent (cur)))
+			{
+			  data->sqlite_view_deny = g_regex_new ((gchar *) tmp, 0, 0, NULL);
+
+			  xmlFree (tmp);
+			}
+		    }
+
+		  /* SQLite view connect: */
+		  else if (!xmlStrcmp (cur->name, (xmlChar *) DS_SQLITE_VIEW_CONNECT_TAG))
+		    {
+		      if ((tmp = xmlNodeGetContent (cur)))
+			{
+			  data->sqlite_view_connect = g_regex_new ((gchar *) tmp, 0, 0, NULL);
+
+			  xmlFree (tmp);
+			}
+		    }
+
 		}
 	    }
 
@@ -567,6 +843,9 @@ configure_limit_parser (xmlDocPtr xml, DSGlobal * data, GError ** error)
   if (!data->limit_checklinks_max_threads)
     data->limit_checklinks_max_threads = DS_LIMIT_CHECKLINKS_MAXTHREADS_DEFAULT;
 
+  if (!data->sqlite_path)
+    data->sqlite_path = g_strdup (DUPIN_DB_PATH);
+
   return TRUE;
 }
 
@@ -597,6 +876,54 @@ configure_free (DSGlobal * data)
 
   if (data->httpd_mutex)
     g_mutex_free (data->httpd_mutex);
+
+  if (data->sqlite_path)
+    g_free (data->sqlite_path);
+
+  if (data->sqlite_allow)
+    g_regex_unref (data->sqlite_allow);
+
+  if (data->sqlite_deny)
+    g_regex_unref (data->sqlite_deny);
+
+  if (data->sqlite_connect)
+    g_regex_unref (data->sqlite_connect);
+
+  if (data->sqlite_db_allow)
+    g_regex_unref (data->sqlite_db_allow);
+
+  if (data->sqlite_db_deny)
+    g_regex_unref (data->sqlite_db_deny);
+
+  if (data->sqlite_db_connect)
+    g_regex_unref (data->sqlite_db_connect);
+
+  if (data->sqlite_linkb_allow)
+    g_regex_unref (data->sqlite_linkb_allow);
+
+  if (data->sqlite_linkb_deny)
+    g_regex_unref (data->sqlite_linkb_deny);
+
+  if (data->sqlite_linkb_connect)
+    g_regex_unref (data->sqlite_linkb_connect);
+
+  if (data->sqlite_attachment_db_allow)
+    g_regex_unref (data->sqlite_attachment_db_allow);
+
+  if (data->sqlite_attachment_db_deny)
+    g_regex_unref (data->sqlite_attachment_db_deny);
+
+  if (data->sqlite_attachment_db_connect)
+    g_regex_unref (data->sqlite_attachment_db_connect);
+
+  if (data->sqlite_view_allow)
+    g_regex_unref (data->sqlite_view_allow);
+
+  if (data->sqlite_view_deny)
+    g_regex_unref (data->sqlite_view_deny);
+
+  if (data->sqlite_view_connect)
+    g_regex_unref (data->sqlite_view_connect);
 
   g_free (data);
 }

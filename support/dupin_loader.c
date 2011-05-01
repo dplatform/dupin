@@ -59,6 +59,14 @@ typedef struct _dupin_loader_options {
 	gchar * context_id;
 } dupin_loader_options;
 
+dupin_loader_options options;
+
+Dupin * dupin_loader_init (DSGlobal *data, GError ** error);
+
+void dupin_loader_shutdown (Dupin * d);
+
+GQuark dupin_loader_error_quark (void);
+
 gchar * dupin_loader_extract_context_id (JsonNode * node);
 
 static JsonNode * dupin_loader_read_json_object (gchar * line);
@@ -241,7 +249,7 @@ void dupin_loader_close (void)
   configure_free (d_conf);
 
   if (d)
-    dupin_shutdown (d);
+    dupin_loader_shutdown (d);
 
   if (error != NULL)
     g_error_free (error);
@@ -271,7 +279,6 @@ static void dupin_loader_sig_int (int sig)
 int
 main (int argc, char *argv[])
 {
-  dupin_loader_options options;
   gchar *line;
   gsize last;
   GIOStatus status;
@@ -346,7 +353,7 @@ main (int argc, char *argv[])
       goto dupin_loader_end;
     }
 
-  if (!(d = dupin_init (d_conf, &error)))
+  if (!(d = dupin_loader_init (d_conf, &error)))
     {
       fprintf (stderr, "Error: %s\n", error->message);
       g_error_free (error);
@@ -633,6 +640,200 @@ gchar *
 dupin_loader_get_warning (void)
 {
   return warning_msg;
+}
+
+/* NOTE - init, shutdown and error quark sub-routines */
+
+Dupin *
+dupin_loader_init (DSGlobal *data, GError ** error)
+{
+  Dupin *d;
+  GDir *dir;
+
+  if (g_file_test (data->sqlite_path, G_FILE_TEST_IS_DIR) == FALSE)
+    {
+      g_set_error (error, dupin_loader_error_quark (), DUPIN_ERROR_INIT,
+		   "Directory '%s' doesn't exist.", data->sqlite_path);
+      return NULL;
+    }
+
+  if (!(dir = g_dir_open (data->sqlite_path, 0, error)))
+    return NULL;
+
+  d = g_malloc0 (sizeof (Dupin));
+
+  d->conf = data; /* we just copy point from caller */
+
+  d->mutex = g_mutex_new ();
+  d->path = g_strdup (d->conf->sqlite_path);
+
+  d->dbs =
+    g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
+			   (GDestroyNotify) dupin_db_disconnect);
+  d->linkbs =
+    g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
+			   (GDestroyNotify) dupin_linkb_disconnect);
+
+  d->attachment_dbs =
+    g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
+			   (GDestroyNotify) dupin_attachment_db_disconnect);
+
+  d->db_compact_workers_pool = g_thread_pool_new (dupin_database_compact_func,
+					        NULL,
+						(d->conf != NULL) ? d->conf->limit_compact_max_threads : DS_LIMIT_COMPACT_MAXTHREADS_DEFAULT,
+						FALSE,
+						NULL);
+
+  d->linkb_compact_workers_pool = g_thread_pool_new (dupin_linkbase_compact_func,
+					        NULL,
+						(d->conf != NULL) ? d->conf->limit_compact_max_threads : DS_LIMIT_COMPACT_MAXTHREADS_DEFAULT,
+						FALSE,
+						NULL);
+
+  d->linkb_check_workers_pool = g_thread_pool_new (dupin_linkbase_check_func,
+					        NULL,
+						(d->conf != NULL) ? d->conf->limit_checklinks_max_threads : DS_LIMIT_CHECKLINKS_MAXTHREADS_DEFAULT,
+						FALSE,
+						NULL);
+
+  g_dir_close (dir);
+
+  if (db_name != NULL)
+    {
+
+      /* NOTE - connect database */
+
+      DupinDB *db;
+      gchar *path;
+      gchar *name;
+
+      name = g_strdup_printf ("%s%s", db_name, DUPIN_DB_SUFFIX);
+      path = g_build_path (G_DIR_SEPARATOR_S, d->path, name, NULL);
+
+      if (g_file_test (path, G_FILE_TEST_EXISTS) == TRUE)
+        {
+          if (!(db = dupin_db_connect (d, db_name, path, d->conf->sqlite_db_mode, error)))
+            {
+              dupin_loader_shutdown (d);
+              g_free (path);
+              g_free (name);
+              return NULL;
+            }
+
+g_message("dupin_loader_init: connected database %s\n", db_name);
+
+          g_hash_table_insert (d->dbs, g_strdup (db_name), db);
+        }
+
+      g_free (path);
+      g_free (name);
+
+      /* NOTE - connect linkbase */
+
+      DupinLinkB *linkb;
+
+      name = g_strdup_printf ("%s%s", db_name, DUPIN_LINKB_SUFFIX);
+      path = g_build_path (G_DIR_SEPARATOR_S, d->path, name, NULL);
+
+      if (g_file_test (path, G_FILE_TEST_EXISTS) == TRUE)
+        {
+          if (!(linkb = dupin_linkb_connect (d, db_name, path, d->conf->sqlite_linkb_mode, error)))
+            {
+              dupin_loader_shutdown (d);
+              g_free (path);
+              g_free (name);
+              return NULL;
+            }
+
+g_message("dupin_loader_init: connected linkbase %s\n", db_name);
+
+          if (dupin_linkbase_p_update (linkb, error) == FALSE)
+            {
+              dupin_loader_shutdown (d);
+              g_free (path);
+              g_free (name);
+              return NULL;
+            }
+
+          g_hash_table_insert (d->linkbs, g_strdup (db_name), linkb);
+        }
+
+      g_free (path);
+      g_free (name);
+
+      /* NOTE - connect attachments database */
+
+      DupinAttachmentDB *attachment_db;
+
+      name = g_strdup_printf ("%s%s", db_name, DUPIN_ATTACHMENT_DB_SUFFIX);
+      path = g_build_path (G_DIR_SEPARATOR_S, d->path, name, NULL);
+
+      if (g_file_test (path, G_FILE_TEST_EXISTS) == TRUE)
+        {
+          if (!(attachment_db = dupin_attachment_db_connect (d, db_name, path, d->conf->sqlite_attachment_db_mode, error)))
+            {
+              dupin_loader_shutdown (d);
+              g_free (path);
+              g_free (name);
+              return NULL;
+            }
+
+g_message("dupin_loader_init: connected attachment database %s\n", db_name);
+
+          if (dupin_attachment_db_p_update (attachment_db, error) == FALSE)
+            {
+              dupin_loader_shutdown (d);
+              g_free (path);
+              g_free (name);
+              return NULL;
+            }
+
+          g_hash_table_insert (d->attachment_dbs, g_strdup (db_name), attachment_db);
+        }
+
+      g_free (path);
+      g_free (name);
+    }
+
+  return d;
+}
+
+void
+dupin_loader_shutdown (Dupin * d)
+{
+  g_return_if_fail (d != NULL);
+
+  /* NOTE - wait until all map and reduce threads are done */
+
+  g_thread_pool_free (d->db_compact_workers_pool, TRUE, TRUE);
+  g_thread_pool_free (d->linkb_compact_workers_pool, TRUE, TRUE);
+  g_thread_pool_free (d->linkb_check_workers_pool, TRUE, TRUE);
+
+g_message("dupin_loader_shutdown: worker pools freed\n");
+
+  if (d->mutex)
+    g_mutex_free (d->mutex);
+
+  if (d->attachment_dbs)
+    g_hash_table_destroy (d->attachment_dbs);
+
+  if (d->linkbs)
+    g_hash_table_destroy (d->linkbs);
+
+  if (d->dbs)
+    g_hash_table_destroy (d->dbs);
+
+  if (d->path)
+    g_free (d->path);
+
+  g_free (d);
+}
+
+/* Quark: */
+GQuark
+dupin_loader_error_quark (void)
+{
+  return g_quark_from_static_string ("dupin-loader-error-quark");
 }
 
 /* EOF */

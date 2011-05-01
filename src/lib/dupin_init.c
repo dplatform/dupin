@@ -16,14 +16,14 @@ dupin_init (DSGlobal *data, GError ** error)
   GDir *dir;
   const gchar *filename;
 
-  if (g_file_test (DUPIN_DB_PATH, G_FILE_TEST_IS_DIR) == FALSE)
+  if (g_file_test (data->sqlite_path, G_FILE_TEST_IS_DIR) == FALSE)
     {
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_INIT,
-		   "Directory '%s' doesn't exist.", DUPIN_DB_PATH);
+		   "Directory '%s' doesn't exist.", data->sqlite_path);
       return NULL;
     }
 
-  if (!(dir = g_dir_open (DUPIN_DB_PATH, 0, error)))
+  if (!(dir = g_dir_open (data->sqlite_path, 0, error)))
     return NULL;
 
   d = g_malloc0 (sizeof (Dupin));
@@ -31,7 +31,7 @@ dupin_init (DSGlobal *data, GError ** error)
   d->conf = data; /* we just copy point from caller */
 
   d->mutex = g_mutex_new ();
-  d->path = g_strdup (DUPIN_DB_PATH);
+  d->path = g_strdup (d->conf->sqlite_path);
 
   d->dbs =
     g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
@@ -86,18 +86,38 @@ dupin_init (DSGlobal *data, GError ** error)
       if (g_str_has_suffix (filename, DUPIN_DB_SUFFIX) == FALSE)
 	continue;
 
+      /* NOTE - check if database needs to be connected */
+
+      if (d->conf->sqlite_connect != NULL
+	  && !g_regex_match (d->conf->sqlite_connect, filename, 0, NULL))
+        {
+g_message("dupin_init: skipped database %s (sqlite_connect)\n", filename);
+
+          continue;
+	}
+
+      if (d->conf->sqlite_db_connect != NULL
+	  && !g_regex_match (d->conf->sqlite_db_connect, filename, 0, NULL))
+        {
+g_message("dupin_init: skipped database %s (sqlite_db_connect)\n", filename);
+
+          continue;
+	}
+
       path = g_build_path (G_DIR_SEPARATOR_S, d->path, filename, NULL);
 
       name = g_strdup (filename);
       name[strlen (filename) - DUPIN_DB_SUFFIX_LEN] = 0;
 
-      if (!(db = dupin_db_connect (d, name, path, d->conf->sqlite_mode, error)))
+      if (!(db = dupin_db_connect (d, name, path, d->conf->sqlite_db_mode, error)))
 	{
 	  dupin_shutdown (d);
 	  g_free (path);
 	  g_free (name);
 	  return NULL;
 	}
+
+g_message("dupin_init: connected database %s\n", name);
 
       g_hash_table_insert (d->dbs, g_strdup (name), db);
       g_free (path);
@@ -115,18 +135,36 @@ dupin_init (DSGlobal *data, GError ** error)
       if (g_str_has_suffix (filename, DUPIN_LINKB_SUFFIX) == FALSE)
 	continue;
 
+      if (d->conf->sqlite_connect != NULL
+	  && !g_regex_match (d->conf->sqlite_connect, filename, 0, NULL))
+        {
+g_message("dupin_init: skipped linkbase %s (sqlite_connect)\n", filename);
+
+          continue;
+	}
+
+      if (d->conf->sqlite_linkb_connect != NULL
+	  && !g_regex_match (d->conf->sqlite_linkb_connect, filename, 0, NULL))
+        {
+g_message("dupin_init: skipped linkbase %s (sqlite_linkb_connect)\n", filename);
+
+          continue;
+	}
+
       path = g_build_path (G_DIR_SEPARATOR_S, d->path, filename, NULL);
 
       name = g_strdup (filename);
       name[strlen (filename) - DUPIN_LINKB_SUFFIX_LEN] = 0;
 
-      if (!(linkb = dupin_linkb_connect (d, name, path, d->conf->sqlite_mode, error)))
+      if (!(linkb = dupin_linkb_connect (d, name, path, d->conf->sqlite_linkb_mode, error)))
 	{
 	  dupin_shutdown (d);
 	  g_free (path);
 	  g_free (name);
 	  return NULL;
 	}
+
+g_message("dupin_init: connected linkbase %s\n", name);
 
       if (dupin_linkbase_p_update (linkb, error) == FALSE)
 	{
@@ -152,18 +190,36 @@ dupin_init (DSGlobal *data, GError ** error)
       if (g_str_has_suffix (filename, DUPIN_ATTACHMENT_DB_SUFFIX) == FALSE)
 	continue;
 
+      if (d->conf->sqlite_connect != NULL
+	  && !g_regex_match (d->conf->sqlite_connect, filename, 0, NULL))
+        {
+g_message("dupin_init: skipped attachment database %s (sqlite_connect)\n", filename);
+
+          continue;
+	}
+
+      if (d->conf->sqlite_attachment_db_connect != NULL
+	  && !g_regex_match (d->conf->sqlite_attachment_db_connect, filename, 0, NULL))
+        {
+g_message("dupin_init: skipped attachment database %s (sqlite_attachment_db_connect)\n", filename);
+
+          continue;
+	}
+
       path = g_build_path (G_DIR_SEPARATOR_S, d->path, filename, NULL);
 
       name = g_strdup (filename);
       name[strlen (filename) - DUPIN_ATTACHMENT_DB_SUFFIX_LEN] = 0;
 
-      if (!(attachment_db = dupin_attachment_db_connect (d, name, path, d->conf->sqlite_mode, error)))
+      if (!(attachment_db = dupin_attachment_db_connect (d, name, path, d->conf->sqlite_attachment_db_mode, error)))
 	{
 	  dupin_shutdown (d);
 	  g_free (path);
 	  g_free (name);
 	  return NULL;
 	}
+
+g_message("dupin_init: connected attachment database %s\n", name);
 
       if (dupin_attachment_db_p_update (attachment_db, error) == FALSE)
 	{
@@ -189,18 +245,36 @@ dupin_init (DSGlobal *data, GError ** error)
       if (g_str_has_suffix (filename, DUPIN_VIEW_SUFFIX) == FALSE)
 	continue;
 
+      if (d->conf->sqlite_connect != NULL
+	  && !g_regex_match (d->conf->sqlite_connect, filename, 0, NULL))
+        {
+g_message("dupin_init: skipped view %s (sqlite_connect)\n", filename);
+
+          continue;
+	}
+
+      if (d->conf->sqlite_view_connect != NULL
+	  && !g_regex_match (d->conf->sqlite_view_connect, filename, 0, NULL))
+        {
+g_message("dupin_init: skipped view %s (sqlite_view_connect)\n", filename);
+
+          continue;
+	}
+
       path = g_build_path (G_DIR_SEPARATOR_S, d->path, filename, NULL);
 
       name = g_strdup (filename);
       name[strlen (filename) - DUPIN_VIEW_SUFFIX_LEN] = 0;
 
-      if (!(view = dupin_view_connect (d, name, path, d->conf->sqlite_mode, error)))
+      if (!(view = dupin_view_connect (d, name, path, d->conf->sqlite_view_mode, error)))
 	{
 	  dupin_shutdown (d);
 	  g_free (path);
 	  g_free (name);
 	  return NULL;
 	}
+
+g_message("dupin_init: connected view %s\n", name);
 
       if (dupin_view_p_update (view, error) == FALSE)
 	{
@@ -243,11 +317,11 @@ g_message("dupin_shutdown: worker pools freed\n");
   if (d->views)
     g_hash_table_destroy (d->views);
 
-  if (d->linkbs)
-    g_hash_table_destroy (d->linkbs);
-
   if (d->attachment_dbs)
     g_hash_table_destroy (d->attachment_dbs);
+
+  if (d->linkbs)
+    g_hash_table_destroy (d->linkbs);
 
   if (d->dbs)
     g_hash_table_destroy (d->dbs);

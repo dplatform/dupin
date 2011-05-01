@@ -1,7 +1,6 @@
 noinst_LTLIBRARIES = libdupin.la
 
 INCLUDES = \
-	-DDUPIN_DB_PATH=\"$(localstatedir)/@PACKAGE@/dbs\" \
 	-I../tbjson
 
 libdupin_la_SOURCES = \

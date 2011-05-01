@@ -145,7 +145,7 @@ dupin_attachment_db_new (Dupin * d, gchar * attachment_db,
   ret->ref++;
 
   str =
-    sqlite3_mprintf ("INSERT INTO DupinAttachmentDB "
+    sqlite3_mprintf ("INSERT OR REPLACE INTO DupinAttachmentDB "
 		     "(parent) "
 		     "VALUES('%q')", parent);
 
@@ -221,7 +221,7 @@ dupin_attachment_db_p_update (DupinAttachmentDB * attachment_db, GError ** error
 {
   gchar *errmsg;
   struct dupin_attachment_db_p_update_t update;
-  gchar *query = "SELECT parent FROM DupinAttachmentDB";
+  gchar *query = "SELECT parent FROM DupinAttachmentDB LIMIT 1";
 
   memset (&update, 0, sizeof (struct dupin_attachment_db_p_update_t));
 
@@ -491,7 +491,7 @@ dupin_attachment_db_connect (Dupin * d, gchar * name, gchar * path,
     }
 
   query =
-    "SELECT parent FROM DupinAttachmentDB";
+    "SELECT parent FROM DupinAttachmentDB LIMIT 1";
 
   if (sqlite3_exec (attachment_db->db, query, dupin_attachment_db_connect_cb, attachment_db, &errmsg) !=
       SQLITE_OK)

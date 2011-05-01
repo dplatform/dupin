@@ -3,6 +3,7 @@ bin_PROGRAMS = dupin_server
 INCLUDES = \
 	-DDS_WWW_PATH=\"$(datadir)/@PACKAGE@/www\" \
 	-DDS_CONFIG_FILE=\"$(sysconfdir)/dupinserver.cfg\" \
+	-DDUPIN_DB_PATH=\"$(localstatedir)/@PACKAGE@/dbs\" \
 	-I../lib \
 	-I../tbjson \
 	-I../tbjsonpath

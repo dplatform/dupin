@@ -19,7 +19,33 @@
 #define DS_BACKGROUND_TAG	"Background"
 #define DS_USER_TAG		"User"
 #define DS_GROUP_TAG		"Group"
-#define DS_SQLITE_MODE		"SQLiteMode"
+
+#define DS_SQLITE_PATH_TAG			"SQLitePath"
+
+#define DS_SQLITE_ALLOW_TAG			"SQLiteAllow"
+#define DS_SQLITE_DENY_TAG			"SQLiteDeny"
+#define DS_SQLITE_CONNECT_TAG			"SQLiteConnect"
+#define DS_SQLITE_MODE_TAG			"SQLiteMode"
+
+#define DS_SQLITE_DB_ALLOW_TAG			"SQLiteDBAllow"
+#define DS_SQLITE_DB_DENY_TAG			"SQLiteDBDeny"
+#define DS_SQLITE_DB_CONNECT_TAG		"SQLiteDBConnect"
+#define DS_SQLITE_DB_MODE_TAG			"SQLiteDBMode"
+
+#define DS_SQLITE_ATTACHMENT_DB_ALLOW_TAG	"SQLiteAttachmentDBAllow"
+#define DS_SQLITE_ATTACHMENT_DB_DENY_TAG	"SQLiteAttachmentDBDeny"
+#define DS_SQLITE_ATTACHMENT_DB_CONNECT_TAG	"SQLiteAttachmentDBConnect"
+#define DS_SQLITE_ATTACHMENT_DB_MODE_TAG	"SQLiteAttachmentDBMode"
+
+#define DS_SQLITE_LINKB_ALLOW_TAG		"SQLiteLinkBAllow"
+#define DS_SQLITE_LINKB_DENY_TAG		"SQLiteLinkBDeny"
+#define DS_SQLITE_LINKB_CONNECT_TAG		"SQLiteLinkBConnect"
+#define DS_SQLITE_LINKB_MODE_TAG		"SQLiteLinkBMode"
+
+#define DS_SQLITE_VIEW_ALLOW_TAG		"SQLiteViewAllow"
+#define DS_SQLITE_VIEW_DENY_TAG			"SQLiteViewDeny"
+#define DS_SQLITE_VIEW_CONNECT_TAG		"SQLiteViewConnect"
+#define DS_SQLITE_VIEW_MODE_TAG			"SQLiteViewMode"
 
 #define DS_HTTPD_TAG		"Network"
 #define DS_HTTPD_IPV6_TAG	"Ipv6"
@@ -76,7 +102,31 @@ struct ds_global_t
   gchar *       user;                   /* Permissions */
   gchar *       group;
 
-  DupinSQLiteOpenType sqlite_mode;
+  gchar *       sqlite_path;
+
+  GRegex * sqlite_allow;
+  GRegex * sqlite_deny;
+  GRegex * sqlite_connect;
+
+  DupinSQLiteOpenType sqlite_db_mode;
+  GRegex * sqlite_db_allow;
+  GRegex * sqlite_db_deny;
+  GRegex * sqlite_db_connect;
+
+  DupinSQLiteOpenType sqlite_attachment_db_mode;
+  GRegex * sqlite_attachment_db_allow;
+  GRegex * sqlite_attachment_db_deny;
+  GRegex * sqlite_attachment_db_connect;
+
+  DupinSQLiteOpenType sqlite_linkb_mode;
+  GRegex * sqlite_linkb_allow;
+  GRegex * sqlite_linkb_deny;
+  GRegex * sqlite_linkb_connect;
+
+  DupinSQLiteOpenType sqlite_view_mode;
+  GRegex * sqlite_view_allow;
+  GRegex * sqlite_view_deny;
+  GRegex * sqlite_view_connect;
 
   GMainLoop *   loop;
 

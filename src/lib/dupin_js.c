@@ -1942,6 +1942,10 @@ dupin_js_dupin_class_util_http_client (JSContextRef ctx,
     {
       method = (gchar *)SOUP_METHOD_GET;
     }
+  else if (!g_strcmp0 (method, "head"))
+    {
+      method = (gchar *)SOUP_METHOD_HEAD;
+    }
   else
     {
       if (params_node != NULL) 

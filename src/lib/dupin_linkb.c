@@ -232,6 +232,33 @@ dupin_linkbase_p_update_cb (void *data, int argc, char **argv, char **col)
 static void
 dupin_linkbase_p_update_real (DupinLinkBP * p, DupinLinkB * linkb)
 {
+  /* NOTE - need to remove pointer from parent if linkbase is "hot deleted" */
+
+  if (linkb->todelete == TRUE)
+    {
+      if (p->linkbs != NULL)
+        {
+          DupinLinkB ** linkbs = p->linkbs;
+          p->linkbs = g_malloc (sizeof (DupinLinkB *) * p->size);
+
+          gint i;
+          gint current_numb = p->numb;
+          p->numb = 0;
+          for (i=0; i < current_numb ; i++)
+            {
+              if (linkbs[i] != linkb)
+                {
+                  p->linkbs[p->numb] = linkbs[i];
+                  p->numb++;
+                }
+            }
+
+          g_free (linkbs);
+        }
+
+      return;
+    }
+
   if (p->linkbs == NULL)
     {
       p->linkbs = g_malloc (sizeof (DupinLinkB *) * DUPIN_LINKBASE_P_SIZE);
@@ -404,6 +431,12 @@ dupin_linkbase_delete (DupinLinkB * linkb, GError ** error)
   g_mutex_lock (d->mutex);
   linkb->todelete = TRUE;
   g_mutex_unlock (d->mutex);
+
+  if (dupin_linkbase_p_update (linkb, error) == FALSE)
+    {
+      dupin_linkb_disconnect (linkb);
+      return FALSE;
+    }
 
   return TRUE;
 }

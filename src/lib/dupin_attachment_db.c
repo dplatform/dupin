@@ -200,6 +200,33 @@ dupin_attachment_db_p_update_cb (void *data, int argc, char **argv, char **col)
 static void
 dupin_attachment_db_p_update_real (DupinAttachmentDBP * p, DupinAttachmentDB * attachment_db)
 {
+  /* NOTE - need to remove pointer from parent if attachment db is "hot deleted" */
+
+  if (attachment_db->todelete == TRUE)
+    {
+      if (p->attachment_dbs != NULL)
+        {
+          DupinAttachmentDB ** attachment_dbs = p->attachment_dbs;
+          p->attachment_dbs = g_malloc (sizeof (DupinAttachmentDB *) * p->size);
+
+          gint i;
+          gint current_numb = p->numb;
+          p->numb = 0;
+          for (i=0; i < current_numb ; i++)
+            {
+              if (attachment_dbs[i] != attachment_db)
+                {
+                  p->attachment_dbs[p->numb] = attachment_dbs[i];
+                  p->numb++;
+                }
+            }
+
+          g_free (attachment_dbs);
+        }
+
+      return;
+    }
+
   if (p->attachment_dbs == NULL)
     {
       p->attachment_dbs = g_malloc (sizeof (DupinAttachmentDB *) * DUPIN_ATTACHMENT_DB_P_SIZE);
@@ -369,6 +396,12 @@ dupin_attachment_db_delete (DupinAttachmentDB * attachment_db, GError ** error)
   g_mutex_lock (d->mutex);
   attachment_db->todelete = TRUE;
   g_mutex_unlock (d->mutex);
+
+  if (dupin_attachment_db_p_update (attachment_db, error) == FALSE)
+    {
+      dupin_attachment_db_disconnect (attachment_db);
+      return FALSE;
+    }
 
   return TRUE;
 }

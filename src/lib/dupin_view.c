@@ -303,6 +303,33 @@ dupin_view_p_update_cb (void *data, int argc, char **argv, char **col)
 static void
 dupin_view_p_update_real (DupinViewP * p, DupinView * view)
 {
+  /* NOTE - need to remove pointer from parent if view is "hot deleted" */
+
+  if (view->todelete == TRUE)
+    {
+      if (p->views != NULL)
+        {
+	  DupinView ** views = p->views;
+          p->views = g_malloc (sizeof (DupinView *) * p->size);
+
+	  gint i;
+	  gint current_numb = p->numb;
+	  p->numb = 0;
+	  for (i=0; i < current_numb ; i++)
+	    {
+	      if (views[i] != view)
+	        {
+                  p->views[p->numb] = views[i];
+                  p->numb++;
+		}
+	    }
+
+	  g_free (views);
+        }
+
+      return;
+    }
+
   if (p->views == NULL)
     {
       p->views = g_malloc (sizeof (DupinView *) * DUPIN_VIEW_P_SIZE);
@@ -668,6 +695,12 @@ dupin_view_delete (DupinView * view, GError ** error)
   g_mutex_lock (d->mutex);
   view->todelete = TRUE;
   g_mutex_unlock (d->mutex);
+
+  if (dupin_view_p_update (view, error) == FALSE)
+    {
+      dupin_view_disconnect (view);
+      return FALSE;
+    }
 
   return TRUE;
 }

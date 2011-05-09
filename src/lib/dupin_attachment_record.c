@@ -131,11 +131,27 @@ dupin_attachment_record_delete (DupinAttachmentDB * attachment_db,
 
   g_mutex_lock (attachment_db->mutex);
 
+  if (dupin_attachment_db_begin_transaction (attachment_db, NULL) < 0)
+    {
+      g_mutex_unlock (attachment_db->mutex);
+
+      sqlite3_free (query);
+      return FALSE;
+    }
+
   if (sqlite3_exec (attachment_db->db, query, NULL, NULL, &errmsg) != SQLITE_OK)
     {
       g_mutex_unlock (attachment_db->mutex);
-      g_error("dupin_attachment_db_p_record_delete: %s", errmsg);
+      g_error("dupin_attachment_record_delete: %s", errmsg);
       sqlite3_free (errmsg);
+      sqlite3_free (query);
+      return FALSE;
+    }
+
+  if (dupin_attachment_db_commit_transaction (attachment_db, NULL) < 0)
+    {
+      g_mutex_unlock (attachment_db->mutex);
+
       sqlite3_free (query);
       return FALSE;
     }
@@ -143,21 +159,6 @@ dupin_attachment_record_delete (DupinAttachmentDB * attachment_db,
   g_mutex_unlock (attachment_db->mutex);
 
   sqlite3_free (query);
-
-//g_message("dupin_attachment_record_delete: VACUUM and ANALYZE\n");
-
-  g_mutex_lock (attachment_db->mutex);
-
-  if (sqlite3_exec (attachment_db->db, "VACUUM", NULL, NULL, &errmsg) != SQLITE_OK
-      || sqlite3_exec (attachment_db->db, "ANALYZE Dupin", NULL, NULL, &errmsg) != SQLITE_OK)
-    {
-      g_mutex_unlock (attachment_db->mutex);
-      g_error("dupin_attachment_db_p_record_delete: %s", errmsg);
-      sqlite3_free (errmsg);
-      return FALSE;
-    }
-
-  g_mutex_unlock (attachment_db->mutex);
 
   return TRUE;
 }
@@ -177,11 +178,27 @@ dupin_attachment_record_delete_all (DupinAttachmentDB * attachment_db,
 
   g_mutex_lock (attachment_db->mutex);
 
+  if (dupin_attachment_db_begin_transaction (attachment_db, NULL) < 0)
+    {
+      g_mutex_unlock (attachment_db->mutex);
+
+      sqlite3_free (query);
+      return FALSE;
+    }
+
   if (sqlite3_exec (attachment_db->db, query, NULL, NULL, &errmsg) != SQLITE_OK)
     {
       g_mutex_unlock (attachment_db->mutex);
-      g_error("dupin_attachment_db_p_record_delete: %s", errmsg);
+      g_error("dupin_attachment_record_delete_all: %s", errmsg);
       sqlite3_free (errmsg);
+      sqlite3_free (query);
+      return FALSE;
+    }
+
+  if (dupin_attachment_db_commit_transaction (attachment_db, NULL) < 0)
+    {
+      g_mutex_unlock (attachment_db->mutex);
+
       sqlite3_free (query);
       return FALSE;
     }
@@ -189,21 +206,6 @@ dupin_attachment_record_delete_all (DupinAttachmentDB * attachment_db,
   g_mutex_unlock (attachment_db->mutex);
 
   sqlite3_free (query);
-
-//g_message("dupin_attachment_record_delete_all: VACUUM and ANALYZE\n");
-
-  g_mutex_lock (attachment_db->mutex);
-
-  if (sqlite3_exec (attachment_db->db, "VACUUM", NULL, NULL, &errmsg) != SQLITE_OK
-      || sqlite3_exec (attachment_db->db, "ANALYZE Dupin", NULL, NULL, &errmsg) != SQLITE_OK)
-    {
-      g_mutex_unlock (attachment_db->mutex);
-      g_error("dupin_attachment_db_p_record_delete: %s", errmsg);
-      sqlite3_free (errmsg);
-      return FALSE;
-    }
-
-  g_mutex_unlock (attachment_db->mutex);
 
   return TRUE;
 }

@@ -19,6 +19,18 @@ DupinDB *	dupin_database_new	(Dupin *	d,
 					 gchar *	db,
 					 GError **	error);
 
+gint		dupin_database_begin_transaction
+					(DupinDB * 	db,
+					 GError ** 	error);
+
+gint		dupin_database_rollback_transaction
+					(DupinDB * 	db,
+					 GError ** 	error);
+
+gint		dupin_database_commit_transaction
+					(DupinDB * 	db,
+					 GError ** 	error);
+
 void		dupin_database_ref	(DupinDB *	db);
 
 void		dupin_database_unref	(DupinDB *	db);

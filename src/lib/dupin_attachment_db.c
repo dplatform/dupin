@@ -144,6 +144,13 @@ dupin_attachment_db_new (Dupin * d, gchar * attachment_db,
   g_free (path);
   ret->ref++;
 
+  if (dupin_attachment_db_begin_transaction (ret, error) < 0)
+    {
+      g_mutex_unlock (d->mutex);
+      dupin_attachment_db_disconnect (ret);
+      return NULL;
+    }
+
   str =
     sqlite3_mprintf ("INSERT OR REPLACE INTO DupinAttachmentDB "
 		     "(parent) "
@@ -158,6 +165,13 @@ dupin_attachment_db_new (Dupin * d, gchar * attachment_db,
 
       sqlite3_free (errmsg);
       sqlite3_free (str);
+      dupin_attachment_db_disconnect (ret);
+      return NULL;
+    }
+
+  if (dupin_attachment_db_commit_transaction (ret, error) < 0)
+    {
+      g_mutex_unlock (d->mutex);
       dupin_attachment_db_disconnect (ret);
       return NULL;
     }
@@ -508,12 +522,25 @@ dupin_attachment_db_connect (Dupin * d, gchar * name, gchar * path,
 
   if (mode == DP_SQLITE_OPEN_CREATE)
     {
-      if (sqlite3_exec (attachment_db->db, DUPIN_ATTACHMENT_DB_SQL_MAIN_CREATE, NULL, NULL, &errmsg)
-      				!= SQLITE_OK
-          || sqlite3_exec (attachment_db->db, DUPIN_ATTACHMENT_DB_SQL_DESC_CREATE, NULL, NULL,
-		       &errmsg) != SQLITE_OK
-          || sqlite3_exec (attachment_db->db, DUPIN_ATTACHMENT_DB_SQL_CREATE_INDEX, NULL, NULL,
-		       &errmsg) != SQLITE_OK)
+      if (sqlite3_exec (attachment_db->db, "PRAGMA journal_mode = WAL", NULL, NULL, &errmsg) != SQLITE_OK
+          || sqlite3_exec (attachment_db->db, "PRAGMA encoding = \"UTF-8\"", NULL, NULL, &errmsg) != SQLITE_OK)
+        {
+          g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot set pragma journal_mode or encoding: %s",
+		   errmsg);
+          sqlite3_free (errmsg);
+          dupin_attachment_db_disconnect (attachment_db);
+          return NULL;
+        }
+
+      if (dupin_attachment_db_begin_transaction (attachment_db, error) < 0)
+        {
+          dupin_attachment_db_disconnect (attachment_db);
+          return NULL;
+        }
+
+      if (sqlite3_exec (attachment_db->db, DUPIN_ATTACHMENT_DB_SQL_MAIN_CREATE, NULL, NULL, &errmsg) != SQLITE_OK
+          || sqlite3_exec (attachment_db->db, DUPIN_ATTACHMENT_DB_SQL_DESC_CREATE, NULL, NULL, &errmsg) != SQLITE_OK
+          || sqlite3_exec (attachment_db->db, DUPIN_ATTACHMENT_DB_SQL_CREATE_INDEX, NULL, NULL, &errmsg) != SQLITE_OK)
         {
           g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
 		   errmsg);
@@ -521,6 +548,35 @@ dupin_attachment_db_connect (Dupin * d, gchar * name, gchar * path,
           dupin_attachment_db_disconnect (attachment_db);
           return NULL;
         }
+
+      if (dupin_attachment_db_commit_transaction (attachment_db, error) < 0)
+        {
+          dupin_attachment_db_disconnect (attachment_db);
+          return NULL;
+        }
+    }
+
+  if (sqlite3_exec (attachment_db->db, "PRAGMA temp_store = memory", NULL, NULL, &errmsg) != SQLITE_OK)
+    {   
+      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot set pragma temp_store: %s",
+                   errmsg);
+      sqlite3_free (errmsg);
+      dupin_attachment_db_disconnect (attachment_db);
+      return NULL;
+    }
+
+  /*
+   TODO - check if the below can be optimized using NORMAL or OFF and use separated syncing thread
+          see also http://www.sqlite.org/pragma.html#pragma_synchronous
+   */
+
+  if (sqlite3_exec (attachment_db->db, "PRAGMA synchronous = FULL", NULL, NULL, &errmsg) != SQLITE_OK)
+    {   
+      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot set pragma synchronous: %s",
+                   errmsg);
+      sqlite3_free (errmsg);
+      dupin_attachment_db_disconnect (attachment_db);
+      return NULL;
     }
 
   query =
@@ -538,6 +594,100 @@ dupin_attachment_db_connect (Dupin * d, gchar * name, gchar * path,
   attachment_db->mutex = g_mutex_new ();
 
   return attachment_db;
+}
+
+/* NOTE - 0 = ok, 1 = already in transaction, -1 = error */
+
+gint
+dupin_attachment_db_begin_transaction (DupinAttachmentDB * attachment_db, GError ** error)
+{
+  g_return_val_if_fail (attachment_db != NULL, -1);
+
+  gchar *errmsg;
+
+  if (attachment_db->d->bulk_transaction == TRUE)
+    {
+//g_message ("dupin_attachment_db_begin_transaction: attachment database %s transaction ALREADY open", attachment_db->name);
+
+      return 1;
+    }
+
+  if (sqlite3_exec (attachment_db->db, "BEGIN TRANSACTION", NULL, NULL, &errmsg) != SQLITE_OK)
+    {
+      if (error != NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot begin attachment database %s transaction: %s", attachment_db->name, errmsg);
+
+      sqlite3_free (errmsg);
+
+      return -1;
+    }
+
+//g_message ("dupin_attachment_db_begin_transaction: attachment database %s transaction begin", attachment_db->name);
+
+  return 0;
+}
+
+gint
+dupin_attachment_db_rollback_transaction (DupinAttachmentDB * attachment_db, GError ** error)
+{
+  g_return_val_if_fail (attachment_db != NULL, -1);
+
+  gchar *errmsg;
+
+  if (sqlite3_exec (attachment_db->db, "ROLLBACK", NULL, NULL, &errmsg) != SQLITE_OK)
+    {
+      if (error != NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot rollback attachment database %s transaction: %s", attachment_db->name, errmsg);
+
+      sqlite3_free (errmsg);
+
+      return -1;
+    }
+
+//g_message ("dupin_attachment_db_rollback_transaction: attachment database %s transaction rollback", attachment_db->name);
+
+  return 0;
+}
+
+gint
+dupin_attachment_db_commit_transaction (DupinAttachmentDB * attachment_db, GError ** error)
+{
+  g_return_val_if_fail (attachment_db != NULL, -1);
+
+  gchar *errmsg;
+
+  if (attachment_db->d->bulk_transaction == TRUE)
+    {
+//g_message ("dupin_attachment_db_commit_transaction: attachment database %s transaction commit POSTPONED", attachment_db->name);
+
+      return 1;
+    }
+
+  if (sqlite3_exec (attachment_db->db, "COMMIT", NULL, NULL, &errmsg) != SQLITE_OK)
+    {
+      if (error != NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot commit attachment database %s transaction: %s", attachment_db->name, errmsg);
+
+      sqlite3_free (errmsg);
+
+      return -1;
+    }
+
+//g_message ("dupin_attachment_db_commit_transaction: attachment database %s transaction commit", attachment_db->name);
+
+//g_message("dupin_attachment_db_commit_transaction: VACUUM and ANALYZE\n");
+
+  if (sqlite3_exec (attachment_db->db, "VACUUM", NULL, NULL, &errmsg) != SQLITE_OK
+      || sqlite3_exec (attachment_db->db, "ANALYZE Dupin", NULL, NULL, &errmsg) != SQLITE_OK)
+    {
+      g_error("dupin_attachment_db_commit_transaction: %s", errmsg);
+
+      sqlite3_free (errmsg);
+
+      return -1;
+    }
+
+  return 0;
 }
 
 static int

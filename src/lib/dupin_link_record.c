@@ -380,6 +380,16 @@ dupin_link_record_create_with_id_real (DupinLinkB * linkb, JsonNode * obj_node,
 		     context_id, label, href, rel, tag,
 		     dupin_util_is_valid_absolute_uri (href) ? "TRUE" : "FALSE");
 
+  if (dupin_linkbase_begin_transaction (linkb, error) < 0)
+    {
+      if (lock == TRUE)
+	g_mutex_unlock (linkb->mutex);
+
+      dupin_link_record_close (record);
+      sqlite3_free (tmp);
+      return NULL;
+    }
+
 //g_message("dupin_link_record_create_with_id_real: query=%s\n", tmp);
 
   if (sqlite3_exec (linkb->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
@@ -434,6 +444,16 @@ dupin_link_record_create_with_id_real (DupinLinkB * linkb, JsonNode * obj_node,
 
       dupin_link_record_close (record);
       sqlite3_free (errmsg);
+      sqlite3_free (tmp);
+      return NULL;
+    }
+
+  if (dupin_linkbase_commit_transaction (linkb, error) < 0)
+    {
+      if (lock == TRUE)
+	g_mutex_unlock (linkb->mutex);
+
+      dupin_link_record_close (record);
       sqlite3_free (tmp);
       return NULL;
     }
@@ -1666,6 +1686,14 @@ dupin_link_record_update (DupinLinkRecord * record, JsonNode * obj_node,
 
   tmp = sqlite3_mprintf (DUPIN_LINKB_SQL_UPDATE_REV_HEAD, record->id);
 
+  if (dupin_linkbase_begin_transaction (record->linkb, error) < 0)
+    {
+      g_mutex_unlock (record->linkb->mutex);
+
+      sqlite3_free (tmp);
+      return FALSE;
+    }
+
   if (sqlite3_exec (record->linkb->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
     {
       g_mutex_unlock (record->linkb->mutex);
@@ -1799,6 +1827,14 @@ dupin_link_record_update (DupinLinkRecord * record, JsonNode * obj_node,
         }
     }
 
+  if (dupin_linkbase_commit_transaction (record->linkb, error) < 0)
+    {
+      g_mutex_unlock (record->linkb->mutex);
+
+      sqlite3_free (tmp);
+      return FALSE;
+    }
+
   g_mutex_unlock (record->linkb->mutex);
 
   sqlite3_free (tmp);
@@ -1872,6 +1908,14 @@ dupin_link_record_delete (DupinLinkRecord * record, GError ** error)
             rev = (select max(rev) as rev FROM Dupin WHERE id=d.id) ... */
 
   tmp = sqlite3_mprintf (DUPIN_LINKB_SQL_UPDATE_REV_HEAD, record->id);
+
+  if (dupin_linkbase_begin_transaction (record->linkb, error) < 0)
+    {
+      g_mutex_unlock (record->linkb->mutex);
+
+      sqlite3_free (tmp);
+      return FALSE;
+    }
 
   if (sqlite3_exec (record->linkb->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
     {
@@ -1961,6 +2005,15 @@ dupin_link_record_delete (DupinLinkRecord * record, GError ** error)
              ret = FALSE;
            }
        }
+    }
+
+  if (ret != FALSE
+      && dupin_linkbase_commit_transaction (record->linkb, error) < 0)
+    {
+      g_mutex_unlock (record->linkb->mutex);
+
+      sqlite3_free (tmp);
+      return FALSE;
     }
 
   g_mutex_unlock (record->linkb->mutex);
@@ -3157,6 +3210,16 @@ dupin_link_record_insert_bulk (DupinLinkB * linkb,
   /* scan JSON array */
   nodes = json_array_get_elements (array);
 
+  if (dupin_linkbase_begin_transaction (linkb, NULL) < 0)
+    {
+      dupin_linkbase_set_error (linkb, "dupin_link_record_insert_bulk: Cannot begin linkbase transaction");
+      return FALSE;
+    }
+
+  g_mutex_lock (linkb->d->mutex);
+  linkb->d->bulk_transaction = TRUE;
+  g_mutex_unlock (linkb->d->mutex);
+
   for (n = nodes; n != NULL; n = n->next)
     {
       JsonNode *element_node = (JsonNode*)n->data;
@@ -3167,6 +3230,13 @@ dupin_link_record_insert_bulk (DupinLinkB * linkb,
         {
           dupin_linkbase_set_error (linkb, "Bulk body " REQUEST_POST_BULK_LINKS_LINKS " array memebr is not a valid JSON object");
           g_list_free (nodes);
+
+          dupin_linkbase_rollback_transaction (linkb, NULL);
+
+          g_mutex_lock (linkb->d->mutex);
+          linkb->d->bulk_transaction = FALSE;
+          g_mutex_unlock (linkb->d->mutex);
+
           return FALSE;
         }
 
@@ -3209,6 +3279,23 @@ dupin_link_record_insert_bulk (DupinLinkB * linkb,
       if (rev!= NULL)
         g_free (rev);
 
+    }
+
+  if (linkb->d->loader_transaction == FALSE)
+    {
+      g_mutex_lock (linkb->d->mutex);
+      linkb->d->bulk_transaction = FALSE;
+      g_mutex_unlock (linkb->d->mutex);
+    }
+
+  if (dupin_linkbase_commit_transaction (linkb, NULL) < 0)
+    {
+      dupin_linkbase_rollback_transaction (linkb, NULL);
+
+      dupin_linkbase_set_error (linkb, "dupin_record_insert_bulk: Cannot commit linkbase transaction");
+      g_list_free (nodes);
+
+      return FALSE;
     }
 
 //g_message("dupin_link_record_insert_bulk: inserted %d records into linkbase %s\n", (gint)g_list_length (nodes), linkb->name);

@@ -22,6 +22,16 @@ DupinAttachmentDB *
 					 		 gchar *	parent,
 					 		 GError **	error);
 
+gint            dupin_attachment_db_begin_transaction	(DupinAttachmentDB * attachment_db,
+					 		 GError **	error);
+
+gint            dupin_attachment_db_rollback_transaction
+                                        		(DupinAttachmentDB * attachment_db,
+					 		 GError **	error);
+
+gint            dupin_attachment_db_commit_transaction	(DupinAttachmentDB * attachment_db,
+					 		 GError **	error);
+
 void		dupin_attachment_db_ref			(DupinAttachmentDB *	attachment_db);
 
 void		dupin_attachment_db_unref		(DupinAttachmentDB *	attachment_db);

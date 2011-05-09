@@ -174,6 +174,13 @@ dupin_linkbase_new (Dupin * d, gchar * linkb,
   /* fprintf(stderr,"ref++\n"); */
   ret->ref++;
 
+  if (dupin_linkbase_begin_transaction (ret, error) < 0)
+    {
+      g_mutex_unlock (d->mutex);
+      dupin_linkb_disconnect (ret);
+      return NULL;
+    }
+
   str = sqlite3_mprintf ("INSERT OR REPLACE INTO DupinLinkB "
                          "(parent, isdb, compact_id, check_id) "
                          "VALUES('%q', '%s', 0, 0)", parent, is_db ? "TRUE" : "FALSE");
@@ -186,6 +193,13 @@ dupin_linkbase_new (Dupin * d, gchar * linkb,
 
       sqlite3_free (errmsg);
       sqlite3_free (str);
+      dupin_linkb_disconnect (ret);
+      return NULL;
+    }
+
+  if (dupin_linkbase_commit_transaction (ret, error) < 0)
+    {
+      g_mutex_unlock (d->mutex);
       dupin_linkb_disconnect (ret);
       return NULL;
     }
@@ -583,6 +597,22 @@ dupin_linkb_connect (Dupin * d, gchar * name, gchar * path,
 
   if (mode == DP_SQLITE_OPEN_CREATE)
     {
+      if (sqlite3_exec (linkb->db, "PRAGMA journal_mode = WAL", NULL, NULL, &errmsg) != SQLITE_OK
+          || sqlite3_exec (linkb->db, "PRAGMA encoding = \"UTF-8\"", NULL, NULL, &errmsg) != SQLITE_OK)
+        {
+          g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot set pragma journal_mode or encoding: %s",
+		   errmsg);
+          sqlite3_free (errmsg);
+          dupin_linkb_disconnect (linkb);
+          return NULL;
+        }
+
+      if (dupin_linkbase_begin_transaction (linkb, error) < 0)
+        {
+          dupin_linkb_disconnect (linkb);
+          return NULL;
+        }
+
       if (sqlite3_exec (linkb->db, DUPIN_LINKB_SQL_MAIN_CREATE, NULL, NULL, &errmsg) != SQLITE_OK
           || sqlite3_exec (linkb->db, DUPIN_LINKB_SQL_CREATE_INDEX, NULL, NULL, &errmsg) != SQLITE_OK
           || sqlite3_exec (linkb->db, DUPIN_LINKB_SQL_DESC_CREATE, NULL, NULL, &errmsg) != SQLITE_OK)
@@ -593,6 +623,35 @@ dupin_linkb_connect (Dupin * d, gchar * name, gchar * path,
           dupin_linkb_disconnect (linkb);
           return NULL;
         }
+
+      if (dupin_linkbase_commit_transaction (linkb, error) < 0)
+        {
+          dupin_linkb_disconnect (linkb);
+          return NULL;
+        }
+    }
+
+  if (sqlite3_exec (linkb->db, "PRAGMA temp_store = memory", NULL, NULL, &errmsg) != SQLITE_OK)
+    {   
+      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot set pragma temp_store: %s",
+                   errmsg);
+      sqlite3_free (errmsg);
+      dupin_linkb_disconnect (linkb);
+      return NULL;
+    }
+
+  /*
+   TODO - check if the below can be optimized using NORMAL or OFF and use separated syncing thread
+          see also http://www.sqlite.org/pragma.html#pragma_synchronous
+   */
+
+  if (sqlite3_exec (linkb->db, "PRAGMA synchronous = FULL", NULL, NULL, &errmsg) != SQLITE_OK)
+    {   
+      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot set pragma synchronous: %s",
+                   errmsg);
+      sqlite3_free (errmsg);
+      dupin_linkb_disconnect (linkb);
+      return NULL;
     }
 
   /* NOTE - we know this is inefficient, but we need it till proper Elastic search or lucene used as frontend */
@@ -602,6 +661,88 @@ dupin_linkb_connect (Dupin * d, gchar * name, gchar * path,
   linkb->mutex = g_mutex_new ();
 
   return linkb;
+}
+
+/* NOTE - 0 = ok, 1 = already in transaction, -1 = error */
+
+gint
+dupin_linkbase_begin_transaction (DupinLinkB * linkb, GError ** error)
+{
+  g_return_val_if_fail (linkb != NULL, -1);
+
+  gchar *errmsg;
+
+  if (linkb->d->bulk_transaction == TRUE)
+    {
+//g_message ("dupin_linkbase_begin_transaction: linkbase %s transaction ALREADY open", linkb->name);
+
+      return 1;
+    }
+
+  if (sqlite3_exec (linkb->db, "BEGIN TRANSACTION", NULL, NULL, &errmsg) != SQLITE_OK)
+    {
+      if (error != NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot begin linkbase %s transaction: %s", linkb->name, errmsg);
+
+      sqlite3_free (errmsg);
+
+      return -1;
+    }
+
+//g_message ("dupin_linkbase_begin_transaction: linkbase %s transaction begin", linkb->name);
+
+  return 0;
+}
+
+gint
+dupin_linkbase_rollback_transaction (DupinLinkB * linkb, GError ** error)
+{
+  g_return_val_if_fail (linkb != NULL, -1);
+
+  gchar *errmsg;
+
+  if (sqlite3_exec (linkb->db, "ROLLBACK", NULL, NULL, &errmsg) != SQLITE_OK)
+    {
+      if (error != NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot rollback linkbase %s transaction: %s", linkb->name, errmsg);
+
+      sqlite3_free (errmsg);
+
+      return -1;
+    }
+
+//g_message ("dupin_linkbase_rollback_transaction: linkbase %s transaction rollback", linkb->name);
+
+  return 0;
+}
+
+gint
+dupin_linkbase_commit_transaction (DupinLinkB * linkb, GError ** error)
+{
+  g_return_val_if_fail (linkb != NULL, -1);
+
+  gchar *errmsg;
+
+  if (linkb->d->bulk_transaction == TRUE)
+    {
+//g_message ("dupin_linkbase_commit_transaction: linkbase %s transaction commit POSTPONED", linkb->name);
+
+      return 1;
+    }
+
+  if (sqlite3_exec (linkb->db, "COMMIT", NULL, NULL, &errmsg) != SQLITE_OK)
+    {
+      if (error != NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot commit linkbase %s transaction: %s", linkb->name, errmsg);
+
+      sqlite3_free (errmsg);
+
+      return -1;
+    }
+
+//g_message ("dupin_linkbase_commit_transaction: linkbase %s transaction commit", linkb->name);
+
+  return 0;
 }
 
 gsize
@@ -1223,8 +1364,7 @@ dupin_linkbase_thread_compact (DupinLinkB * linkb, gsize count)
 
   if (dupin_link_record_get_list (linkb, count, 0, start_rowid, 0, DP_LINK_TYPE_ANY, NULL, NULL, TRUE, DP_COUNT_ALL, DP_ORDERBY_ROWID, FALSE,
 				  NULL, NULL, DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS,
-                                  NULL, DP_FILTERBY_EQUALS, NULL, DP_FIELDS_FORMAT_DOTTED, DP_FILTERBY_EQUALS, NULL, &results, NULL) ==
-      FALSE || !results)
+                                  NULL, DP_FILTERBY_EQUALS, NULL, DP_FIELDS_FORMAT_DOTTED, DP_FILTERBY_EQUALS, NULL, &results, NULL) == FALSE || !results)
     {
       if (compact_id != NULL)
         g_free(compact_id);
@@ -1235,13 +1375,29 @@ dupin_linkbase_thread_compact (DupinLinkB * linkb, gsize count)
   if (g_list_length (results) != count)
     ret = FALSE;
 
+  gsize max_rowid;
+  if (dupin_linkbase_get_max_rowid (linkb, &max_rowid) == FALSE)
+    {
+      if (compact_id != NULL)
+        g_free(compact_id);
+
+      return FALSE;
+    }
+
   for (list = results; list; list = list->next)
     {
       DupinLinkRecord * record = list->data;
 
       gchar *tmp;
 
-      if (dupin_link_record_is_deleted (record, NULL) == TRUE)
+      rowid = dupin_link_record_get_rowid (record);
+
+      /* NOTE - we always keep the last record to avoid SQLite start randomizing ROWIDs
+                and make up a mess with compact and view status ids
+                see http://www.sqlite.org/autoinc.html */
+
+      if (rowid != max_rowid
+          && dupin_link_record_is_deleted (record, NULL) == TRUE)
         {
 	  /* NOTE - need to decrese deleted counter */
 
@@ -1322,9 +1478,7 @@ dupin_linkbase_thread_compact (DupinLinkB * linkb, gsize count)
 
       sqlite3_free (tmp);
 
-      rowid = dupin_link_record_get_rowid (record);
-
-      /* TODO - double check that if we DELETE all about a record ID we can still rely on ROWID - SQLite doc "says no" */
+      /* TODO - double check that if we DELETE all about a record ID we can still rely on ROWID - SQLite doc "says no" and above */
 
       if (dupin_link_record_is_deleted (record, NULL) == TRUE)
         rowid--;

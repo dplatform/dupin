@@ -28,6 +28,18 @@ DupinView *	dupin_view_new		(Dupin *	d,
 					 DupinMRLang	reduce_language,
 					 GError **	error);
 
+gint            dupin_view_begin_transaction
+                                        (DupinView *    view,
+					 GError **	error);
+
+gint            dupin_view_rollback_transaction
+                                        (DupinView *    view,
+					 GError **	error);
+
+gint            dupin_view_commit_transaction
+                                        (DupinView *    view,
+					 GError **	error);
+
 void		dupin_view_ref		(DupinView *	view);
 
 void		dupin_view_unref	(DupinView *	view);

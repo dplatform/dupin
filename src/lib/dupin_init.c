@@ -36,9 +36,11 @@ dupin_init (DSGlobal *data, GError ** error)
   d->dbs =
     g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
 			   (GDestroyNotify) dupin_db_disconnect);
+
   d->linkbs =
     g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
 			   (GDestroyNotify) dupin_linkb_disconnect);
+
   d->views =
     g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
 			   (GDestroyNotify) dupin_view_disconnect);
@@ -76,6 +78,9 @@ dupin_init (DSGlobal *data, GError ** error)
 						   (d->conf != NULL) ? d->conf->limit_reduce_max_threads : DS_LIMIT_REDUCE_MAXTHREADS_DEFAULT,
 						   FALSE,
 						   NULL);
+
+  d->bulk_transaction = FALSE;
+  d->loader_transaction = FALSE;
 
   while ((filename = g_dir_read_name (dir)))
     {

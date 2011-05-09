@@ -58,6 +58,9 @@ struct dupin_t
   GThreadPool * linkb_check_workers_pool;
   GThreadPool * sync_map_workers_pool;
   GThreadPool * sync_reduce_workers_pool;
+
+  gboolean      bulk_transaction;
+  gboolean      loader_transaction;
 };
 
 typedef struct dupin_linkb_p_t DupinLinkBP;

@@ -171,8 +171,17 @@ dupin_record_create_with_id_real (DupinDB * db, JsonNode * obj_node,
     sqlite3_mprintf (DUPIN_DB_SQL_INSERT, id, 1, md5,
 		     record->last->type,
 		     record->last->obj_serialized, created);
-
 //g_message("dupin_record_create_with_id_real: query=%s\n", tmp);
+
+  if (dupin_database_begin_transaction (db, error) < 0)
+    {
+      if (lock == TRUE)
+	g_mutex_unlock (db->mutex);
+
+      dupin_record_close (record);
+      sqlite3_free (tmp);
+      return NULL;
+    }
 
   if (sqlite3_exec (db->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
     {
@@ -219,6 +228,16 @@ dupin_record_create_with_id_real (DupinDB * db, JsonNode * obj_node,
 
       dupin_record_close (record);
       sqlite3_free (errmsg);
+      sqlite3_free (tmp);
+      return NULL;
+    }
+
+  if (dupin_database_commit_transaction (db, error) < 0)
+    {
+      if (lock == TRUE)
+        g_mutex_unlock (db->mutex);
+
+      dupin_record_close (record);
       sqlite3_free (tmp);
       return NULL;
     }
@@ -1072,6 +1091,14 @@ dupin_record_update (DupinRecord * record, JsonNode * obj_node,
 
   tmp = sqlite3_mprintf (DUPIN_DB_SQL_UPDATE_REV_HEAD, record->id);
 
+  if (dupin_database_begin_transaction (record->db, error) < 0)
+    {
+      g_mutex_unlock (record->db->mutex);
+
+      sqlite3_free (tmp);
+      return FALSE;
+    }
+
   if (sqlite3_exec (record->db->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
     {
       g_mutex_unlock (record->db->mutex);
@@ -1156,6 +1183,14 @@ dupin_record_update (DupinRecord * record, JsonNode * obj_node,
         }
     }
 
+  if (dupin_database_commit_transaction (record->db, error) < 0)
+    {
+      g_mutex_unlock (record->db->mutex);
+
+      sqlite3_free (tmp);
+      return FALSE;
+    }
+
   g_mutex_unlock (record->db->mutex);
 
   sqlite3_free (tmp);
@@ -1233,6 +1268,14 @@ dupin_record_delete (DupinRecord * record, GError ** error)
 
   tmp = sqlite3_mprintf (DUPIN_DB_SQL_UPDATE_REV_HEAD, record->id);
 
+  if (dupin_database_begin_transaction (record->db, error) < 0)
+    {
+      g_mutex_unlock (record->db->mutex);
+
+      sqlite3_free (tmp);
+      return FALSE;
+    }
+
   if (sqlite3_exec (record->db->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
     {
       g_mutex_unlock (record->db->mutex);
@@ -1296,6 +1339,15 @@ dupin_record_delete (DupinRecord * record, GError ** error)
              ret = FALSE;
            }
        }
+    }
+
+  if (ret != FALSE
+      && dupin_database_commit_transaction (record->db, error) < 0)
+    {
+      g_mutex_unlock (record->db->mutex);
+
+      sqlite3_free (tmp);
+      return FALSE;
     }
 
   g_mutex_unlock (record->db->mutex);
@@ -2509,6 +2561,9 @@ dupin_record_insert_bulk (DupinDB * db,
   JsonArray *array;
   GList *nodes, *n;
 
+  DupinLinkB *linkb;
+  DupinAttachmentDB *attachment_db;
+
   if (json_node_get_node_type (bulk_node) != JSON_NODE_OBJECT)
     {
       dupin_database_set_error (db, "Bulk body must be a JSON object");
@@ -2548,6 +2603,62 @@ dupin_record_insert_bulk (DupinDB * db,
   /* scan JSON array */
   nodes = json_array_get_elements (array);
 
+  /* TODO - for further efficency we may avoid the following linkbase and attachment database begin/commit if no
+	    links or attachments are added or deleted */
+
+  if (!  (attachment_db = dupin_attachment_db_open (db->d, dupin_database_get_default_attachment_db_name (db), NULL)))
+    {
+      dupin_database_set_error (db, "dupin_record_insert_bulk: Cannot connect attachment database");
+
+      return FALSE;
+    }
+
+  if (!  (linkb = dupin_linkbase_open (db->d, dupin_database_get_default_linkbase_name (db), NULL)))
+    {
+      dupin_database_set_error (db, "dupin_record_insert_bulk: Cannot connect linkbase");
+
+      return FALSE;
+    }
+
+  if (dupin_database_begin_transaction (db, NULL) < 0)
+    {
+      dupin_attachment_db_unref (attachment_db);
+      dupin_linkbase_unref (linkb);
+
+      dupin_database_set_error (db, "dupin_record_insert_bulk: Cannot begin database transaction");
+
+      return FALSE;
+    }
+
+  if (dupin_attachment_db_begin_transaction (attachment_db, NULL) < 0)
+    {
+      dupin_database_rollback_transaction (db, NULL);
+
+      dupin_attachment_db_unref (attachment_db);
+      dupin_linkbase_unref (linkb);
+
+      dupin_database_set_error (db, "dupin_record_insert_bulk: Cannot begin attachment database transaction");
+
+      return FALSE;
+    }
+
+  if (dupin_linkbase_begin_transaction (linkb, NULL) < 0)
+    {
+      dupin_database_rollback_transaction (db, NULL);
+      dupin_attachment_db_rollback_transaction (attachment_db, NULL);
+
+      dupin_attachment_db_unref (attachment_db);
+      dupin_linkbase_unref (linkb);
+
+      dupin_database_set_error (db, "dupin_record_insert_bulk: Cannot begin linkbase transaction");
+
+      return FALSE;
+    }
+
+  g_mutex_lock (db->d->mutex);
+  db->d->bulk_transaction = TRUE;
+  g_mutex_unlock (db->d->mutex);
+ 
   for (n = nodes; n != NULL; n = n->next)
     {
       JsonNode *element_node = (JsonNode*)n->data;
@@ -2558,6 +2669,18 @@ dupin_record_insert_bulk (DupinDB * db,
         {
           dupin_database_set_error (db, "Bulk body " REQUEST_POST_BULK_DOCS_DOCS " array memebr is not a valid JSON object");
           g_list_free (nodes);
+
+          dupin_linkbase_rollback_transaction (linkb, NULL);
+          dupin_attachment_db_rollback_transaction (attachment_db, NULL);
+          dupin_database_rollback_transaction (db, NULL);
+
+          dupin_attachment_db_unref (attachment_db);
+          dupin_linkbase_unref (linkb);
+
+          g_mutex_lock (db->d->mutex);
+          db->d->bulk_transaction = FALSE;
+          g_mutex_unlock (db->d->mutex);
+
           return FALSE;
         }
 
@@ -2601,9 +2724,61 @@ dupin_record_insert_bulk (DupinDB * db,
         g_free (rev);
     }
 
+  if (db->d->loader_transaction == FALSE)
+    {
+      g_mutex_lock (db->d->mutex);
+      db->d->bulk_transaction = FALSE;
+      g_mutex_unlock (db->d->mutex);
+    }
+
+  if (dupin_linkbase_commit_transaction (linkb, NULL) < 0)
+    {
+      dupin_database_rollback_transaction (db, NULL);
+      dupin_attachment_db_rollback_transaction (attachment_db, NULL);
+      dupin_linkbase_rollback_transaction (linkb, NULL);
+
+      dupin_attachment_db_unref (attachment_db);
+      dupin_linkbase_unref (linkb);
+
+      dupin_database_set_error (db, "dupin_record_insert_bulk: Cannot commit linkbase transaction");
+      g_list_free (nodes);
+
+      return FALSE;
+    }
+
+  if (dupin_attachment_db_commit_transaction (attachment_db, NULL) < 0)
+    {
+      dupin_database_rollback_transaction (db, NULL);
+      dupin_attachment_db_rollback_transaction (attachment_db, NULL);
+
+      dupin_attachment_db_unref (attachment_db);
+      dupin_linkbase_unref (linkb);
+
+      dupin_database_set_error (db, "dupin_record_insert_bulk: Cannot commit attachment database transaction");
+      g_list_free (nodes);
+
+      return FALSE;
+    }
+
+  if (dupin_database_commit_transaction (db, NULL) < 0)
+    {
+      dupin_database_rollback_transaction (db, NULL);
+
+      dupin_attachment_db_unref (attachment_db);
+      dupin_linkbase_unref (linkb);
+
+      dupin_database_set_error (db, "dupin_record_insert_bulk: Cannot commit database transaction");
+      g_list_free (nodes);
+
+      return FALSE;
+    }
+
 //g_message("dupin_record_insert_bulk: inserted %d records into database %s\n", (gint)g_list_length (nodes), db->name);
 
   g_list_free (nodes); 
+
+  dupin_attachment_db_unref (attachment_db);
+  dupin_linkbase_unref (linkb);
 
   return TRUE;
 }

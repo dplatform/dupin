@@ -156,8 +156,13 @@ dupin_database_new (Dupin * d, gchar * db, GError ** error)
 
   g_hash_table_insert (d->dbs, g_strdup (db), ret);
 
-  
-  /* NOTE - the respective map and reduce threads will add +1 top the these values */
+  if (dupin_database_begin_transaction (ret, error) < 0)
+    {
+      g_mutex_unlock (d->mutex);
+      dupin_db_disconnect (ret);
+      return NULL;
+    }
+
   str = sqlite3_mprintf ("INSERT OR REPLACE INTO DupinDB (compact_id) VALUES (0)");
 
   if (sqlite3_exec (ret->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
@@ -172,6 +177,14 @@ dupin_database_new (Dupin * d, gchar * db, GError ** error)
       return NULL;
     }
 
+  if (dupin_database_commit_transaction (ret, error) < 0)
+    {
+      g_mutex_unlock (d->mutex);
+      dupin_db_disconnect (ret);
+      return NULL;
+    }
+
+  /* NOTE - the respective map and reduce threads will add +1 top the these values */
   sqlite3_free (str);
 
   g_mutex_unlock (d->mutex);
@@ -430,6 +443,22 @@ dupin_db_connect (Dupin * d, gchar * name, gchar * path,
 
   if (mode == DP_SQLITE_OPEN_CREATE)
     {
+      if (sqlite3_exec (db->db, "PRAGMA journal_mode = WAL", NULL, NULL, &errmsg) != SQLITE_OK
+          || sqlite3_exec (db->db, "PRAGMA encoding = \"UTF-8\"", NULL, NULL, &errmsg) != SQLITE_OK)
+        {
+          g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot set pragma journal_mode or encoding: %s",
+		   errmsg);
+          sqlite3_free (errmsg);
+          dupin_db_disconnect (db);
+          return NULL;
+        }
+
+      if (dupin_database_begin_transaction (db, error) < 0)
+        {
+          dupin_db_disconnect (db);
+          return NULL;
+        }
+
       if (sqlite3_exec (db->db, DUPIN_DB_SQL_MAIN_CREATE, NULL, NULL, &errmsg) != SQLITE_OK
           || sqlite3_exec (db->db, DUPIN_DB_SQL_CREATE_INDEX, NULL, NULL, &errmsg) != SQLITE_OK
           || sqlite3_exec (db->db, DUPIN_DB_SQL_DESC_CREATE, NULL, NULL, &errmsg) != SQLITE_OK)
@@ -440,6 +469,35 @@ dupin_db_connect (Dupin * d, gchar * name, gchar * path,
           dupin_db_disconnect (db);
           return NULL;
         }
+
+      if (dupin_database_commit_transaction (db, error) < 0)
+        {
+          dupin_db_disconnect (db);
+          return NULL;
+        }
+    }
+
+  if (sqlite3_exec (db->db, "PRAGMA temp_store = memory", NULL, NULL, &errmsg) != SQLITE_OK)
+    {
+      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot set pragma temp_store: %s",
+		   errmsg);
+      sqlite3_free (errmsg);
+      dupin_db_disconnect (db);
+      return NULL;
+    }
+
+  /*
+   TODO - check if the below can be optimized using NORMAL or OFF and use separated syncing thread
+          see also http://www.sqlite.org/pragma.html#pragma_synchronous
+   */
+
+  if (sqlite3_exec (db->db, "PRAGMA synchronous = FULL", NULL, NULL, &errmsg) != SQLITE_OK)
+    {
+      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot set pragma synchronous: %s",
+		   errmsg);
+      sqlite3_free (errmsg);
+      dupin_db_disconnect (db);
+      return NULL;
     }
 
   /* NOTE - we know this is inefficient, but we need it till proper Elastic search or lucene used as frontend */
@@ -449,6 +507,88 @@ dupin_db_connect (Dupin * d, gchar * name, gchar * path,
   db->mutex = g_mutex_new ();
 
   return db;
+}
+
+/* NOTE - 0 = ok, 1 = already in transaction, -1 = error */
+
+gint
+dupin_database_begin_transaction (DupinDB * db, GError ** error)
+{
+  g_return_val_if_fail (db != NULL, -1);
+
+  gchar *errmsg;
+
+  if (db->d->bulk_transaction == TRUE)
+    {
+//g_message ("dupin_database_begin_transaction: database %s transaction ALREADY open", db->name);
+
+      return 1;
+    }
+
+  if (sqlite3_exec (db->db, "BEGIN TRANSACTION", NULL, NULL, &errmsg) != SQLITE_OK)
+    {
+      if (error != NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot begin database %s transaction: %s", db->name, errmsg);
+
+      sqlite3_free (errmsg);
+
+      return -1;
+    }
+
+//g_message ("dupin_database_begin_transaction: database %s transaction begin", db->name);
+
+  return 0;
+}
+
+gint
+dupin_database_rollback_transaction (DupinDB * db, GError ** error)
+{
+  g_return_val_if_fail (db != NULL, -1);
+
+  gchar *errmsg;
+
+  if (sqlite3_exec (db->db, "ROLLBACK", NULL, NULL, &errmsg) != SQLITE_OK)
+    {
+      if (error != NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot rollback database %s transaction: %s", db->name, errmsg);
+
+      sqlite3_free (errmsg);
+
+      return -1;
+    }
+
+//g_message ("dupin_database_rollback_transaction: database %s transaction rollback", db->name);
+
+  return 0;
+}
+
+gint
+dupin_database_commit_transaction (DupinDB * db, GError ** error)
+{
+  g_return_val_if_fail (db != NULL, -1);
+
+  gchar *errmsg;
+
+  if (db->d->bulk_transaction == TRUE)
+    {
+//g_message ("dupin_database_commit_transaction: database %s transaction commit POSTPONED", db->name);
+
+      return 1;
+    }
+
+  if (sqlite3_exec (db->db, "COMMIT", NULL, NULL, &errmsg) != SQLITE_OK)
+    {
+      if (error != NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot commit database %s transaction: %s", db->name, errmsg);
+
+      sqlite3_free (errmsg);
+
+      return -1;
+    }
+
+//g_message ("dupin_database_commit_transaction: database %s transaction commit", db->name);
+
+  return 0;
 }
 
 gsize
@@ -993,8 +1133,7 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
   gsize start_rowid = (compact_id != NULL) ? atoi(compact_id)+1 : 1;
 
   if (dupin_record_get_list (db, count, 0, start_rowid, 0, NULL, NULL, TRUE, DP_COUNT_ALL, DP_ORDERBY_ROWID, FALSE, NULL, DP_FILTERBY_EQUALS,
-				NULL, DP_FIELDS_FORMAT_DOTTED, DP_FILTERBY_EQUALS, NULL, &results, NULL) ==
-      FALSE || !results)
+				NULL, DP_FIELDS_FORMAT_DOTTED, DP_FILTERBY_EQUALS, NULL, &results, NULL) == FALSE || !results)
     {
       if (compact_id != NULL)
         g_free(compact_id);
@@ -1007,13 +1146,31 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
   if (g_list_length (results) != count)
     ret = FALSE;
 
+  gsize max_rowid;
+  if (dupin_database_get_max_rowid (db, &max_rowid) == FALSE)
+    {
+      if (compact_id != NULL)
+        g_free(compact_id);
+
+      dupin_attachment_db_unref (attachment_db);
+
+      return FALSE;
+    }
+
   for (list = results; list; list = list->next)
     {
       DupinRecord * record = list->data;
 
       gchar *tmp;
 
-      if (dupin_record_is_deleted (record, NULL) == TRUE)
+      rowid = dupin_record_get_rowid (record);
+
+      /* NOTE - we always keep the last record to avoid SQLite start randomizing ROWIDs
+		and make up a mess with compact and view status ids
+		see http://www.sqlite.org/autoinc.html */
+
+      if (rowid != max_rowid
+	  && dupin_record_is_deleted (record, NULL) == TRUE)
         {
 	  /* remove any attachments */
 	  if (dupin_attachment_record_delete_all (attachment_db, (gchar *) dupin_record_get_id (record)) == FALSE)
@@ -1100,9 +1257,7 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
 
       sqlite3_free (tmp);
 
-      rowid = dupin_record_get_rowid (record);
-
-      /* TODO - double check that if we DELETE all about a record ID we can still rely on ROWID - SQLite doc "says no" */
+      /* TODO - double check that if we DELETE all about a record ID we can still rely on ROWID - SQLite doc "says no" and above */
 
       if (dupin_record_is_deleted (record, NULL) == TRUE)
         rowid--;

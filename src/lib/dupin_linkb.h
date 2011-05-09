@@ -21,6 +21,18 @@ DupinLinkB *	dupin_linkbase_new	(Dupin *	d,
                                          gboolean       is_db,
 					 GError **	error);
 
+gint        	dupin_linkbase_begin_transaction
+                                        (DupinLinkB * 	linkb,
+					 GError **	error);
+
+gint	        dupin_linkbase_rollback_transaction
+                                        (DupinLinkB * 	linkb,
+					 GError **	error);
+
+gint	        dupin_linkbase_commit_transaction
+                                        (DupinLinkB * 	linkb,
+					 GError **	error);
+
 void		dupin_linkbase_ref	(DupinLinkB *	linkb);
 
 void		dupin_linkbase_unref	(DupinLinkB *	linkb);

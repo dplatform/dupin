@@ -193,6 +193,13 @@ dupin_view_new (Dupin * d, gchar * view, gchar * parent, gboolean is_db, gboolea
   g_free (path);
   ret->ref++;
 
+  if (dupin_view_begin_transaction (ret, error) < 0)
+    {
+      g_mutex_unlock (d->mutex);
+      dupin_view_disconnect (ret);
+      return NULL;
+    }
+
   str =
     sqlite3_mprintf ("INSERT OR REPLACE INTO DupinView "
 		     "(parent, isdb, islinkb, map, map_lang, reduce, reduce_lang) "
@@ -234,6 +241,13 @@ dupin_view_new (Dupin * d, gchar * view, gchar * parent, gboolean is_db, gboolea
     }
 
   sqlite3_free (str);
+
+  if (dupin_view_commit_transaction (ret, error) < 0)
+    {
+      g_mutex_unlock (d->mutex);
+      dupin_view_disconnect (ret);
+      return NULL;
+    }
 
   g_mutex_unlock (d->mutex);
 
@@ -582,10 +596,36 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
 
 //g_message("query: %s\n",tmp);
 
+  if (dupin_view_begin_transaction (view, NULL) < 0)
+    {
+      g_mutex_unlock (view->mutex);
+      g_free ((gchar *)id);
+      g_free (node_serialized);
+      if (key_serialized)
+        g_free (key_serialized);
+
+      sqlite3_free (tmp);
+
+      return;
+    }
+
   if (sqlite3_exec (view->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
     {
       g_error("dupin_view_record_save_map: %s", errmsg);
       sqlite3_free (errmsg);
+    }
+
+  if (dupin_view_commit_transaction (view, NULL) < 0)
+    {
+      g_mutex_unlock (view->mutex);
+      g_free ((gchar *)id);
+      g_free (node_serialized);
+      if (key_serialized)
+        g_free (key_serialized);
+
+      sqlite3_free (tmp);
+
+      return;
     }
 
   g_mutex_unlock (view->mutex);
@@ -633,10 +673,28 @@ dupin_view_record_delete (DupinView * view, gchar * pid)
 
   g_mutex_lock (view->mutex);
 
+  if (dupin_view_begin_transaction (view, NULL) < 0)
+    {
+      g_mutex_unlock (view->mutex);
+
+      sqlite3_free (query);
+
+      return;
+    }
+
   if (sqlite3_exec (view->db, query, NULL, NULL, &errmsg) != SQLITE_OK)
     {
       g_error("dupin_view_record_delete: %s", errmsg);
       sqlite3_free (errmsg);
+    }
+
+  if (dupin_view_commit_transaction (view, NULL) < 0)
+    {
+      g_mutex_unlock (view->mutex);
+
+      sqlite3_free (query);
+
+      return;
     }
 
   g_mutex_unlock (view->mutex);
@@ -916,12 +974,25 @@ dupin_view_connect (Dupin * d, gchar * name, gchar * path,
 
   if (mode == DP_SQLITE_OPEN_CREATE)
     {
-      if (sqlite3_exec (view->db, DUPIN_VIEW_SQL_MAIN_CREATE, NULL, NULL, &errmsg)
-      				!= SQLITE_OK
-          || sqlite3_exec (view->db, DUPIN_VIEW_SQL_DESC_CREATE, NULL, NULL,
-		       &errmsg) != SQLITE_OK
-          || sqlite3_exec (view->db, DUPIN_VIEW_SQL_CREATE_INDEX, NULL, NULL,
-		       &errmsg) != SQLITE_OK)
+      if (sqlite3_exec (view->db, "PRAGMA journal_mode = WAL", NULL, NULL, &errmsg) != SQLITE_OK
+          || sqlite3_exec (view->db, "PRAGMA encoding = \"UTF-8\"", NULL, NULL, &errmsg) != SQLITE_OK)
+        {
+          g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot set pragma journal_mode or encoding: %s",
+		   errmsg);
+          sqlite3_free (errmsg);
+          dupin_view_disconnect (view);
+          return NULL;
+        }
+
+      if (dupin_view_begin_transaction (view, error) < 0)
+        {
+          dupin_view_disconnect (view);
+          return NULL;
+        }
+
+      if (sqlite3_exec (view->db, DUPIN_VIEW_SQL_MAIN_CREATE, NULL, NULL, &errmsg) != SQLITE_OK
+          || sqlite3_exec (view->db, DUPIN_VIEW_SQL_DESC_CREATE, NULL, NULL, &errmsg) != SQLITE_OK
+          || sqlite3_exec (view->db, DUPIN_VIEW_SQL_CREATE_INDEX, NULL, NULL, &errmsg) != SQLITE_OK)
         {
           g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
 		   errmsg);
@@ -929,6 +1000,35 @@ dupin_view_connect (Dupin * d, gchar * name, gchar * path,
           dupin_view_disconnect (view);
           return NULL;
         }
+
+      if (dupin_view_commit_transaction (view, error) < 0)
+        {
+          dupin_view_disconnect (view);
+          return NULL;
+        }
+    }
+
+  if (sqlite3_exec (view->db, "PRAGMA temp_store = memory", NULL, NULL, &errmsg) != SQLITE_OK)
+    {
+      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot set pragma temp_store: %s",
+                   errmsg);
+      sqlite3_free (errmsg);
+      dupin_view_disconnect (view);
+      return NULL;
+    }
+
+  /*
+   TODO - check if the below can be optimized using NORMAL or OFF and use separated syncing thread
+          see also http://www.sqlite.org/pragma.html#pragma_synchronous
+   */
+
+  if (sqlite3_exec (view->db, "PRAGMA synchronous = FULL", NULL, NULL, &errmsg) != SQLITE_OK)
+    {
+      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot set pragma synchronous: %s",
+                   errmsg);
+      sqlite3_free (errmsg);
+      dupin_view_disconnect (view);
+      return NULL;
     }
 
   /* NOTE - we know this is inefficient, but we need it till proper Elastic search or lucene used as frontend */
@@ -950,6 +1050,76 @@ dupin_view_connect (Dupin * d, gchar * name, gchar * path,
   view->mutex = g_mutex_new ();
 
   return view;
+}
+
+/* NOTE - 0 = ok, 1 = already in transaction, -1 = error */
+
+/* NOTE - we do *NOT* use bulk_transaction for views */
+
+gint
+dupin_view_begin_transaction (DupinView * view, GError ** error)
+{
+  g_return_val_if_fail (view != NULL, -1);
+
+  gchar *errmsg;
+
+  if (sqlite3_exec (view->db, "BEGIN TRANSACTION", NULL, NULL, &errmsg) != SQLITE_OK)
+    {
+      if (error != NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot begin view %s transaction: %s", view->name, errmsg);
+      
+      sqlite3_free (errmsg);
+
+      return -1;
+    }
+
+//g_message ("dupin_view_begin_transaction: view %s transaction begin", view->name);
+
+  return 0;
+}
+
+gint
+dupin_view_rollback_transaction (DupinView * view, GError ** error)
+{
+  g_return_val_if_fail (view != NULL, -1);
+
+  gchar *errmsg;
+
+  if (sqlite3_exec (view->db, "ROLLBACK", NULL, NULL, &errmsg) != SQLITE_OK)
+    {
+      if (error != NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot rollback view %s transaction: %s", view->name, errmsg);
+      
+      sqlite3_free (errmsg);
+
+      return -1;
+    }
+
+//g_message ("dupin_view_rollback_transaction: view %s transaction rollback", view->name);
+
+  return 0;
+}
+
+gint
+dupin_view_commit_transaction (DupinView * view, GError ** error)
+{
+  g_return_val_if_fail (view != NULL, -1);
+
+  gchar *errmsg;
+
+  if (sqlite3_exec (view->db, "COMMIT", NULL, NULL, &errmsg) != SQLITE_OK)
+    {
+      if (error != NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot commit view %s transaction: %s", view->name, errmsg);
+      
+      sqlite3_free (errmsg);
+
+      return -1;
+    }
+
+//g_message ("dupin_view_commit_transaction: view %s transaction commit", view->name);
+
+  return 0;
 }
 
 static int
@@ -1206,6 +1376,16 @@ dupin_view_sync_thread_map_db (DupinView * view, gsize count)
 
   g_mutex_lock (view->mutex);
 
+  if (dupin_view_begin_transaction (view, NULL) < 0)
+    {
+      g_mutex_unlock (view->mutex);
+      sqlite3_free (str);
+
+      dupin_database_unref (db);
+
+      return FALSE;
+    }
+
   if (sqlite3_exec (view->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
     {
       g_mutex_unlock (view->mutex);
@@ -1215,6 +1395,16 @@ dupin_view_sync_thread_map_db (DupinView * view, gsize count)
 
       g_error("dupin_view_sync_thread_map_db: %s", errmsg);
       sqlite3_free (errmsg);
+
+      return FALSE;
+    }
+
+  if (dupin_view_commit_transaction (view, NULL) < 0)
+    {
+      g_mutex_unlock (view->mutex);
+      sqlite3_free (str);
+
+      dupin_database_unref (db);
 
       return FALSE;
     }
@@ -1372,6 +1562,16 @@ dupin_view_sync_thread_map_linkb (DupinView * view, gsize count)
 
   g_mutex_lock (view->mutex);
 
+  if (dupin_view_begin_transaction (view, NULL) < 0)
+    {
+      g_mutex_unlock (view->mutex);
+      sqlite3_free (str);
+
+      dupin_linkbase_unref (linkb);
+
+      return FALSE;
+    }
+
   if (sqlite3_exec (view->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
     {
       g_mutex_unlock (view->mutex);
@@ -1381,6 +1581,16 @@ dupin_view_sync_thread_map_linkb (DupinView * view, gsize count)
 
       g_error("dupin_view_sync_thread_map_linkb: %s", errmsg);
       sqlite3_free (errmsg);
+
+      return FALSE;
+    }
+
+  if (dupin_view_commit_transaction (view, NULL) < 0)
+    {
+      g_mutex_unlock (view->mutex);
+      sqlite3_free (str);
+
+      dupin_linkbase_unref (linkb);
 
       return FALSE;
     }
@@ -1514,6 +1724,16 @@ dupin_view_sync_thread_map_view (DupinView * view, gsize count)
 
   g_mutex_lock (view->mutex);
 
+  if (dupin_view_begin_transaction (view, NULL) < 0)
+    {
+      g_mutex_unlock (view->mutex);
+      sqlite3_free (str);
+
+      dupin_view_unref (v);
+
+      return FALSE;
+    }
+
   if (sqlite3_exec (view->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
     {
       g_mutex_unlock (view->mutex);
@@ -1523,6 +1743,16 @@ dupin_view_sync_thread_map_view (DupinView * view, gsize count)
 
       g_error("dupin_view_sync_thread_map_view: %s", errmsg);
       sqlite3_free (errmsg);
+
+      return FALSE;
+    }
+
+  if (dupin_view_commit_transaction (view, NULL) < 0)
+    {
+      g_mutex_unlock (view->mutex);
+      sqlite3_free (str);
+
+      dupin_view_unref (v);
 
       return FALSE;
     }
@@ -1567,6 +1797,15 @@ dupin_view_sync_record_update (DupinView * view, gchar * previous_rowid, gint re
 
   g_mutex_lock (view->mutex);
 
+  if (dupin_view_begin_transaction (view, NULL) < 0)
+    {
+      g_mutex_unlock (view->mutex);
+      sqlite3_free (query);
+      g_free (replace_rowid_str);
+
+      return;
+    }
+
   if (sqlite3_exec (view->db, query, NULL, NULL, &errmsg) != SQLITE_OK)
     {
       g_mutex_unlock (view->mutex);
@@ -1601,6 +1840,15 @@ dupin_view_sync_record_update (DupinView * view, gchar * previous_rowid, gint re
 
       g_error("dupin_view_sync_record_update: %s", errmsg);
       sqlite3_free (errmsg);
+
+      return;
+    }
+
+  if (dupin_view_commit_transaction (view, NULL) < 0)
+    {
+      g_mutex_unlock (view->mutex);
+      sqlite3_free (query);
+      g_free (replace_rowid_str);
 
       return;
     }
@@ -1871,6 +2119,14 @@ dupin_view_sync_thread_reduce (DupinView * view, gsize count, gboolean rereduce,
 
   g_mutex_lock (view->mutex);
 
+  if (dupin_view_begin_transaction (view, NULL) < 0)
+    {
+      g_mutex_unlock (view->mutex);
+      sqlite3_free (str);
+
+      return FALSE;
+    }
+
   if (sqlite3_exec (view->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
     {
       g_mutex_unlock (view->mutex);
@@ -1878,6 +2134,14 @@ dupin_view_sync_thread_reduce (DupinView * view, gsize count, gboolean rereduce,
 
       g_error("dupin_view_sync_thread_reduce: %s", errmsg);
       sqlite3_free (errmsg);
+
+      return FALSE;
+    }
+
+  if (dupin_view_commit_transaction (view, NULL) < 0)
+    {
+      g_mutex_unlock (view->mutex);
+      sqlite3_free (str);
 
       return FALSE;
     }
@@ -2156,6 +2420,14 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
 
                   g_mutex_lock (view->mutex);
 
+		  if (dupin_view_begin_transaction (view, NULL) < 0)
+		    {
+		      g_mutex_unlock (view->mutex);
+      		      sqlite3_free (str);
+
+      		      break;
+		    }
+
                   if (sqlite3_exec (view->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
                     {
                       g_mutex_unlock (view->mutex);
@@ -2166,6 +2438,14 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
 
                       break;
                     }
+
+		  if (dupin_view_commit_transaction (view, NULL) < 0)
+		    {
+		      g_mutex_unlock (view->mutex);
+      		      sqlite3_free (str);
+
+      		      break;
+		    }
 
                   g_mutex_unlock (view->mutex);
 
@@ -2180,12 +2460,26 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
 
               g_mutex_lock (view->mutex);
 
+	      if (dupin_view_begin_transaction (view, NULL) < 0)
+                {
+                  g_mutex_unlock (view->mutex);
+
+                  break;
+                }
+
               if (sqlite3_exec (view->db, query, NULL, NULL, &errmsg) != SQLITE_OK)
                 {
                   g_mutex_unlock (view->mutex);
 
                   g_error("dupin_view_sync_reduce_func: %s", errmsg);
                   sqlite3_free (errmsg);
+
+                  break;
+                }
+
+	      if (dupin_view_commit_transaction (view, NULL) < 0)
+                {
+                  g_mutex_unlock (view->mutex);
 
                   break;
                 }
@@ -2206,12 +2500,26 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
 
               g_mutex_lock (view->mutex);
 
+	      if (dupin_view_begin_transaction (view, NULL) < 0)
+                {
+                  g_mutex_unlock (view->mutex);
+
+                  break;
+                }
+
               if (sqlite3_exec (view->db, query, NULL, NULL, &errmsg) != SQLITE_OK)
                 {
                   g_mutex_unlock (view->mutex);
 
                   g_error("dupin_view_sync_reduce_func: %s", errmsg);
                   sqlite3_free (errmsg);
+
+                  break;
+                }
+
+	      if (dupin_view_commit_transaction (view, NULL) < 0)
+                {
+                  g_mutex_unlock (view->mutex);
 
                   break;
                 }

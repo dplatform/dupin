@@ -32,6 +32,8 @@
 #include <locale.h>
 #endif
 
+#define DUPIN_LOADER_MAX_BULK_TX_NUM	10000
+
 /* Global variables: */
 DSGlobal *d_conf = NULL;
 Dupin *d = NULL;
@@ -50,6 +52,7 @@ gint argc_left;
 
 typedef struct _dupin_loader_options {
 	gboolean bulk;
+	gint bulk_tx_num;
 	gboolean links;
 	gboolean create_db;
 	gboolean verbose;
@@ -88,6 +91,7 @@ dupin_loader_usage (char *argv[])
        "options:\n"
        "   --help                 this usage statement\n"
        "   --bulk                 read one bulk per line\n"
+       "   --bulk_tx_num NUM      how many bulks SQLite transaction should span. Default is 1 transaction per bulk (line).\n"
        "   --links                input is only about links (weblinks or relationships) no documents\n"
        "   --strict_links         check that the context_id document is valid and not deleted\n"
        "   --use-latest-revision  allows to force update of records always using (implicitly) the latest revision. On new insertions is ignored.\n"
@@ -118,6 +122,7 @@ dupin_loader_parse_options (int argc, char **argv,
   argc_left = argc;
 
   options->bulk = FALSE;
+  options->bulk_tx_num = 1;
   options->links = FALSE;
   options->create_db = FALSE;
   options->silent = FALSE;
@@ -143,6 +148,23 @@ dupin_loader_parse_options (int argc, char **argv,
                  {
 		   options->bulk = TRUE;
 		   argc_left--;
+		 }
+               else if (!g_strcmp0 (argv[i], "--bulk_tx_num"))
+                 {
+		   gint bulk_tx_num;
+                   if (argv[i+1])
+                     {
+		       bulk_tx_num = atoi (argv[i+1]);
+		       if (bulk_tx_num > DUPIN_LOADER_MAX_BULK_TX_NUM)
+		         {
+		           fprintf (stderr, "bulk_tx_num is too high: %s. Max value allowed is %d.\n", argv[i+1], DUPIN_LOADER_MAX_BULK_TX_NUM);
+		           exit (EXIT_FAILURE);
+		         }
+
+		       options->bulk_tx_num = bulk_tx_num;
+                     }
+		   argc_left-=2;
+		   i++;
 		 }
                else if (!g_strcmp0 (argv[i], "--links"))
                  {
@@ -239,6 +261,9 @@ void dupin_loader_close (void)
 
   if (linkb)
     dupin_linkbase_unref (linkb);
+
+  if (attachment_db)
+    dupin_attachment_db_unref (attachment_db);
 
   if (db_name != NULL)
     g_free (db_name);
@@ -414,6 +439,12 @@ main (int argc, char *argv[])
         }
     }
 
+  g_mutex_lock (d->mutex);
+  d->loader_transaction = TRUE;
+  g_mutex_unlock (d->mutex);
+
+  gint bulk_tx_num_count=1;
+
   while (TRUE)
     {
       GList * response_list=NULL;
@@ -442,6 +473,17 @@ main (int argc, char *argv[])
       gchar * context_id = NULL;
       if (options.bulk == TRUE)
         {
+//g_message ("dupin_loader: bulk_tx_num_count=%d options.bulk_tx_num=%d\n", bulk_tx_num_count, options.bulk_tx_num);
+
+	  if (bulk_tx_num_count == options.bulk_tx_num)
+	    {
+              g_mutex_lock (d->mutex);
+              d->loader_transaction = FALSE;
+              g_mutex_unlock (d->mutex);
+
+//g_message ("dupin_loader: loader_transaction FALSE bulk_tx_num_count=%d\n", bulk_tx_num_count);
+	    }
+
           if (options.links == TRUE)
             {
 	      if (options.context_id != NULL)
@@ -466,6 +508,21 @@ main (int argc, char *argv[])
             }
           else
             res = dupin_record_insert_bulk (db, json_object_node, &response_list, options.use_latest_revision);
+
+	  if (bulk_tx_num_count == options.bulk_tx_num)
+	    {
+              g_mutex_lock (d->mutex);
+              d->loader_transaction = TRUE;
+              g_mutex_unlock (d->mutex);
+
+	      bulk_tx_num_count = 1;
+
+//g_message ("dupin_loader: loader_transaction TRUE bulk_tx_num_count=%d\n", bulk_tx_num_count);
+	    }
+	  else
+	    {
+	      bulk_tx_num_count++;
+	    }
         }
       else
        {
@@ -522,6 +579,56 @@ main (int argc, char *argv[])
       json_node_free (json_object_node);
 
       g_free (line);
+    }
+
+  /* NOTE - make sure last uncommited changes are commited */
+
+  if (d->bulk_transaction == TRUE
+      && bulk_tx_num_count < options.bulk_tx_num)
+    {
+      if (! (attachment_db = dupin_attachment_db_open (d, dupin_database_get_default_attachment_db_name (db), NULL)))
+        {
+          dupin_loader_set_error ("Cannot connect to attachment database");
+          dupin_database_rollback_transaction (db, NULL);
+          goto dupin_loader_end;
+        }
+
+      if (!linkb
+	  && (! (linkb = dupin_linkbase_open (d, dupin_database_get_default_linkbase_name (db), NULL))))
+        { 
+          dupin_loader_set_error ("Cannot connect to linkbase");
+          dupin_attachment_db_rollback_transaction (attachment_db, NULL);
+          dupin_database_rollback_transaction (db, NULL);
+          goto dupin_loader_end;
+        }
+
+      g_mutex_lock (d->mutex);
+      d->bulk_transaction = FALSE;
+      g_mutex_unlock (d->mutex);
+
+      if (dupin_linkbase_commit_transaction (linkb, NULL) < 0)
+        {
+          dupin_database_rollback_transaction (db, NULL);
+          dupin_attachment_db_rollback_transaction (attachment_db, NULL);
+          dupin_linkbase_rollback_transaction (linkb, NULL);
+          dupin_loader_set_error ("Cannot commit linkbase transaction");
+          goto dupin_loader_end;
+        }
+
+      if (dupin_attachment_db_commit_transaction (attachment_db, NULL) < 0)
+        {
+          dupin_database_rollback_transaction (db, NULL);
+          dupin_attachment_db_rollback_transaction (attachment_db, NULL);
+          dupin_loader_set_error ("Cannot commit attachment database transaction");
+          goto dupin_loader_end;
+        }
+
+      if (dupin_database_commit_transaction (db, NULL) < 0)
+        {
+          dupin_database_rollback_transaction (db, NULL);
+          dupin_loader_set_error ("Cannot commit database transaction");
+          goto dupin_loader_end;
+        }
     }
 
 dupin_loader_end:
@@ -670,6 +777,7 @@ dupin_loader_init (DSGlobal *data, GError ** error)
   d->dbs =
     g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
 			   (GDestroyNotify) dupin_db_disconnect);
+
   d->linkbs =
     g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
 			   (GDestroyNotify) dupin_linkb_disconnect);
@@ -695,6 +803,9 @@ dupin_loader_init (DSGlobal *data, GError ** error)
 						(d->conf != NULL) ? d->conf->limit_checklinks_max_threads : DS_LIMIT_CHECKLINKS_MAXTHREADS_DEFAULT,
 						FALSE,
 						NULL);
+
+  d->bulk_transaction = FALSE;
+  d->loader_transaction = FALSE;
 
   g_dir_close (dir);
 

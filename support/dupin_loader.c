@@ -589,7 +589,11 @@ main (int argc, char *argv[])
       if (! (attachment_db = dupin_attachment_db_open (d, dupin_database_get_default_attachment_db_name (db), NULL)))
         {
           dupin_loader_set_error ("Cannot connect to attachment database");
+
+          g_mutex_lock (db->mutex);
           dupin_database_rollback_transaction (db, NULL);
+          g_mutex_unlock (db->mutex);
+
           goto dupin_loader_end;
         }
 
@@ -597,8 +601,15 @@ main (int argc, char *argv[])
 	  && (! (linkb = dupin_linkbase_open (d, dupin_database_get_default_linkbase_name (db), NULL))))
         { 
           dupin_loader_set_error ("Cannot connect to linkbase");
+
+          g_mutex_lock (attachment_db->mutex);
           dupin_attachment_db_rollback_transaction (attachment_db, NULL);
+          g_mutex_unlock (attachment_db->mutex);
+
+          g_mutex_lock (db->mutex);
           dupin_database_rollback_transaction (db, NULL);
+          g_mutex_unlock (db->mutex);
+
           goto dupin_loader_end;
         }
 
@@ -606,29 +617,50 @@ main (int argc, char *argv[])
       d->bulk_transaction = FALSE;
       g_mutex_unlock (d->mutex);
 
+      g_mutex_lock (linkb->mutex);
       if (dupin_linkbase_commit_transaction (linkb, NULL) < 0)
         {
+          g_mutex_lock (db->mutex);
           dupin_database_rollback_transaction (db, NULL);
+          g_mutex_unlock (db->mutex);
+
+          g_mutex_lock (attachment_db->mutex);
           dupin_attachment_db_rollback_transaction (attachment_db, NULL);
+          g_mutex_unlock (attachment_db->mutex);
+
           dupin_linkbase_rollback_transaction (linkb, NULL);
+          g_mutex_unlock (linkb->mutex);
+
           dupin_loader_set_error ("Cannot commit linkbase transaction");
           goto dupin_loader_end;
         }
+      g_mutex_unlock (linkb->mutex);
 
+      g_mutex_lock (attachment_db->mutex);
       if (dupin_attachment_db_commit_transaction (attachment_db, NULL) < 0)
         {
+          g_mutex_lock (db->mutex);
           dupin_database_rollback_transaction (db, NULL);
+          g_mutex_unlock (db->mutex);
+
           dupin_attachment_db_rollback_transaction (attachment_db, NULL);
+          g_mutex_unlock (attachment_db->mutex);
+
           dupin_loader_set_error ("Cannot commit attachment database transaction");
           goto dupin_loader_end;
         }
+      g_mutex_unlock (attachment_db->mutex);
 
+      g_mutex_lock (db->mutex);
       if (dupin_database_commit_transaction (db, NULL) < 0)
         {
           dupin_database_rollback_transaction (db, NULL);
+          g_mutex_unlock (db->mutex);
+
           dupin_loader_set_error ("Cannot commit database transaction");
           goto dupin_loader_end;
         }
+      g_mutex_unlock (db->mutex);
     }
 
 dupin_loader_end:

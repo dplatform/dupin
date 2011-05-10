@@ -3210,11 +3210,14 @@ dupin_link_record_insert_bulk (DupinLinkB * linkb,
   /* scan JSON array */
   nodes = json_array_get_elements (array);
 
+  g_mutex_lock (linkb->mutex);
   if (dupin_linkbase_begin_transaction (linkb, NULL) < 0)
     {
+      g_mutex_unlock (linkb->mutex);
       dupin_linkbase_set_error (linkb, "dupin_link_record_insert_bulk: Cannot begin linkbase transaction");
       return FALSE;
     }
+  g_mutex_unlock (linkb->mutex);
 
   g_mutex_lock (linkb->d->mutex);
   linkb->d->bulk_transaction = TRUE;
@@ -3231,7 +3234,9 @@ dupin_link_record_insert_bulk (DupinLinkB * linkb,
           dupin_linkbase_set_error (linkb, "Bulk body " REQUEST_POST_BULK_LINKS_LINKS " array memebr is not a valid JSON object");
           g_list_free (nodes);
 
+          g_mutex_lock (linkb->mutex);
           dupin_linkbase_rollback_transaction (linkb, NULL);
+          g_mutex_unlock (linkb->mutex);
 
           g_mutex_lock (linkb->d->mutex);
           linkb->d->bulk_transaction = FALSE;
@@ -3288,15 +3293,18 @@ dupin_link_record_insert_bulk (DupinLinkB * linkb,
       g_mutex_unlock (linkb->d->mutex);
     }
 
+  g_mutex_lock (linkb->mutex);
   if (dupin_linkbase_commit_transaction (linkb, NULL) < 0)
     {
       dupin_linkbase_rollback_transaction (linkb, NULL);
+      g_mutex_unlock (linkb->mutex);
 
       dupin_linkbase_set_error (linkb, "dupin_record_insert_bulk: Cannot commit linkbase transaction");
       g_list_free (nodes);
 
       return FALSE;
     }
+  g_mutex_unlock (linkb->mutex);
 
 //g_message("dupin_link_record_insert_bulk: inserted %d records into linkbase %s\n", (gint)g_list_length (nodes), linkb->name);
 

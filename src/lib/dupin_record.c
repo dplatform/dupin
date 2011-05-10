@@ -2620,8 +2620,11 @@ dupin_record_insert_bulk (DupinDB * db,
       return FALSE;
     }
 
+  g_mutex_lock (db->mutex);
   if (dupin_database_begin_transaction (db, NULL) < 0)
     {
+      g_mutex_unlock (db->mutex);
+
       dupin_attachment_db_unref (attachment_db);
       dupin_linkbase_unref (linkb);
 
@@ -2629,10 +2632,16 @@ dupin_record_insert_bulk (DupinDB * db,
 
       return FALSE;
     }
+  g_mutex_unlock (db->mutex);
 
+  g_mutex_lock (attachment_db->mutex);
   if (dupin_attachment_db_begin_transaction (attachment_db, NULL) < 0)
     {
+      g_mutex_lock (db->mutex);
       dupin_database_rollback_transaction (db, NULL);
+      g_mutex_unlock (db->mutex);
+
+      g_mutex_unlock (attachment_db->mutex);
 
       dupin_attachment_db_unref (attachment_db);
       dupin_linkbase_unref (linkb);
@@ -2641,11 +2650,20 @@ dupin_record_insert_bulk (DupinDB * db,
 
       return FALSE;
     }
+  g_mutex_unlock (attachment_db->mutex);
 
+  g_mutex_lock (linkb->mutex);
   if (dupin_linkbase_begin_transaction (linkb, NULL) < 0)
     {
+      g_mutex_lock (db->mutex);
       dupin_database_rollback_transaction (db, NULL);
+      g_mutex_unlock (db->mutex);
+
+      g_mutex_lock (attachment_db->mutex);
       dupin_attachment_db_rollback_transaction (attachment_db, NULL);
+      g_mutex_unlock (attachment_db->mutex);
+
+      g_mutex_unlock (linkb->mutex);
 
       dupin_attachment_db_unref (attachment_db);
       dupin_linkbase_unref (linkb);
@@ -2654,6 +2672,7 @@ dupin_record_insert_bulk (DupinDB * db,
 
       return FALSE;
     }
+  g_mutex_unlock (linkb->mutex);
 
   g_mutex_lock (db->d->mutex);
   db->d->bulk_transaction = TRUE;
@@ -2670,16 +2689,24 @@ dupin_record_insert_bulk (DupinDB * db,
           dupin_database_set_error (db, "Bulk body " REQUEST_POST_BULK_DOCS_DOCS " array memebr is not a valid JSON object");
           g_list_free (nodes);
 
+          g_mutex_lock (linkb->mutex);
           dupin_linkbase_rollback_transaction (linkb, NULL);
-          dupin_attachment_db_rollback_transaction (attachment_db, NULL);
-          dupin_database_rollback_transaction (db, NULL);
+          g_mutex_unlock (linkb->mutex);
 
-          dupin_attachment_db_unref (attachment_db);
-          dupin_linkbase_unref (linkb);
+          g_mutex_lock (attachment_db->mutex);
+          dupin_attachment_db_rollback_transaction (attachment_db, NULL);
+          g_mutex_unlock (attachment_db->mutex);
+
+          g_mutex_lock (db->mutex);
+          dupin_database_rollback_transaction (db, NULL);
+          g_mutex_unlock (db->mutex);
 
           g_mutex_lock (db->d->mutex);
           db->d->bulk_transaction = FALSE;
           g_mutex_unlock (db->d->mutex);
+
+          dupin_attachment_db_unref (attachment_db);
+          dupin_linkbase_unref (linkb);
 
           return FALSE;
         }
@@ -2731,11 +2758,19 @@ dupin_record_insert_bulk (DupinDB * db,
       g_mutex_unlock (db->d->mutex);
     }
 
+  g_mutex_lock (linkb->mutex);
   if (dupin_linkbase_commit_transaction (linkb, NULL) < 0)
     {
-      dupin_database_rollback_transaction (db, NULL);
-      dupin_attachment_db_rollback_transaction (attachment_db, NULL);
       dupin_linkbase_rollback_transaction (linkb, NULL);
+      g_mutex_unlock (linkb->mutex);
+
+      g_mutex_lock (attachment_db->mutex);
+      dupin_attachment_db_rollback_transaction (attachment_db, NULL);
+      g_mutex_unlock (attachment_db->mutex);
+
+      g_mutex_lock (db->mutex);
+      dupin_database_rollback_transaction (db, NULL);
+      g_mutex_unlock (db->mutex);
 
       dupin_attachment_db_unref (attachment_db);
       dupin_linkbase_unref (linkb);
@@ -2745,11 +2780,17 @@ dupin_record_insert_bulk (DupinDB * db,
 
       return FALSE;
     }
+  g_mutex_unlock (linkb->mutex);
 
+  g_mutex_lock (attachment_db->mutex);
   if (dupin_attachment_db_commit_transaction (attachment_db, NULL) < 0)
     {
-      dupin_database_rollback_transaction (db, NULL);
       dupin_attachment_db_rollback_transaction (attachment_db, NULL);
+      g_mutex_unlock (attachment_db->mutex);
+
+      g_mutex_lock (db->mutex);
+      dupin_database_rollback_transaction (db, NULL);
+      g_mutex_unlock (db->mutex);
 
       dupin_attachment_db_unref (attachment_db);
       dupin_linkbase_unref (linkb);
@@ -2759,10 +2800,13 @@ dupin_record_insert_bulk (DupinDB * db,
 
       return FALSE;
     }
+  g_mutex_unlock (attachment_db->mutex);
 
+  g_mutex_lock (db->mutex);
   if (dupin_database_commit_transaction (db, NULL) < 0)
     {
       dupin_database_rollback_transaction (db, NULL);
+      g_mutex_unlock (db->mutex);
 
       dupin_attachment_db_unref (attachment_db);
       dupin_linkbase_unref (linkb);
@@ -2772,6 +2816,7 @@ dupin_record_insert_bulk (DupinDB * db,
 
       return FALSE;
     }
+  g_mutex_unlock (db->mutex);
 
 //g_message("dupin_record_insert_bulk: inserted %d records into database %s\n", (gint)g_list_length (nodes), db->name);
 

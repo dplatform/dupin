@@ -1333,24 +1333,45 @@ dupin_database_compact_func (gpointer data, gpointer user_data)
 
           /* claim disk space back */
 
-//g_message("dupin_database_compact_func: VACUUM and ANALYZE\n");
+	  /* NOTE - wait till next transaction is finished */
 
-          g_mutex_lock (db->mutex);
+          g_mutex_lock (db->d->mutex);
+
+	  if (db->d->bulk_transaction == TRUE)
+            {
+              g_mutex_unlock (db->d->mutex);
+
+//g_message("dupin_database_compact_func(%p) waiting for transaction to finish\n", g_thread_self ());
+
+	      continue;
+	    }
+
+	  /* NOTE - make sure last transaction is commited */
+
+	  if (dupin_database_commit_transaction (db, NULL) < 0)
+	    {
+      	      dupin_database_rollback_transaction (db, NULL);
+              g_mutex_unlock (db->d->mutex);
+              break;
+    	    }
 
 	  /*
 		IMPORTANT: rowids may change after a VACUUM, so the cursor of views should be reset as well, eventually !
 			   see http://www.sqlite.org/lang_vacuum.html
            */
+
+//g_message("dupin_database_compact_func: VACUUM and ANALYZE\n");
+
           if (sqlite3_exec (db->db, "VACUUM", NULL, NULL, &errmsg) != SQLITE_OK
              || sqlite3_exec (db->db, "ANALYZE Dupin", NULL, NULL, &errmsg) != SQLITE_OK)
             {
-              g_mutex_unlock (db->mutex);
+              g_mutex_unlock (db->d->mutex);
               g_error ("dupin_database_compact_func: %s", errmsg);
               sqlite3_free (errmsg);
               break;
             }
 
-          g_mutex_unlock (db->mutex);
+          g_mutex_unlock (db->d->mutex);
 
           break;
         }

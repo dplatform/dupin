@@ -1550,20 +1550,40 @@ dupin_linkbase_compact_func (gpointer data, gpointer user_data)
 
           /* claim disk space back */
 
-//g_message("dupin_linkbase_compact_func: VACUUM and ANALYZE\n");
+	  /* NOTE - wait till next transaction is finished */
 
-          g_mutex_lock (linkb->mutex);
+	  g_mutex_lock (linkb->d->mutex);
+
+          if (linkb->d->bulk_transaction == TRUE)
+            {
+              g_mutex_unlock (linkb->d->mutex);
+
+//g_message("dupin_linkbase_compact_func(%p) waiting for transaction to finish\n", g_thread_self ());
+
+              continue;
+            }
+
+          /* NOTE - make sure last transaction is commited */
+
+          if (dupin_linkbase_commit_transaction (linkb, NULL) < 0)
+            {
+              dupin_linkbase_rollback_transaction (linkb, NULL);
+              g_mutex_unlock (linkb->d->mutex);
+              break;
+            }
+
+//g_message("dupin_linkbase_compact_func: VACUUM and ANALYZE\n");
 
           if (sqlite3_exec (linkb->db, "VACUUM", NULL, NULL, &errmsg) != SQLITE_OK
              || sqlite3_exec (linkb->db, "ANALYZE Dupin", NULL, NULL, &errmsg) != SQLITE_OK)
             {
-              g_mutex_unlock (linkb->mutex);
+              g_mutex_unlock (linkb->d->mutex);
               g_error ("dupin_linkbase_compact_func: %s", errmsg);
               sqlite3_free (errmsg);
               break;
             }
 
-          g_mutex_unlock (linkb->mutex);
+          g_mutex_unlock (linkb->d->mutex);
 
           break;
         }
@@ -1849,20 +1869,40 @@ dupin_linkbase_check_func (gpointer data, gpointer user_data)
 #if 0
           /* claim disk space back */
 
-//g_message("dupin_linkbase_check_func: VACUUM and ANALYZE\n");
+	  /* NOTE - wait till next transaction is finished */
 
-          g_mutex_lock (linkb->mutex);
+          g_mutex_lock (linkb->d->mutex);
+
+          if (linkb->d->bulk_transaction == TRUE)
+            {
+              g_mutex_unlock (linkb->d->mutex);
+
+//g_message("dupin_linkbase_check_func(%p) waiting for transaction to finish\n", g_thread_self ());
+
+              continue;
+            }
+
+          /* NOTE - make sure last transaction is commited */
+
+          if (dupin_linkbase_commit_transaction (linkb, NULL) < 0)
+            {
+              dupin_linkbase_rollback_transaction (linkb, NULL);
+              g_mutex_unlock (linkb->d->mutex);
+              break;
+            }
+
+//g_message("dupin_linkbase_check_func: VACUUM and ANALYZE\n");
 
           if (sqlite3_exec (linkb->db, "VACUUM", NULL, NULL, &errmsg) != SQLITE_OK
              || sqlite3_exec (linkb->db, "ANALYZE Dupin", NULL, NULL, &errmsg) != SQLITE_OK)
             {
-              g_mutex_unlock (linkb->mutex);
+              g_mutex_unlock (linkb->d->mutex);
               g_error ("dupin_linkbase_check_func: %s", errmsg);
               sqlite3_free (errmsg);
               break;
             }
 
-          g_mutex_unlock (linkb->mutex);
+          g_mutex_unlock (linkb->d->mutex);
 #endif
 
           break;

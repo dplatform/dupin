@@ -1568,8 +1568,6 @@ dupin_linkbase_compact_func (gpointer data, gpointer user_data)
           if (dupin_linkbase_commit_transaction (linkb, NULL) < 0)
             {
               dupin_linkbase_rollback_transaction (linkb, NULL);
-              g_mutex_unlock (linkb->d->mutex);
-              break;
             }
 
 //g_message("dupin_linkbase_compact_func: VACUUM and ANALYZE\n");
@@ -1887,8 +1885,6 @@ dupin_linkbase_check_func (gpointer data, gpointer user_data)
           if (dupin_linkbase_commit_transaction (linkb, NULL) < 0)
             {
               dupin_linkbase_rollback_transaction (linkb, NULL);
-              g_mutex_unlock (linkb->d->mutex);
-              break;
             }
 
 //g_message("dupin_linkbase_check_func: VACUUM and ANALYZE\n");

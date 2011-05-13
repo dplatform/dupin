@@ -1351,8 +1351,6 @@ dupin_database_compact_func (gpointer data, gpointer user_data)
 	  if (dupin_database_commit_transaction (db, NULL) < 0)
 	    {
       	      dupin_database_rollback_transaction (db, NULL);
-              g_mutex_unlock (db->d->mutex);
-              break;
     	    }
 
 	  /*

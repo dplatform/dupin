@@ -1952,6 +1952,25 @@ request_global_get_record (DSHttpdClient * client, GList * path,
       return HTTP_STATUS_404;
     }
 
+  if (!(record = dupin_record_read (db, doc_id, NULL)))
+    {
+      dupin_attachment_db_unref (attachment_db);
+      dupin_database_unref (db);
+      g_free (doc_id);
+      request_set_error (client, "Cannot read record from database");
+      return HTTP_STATUS_404;
+    }
+
+  if (dupin_record_is_deleted (record, NULL) == TRUE)
+    {
+      dupin_record_close (record);
+      dupin_attachment_db_unref (attachment_db);
+      dupin_database_unref (db);
+      g_free (doc_id);
+      request_set_error (client, "Record is deleted");
+      return HTTP_STATUS_404;
+    }
+
   /* process input attachment name parameter */
   if (title_parts != NULL)
     {
@@ -2011,25 +2030,6 @@ request_global_get_record (DSHttpdClient * client, GList * path,
       g_free (doc_id);
 
       return HTTP_STATUS_200;
-    }
-
-  if (!(record = dupin_record_read (db, doc_id, NULL)))
-    {
-      dupin_attachment_db_unref (attachment_db);
-      dupin_database_unref (db);
-      g_free (doc_id);
-      request_set_error (client, "Cannot read record from database");
-      return HTTP_STATUS_404;
-    }
-
-  if (dupin_record_is_deleted (record, NULL) == TRUE)
-    {
-      dupin_record_close (record);
-      dupin_attachment_db_unref (attachment_db);
-      dupin_database_unref (db);
-      g_free (doc_id);
-      request_set_error (client, "Record is deleted");
-      return HTTP_STATUS_404;
     }
 
   for (list = arguments; list; list = list->next)

@@ -48,14 +48,6 @@ static JSValueRef dupin_js_dupin_class_links
 		   	       		    const JSValueRef arguments[],
 		   	       		    JSValueRef * exception);
 
-static JSValueRef dupin_js_dupin_class_insert_bulk
-					   (JSContextRef ctx,
-					    JSObjectRef object,
-		   	       		    JSObjectRef thisObject,
-					    size_t argumentCount,
-		   	       		    const JSValueRef arguments[],
-		   	       		    JSValueRef * exception);
-
 static JSValueRef dupin_js_dupin_class_util_hash (JSContextRef ctx,
 					          JSObjectRef object,
 					          JSObjectRef thisObject,
@@ -91,7 +83,6 @@ static JSStaticFunction dupin_js_dupin_class_static_functions[] = {
     { "log", dupin_js_dupin_class_log, kJSPropertyAttributeNone },
     { "view_lookup", dupin_js_dupin_class_view_lookup, kJSPropertyAttributeNone },
     { "links", dupin_js_dupin_class_links, kJSPropertyAttributeNone },
-    { "insert_bulk", dupin_js_dupin_class_insert_bulk, kJSPropertyAttributeNone },
     { "util_hash", dupin_js_dupin_class_util_hash, kJSPropertyAttributeNone },
     { "util_base64_encode", dupin_js_dupin_class_util_base64_encode, kJSPropertyAttributeNone },
     { "util_base64_decode", dupin_js_dupin_class_util_base64_decode, kJSPropertyAttributeNone },
@@ -2099,147 +2090,6 @@ dupin_js_dupin_class_util_http_client (JSContextRef ctx,
     json_node_free (params_node);
  
   json_node_free (response);
-
-  return result;
-}
-
-/*
-	dupin.insert_bulk ('dbname', { 'docs': [ { ... }, ... ] })
-
-	NOTE: 'dbname' database must already exists, otherwise an error is returned
- */
-
-static JSValueRef
-dupin_js_dupin_class_insert_bulk (JSContextRef ctx,
-                   	          JSObjectRef object,
-		   	          JSObjectRef thisObject, size_t argumentCount,
-		   	          const JSValueRef arguments[],
-		   	          JSValueRef * exception)
-{
-  JSValueRef result=NULL;
-
-  Dupin * d = (Dupin *) JSObjectGetPrivate(thisObject);
-  DupinDB *db=NULL;
-
-  if (argumentCount != 2)
-    {
-      *exception = JSValueMakeNumber (ctx, 1);
-      return JSValueMakeNull(ctx);
-    }
-
-//g_message("dupin_js_dupin_class_insert_bulk: checking params...\n");
-
-  if (((!arguments[0]))
-      || (!arguments[1]))
-    return JSValueMakeNull(ctx);
-
-//g_message("dupin_js_dupin_class_insert_bulk: ok params...\n");
-
-  gchar * dbname = NULL;
-  JSStringRef string = NULL;
-  if (JSValueIsNull (ctx, arguments[0]) == FALSE)
-    {
-      string = JSValueToStringCopy (ctx, arguments[0], NULL);
-      dbname = dupin_js_string_utf8 (string);
-      JSStringRelease (string);
-    }
-
-  JsonNode * bulk_node = NULL;
-  dupin_js_value (ctx, arguments[1], &bulk_node);
-  if (bulk_node == NULL
-      || json_node_get_node_type (bulk_node) != JSON_NODE_OBJECT
-      || json_object_has_member (json_node_get_object (bulk_node), "docs") == FALSE)
-    {
-      if (bulk_node != NULL) 
-        json_node_free (bulk_node);
-
-      if (dbname != NULL)
-        g_free (dbname);
-
-      return JSValueMakeNull(ctx);
-    }
-
-//g_message ("dupin_js_dupin_class_insert_bulk: dbname=%s\n", dbname);
-//DUPIN_UTIL_DUMP_JSON ("dupin_js_dupin_class_insert_bulk: bulk_node:", bulk_node);
-
-  if (!
-      (db = dupin_database_open (d, dbname, NULL)))
-    {
-      if (bulk_node != NULL) 
-        json_node_free (bulk_node);
-
-      if (dbname != NULL)
-        g_free (dbname);
-
-      return JSValueMakeNull(ctx);
-    }
-
-  GList * response_list=NULL;
-
-  /* NOTE - we always use the latest revision */
-
-  JsonNode * response_node = NULL;
-
-  if (dupin_record_insert_bulk (db, bulk_node, &response_list, TRUE) == TRUE)
-    {
-      response_node = json_node_new (JSON_NODE_ARRAY);
-      JsonArray * response_array = json_array_new ();
-      json_node_take_array (response_node, response_array);
-
-      GList * l = NULL;
-      for (l=response_list; l; l = l->next)
-        {
-          JsonNode * r_node = (JsonNode *)l->data;
-          json_array_add_element (response_array, json_node_copy (r_node));
-        } 
-
-      while (response_list)
-        {
-          json_node_free (response_list->data);
-          response_list = g_list_remove (response_list, response_list->data);
-        }
-    }
-  else
-    {
-      if (bulk_node != NULL) 
-        json_node_free (bulk_node);
-
-      if (dbname != NULL)
-        g_free (dbname);
-
-      while (response_list)
-        {
-          json_node_free (response_list->data);
-          response_list = g_list_remove (response_list, response_list->data);
-        }
-
-      dupin_database_unref (db);
-
-      return JSValueMakeNull(ctx);
-    }
-
-  gchar * response_node_json = dupin_util_json_serialize (response_node); 
-
-  gchar *b=NULL;
-  GString * buffer = g_string_new ("var result = ");
-  buffer = g_string_append (buffer, response_node_json);
-  buffer = g_string_append (buffer, "; result;");
-  b = g_string_free (buffer, FALSE);
-  string=JSStringCreateWithUTF8CString(b);
-  result = JSEvaluateScript (ctx, string, NULL, NULL, 1, NULL);
-  JSStringRelease(string);
-  g_free (b);
-  g_free (response_node_json);
-
-  dupin_database_unref (db);
-
-  if (bulk_node != NULL)
-    json_node_free (bulk_node);
-
-  if (dbname != NULL)
-    g_free (dbname);
- 
-  json_node_free (response_node);
 
   return result;
 }

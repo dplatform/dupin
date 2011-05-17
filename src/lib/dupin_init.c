@@ -80,7 +80,7 @@ dupin_init (DSGlobal *data, GError ** error)
 						   NULL);
 
   d->bulk_transaction = FALSE;
-  d->loader_transaction = FALSE;
+  d->super_bulk_transaction = FALSE;
 
   while ((filename = g_dir_read_name (dir)))
     {

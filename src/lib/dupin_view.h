@@ -26,6 +26,9 @@ DupinView *	dupin_view_new		(Dupin *	d,
 					 DupinMRLang	map_language,
 					 gchar *	reduce,
 					 DupinMRLang	reduce_language,
+					 gchar *	output,
+					 gboolean	output_is_db,
+					 gboolean	output_is_linkb,
 					 GError **	error);
 
 gint            dupin_view_begin_transaction
@@ -58,6 +61,14 @@ gboolean	dupin_view_get_parent_is_db
 					(DupinView *	view);
 
 gboolean	dupin_view_get_parent_is_linkb
+					(DupinView *	view);
+
+const gchar *	dupin_view_get_output	(DupinView *	view);
+
+gboolean	dupin_view_get_output_is_db
+					(DupinView *	view);
+
+gboolean	dupin_view_get_output_is_linkb
 					(DupinView *	view);
 
 const gchar *	dupin_view_get_map	(DupinView *	view);

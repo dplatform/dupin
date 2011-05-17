@@ -541,7 +541,8 @@ command_newView (GList * list)
 		       !g_strcmp0 (is_linkb, "true") ? TRUE : FALSE,
 		       map,
 		       dupin_util_mr_lang_to_enum (map_lang), reduce,
-		       dupin_util_mr_lang_to_enum (reduce_lang), &error)))
+		       dupin_util_mr_lang_to_enum (reduce_lang),
+		       NULL, FALSE, FALSE, &error)))
     {
       fprintf (stderr, "Error: %s\n", error->message);
       g_error_free (error);

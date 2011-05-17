@@ -3286,7 +3286,7 @@ dupin_link_record_insert_bulk (DupinLinkB * linkb,
 
     }
 
-  if (linkb->d->loader_transaction == FALSE)
+  if (linkb->d->super_bulk_transaction == FALSE)
     {
       g_mutex_lock (linkb->d->mutex);
       linkb->d->bulk_transaction = FALSE;

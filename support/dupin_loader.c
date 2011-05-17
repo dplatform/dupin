@@ -440,7 +440,7 @@ main (int argc, char *argv[])
     }
 
   g_mutex_lock (d->mutex);
-  d->loader_transaction = TRUE;
+  d->super_bulk_transaction = TRUE;
   g_mutex_unlock (d->mutex);
 
   gint bulk_tx_num_count=1;
@@ -478,10 +478,10 @@ main (int argc, char *argv[])
 	  if (bulk_tx_num_count == options.bulk_tx_num)
 	    {
               g_mutex_lock (d->mutex);
-              d->loader_transaction = FALSE;
+              d->super_bulk_transaction = FALSE;
               g_mutex_unlock (d->mutex);
 
-//g_message ("dupin_loader: loader_transaction FALSE bulk_tx_num_count=%d\n", bulk_tx_num_count);
+//g_message ("dupin_loader: super_bulk_transaction FALSE bulk_tx_num_count=%d\n", bulk_tx_num_count);
 	    }
 
           if (options.links == TRUE)
@@ -512,12 +512,12 @@ main (int argc, char *argv[])
 	  if (bulk_tx_num_count == options.bulk_tx_num)
 	    {
               g_mutex_lock (d->mutex);
-              d->loader_transaction = TRUE;
+              d->super_bulk_transaction = TRUE;
               g_mutex_unlock (d->mutex);
 
 	      bulk_tx_num_count = 1;
 
-//g_message ("dupin_loader: loader_transaction TRUE bulk_tx_num_count=%d\n", bulk_tx_num_count);
+//g_message ("dupin_loader: super_bulk_transaction TRUE bulk_tx_num_count=%d\n", bulk_tx_num_count);
 	    }
 	  else
 	    {
@@ -837,7 +837,7 @@ dupin_loader_init (DSGlobal *data, GError ** error)
 						NULL);
 
   d->bulk_transaction = FALSE;
-  d->loader_transaction = FALSE;
+  d->super_bulk_transaction = FALSE;
 
   g_dir_close (dir);
 

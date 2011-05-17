@@ -60,7 +60,7 @@ struct dupin_t
   GThreadPool * sync_reduce_workers_pool;
 
   gboolean      bulk_transaction;
-  gboolean      loader_transaction;
+  gboolean      super_bulk_transaction;
 };
 
 typedef struct dupin_linkb_p_t DupinLinkBP;
@@ -166,6 +166,10 @@ struct dupin_view_t
   gchar *	parent;
   gboolean	parent_is_db;
   gboolean	parent_is_linkb;
+
+  gchar *	output;
+  gboolean	output_is_db;
+  gboolean	output_is_linkb;
 
   guint		ref;
 

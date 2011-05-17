@@ -44,7 +44,10 @@ See http://wiki.apache.org/couchdb/Introduction_to_CouchDB_views
   "  reduce_lang               CHAR(255),\n" \
   "  sync_map_id               CHAR(255),\n" \
   "  sync_reduce_id            CHAR(255),\n" \
-  "  sync_rereduce             BOOL DEFAULT FALSE\n" \
+  "  sync_rereduce             BOOL DEFAULT FALSE,\n" \
+  "  output                    CHAR(255),\n" \
+  "  output_isdb               BOOL DEFAULT TRUE,\n" \
+  "  output_islinkb            BOOL DEFAULT FALSE\n" \
   ");"
 
 #define DUPIN_VIEW_SQL_INSERT \
@@ -135,7 +138,8 @@ dupin_view_open (Dupin * d, gchar * view, GError ** error)
 DupinView *
 dupin_view_new (Dupin * d, gchar * view, gchar * parent, gboolean is_db, gboolean is_linkb,
 		gchar * map, DupinMRLang map_language, gchar * reduce,
-		DupinMRLang reduce_language, GError ** error)
+		DupinMRLang reduce_language,
+	        gchar * output, gboolean output_is_db, gboolean output_is_linkb, GError ** error)
 {
   DupinView *ret;
   gchar *path;
@@ -150,11 +154,51 @@ dupin_view_new (Dupin * d, gchar * view, gchar * parent, gboolean is_db, gboolea
   g_return_val_if_fail (dupin_util_is_valid_view_name (view) == TRUE, NULL);
 
   if (is_db == TRUE)
-    g_return_val_if_fail (dupin_database_exists (d, parent) == TRUE, NULL);
+    {
+      if (dupin_database_exists (d, parent) == FALSE)
+        {
+          g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
+		       "View '%s' parent database '%s' does not exist.", view, parent);
+	  return NULL;
+        }
+    }
   else if (is_linkb == TRUE)
-    g_return_val_if_fail (dupin_linkbase_exists (d, parent) == TRUE, NULL);
+    {
+      if (dupin_linkbase_exists (d, parent) == FALSE)
+        {
+          g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
+		       "View '%s' parent linkbase '%s' does not exist.", view, parent);
+	  return NULL;
+        }
+    }
   else
-    g_return_val_if_fail (dupin_view_exists (d, parent) == TRUE, NULL);
+    {
+      if (dupin_view_exists (d, parent) == FALSE)
+        {
+          g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
+		       "View '%s' parent view '%s' does not exist.", view, parent);
+	  return NULL;
+        }
+    }
+
+  if (output != NULL && g_strcmp0(output,"(NULL)") && g_strcmp0(output,"null") )
+    {
+      if (output_is_db == TRUE)
+        {
+          if (dupin_database_exists (d, output) == FALSE)
+            {
+              g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
+		           "View '%s' output database '%s' does not exist.", view, output);
+	      return NULL;
+	    }
+	}
+      else if (output_is_linkb == TRUE)
+        {
+          g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
+		       "Output to linkbase is not implemented yet");
+	  return NULL;
+        }
+    }
 
   g_mutex_lock (d->mutex);
 
@@ -190,6 +234,13 @@ dupin_view_new (Dupin * d, gchar * view, gchar * parent, gboolean is_db, gboolea
   ret->parent_is_db = is_db;
   ret->parent_is_linkb = is_linkb;
 
+  if (output != NULL && g_strcmp0(output,"(NULL)") && g_strcmp0(output,"null") )
+    {
+      ret->output = g_strdup (output);
+    }
+  ret->output_is_db = output_is_db;
+  ret->output_is_linkb = output_is_linkb;
+
   g_free (path);
   ret->ref++;
 
@@ -202,13 +253,16 @@ dupin_view_new (Dupin * d, gchar * view, gchar * parent, gboolean is_db, gboolea
 
   str =
     sqlite3_mprintf ("INSERT OR REPLACE INTO DupinView "
-		     "(parent, isdb, islinkb, map, map_lang, reduce, reduce_lang) "
-		     "VALUES('%q', '%s', '%s', '%q', '%q', '%q' ,'%q')", parent,
+		     "(parent, isdb, islinkb, map, map_lang, reduce, reduce_lang, output, output_isdb, output_islinkb) "
+		     "VALUES('%q', '%s', '%s', '%q', '%q', '%q' ,'%q', '%q', '%s', '%s')", parent,
 		     is_db ? "TRUE" : "FALSE",
 		     is_linkb ? "TRUE" : "FALSE",
 		     map,
 		     dupin_util_mr_lang_to_string (map_language), reduce,
-		     dupin_util_mr_lang_to_string (reduce_language));
+		     dupin_util_mr_lang_to_string (reduce_language),
+		     output,
+		     output_is_db ? "TRUE" : "FALSE",
+		     output_is_linkb ? "TRUE" : "FALSE");
 
   if (sqlite3_exec (ret->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
     {
@@ -216,7 +270,6 @@ dupin_view_new (Dupin * d, gchar * view, gchar * parent, gboolean is_db, gboolea
 
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
 		   errmsg);
-
       sqlite3_free (errmsg);
       sqlite3_free (str);
       dupin_view_disconnect (ret);
@@ -274,6 +327,9 @@ struct dupin_view_p_update_t
   DupinMRLang reduce_lang;
   gboolean isdb;
   gboolean islinkb;
+  gchar *output;
+  gboolean output_isdb;
+  gboolean output_islinkb;
 };
 
 static int
@@ -281,7 +337,7 @@ dupin_view_p_update_cb (void *data, int argc, char **argv, char **col)
 {
   struct dupin_view_p_update_t *update = data;
 
-  if (argc == 7)
+  if (argc == 10)
     {
       if (argv[0] && *argv[0])
         update->parent = g_strdup (argv[0]);
@@ -307,6 +363,16 @@ dupin_view_p_update_cb (void *data, int argc, char **argv, char **col)
         {
           update->reduce_lang = dupin_util_mr_lang_to_enum (argv[6]);
         }
+
+      if (argv[7] != NULL && g_strcmp0(argv[7],"(NULL)") && g_strcmp0(argv[7],"null") )
+        update->output = g_strdup (argv[7]);
+
+      if (argv[8] && *argv[8])
+        update->output_isdb = !g_strcmp0 (argv[8], "TRUE") ? TRUE : FALSE;
+
+      if (argv[9] && *argv[9])
+        update->output_islinkb = !g_strcmp0 (argv[9], "TRUE") ? TRUE : FALSE;
+
     }
 
   return 0;
@@ -365,7 +431,7 @@ dupin_view_p_update (DupinView * view, GError ** error)
 {
   gchar *errmsg;
   struct dupin_view_p_update_t update;
-  gchar *query = "SELECT parent, isdb, islinkb, map, map_lang, reduce, reduce_lang FROM DupinView LIMIT 1";
+  gchar *query = "SELECT parent, isdb, islinkb, map, map_lang, reduce, reduce_lang, output, output_isdb, output_islinkb FROM DupinView LIMIT 1";
 
   memset (&update, 0, sizeof (struct dupin_view_p_update_t));
 
@@ -392,6 +458,9 @@ dupin_view_p_update (DupinView * view, GError ** error)
       if (update.reduce != NULL)
         g_free (update.reduce);
 
+      if (update.output != NULL)
+        g_free (update.output);
+
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
 		   "Internal error.");
       return FALSE;
@@ -410,6 +479,9 @@ dupin_view_p_update (DupinView * view, GError ** error)
 
           if (update.reduce != NULL)
             g_free (update.reduce);
+
+          if (update.output != NULL)
+            g_free (update.output);
 
 	  return FALSE;
 	}
@@ -434,6 +506,9 @@ dupin_view_p_update (DupinView * view, GError ** error)
           if (update.reduce != NULL)
             g_free (update.reduce);
 
+          if (update.output != NULL)
+            g_free (update.output);
+
 	  return FALSE;
 	}
 
@@ -456,6 +531,9 @@ dupin_view_p_update (DupinView * view, GError ** error)
 
           if (update.reduce != NULL)
             g_free (update.reduce);
+
+          if (update.output != NULL)
+            g_free (update.output);
 
 	  return FALSE;
 	}
@@ -494,6 +572,17 @@ dupin_view_p_update (DupinView * view, GError ** error)
       view->reduce_lang = update.reduce_lang;
     }
 
+  if (update.output != NULL && g_strcmp0(update.output,"(NULL)") && g_strcmp0(update.output,"null") )
+    {
+      if (view->output == NULL)
+        view->output = update.output;
+      else
+        g_free (update.output);
+    }
+
+  view->output_is_db = update.output_isdb;
+  view->output_is_linkb = update.output_islinkb;
+
   return TRUE;
 }
 
@@ -524,6 +613,9 @@ dupin_view_p_record_delete (DupinViewP * p, gchar * pid)
     {
       DupinView *view = p->views[i];
       dupin_view_p_record_delete (&view->views, pid);
+
+      /* TODO - delete any PID where 'pid' is context_id or href of links; and viceversa */
+
       dupin_view_record_delete (view, pid);
     }
 }
@@ -811,6 +903,30 @@ dupin_view_get_parent_is_linkb (DupinView * view)
 }
 
 const gchar *
+dupin_view_get_output (DupinView * view)
+{
+  g_return_val_if_fail (view != NULL, NULL);
+
+  return view->output;
+}
+
+gboolean
+dupin_view_get_output_is_db (DupinView * view)
+{
+  g_return_val_if_fail (view != NULL, FALSE);
+
+  return view->output_is_db;
+}
+
+gboolean
+dupin_view_get_output_is_linkb (DupinView * view)
+{
+  g_return_val_if_fail (view != NULL, FALSE);
+
+  return view->output_is_linkb;
+}
+
+const gchar *
 dupin_view_get_map (DupinView * view)
 {
   g_return_val_if_fail (view != NULL, NULL);
@@ -878,6 +994,9 @@ dupin_view_disconnect (DupinView * view)
   if (view->parent)
     g_free (view->parent);
 
+  if (view->output)
+    g_free (view->output);
+
   if (view->mutex)
     g_mutex_free (view->mutex);
 
@@ -907,7 +1026,7 @@ dupin_view_connect_cb (void *data, int argc, char **argv, char **col)
 {
   DupinView *view = data;
 
-  if (argc == 7)
+  if (argc == 10)
     {
       view->map = g_strdup (argv[0]);
       view->map_lang = dupin_util_mr_lang_to_enum (argv[1]);
@@ -921,6 +1040,13 @@ dupin_view_connect_cb (void *data, int argc, char **argv, char **col)
       view->parent = g_strdup (argv[4]);
       view->parent_is_db = g_strcmp0 (argv[5], "TRUE") == 0 ? TRUE : FALSE;
       view->parent_is_linkb = g_strcmp0 (argv[6], "TRUE") == 0 ? TRUE : FALSE;
+
+      if (argv[7] != NULL && g_strcmp0(argv[7],"(NULL)") && g_strcmp0(argv[7],"null") )
+        {
+          view->output = g_strdup (argv[7]);
+        }
+      view->output_is_db = g_strcmp0 (argv[8], "TRUE") == 0 ? TRUE : FALSE;
+      view->output_is_linkb = g_strcmp0 (argv[9], "TRUE") == 0 ? TRUE : FALSE;
     }
 
   return 0;
@@ -1036,7 +1162,7 @@ dupin_view_connect (Dupin * d, gchar * name, gchar * path,
   sqlite3_create_function(view->db, "filterBy", 5, SQLITE_ANY, d, dupin_sqlite_json_filterby, NULL, NULL);
 
   query =
-    "SELECT map, map_lang, reduce, reduce_lang, parent, isdb, islinkb FROM DupinView LIMIT 1";
+    "SELECT map, map_lang, reduce, reduce_lang, parent, isdb, islinkb, output, output_isdb, output_islinkb FROM DupinView LIMIT 1";
 
   if (sqlite3_exec (view->db, query, dupin_view_connect_cb, view, &errmsg) !=
       SQLITE_OK)
@@ -1153,6 +1279,59 @@ dupin_view_count (DupinView * view)
   return size;
 }
 
+/* NOTE - we always bulk insert using the latest revision */
+
+JsonNode *
+dupin_view_output_insert_bulk (DupinView * view, JsonNode * bulk_node)
+{
+  g_return_val_if_fail (view != NULL, NULL);
+  g_return_val_if_fail (bulk_node != NULL, NULL);
+  g_return_val_if_fail (json_node_get_node_type (bulk_node) == JSON_NODE_OBJECT, NULL);
+
+  GList * response_list=NULL;
+  JsonNode * response_node = NULL;
+
+  if (dupin_view_get_output_is_db (view) == TRUE)
+    {
+      if (json_object_has_member (json_node_get_object (bulk_node), REQUEST_POST_BULK_DOCS_DOCS) == FALSE)
+        return NULL;
+
+      DupinDB * db = NULL;
+      if (! (db = dupin_database_open (view->d, (gchar *)dupin_view_get_output (view), NULL)))
+        return NULL;
+                    
+      if (dupin_record_insert_bulk (db, bulk_node, &response_list, TRUE) == TRUE)
+        {
+          response_node = json_node_new (JSON_NODE_ARRAY);
+          JsonArray * response_array = json_array_new ();
+          json_node_take_array (response_node, response_array);
+              
+          GList * l = NULL;
+          for (l=response_list; l; l = l->next)
+            {
+              JsonNode * r_node = (JsonNode *)l->data;
+              json_array_add_element (response_array, json_node_copy (r_node));
+            }
+        }
+
+      while (response_list)
+        {
+          json_node_free (response_list->data);
+          response_list = g_list_remove (response_list, response_list->data);
+        } 
+
+      dupin_database_unref (db);
+    }
+  else if (dupin_view_get_output_is_linkb (view) == TRUE)
+    {
+      g_warning("dupin_view_output_insert_bulk: output to linkbase not implemented yet\n");
+
+      return NULL;
+    }
+
+  return response_node;
+}
+
 static int
 dupin_view_sync_cb (void *data, int argc, char **argv, char **col)
 {
@@ -1212,9 +1391,6 @@ dupin_view_sync_thread_real_map (DupinView * view, GList * list)
 		  if (element_node_serialized != NULL)
 		    g_free (element_node_serialized);
 
-                  if (parser != NULL)
-                    g_object_unref (parser);
-		  
 		  continue; // TODO - shall we fail instead?
                 }
 
@@ -1228,7 +1404,21 @@ dupin_view_sync_thread_real_map (DupinView * view, GList * list)
 	      JsonNode * key_node = json_object_get_member (nobj, DUPIN_VIEW_KEY);
 	      JsonNode * node = json_object_get_member (nobj, DUPIN_VIEW_VALUE);
 
-	      dupin_view_record_save_map (view, data->pid, key_node, node);
+	      /* TODO - do bulk insert/update of 'array' element if view has output */
+
+              JsonNode * response_node = NULL;
+	      if (dupin_view_get_output (view) != NULL)
+	        {
+	          if (! (response_node = dupin_view_output_insert_bulk (view, node)))
+	            {
+		      continue; // TODO - shall we fail instead?
+		    }
+	        }
+
+	      dupin_view_record_save_map (view, data->pid, key_node, (response_node != NULL) ? response_node : node);
+
+	      if (response_node != NULL)
+	        json_node_free (response_node);
 
               g_mutex_lock (view->mutex);
               view->sync_map_processed_count++;
@@ -2064,10 +2254,26 @@ dupin_view_sync_thread_reduce (DupinView * view, gsize count, gboolean rereduce,
               break;
             }
 
-          gchar * value_string = dupin_util_json_serialize (result);
+	  /* TODO - do bulk insert/update of 'result' if view has output */
+
+	  JsonNode * response_node = NULL;
+          if (dupin_view_get_output (view) != NULL)
+            {
+              if (! (response_node = dupin_view_output_insert_bulk (view, result)))
+                {
+	          json_node_free (result);
+                  g_free (pids_string);
+	          ret = FALSE;
+                  break;
+                }
+            }
+
+          gchar * value_string = dupin_util_json_serialize ((response_node != NULL) ? response_node : result);
           if (value_string == NULL)
             {
 	      json_node_free (result);
+              if (response_node != NULL)
+                json_node_free (response_node);
               g_free (pids_string);
 	      ret = FALSE;
               break;
@@ -2076,6 +2282,9 @@ dupin_view_sync_thread_reduce (DupinView * view, gsize count, gboolean rereduce,
 //g_message ("dupin_view_sync_thread_reduce: KEY: %s", member_name);
 //DUPIN_UTIL_DUMP_JSON ("dupin_view_sync_thread_reduce: PID", json_object_get_member ( json_node_get_object(json_object_get_member (reduce_parameters_obj, member_name)), "pids"));
 //DUPIN_UTIL_DUMP_JSON ("dupin_view_sync_thread_reduce: OBJ", result);
+
+          if (response_node != NULL)
+            json_node_free (response_node);
 
 	  json_node_free (result);
 

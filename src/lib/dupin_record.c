@@ -2750,7 +2750,7 @@ dupin_record_insert_bulk (DupinDB * db,
         g_free (rev);
     }
 
-  if (db->d->loader_transaction == FALSE)
+  if (db->d->super_bulk_transaction == FALSE)
     {
       g_mutex_lock (db->d->mutex);
       db->d->bulk_transaction = FALSE;

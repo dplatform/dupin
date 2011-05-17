@@ -3661,6 +3661,16 @@ request_global_get_view (DSHttpdClient * client, GList * path,
   if (subobj == NULL)
     goto request_global_get_view_error;
 
+  json_object_set_string_member (subobj, "name", (gchar *) dupin_view_get_output (view));
+  json_object_set_boolean_member (subobj, "is_db", dupin_view_get_output_is_db (view));
+  json_object_set_boolean_member (subobj, "is_linkb", dupin_view_get_output_is_linkb (view));
+  json_object_set_object_member (obj, "output", subobj );
+
+  subobj = json_object_new ();
+
+  if (subobj == NULL)
+    goto request_global_get_view_error;
+
   /* TODO - double check that the actual Javascript code does not need any special escaping or anything here */
   json_object_set_string_member (subobj, "code", (gchar *) dupin_view_get_map (view));
   json_object_set_string_member (subobj, "language", (gchar *) dupin_util_mr_lang_to_string (dupin_view_get_map_language (view)));
@@ -5503,6 +5513,9 @@ request_global_put_view (DSHttpdClient * client, GList * path,
   const gchar *map_lang = "javascript";
   const gchar *reduce = NULL;
   const gchar *reduce_lang = "javascript";
+  const gchar *output = NULL;
+  gboolean output_is_db = FALSE;
+  gboolean output_is_linkb = FALSE;
   GError *error = NULL;
 
   if (!client->body)
@@ -5584,6 +5597,33 @@ request_global_put_view (DSHttpdClient * client, GList * path,
           g_list_free (subnodes);
 	}
 
+      else if (!g_strcmp0 (member_name, "output")
+	       && json_node_get_node_type (subnode) == JSON_NODE_OBJECT)
+	{
+	  JsonObject *subobj = json_node_get_object (subnode);
+	  GList *subnodes = json_object_get_members (subobj);
+	  GList *sn;
+
+          for (sn = subnodes; sn != NULL; sn = sn->next)
+	    {
+              gchar *sub_member_name = (gchar *) sn->data;
+              JsonNode *sub_subnode = json_object_get_member (subobj, sub_member_name);
+
+	      if (!g_strcmp0 (sub_member_name, "name")
+		  && json_node_get_value_type (sub_subnode) == G_TYPE_STRING) /* check this is correct type */
+		output = json_node_get_string (sub_subnode);
+
+	      else if (!g_strcmp0 (sub_member_name, "is_db")
+		       && json_node_get_value_type (sub_subnode) == G_TYPE_BOOLEAN)
+		output_is_db = json_node_get_boolean (sub_subnode);
+
+	      else if (!g_strcmp0 (sub_member_name, "is_linkb")
+		       && json_node_get_value_type (sub_subnode) == G_TYPE_BOOLEAN)
+		output_is_linkb = json_node_get_boolean (sub_subnode);
+	    }
+          g_list_free (subnodes);
+	}
+
       else if (!g_strcmp0 (member_name, "map")
 	       && json_node_get_node_type (subnode) == JSON_NODE_OBJECT)
 	{
@@ -5644,9 +5684,14 @@ request_global_put_view (DSHttpdClient * client, GList * path,
        dupin_view_new (client->thread->data->dupin, path->next->data, (gchar *)parent,
 		       parent_is_db, parent_is_linkb, (gchar *)map,
 		       dupin_util_mr_lang_to_enum ((gchar *)map_lang), (gchar *)reduce,
-		       dupin_util_mr_lang_to_enum ((gchar *)reduce_lang), NULL)))
+		       dupin_util_mr_lang_to_enum ((gchar *)reduce_lang),
+		       (gchar *)output, output_is_db, output_is_linkb, &error)))
     {
-      request_set_error (client, "Cannot create view");
+      if (error)
+        {
+          request_set_error (client, error->message);
+          g_error_free (error);
+        }
       code = HTTP_STATUS_409;
       goto request_global_put_view_error;
     }

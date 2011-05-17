@@ -6,7 +6,8 @@ dupin_view_compiler - A compiler which generates Dupin views from Javascript cod
 
 =head1 SYNOPSIS
 
-   dupin_view_compiler [-v] [--parent-name parent] [--islinkb]
+   dupin_view_compiler [-v] [--parent-name parent] [--parent-islinkb]
+   			    [--output-name parent] [--output-islinkb]
 		            [--map-file file.js] [--reduce-file file.js]
 
 =head1 DESCRIPTION
@@ -18,11 +19,19 @@ Dupin REST API. Output goes to STDOUT.
 
 =item --parent-name name
 
-The name of the parent DB or LinkB.
+The name of the parent Database or Linkabse.
 
-=item --islinkb
+=item --parent-islinkb
 
 If flag is set the view is assumed to be over a Linkbase.
+
+=item --output-name name
+
+The name of the output Database or Linkbase to pipeline dupin.insert () bulks.
+
+=item --output-islinkb
+
+If flag is set the output is assumed to be a Linkbase.
 
 =item --map-file file.js
 
@@ -76,7 +85,9 @@ use Fcntl;
 my $opt_verbose;
 my $opt_help;
 my $opt_parent_name;
-my $opt_islinkb;
+my $opt_output_name;
+my $opt_parent_islinkb;
+my $opt_output_islinkb;
 my $opt_map_file;
 my $opt_reduce_file;
 
@@ -84,13 +95,15 @@ Getopt::Long::Configure ("posix_default","bundling", "no_ignore_case", "require_
 
 my $opt_params = {};
 
-my $usage = "\nUsage: $0 [-v] [--parent-name parent] [--islinkb] [--map-file file.js] [--reduce-file file.js] \n";
+my $usage = "\nUsage: $0 [-v] [--parent-name parent] [--parent-islinkb] [--output-name output] [--output-islinkb] [--map-file file.js] [--reduce-file file.js] \n";
 
 GetOptions(
    "v"   => \$opt_verbose,
    "h"   => \$opt_help,
    "parent-name=s" => \$opt_parent_name,
-   "islinkb" => \$opt_islinkb,
+   "parent-islinkb" => \$opt_parent_islinkb,
+   "output-name=s" => \$opt_output_name,
+   "output-islinkb" => \$opt_output_islinkb,
    "map-file=s" => \$opt_map_file,
    "reduce-file=s" => \$opt_reduce_file,
 ) or die $usage."\n";
@@ -153,7 +166,7 @@ if ($reduce)
     $view->{'reduce'}->{'code'} = $json->decode ($reduce);
   }
 
-if ($opt_islinkb)
+if ($opt_parent_islinkb)
   {
     $view->{'parent'}->{'is_db'} = JSON::false;
     $view->{'parent'}->{'is_linkb'} = JSON::true;
@@ -161,6 +174,21 @@ if ($opt_islinkb)
 else
   {
     $view->{'parent'}->{'is_db'} = JSON::true;
+  }
+
+if ($opt_output_name)
+  {
+    $view->{'output'}->{'name'} = $opt_output_name;
+
+    if ($opt_output_islinkb)
+      {
+        $view->{'output'}->{'is_db'} = JSON::false;
+        $view->{'output'}->{'is_linkb'} = JSON::true;
+      }
+    else
+      {
+        $view->{'output'}->{'is_db'} = JSON::true;
+      }
   }
 
 print $json->encode ($view);

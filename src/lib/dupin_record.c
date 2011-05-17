@@ -2216,8 +2216,7 @@ dupin_record_insert (DupinDB * db,
 
   /* process _links object for inline links */
 
-  if ((to_delete == FALSE)
-      && (links_node != NULL || relationships_node != NULL))
+  if (links_node != NULL || relationships_node != NULL)
     {
       GList *n, *nodes;
       gchar * context_id = (gchar *)dupin_record_get_id (record);

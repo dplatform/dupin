@@ -631,14 +631,21 @@ dupin_linkb_connect (Dupin * d, gchar * name, gchar * path,
         }
     }
 
-  if (sqlite3_exec (linkb->db, "PRAGMA temp_store = memory", NULL, NULL, &errmsg) != SQLITE_OK)
+  gchar * cache_size = g_strdup_printf ("PRAGMA cache_size = %d", DUPIN_SQLITE_CACHE_SIZE);
+  if (sqlite3_exec (linkb->db, "PRAGMA temp_store = memory", NULL, NULL, &errmsg) != SQLITE_OK
+      || sqlite3_exec (linkb->db, cache_size, NULL, NULL, &errmsg) != SQLITE_OK)
     {   
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot set pragma temp_store: %s",
                    errmsg);
       sqlite3_free (errmsg);
+      if (cache_size)
+        g_free (cache_size);
       dupin_linkb_disconnect (linkb);
       return NULL;
     }
+
+  if (cache_size)
+    g_free (cache_size);
 
   /*
    TODO - check if the below can be optimized using NORMAL or OFF and use separated syncing thread

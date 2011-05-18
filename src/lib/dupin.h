@@ -140,6 +140,7 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 
 /* wait 30 second timeout by default if "database is locked" before failing */
 #define DUPIN_SQLITE_TIMEOUT		30000
+#define DUPIN_SQLITE_CACHE_SIZE		50000
 
 /* NOTE - requests and record API common macros - to be renamed/rearranged later */
 

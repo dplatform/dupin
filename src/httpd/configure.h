@@ -67,18 +67,20 @@
 #define DS_LIMIT_CACHEMAXFILE_TAG		"CacheMaxFileSize"
 #define DS_LIMIT_MAP_MAXTHREADS_TAG 		"MapMaxThreads"
 #define DS_LIMIT_REDUCE_MAXTHREADS_TAG 		"ReduceMaxThreads"
+#define DS_LIMIT_REDUCE_TIMEOUTFORTHREAD_TAG	"ReduceTimeoutForThread"
 #define DS_LIMIT_SYNC_INTERVAL_TAG		"SyncInterval"
 #define DS_LIMIT_COMPACT_MAXTHREADS_TAG		"CompactMaxThreads"
 #define DS_LIMIT_CHECKLINKS_MAXTHREADS_TAG	"CheckLinksMaxThreads"
 
-#define DS_LIMIT_TIMEOUT_DEFAULT		5
-#define DS_LIMIT_CLIENTSFORTHREAD_DEFAULT	5
-#define DS_LIMIT_TIMEOUTFORTHREAD_DEFAULT	2
-#define DS_LIMIT_MAP_MAXTHREADS_DEFAULT		4
-#define DS_LIMIT_REDUCE_MAXTHREADS_DEFAULT	4
-#define DS_LIMIT_SYNC_INTERVAL_DEFAULT		60 /* every minute */
-#define DS_LIMIT_COMPACT_MAXTHREADS_DEFAULT	2
-#define DS_LIMIT_CHECKLINKS_MAXTHREADS_DEFAULT	2
+#define DS_LIMIT_TIMEOUT_DEFAULT			5
+#define DS_LIMIT_CLIENTSFORTHREAD_DEFAULT		5
+#define DS_LIMIT_TIMEOUTFORTHREAD_DEFAULT		2
+#define DS_LIMIT_MAP_MAXTHREADS_DEFAULT			4
+#define DS_LIMIT_REDUCE_MAXTHREADS_DEFAULT		4
+#define DS_LIMIT_REDUCE_TIMEOUTFORTHREAD_DEFAULT	10 /* timeout for g_cond_timed_wait() from map thread on view reduce/re-reduce thread*/
+#define DS_LIMIT_SYNC_INTERVAL_DEFAULT			60 /* every minute */
+#define DS_LIMIT_COMPACT_MAXTHREADS_DEFAULT		2
+#define DS_LIMIT_CHECKLINKS_MAXTHREADS_DEFAULT		2
 
 typedef enum {
   LOG_VERBOSE_ERROR,
@@ -163,6 +165,7 @@ struct ds_global_t
 
   guint         limit_map_max_threads;
   guint         limit_reduce_max_threads;
+  guint         limit_reduce_timeoutforthread;
   guint         limit_sync_interval;
 
   /* TimeVal: */

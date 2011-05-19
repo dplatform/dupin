@@ -47,11 +47,12 @@ See http://wiki.apache.org/couchdb/Introduction_to_CouchDB_views
   "  sync_rereduce             BOOL DEFAULT FALSE,\n" \
   "  output                    CHAR(255),\n" \
   "  output_isdb               BOOL DEFAULT TRUE,\n" \
-  "  output_islinkb            BOOL DEFAULT FALSE\n" \
+  "  output_islinkb            BOOL DEFAULT FALSE,\n" \
+  "  last_to_delete_id         CHAR(255) DEFAULT NULL\n" \
   ");"
 
 #define DUPIN_VIEW_SQL_INSERT \
-	"INSERT INTO Dupin (id, pid, key, obj) " \
+	"INSERT OR REPLACE INTO Dupin (id, pid, key, obj) " \
         "VALUES('%q', '%q', '%q', '%q')"
 
 #define DUPIN_VIEW_SQL_TOTAL_REREDUCE \
@@ -63,6 +64,8 @@ See http://wiki.apache.org/couchdb/Introduction_to_CouchDB_views
 #define VIEW_SYNC_COUNT	100
 
 static gchar *dupin_view_generate_id (DupinView * view);
+
+static int dupin_view_record_delete_cb (void *data, int argc, char **argv, char **col);
 
 gchar **
 dupin_get_views (Dupin * d)
@@ -604,6 +607,17 @@ dupin_view_p_record_insert (DupinViewP * p, gchar * id,
     }
 }
 
+static int
+dupin_view_p_record_delete_cb (void *data, int argc, char **argv, char **col)
+{
+  gchar **last_to_delete_id = data;
+
+  if (argv[0] && *argv[0])
+    *last_to_delete_id = g_strdup (argv[0]);
+
+  return 0;
+}
+
 void
 dupin_view_p_record_delete (DupinViewP * p, gchar * pid)
 {
@@ -703,9 +717,101 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
 
   if (sqlite3_exec (view->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
     {
+      g_mutex_unlock (view->mutex);
+
       g_error("dupin_view_record_save_map: %s", errmsg);
       sqlite3_free (errmsg);
+
+      g_free ((gchar *)id);
+      g_free (node_serialized);
+      if (key_serialized)
+        g_free (key_serialized);
+
+      sqlite3_free (tmp);
+      dupin_view_rollback_transaction (view, NULL);
+
+      return;
     }
+
+   /* NOTE - get last_to_delete if there and delete it */
+
+   gchar * query = "SELECT last_to_delete_id as c FROM DupinView LIMIT 1";
+
+   gchar * last_to_delete_id = NULL;
+   if (sqlite3_exec (view->db, query, dupin_view_p_record_delete_cb, &last_to_delete_id, &errmsg) != SQLITE_OK)
+     {
+      g_mutex_unlock (view->mutex);
+
+      g_error("dupin_view_record_save_map: %s", errmsg);
+      sqlite3_free (errmsg);
+
+      g_free ((gchar *)id);
+      g_free (node_serialized);
+      if (key_serialized)
+        g_free (key_serialized);
+
+      sqlite3_free (tmp);
+      dupin_view_rollback_transaction (view, NULL);
+
+      return;
+     }
+
+  sqlite3_free (tmp);
+
+  if (last_to_delete_id != NULL
+      && g_strcmp0(last_to_delete_id,"(NULL)") && g_strcmp0(last_to_delete_id,"null") )
+    {
+      /* DELETE + UPDATE */
+
+      tmp = sqlite3_mprintf ("DELETE FROM Dupin WHERE ROWID = %q", last_to_delete_id);
+
+      if (sqlite3_exec (view->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
+        {
+          g_mutex_unlock (view->mutex);
+
+          g_error("dupin_view_record_save_map: %s", errmsg);
+          sqlite3_free (errmsg);
+
+          g_free ((gchar *)id);
+          g_free (node_serialized);
+          if (key_serialized)
+            g_free (key_serialized);
+
+          sqlite3_free (tmp);
+          dupin_view_rollback_transaction (view, NULL);
+
+          g_free (last_to_delete_id);
+
+          return;
+        }
+
+      sqlite3_free (tmp);
+
+      query = "UPDATE DupinView SET last_to_delete_id = NULL";
+
+      if (sqlite3_exec (view->db, query, NULL, NULL, &errmsg) != SQLITE_OK)
+        {
+          g_mutex_unlock (view->mutex);
+
+          g_error("dupin_view_record_save_map: %s", errmsg);
+          sqlite3_free (errmsg);
+
+          g_free ((gchar *)id);
+          g_free (node_serialized);
+          if (key_serialized)
+            g_free (key_serialized);
+
+          sqlite3_free (tmp);
+          dupin_view_rollback_transaction (view, NULL);
+
+          g_free (last_to_delete_id);
+
+          return;
+        }
+    }
+ 
+  if (last_to_delete_id != NULL)
+    g_free (last_to_delete_id);
 
   if (dupin_view_commit_transaction (view, NULL) < 0)
     {
@@ -715,14 +821,11 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
       if (key_serialized)
         g_free (key_serialized);
 
-      sqlite3_free (tmp);
-
       return;
     }
 
   g_mutex_unlock (view->mutex);
 
-  sqlite3_free (tmp);
   g_free (node_serialized);
   if (key_serialized)
     g_free (key_serialized);
@@ -750,16 +853,38 @@ dupin_view_generate_id (DupinView * view)
   return g_strdup (id);
 }
 
+static int
+dupin_view_record_delete_cb (void *data, int argc, char **argv, char **col)
+{
+  gsize *numb = data;
+
+  if (argv[0] && *argv[0])
+    *numb = atoi(argv[0]);
+
+  return 0;
+}
+
 void
 dupin_view_record_delete (DupinView * view, gchar * pid)
 {
   gchar *query;
   gchar *errmsg;
 
+  gsize max_rowid;
+
+  if (dupin_view_record_get_max_rowid (view, &max_rowid) == FALSE)
+    {
+      return;
+    }
+
+  gchar * max_rowid_str = g_strdup_printf ("%d", (gint)max_rowid);
+
   /* NOTE - hack to avoid to keep another table and be able to delete entries
             from a view generated from multiple input documents */
      
-  query = sqlite3_mprintf ("DELETE FROM Dupin WHERE pid LIKE '%%\"%q\"%%' ;", pid); /* TODO - might need double %% to escape % for mprintf */
+  /* NOTE - we never delete the last record of the SQLite database to avoi d ROWID recycling */
+
+  query = sqlite3_mprintf ("DELETE FROM Dupin WHERE ROWID < %q AND pid LIKE '%%\"%q\"%%' ;", max_rowid_str, pid);
 
 //g_message("dupin_view_record_delete() query=%s\n",query);
 
@@ -769,6 +894,7 @@ dupin_view_record_delete (DupinView * view, gchar * pid)
     {
       g_mutex_unlock (view->mutex);
 
+      g_free (max_rowid_str);
       sqlite3_free (query);
 
       return;
@@ -776,22 +902,72 @@ dupin_view_record_delete (DupinView * view, gchar * pid)
 
   if (sqlite3_exec (view->db, query, NULL, NULL, &errmsg) != SQLITE_OK)
     {
-      g_error("dupin_view_record_delete: %s", errmsg);
-      sqlite3_free (errmsg);
-    }
-
-  if (dupin_view_commit_transaction (view, NULL) < 0)
-    {
       g_mutex_unlock (view->mutex);
 
+      g_error("dupin_view_record_delete: %s", errmsg);
+      sqlite3_free (errmsg);
+
+      dupin_view_rollback_transaction (view, NULL);
+      g_free (max_rowid_str);
       sqlite3_free (query);
 
       return;
     }
 
-  g_mutex_unlock (view->mutex);
+  sqlite3_free (query);
+
+  /* NOTE - check if last one needs to be deleted after next / future insert */
+  gsize count=0;
+
+  query = sqlite3_mprintf ("SELECT count(*) FROM Dupin WHERE ROWID = %q AND pid LIKE '%%\"%q\"%%' ;", max_rowid_str, pid);
+
+  if (sqlite3_exec (view->db, query, dupin_view_record_delete_cb, &count, &errmsg) != SQLITE_OK)
+    {
+      g_mutex_unlock (view->mutex);
+
+      g_error("dupin_view_record_delete: %s", errmsg);
+      sqlite3_free (errmsg);
+
+      dupin_view_rollback_transaction (view, NULL);
+      g_free (max_rowid_str);
+      sqlite3_free (query);
+
+      return;
+    }
 
   sqlite3_free (query);
+
+  if (count == 1)
+    {
+      query = sqlite3_mprintf ("UPDATE DupinView SET last_to_delete_id = '%q'", max_rowid_str);
+
+      if (sqlite3_exec (view->db, query, NULL, NULL, &errmsg) != SQLITE_OK)
+        {
+          g_mutex_unlock (view->mutex);
+
+          g_error("dupin_view_record_delete: %s", errmsg);
+          sqlite3_free (errmsg);
+
+          dupin_view_rollback_transaction (view, NULL);
+          g_free (max_rowid_str);
+          sqlite3_free (query);
+
+          return;
+        }
+
+      sqlite3_free (query);
+    }
+
+  g_free (max_rowid_str);
+
+  if (dupin_view_commit_transaction (view, NULL) < 0)
+    {
+      g_mutex_unlock (view->mutex);
+
+      return;
+    }
+
+  g_mutex_unlock (view->mutex);
 
   /* NOTE - delete operations do not need re-index and call map/reduce due we use PIDs of DB
             or views to delete record in view which where accefted by record delete */
@@ -1983,7 +2159,9 @@ dupin_view_sync_record_update (DupinView * view, gchar * previous_rowid, gint re
   gchar *replace_rowid_str=NULL;
   replace_rowid_str = g_strdup_printf ("%d", (gint)replace_rowid);
 
-/* TODO - escape keys due we do not catch erros below !!!!! */
+  /* TODO - escape keys due we do not catch erros below !!!!! */
+
+  /* NOTE - we never delete the last record of the SQLite database to avoi d ROWID recycling */
 
   query = sqlite3_mprintf ("DELETE FROM Dupin WHERE key='%q' AND ROWID > %q AND ROWID < %q ;",
 				key,
@@ -2465,7 +2643,7 @@ dupin_view_sync_map_func (gpointer data, gpointer user_data)
 
       if (view->reduce != NULL)
         {
-//g_message("dupin_view_sync_map_func(%p) Mapped %d records\n", g_thread_self (), (gint)view->sync_map_processed_count);
+//g_message("dupin_view_sync_map_func(%p) Mapped %d records - sending signal to reduce thread (%p)\n", g_thread_self (), (gint)view->sync_map_processed_count, view->sync_reduce_thread);
 
           g_mutex_lock (view->mutex);
 	  g_cond_signal(view->sync_map_has_new_work);
@@ -2494,6 +2672,8 @@ dupin_view_sync_map_func (gpointer data, gpointer user_data)
   /* NOTE - make sure reduce thread can terminate too eventually */
   if (view->reduce != NULL)
     {
+//g_message("dupin_view_sync_map_func(%p) Sending signal to reduce thread (%p)\n", g_thread_self (), view->sync_reduce_thread);
+
       g_mutex_lock (view->mutex);
       g_cond_signal(view->sync_map_has_new_work);
       g_mutex_unlock (view->mutex);
@@ -2529,6 +2709,9 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
   gchar * query;
   gchar * errmsg;
   struct dupin_view_sync_total_rereduce_t rere_matching;
+
+  GTimeVal endtime = {0,0};
+  gboolean reduce_wait_timed_out;
 
   DupinView * view = (DupinView*) data;
 
@@ -2580,8 +2763,26 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
       if (rereduce == FALSE
 	  && view->sync_map_thread)
         {
+//g_message("dupin_view_sync_reduce_func(%p) Going to wait for signal from map thread (%p)\n", g_thread_self (), view->sync_map_thread);
+
+	  /* NOTE - wait for message for a maximum of limit_reduce_timeoutforthread seconds */
+
+	  /* TODO - check if FreeBSD, Apple and Win32 platforms need special care
+		    see for example http://skype4pidgin.googlecode.com/svn/trunk/skype_messaging.c */
+
           g_mutex_lock (view->mutex);
-          g_cond_wait(view->sync_map_has_new_work, view->mutex);
+
+	  g_get_current_time(&endtime);
+	  g_time_val_add(&endtime, view->d->conf->limit_reduce_timeoutforthread * G_USEC_PER_SEC);
+	  reduce_wait_timed_out = g_cond_timed_wait (view->sync_map_has_new_work, view->mutex, &endtime);
+
+	  if (reduce_wait_timed_out == FALSE)
+	    {
+//g_message("dupin_view_sync_reduce_func(%p) waiting for signal from %p timeout after %d seconds\n", g_thread_self (), view->sync_map_thread, view->d->conf->limit_reduce_timeoutforthread);
+	    }
+
+//g_message("dupin_view_sync_reduce_func(%p) CONTINUE after wait\n", g_thread_self ());
+
           g_mutex_unlock (view->mutex);
         }
 
@@ -2631,14 +2832,27 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
                 {
 		  g_warning("dupin_view_sync_reduce_func: rereduce of key %s reported problems - bad records have been deleted\n", rere_matching.first_matching_key);
 
+		  gsize max_rowid;
+
+  		  if (dupin_view_record_get_max_rowid (view, &max_rowid) == FALSE)
+                    {
+      		      break;
+    		    }
+
+  		  gchar * max_rowid_str = g_strdup_printf ("%d", (gint)max_rowid);
+
 		  /* NOTE - delete records giving problems */
-                  gchar * str = sqlite3_mprintf ("DELETE FROM Dupin WHERE key='%q' ;", rere_matching.first_matching_key);
+
+  		  /* NOTE - we never delete the last record of the SQLite database to avoi d ROWID recycling */
+
+                  gchar * str = sqlite3_mprintf ("DELETE FROM Dupin WHERE ROWID < %q AND key='%q' ;", max_rowid_str, rere_matching.first_matching_key);
 
                   g_mutex_lock (view->mutex);
 
 		  if (dupin_view_begin_transaction (view, NULL) < 0)
 		    {
 		      g_mutex_unlock (view->mutex);
+
       		      sqlite3_free (str);
 
       		      break;
@@ -2647,13 +2861,62 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
                   if (sqlite3_exec (view->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
                     {
                       g_mutex_unlock (view->mutex);
-                      sqlite3_free (str);
 
                       g_error("dupin_view_sync_reduce_func: %s", errmsg);
                       sqlite3_free (errmsg);
 
+                      dupin_view_rollback_transaction (view, NULL);
+                      g_free (max_rowid_str);
+                      sqlite3_free (str);
+
                       break;
                     }
+
+                  sqlite3_free (str);
+
+  		  /* NOTE - check if last one needs to be deleted after next / future insert */
+  		  gsize count=0;
+
+  		  str = sqlite3_mprintf ("SELECT count(*) FROM Dupin WHERE ROWID = %q AND key='%q' ;", max_rowid_str, rere_matching.first_matching_key);
+
+  		  if (sqlite3_exec (view->db, str, dupin_view_record_delete_cb, &count, &errmsg) != SQLITE_OK)
+    		    {
+                      g_mutex_unlock (view->mutex);
+
+                      g_error("dupin_view_sync_reduce_func: %s", errmsg);
+                      sqlite3_free (errmsg);
+
+                      dupin_view_rollback_transaction (view, NULL);
+                      g_free (max_rowid_str);
+                      sqlite3_free (str);
+
+                      break;
+    		    }
+
+  		  sqlite3_free (str);
+
+  		  if (count == 1)
+    		    {
+		      str = sqlite3_mprintf ("UPDATE DupinView SET last_to_delete_id = '%q'", max_rowid_str);
+
+      		      if (sqlite3_exec (view->db, query, NULL, NULL, &errmsg) != SQLITE_OK)
+		        {
+                          g_mutex_unlock (view->mutex);
+
+                          g_error("dupin_view_sync_reduce_func: %s", errmsg);
+                          sqlite3_free (errmsg);
+
+                          dupin_view_rollback_transaction (view, NULL);
+                          g_free (max_rowid_str);
+                          sqlite3_free (str);
+
+                          break;
+        		}
+
+      		      sqlite3_free (str);
+		    }
+
+  		  g_free (max_rowid_str);
 
 		  if (dupin_view_commit_transaction (view, NULL) < 0)
 		    {
@@ -2771,6 +3034,10 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
   g_mutex_unlock (view->mutex);
 
   g_mutex_lock (view->mutex);
+  view->tosync = FALSE;
+  g_mutex_unlock (view->mutex);
+
+  g_mutex_lock (view->mutex);
   view->sync_reduce_thread = NULL;
   g_mutex_unlock (view->mutex);
 
@@ -2817,11 +3084,17 @@ dupin_view_is_syncing (DupinView * view)
 {
   g_return_val_if_fail (view != NULL, FALSE);
 
+  gboolean ret = FALSE;
+
+  g_mutex_lock (view->mutex);
+
   if (view->sync_map_thread
       || view->sync_reduce_thread)
-    return TRUE;
+    ret = TRUE;
 
-  return FALSE;
+  g_mutex_unlock (view->mutex);
+
+  return ret;
 }
 
 gboolean

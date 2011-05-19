@@ -777,6 +777,19 @@ configure_limit_parser (xmlDocPtr xml, DSGlobal * data, GError ** error)
 			}
 		    }
 
+		  /* ReduceTimeoutForThread: */
+		  else
+		    if (!xmlStrcmp
+			(cur->name,
+			 (xmlChar *) DS_LIMIT_REDUCE_TIMEOUTFORTHREAD_TAG))
+		    {
+		      if ((tmp = xmlNodeGetContent (cur)))
+			{
+			  data->limit_reduce_timeoutforthread = atoi ((char *) tmp);
+			  xmlFree (tmp);
+			}
+		    }
+
 		  /* SyncInterval: */
 		  else
 		    if (!xmlStrcmp
@@ -833,6 +846,9 @@ configure_limit_parser (xmlDocPtr xml, DSGlobal * data, GError ** error)
 
   if (!data->limit_reduce_max_threads)
     data->limit_reduce_max_threads = DS_LIMIT_REDUCE_MAXTHREADS_DEFAULT;
+
+  if (!data->limit_reduce_timeoutforthread)
+    data->limit_reduce_timeoutforthread = DS_LIMIT_REDUCE_TIMEOUTFORTHREAD_DEFAULT;
 
   if (!data->limit_sync_interval)
     data->limit_sync_interval = DS_LIMIT_SYNC_INTERVAL_DEFAULT;

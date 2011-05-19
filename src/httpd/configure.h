@@ -77,7 +77,7 @@
 #define DS_LIMIT_TIMEOUTFORTHREAD_DEFAULT		2
 #define DS_LIMIT_MAP_MAXTHREADS_DEFAULT			4
 #define DS_LIMIT_REDUCE_MAXTHREADS_DEFAULT		4
-#define DS_LIMIT_REDUCE_TIMEOUTFORTHREAD_DEFAULT	10 /* timeout for g_cond_timed_wait() from map thread on view reduce/re-reduce thread*/
+#define DS_LIMIT_REDUCE_TIMEOUTFORTHREAD_DEFAULT	2 /* timeout for g_cond_timed_wait() from map thread on view reduce/re-reduce thread*/
 #define DS_LIMIT_SYNC_INTERVAL_DEFAULT			60 /* every minute */
 #define DS_LIMIT_COMPACT_MAXTHREADS_DEFAULT		2
 #define DS_LIMIT_CHECKLINKS_MAXTHREADS_DEFAULT		2

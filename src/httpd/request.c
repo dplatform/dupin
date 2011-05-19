@@ -3728,6 +3728,9 @@ request_global_get_view (DSHttpdClient * client, GList * path,
   json_object_set_int_member (obj, "doc_count", dupin_view_count (view));
   json_object_set_int_member (obj, "disk_size", dupin_view_get_size (view));
   json_object_set_boolean_member (obj, "sync", dupin_view_is_sync (view));
+  json_object_set_boolean_member (obj, "sync_running", dupin_view_is_syncing (view));
+  json_object_set_boolean_member (obj, "sync_map_running", (view->sync_map_thread) ? TRUE : FALSE);
+  json_object_set_boolean_member (obj, "sync_reduce_running", (view->sync_reduce_thread) ? TRUE : FALSE);
 
   /* Writing: */
   node = json_node_new (JSON_NODE_OBJECT);
@@ -3750,6 +3753,10 @@ request_global_get_view (DSHttpdClient * client, GList * path,
 
   client->output_mime = g_strdup (HTTP_MIME_JSON);
   client->output_type = DS_HTTPD_OUTPUT_STRING;
+
+  /* NOTE - helper, trigger view update at first access - sync: flase will need refresh from user */
+
+  dupin_view_sync (view);
 
   if (gen != NULL)
     g_object_unref (gen);

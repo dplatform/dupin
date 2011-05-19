@@ -1814,6 +1814,10 @@ request_global_get_record (DSHttpdClient * client, GList * path,
   gboolean descending = FALSE;
   guint count = DUPIN_REVISIONS_COUNT;
   guint offset = 0;
+
+  gboolean attachments_descending = FALSE;
+  guint attachments_count = DUPIN_ATTACHMENTS_COUNT;
+  guint attachments_offset = 0;
   
   JsonNode *node=NULL;
 
@@ -1987,6 +1991,7 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 
       if (title == NULL)
         {
+          dupin_record_close (record);
           dupin_database_unref (db);
           dupin_attachment_db_unref (attachment_db);
           g_free (doc_id);
@@ -1998,6 +2003,7 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 
       if ( dupin_attachment_record_exists (attachment_db, doc_id, title) == FALSE)
         {
+          dupin_record_close (record);
           g_free (title);
           dupin_database_unref (db);
           dupin_attachment_db_unref (attachment_db);
@@ -2011,6 +2017,7 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 							       NULL)))
 	  || (dupin_attachment_record_blob_open (client->output.blob.record) == FALSE))
         {
+          dupin_record_close (record);
           g_free (title);
           dupin_database_unref (db);
           dupin_attachment_db_unref (attachment_db);
@@ -2023,6 +2030,7 @@ request_global_get_record (DSHttpdClient * client, GList * path,
       client->output_mime = g_strdup (dupin_attachment_record_get_type (client->output.blob.record));
       client->output_size = dupin_attachment_record_get_length (client->output.blob.record);
 
+      dupin_record_close (record);
       g_free (title);
       dupin_database_unref (db);
       dupin_attachment_db_unref (attachment_db);
@@ -2062,6 +2070,16 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_OFFSET))
 	offset = atoi (kv->value);
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_ATTACHMENTS_DESCENDING)
+	       && !g_strcmp0 (kv->value, "true"))
+	attachments_descending = TRUE;
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_ATTACHMENTS_COUNT))
+	attachments_count = atoi (kv->value);
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_ATTACHMENTS_OFFSET))
+	attachments_offset = atoi (kv->value);
 
     }
 
@@ -2232,8 +2250,11 @@ request_global_get_record (DSHttpdClient * client, GList * path,
     {
       JsonObject * attachments_obj = json_object_new ();
 
-      if (dupin_attachment_record_get_list (attachment_db, DUPIN_ATTACHMENTS_COUNT,
-					    0, 1, 0, DP_ORDERBY_TITLE, FALSE,
+      gsize total_attachments = dupin_attachment_record_get_list_total (attachment_db, 1, 0,
+									(gchar *) dupin_record_get_id (record), NULL, NULL, TRUE, NULL);
+
+      if (dupin_attachment_record_get_list (attachment_db, attachments_count,
+					    attachments_offset, 1, 0, DP_ORDERBY_TITLE, attachments_descending,
 					    (gchar *) dupin_record_get_id (record), NULL, NULL, TRUE,
 					    &results, NULL) == FALSE)
         {
@@ -2267,6 +2288,18 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 	    }
 
           json_object_set_member (attachments_obj, dupin_attachment_record_get_title (list->data), attachment_node);
+       }
+
+     if (json_object_get_size (attachments_obj) > 0
+         && json_object_has_member (attachments_obj, RESPONSE_OBJ_ATTACHMENTS_PAGING) == FALSE)
+       {
+         JsonNode * paging_info_node = json_node_new (JSON_NODE_OBJECT);
+         JsonObject * paging_info = json_object_new ();
+	 json_node_take_object (paging_info_node, paging_info);
+         json_object_set_int_member (paging_info, "total_attachments", total_attachments);
+	 json_object_set_int_member (paging_info, "offset", attachments_offset);
+	 json_object_set_int_member (paging_info, "attachments_per_document", attachments_count);
+	 json_object_set_member (attachments_obj, RESPONSE_OBJ_ATTACHMENTS_PAGING, paging_info_node);
        }
      dupin_attachment_record_get_list_close (results);
 

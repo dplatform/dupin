@@ -356,95 +356,6 @@ dupin_attachment_record_get_aggregated_hash_real (DupinAttachmentDB * attachment
 }
 
 static int
-dupin_attachment_record_get_total_records_cb (void *data, int argc, char **argv,
-				  char **col)
-{
-  gsize *numb = data;
-
-  if (argv[0])
-    *numb = atoi (argv[0]);
-
-  return 0;
-}
-
-/* NOTE - bear in mind SQLite might be able to store more than gsize total records
-          see also ROWID and http://www.sqlite.org/autoinc.html */
-
-gboolean
-dupin_attachment_record_get_total_records (DupinAttachmentDB * attachment_db,
-				    gsize * total,
-                                    gchar * id,
-				    gchar * start_title,
-                                    gchar * end_title,
-			    	    gboolean inclusive_end,
-                                    GError ** error)
-{
-  g_return_val_if_fail (attachment_db != NULL, FALSE);
-  g_return_val_if_fail (id != NULL, FALSE);
-
-  gchar *errmsg;
-  gchar *tmp;
-  GString *str;
-
-  *total = 0;
-
-  gchar * title_range=NULL;
-
-  str = g_string_new (DUPIN_ATTACHMENT_DB_SQL_TOTAL);
-
-  if (start_title!=NULL && end_title!=NULL)
-    if (!g_utf8_collate (start_title, end_title) && inclusive_end == TRUE)
-      title_range = sqlite3_mprintf (" d.title = '%q' ", start_title);
-    else if (inclusive_end == TRUE)
-      title_range = sqlite3_mprintf (" d.title >= '%q' AND d.title <= '%q' ", start_title, end_title);
-    else
-      title_range = sqlite3_mprintf (" d.title >= '%q' AND d.title < '%q' ", start_title, end_title);
-  else if (start_title!=NULL)
-    {
-      title_range = sqlite3_mprintf (" d.title >= '%q' ", start_title);
-    }
-  else if (end_title!=NULL)
-    {
-      if (inclusive_end == TRUE)
-        title_range = sqlite3_mprintf (" d.title <= '%q' ", end_title);
-      else
-        title_range = sqlite3_mprintf (" d.title < '%q' ", end_title);
-    }
-
-  if (title_range!=NULL)
-    g_string_append_printf (str, " WHERE %s ", (title_range!=NULL) ? title_range : "");
-
-  tmp = g_string_free (str, FALSE);
- 
-//g_message("dupin_attachment_record_get_total_records() query=%s\n",tmp);
-
-  if (title_range!=NULL)
-    sqlite3_free (title_range);
-
-  g_mutex_lock (attachment_db->mutex);
-
-  if (sqlite3_exec (attachment_db->db, tmp, dupin_attachment_record_get_total_records_cb, total, &errmsg) != SQLITE_OK)
-    {
-      g_mutex_unlock (attachment_db->mutex);
-
-      g_free (tmp);
-
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
-                   errmsg);
-
-      sqlite3_free (errmsg);
-
-      return FALSE;
-    }
-
-  g_mutex_unlock (attachment_db->mutex);
-
-  g_free (tmp);
-
-  return TRUE;
-}
-
-static int
 dupin_attachment_record_read_cb (void *data, int argc, char **argv, char **col)
 {
   DupinAttachmentRecord *record = data;
@@ -538,6 +449,107 @@ dupin_attachment_record_read_real (DupinAttachmentDB * attachment_db,
     }
 
   return record;
+}
+
+static int
+dupin_attachment_record_get_list_total_cb (void *data, int argc, char **argv, char **col)
+{
+  gsize *numb = data;
+
+  if (argv[0] && *argv[0])
+    *numb = atoi(argv[0]);
+
+  return 0;
+}
+
+gsize
+dupin_attachment_record_get_list_total (DupinAttachmentDB * attachment_db,
+			    		gsize rowid_start, gsize rowid_end,
+                            	        gchar * id,
+			    		gchar * start_title,
+			    		gchar * end_title,
+			    		gboolean inclusive_end,
+			    		GError ** error)
+{
+  gsize count = 0;
+  GString *str;
+  gchar *tmp;
+  gchar *errmsg;
+
+  gchar * id_range=NULL;
+  gchar * title_range=NULL;
+
+  g_return_val_if_fail (attachment_db != NULL, 0);
+  g_return_val_if_fail (id != NULL, 0);
+
+  str = g_string_new ("SELECT count(*) FROM Dupin as d");
+
+  id_range = sqlite3_mprintf (" d.id = '%q' ", id);
+
+  if (start_title!=NULL && end_title!=NULL)
+    if (!g_utf8_collate (start_title, end_title) && inclusive_end == TRUE)
+      title_range = sqlite3_mprintf (" d.title = '%q' ", start_title);
+    else if (inclusive_end == TRUE)
+      title_range = sqlite3_mprintf (" d.title >= '%q' AND d.title <= '%q' ", start_title, end_title);
+    else
+      title_range = sqlite3_mprintf (" d.title >= '%q' AND d.title < '%q' ", start_title, end_title);
+  else if (start_title!=NULL)
+    {
+      title_range = sqlite3_mprintf (" d.title >= '%q' ", start_title);
+    }
+  else if (end_title!=NULL)
+    {
+      if (inclusive_end == TRUE)
+        title_range = sqlite3_mprintf (" d.title <= '%q' ", end_title);
+      else
+        title_range = sqlite3_mprintf (" d.title < '%q' ", end_title);
+    }
+
+  g_string_append_printf (str, " WHERE %s ", id_range);
+
+  if (rowid_start > 0 && rowid_end > 0)
+    g_string_append_printf (str, " %s %s AND d.ROWID >= %d AND d.ROWID <= %d ",
+					(title_range!=NULL) ? "AND" : "", (title_range!=NULL) ? title_range : "",
+					(gint)rowid_start, (gint)rowid_end);
+  else if (rowid_start > 0)
+    g_string_append_printf (str, " %s %s AND d.ROWID >= %d ",
+					(title_range!=NULL) ? "AND" : "", (title_range!=NULL) ? title_range : "",
+					(gint)rowid_start);
+  else if (rowid_end > 0)
+    g_string_append_printf (str, " %s %s AND d.ROWID <= %d ",
+					(title_range!=NULL) ? "AND" : "", (title_range!=NULL) ? title_range : "",
+					(gint)rowid_end);
+  else if (title_range!=NULL)
+    g_string_append_printf (str, " AND %s ", title_range);
+
+  tmp = g_string_free (str, FALSE);
+ 
+  sqlite3_free (id_range);
+  if (title_range!=NULL)
+    sqlite3_free (title_range);
+
+//g_message("dupin_attachment_record_get_list_total() query=%s\n",tmp);
+
+  g_mutex_lock (attachment_db->mutex);
+
+  if (sqlite3_exec (attachment_db->db, tmp, dupin_attachment_record_get_list_total_cb, &count, &errmsg)
+      != SQLITE_OK)
+    {
+      g_mutex_unlock (attachment_db->mutex);
+
+      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
+		   errmsg);
+
+      sqlite3_free (errmsg);
+      g_free (tmp);
+      return 0;
+    }
+
+  g_mutex_unlock (attachment_db->mutex);
+
+  g_free (tmp);
+
+  return count;
 }
 
 struct dupin_attachment_record_get_list_t

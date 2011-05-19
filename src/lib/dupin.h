@@ -267,6 +267,11 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 #define REQUEST_GET_ALL_DOCS_COUNT                "count"
 #define REQUEST_GET_ALL_DOCS_OFFSET               "offset"
 
+#define REQUEST_GET_ALL_ATTACHMENTS_DESCENDING  "attachments_descending"
+#define REQUEST_GET_ALL_ATTACHMENTS_COUNT       "attachments_count"
+#define REQUEST_GET_ALL_ATTACHMENTS_OFFSET      "attachments_offset"
+#define RESPONSE_OBJ_ATTACHMENTS_PAGING		RESPONSE_OBJ_LINKS_PAGING
+
 #define REQUEST_GET_ALL_DOCS_KEY                  "key"
 #define REQUEST_GET_ALL_DOCS_STARTKEY             "startkey"
 #define REQUEST_GET_ALL_DOCS_ENDKEY               "endkey"

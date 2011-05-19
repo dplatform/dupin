@@ -38,22 +38,23 @@ DupinAttachmentRecord *
                                 	 gchar *        title,
 					 GError **		error);
 
-/* get total of records into attachment_db */
-gboolean        dupin_attachment_record_get_total_records
-					(DupinAttachmentDB * attachment_db,
-                                         gsize * total,
-                                         gchar * id,
-                                         gchar * start_title,
-                                         gchar * end_title,
-                                         gboolean inclusive_end,
-					 GError **		error);
-
 /* get max rowid for attachment_db DB */
 gboolean        dupin_attachment_record_get_max_rowid
 					(DupinAttachmentDB * attachment_db,
 					 gsize * max_rowid);
 
 /* List of DupinAttachmentRecord: */
+
+gsize		dupin_attachment_record_get_list_total
+					(DupinAttachmentDB * attachment_db,
+                                         gsize rowid_start,
+					 gsize rowid_end,
+                                         gchar * id,
+                                         gchar * start_title,
+                                         gchar * end_title,
+                                         gboolean inclusive_end,
+					 GError ** error);
+
 gboolean	dupin_attachment_record_get_list
 					(DupinAttachmentDB * attachment_db,
 					 guint count,

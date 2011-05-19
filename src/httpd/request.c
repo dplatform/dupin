@@ -3668,11 +3668,6 @@ request_global_get_view (DSHttpdClient * client, GList * path,
       return HTTP_STATUS_404;
     }
 
-  /* NOTE - helper, trigger view update at first access - sync: flase will need refresh from user 
-	    internally we do check if already runnning, so this is not run if already running */
-
-  dupin_view_sync (view);
-
   obj = json_object_new ();
 
   if (obj == NULL)

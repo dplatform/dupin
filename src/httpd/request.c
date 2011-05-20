@@ -7132,6 +7132,8 @@ request_record_revision_obj (DSHttpdClient * client,
       gsize include_links_created = 0;
       DupinCreatedType include_links_created_op = DP_CREATED_SINCE;
 
+      gint include_linked_docs_level = DUPIN_INCLUDE_DEFAULT_LEVEL;
+
       for (list = arguments; list; list = list->next)
         {
           dupin_keyvalue_t *kv = list->data;
@@ -7282,6 +7284,16 @@ request_record_revision_obj (DSHttpdClient * client,
            {
              include_links_filter_values = kv->value;
            }
+
+         else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_INCLUDE_LINKED_DOCS_LEVEL))
+            {
+              include_linked_docs_level = (gint) atoi (kv->value);
+
+              if (include_linked_docs_level > DUPIN_INCLUDE_MAX_LEVEL)
+                {
+                  include_linked_docs_level = DUPIN_INCLUDE_MAX_LEVEL;
+                }
+            }
         }
 
       if (include_links_type != DP_LINK_TYPE_NONE
@@ -7322,7 +7334,7 @@ request_record_revision_obj (DSHttpdClient * client,
 
 	  if ((include_links_type == DP_LINK_TYPE_ANY
 	       || include_links_type == DP_LINK_TYPE_WEB_LINK)
-		&& client->request_included_links_level <= DUPIN_INCLUDE_LINKS_MAX_LEVEL)
+		&& client->request_included_links_level <= include_linked_docs_level)
             {
 	      JsonNode * links_node = json_node_new (JSON_NODE_OBJECT);
 	      JsonObject * links_obj = json_object_new ();
@@ -7418,7 +7430,7 @@ request_record_revision_obj_relationships:
 
 	  if ((include_links_type == DP_LINK_TYPE_ANY
 	       || include_links_type == DP_LINK_TYPE_RELATIONSHIP)
-		&& client->request_included_links_level <= DUPIN_INCLUDE_LINKS_MAX_LEVEL)
+		&& client->request_included_links_level <= include_linked_docs_level)
             {
 	      JsonNode * relationships_node = json_node_new (JSON_NODE_OBJECT);
 	      JsonObject * relationships_obj = json_object_new ();
@@ -7678,7 +7690,7 @@ request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
       && arguments != NULL)
     {
       DupinLinkbaseIncludeDocsType include_linked_docs = DP_LINKBASE_INCLUDE_DOC_TYPE_NONE;
-      gint include_linked_docs_level = DUPIN_INCLUDE_DOCS_DEFAULT_LEVEL;
+      gint include_linked_docs_level = DUPIN_INCLUDE_DEFAULT_LEVEL;
 
       for (list = arguments; list; list = list->next)
         {
@@ -7716,9 +7728,9 @@ request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
             {
 	      include_linked_docs_level = (gint) atoi (kv->value);
 
-              if (include_linked_docs_level > DUPIN_INCLUDE_DOCS_MAX_LEVEL)
+              if (include_linked_docs_level > DUPIN_INCLUDE_MAX_LEVEL)
                 {
-	          include_linked_docs_level = DUPIN_INCLUDE_DOCS_MAX_LEVEL;
+	          include_linked_docs_level = DUPIN_INCLUDE_MAX_LEVEL;
                 }
 	    }
         }
@@ -7889,7 +7901,7 @@ request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
 
             if ((include_linked_docs == DP_LINKBASE_INCLUDE_DOC_TYPE_IN
 		 || include_linked_docs == DP_LINKBASE_INCLUDE_DOC_TYPE_ALL)
-		&& client->request_included_links_level <= DUPIN_INCLUDE_LINKS_MAX_LEVEL)
+		&& client->request_included_links_level <= include_linked_docs_level)
               {
                 link_id_record = dupin_link_record_read (parent_linkb, context_id, NULL);
 
@@ -7941,7 +7953,7 @@ request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
                 && dupin_link_record_is_reflexive (record) == FALSE
 		&& (include_linked_docs == DP_LINKBASE_INCLUDE_DOC_TYPE_OUT
 		    || include_linked_docs == DP_LINKBASE_INCLUDE_DOC_TYPE_ALL)
-		&& client->request_included_links_level <= DUPIN_INCLUDE_LINKS_MAX_LEVEL)
+		&& client->request_included_links_level <= include_linked_docs_level)
               {
 		link_id_record = NULL;
                 link_id_record = dupin_link_record_read (parent_linkb, href, NULL);

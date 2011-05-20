@@ -220,8 +220,10 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 #define DUPIN_REVISIONS_COUNT       100
 #define DUPIN_DB_MAX_CHANGES_COUNT  100
 
-#define DUPIN_INCLUDE_DOCS_MAX_LEVEL	1	
-#define DUPIN_INCLUDE_LINKS_MAX_LEVEL	1
+#define DUPIN_INCLUDE_DOCS_DEFAULT_LEVEL	1	
+#define DUPIN_INCLUDE_DOCS_MAX_LEVEL		2	
+#define DUPIN_INCLUDE_LINKS_DEFAULT_LEVEL	1
+#define DUPIN_INCLUDE_LINKS_MAX_LEVEL		1
 
 #define RESPONSE_STATUS_OK                      "ok"
 #define RESPONSE_STATUS_ERROR                   "error"
@@ -321,6 +323,7 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 #define REQUEST_GET_ALL_LINKS_INCLUDE_LINKED_DOCS_IN	"in"
 #define REQUEST_GET_ALL_LINKS_INCLUDE_LINKED_DOCS_OUT	"out"
 #define REQUEST_GET_ALL_LINKS_INCLUDE_LINKED_DOCS_ALL	"all"
+#define REQUEST_GET_ALL_LINKS_INCLUDE_LINKED_DOCS_LEVEL	"include_linked_docs_level"
 
 #define REQUEST_GET_ALL_LINKS_LINKBASE                  "linkbase"
 

@@ -7678,6 +7678,7 @@ request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
       && arguments != NULL)
     {
       DupinLinkbaseIncludeDocsType include_linked_docs = DP_LINKBASE_INCLUDE_DOC_TYPE_NONE;
+      gint include_linked_docs_level = DUPIN_INCLUDE_DOCS_DEFAULT_LEVEL;
 
       for (list = arguments; list; list = list->next)
         {
@@ -7711,6 +7712,15 @@ request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
               else
                 include_linked_docs = DP_LINKBASE_INCLUDE_DOC_TYPE_ALL;
             }
+          if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_INCLUDE_LINKED_DOCS_LEVEL))
+            {
+	      include_linked_docs_level = (gint) atoi (kv->value);
+
+              if (include_linked_docs_level > DUPIN_INCLUDE_DOCS_MAX_LEVEL)
+                {
+	          include_linked_docs_level = DUPIN_INCLUDE_DOCS_MAX_LEVEL;
+                }
+	    }
         }
 
     if (include_linked_docs != DP_LINKBASE_INCLUDE_DOC_TYPE_NONE)
@@ -7751,7 +7761,7 @@ request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
 
             if ((include_linked_docs == DP_LINKBASE_INCLUDE_DOC_TYPE_IN
 		 || include_linked_docs == DP_LINKBASE_INCLUDE_DOC_TYPE_ALL)
-		&& client->request_included_docs_level <= DUPIN_INCLUDE_DOCS_MAX_LEVEL)
+		&& client->request_included_docs_level <= include_linked_docs_level)
               {
                 doc_id_record = dupin_record_read (parent_db, context_id, NULL);
 
@@ -7803,7 +7813,7 @@ request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
                 && dupin_link_record_is_reflexive (record) == FALSE
 		&& (include_linked_docs == DP_LINKBASE_INCLUDE_DOC_TYPE_OUT
 		    || include_linked_docs == DP_LINKBASE_INCLUDE_DOC_TYPE_ALL)
-		&& client->request_included_docs_level <= DUPIN_INCLUDE_DOCS_MAX_LEVEL)
+		&& client->request_included_docs_level <= include_linked_docs_level)
               {
 		doc_id_record = NULL;
                 doc_id_record = dupin_record_read (parent_db, href, NULL);

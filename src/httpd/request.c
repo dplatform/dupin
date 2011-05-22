@@ -6997,15 +6997,6 @@ request_record_revision_obj (DSHttpdClient * client,
   g_return_val_if_fail (client != NULL, NULL);
   g_return_val_if_fail (record != NULL, NULL);
 
-  /* add to list of visited */
-
-  /* { "_id": XXXX, "_included": true } */
-  JsonNode * included_node = json_node_new (JSON_NODE_OBJECT);
-  JsonObject * included_node_obj = json_object_new ();
-  json_node_take_object (included_node, included_node_obj);
-  json_object_set_boolean_member (included_node_obj, RESPONSE_OBJ_INCLUDED, TRUE);
-  g_hash_table_replace (client->request_included_docs, g_strdup (id), included_node);
-
   client->request_included_docs_level++;
 
   JsonNode *obj_node=NULL;
@@ -7375,30 +7366,21 @@ request_record_revision_obj (DSHttpdClient * client,
 		      json_object_set_member (links_obj, label, links_label_node);
                     }
 
-		  on = g_hash_table_lookup (client->request_included_links,
-						(gchar *) dupin_link_record_get_id (link_record));
-                  if (on != NULL)
-                    {
-                      on = json_node_copy (on);
-                    }
-                  else
-                    {
-                      /* we do no never return deleted links */
-      		      if (!  (on = request_link_record_revision_obj (client, arguments,
+                  /* we do no never return deleted links */
+      		  if (!  (on = request_link_record_revision_obj (client, arguments,
 								 link_record,
 								 (gchar *) dupin_link_record_get_id (link_record),
 								 dupin_link_record_get_last_revision (link_record),
 								 TRUE)))
-        	        {
-		          // just log the error and reason into JSON
-		          gchar * msg = g_strdup_printf ("Cannot get web link with id %s and label %s in record %s\n",
+        	    {
+		      // just log the error and reason into JSON
+		      gchar * msg = g_strdup_printf ("Cannot get web link with id %s and label %s in record %s\n",
 								(gchar *)dupin_link_record_get_id (link_record),
 								label, (gchar *)dupin_record_get_id (record));
-                          request_set_error (client, msg);
-		          fprintf (stderr, "%s", msg);
-		          g_free (msg);
-		          continue;
-        	        }
+                      request_set_error (client, msg);
+		      fprintf (stderr, "%s", msg);
+		      g_free (msg);
+		      continue;
         	    }
 
                   // remove context_id and label due they are implied
@@ -7471,30 +7453,21 @@ request_record_revision_obj_relationships:
 		      json_object_set_member (relationships_obj, label, relationships_label_node);
                     }
 
-		  on = g_hash_table_lookup (client->request_included_links,
-                                                (gchar *) dupin_link_record_get_id (link_record));
-                  if (on != NULL)
-                    {     
-                      on = json_node_copy (on);
-                    }     
-                  else
-                    {
-                      /* we do no never return deleted relationships */
-      		      if (!  (on = request_link_record_revision_obj (client, arguments,
+                  /* we do no never return deleted relationships */
+      		  if (!  (on = request_link_record_revision_obj (client, arguments,
 								 link_record,
 								 (gchar *) dupin_link_record_get_id (link_record),
 								 dupin_link_record_get_last_revision (link_record),
 								 TRUE)))
-        	        {
-		          // just log the error and reason into JSON
-		          gchar * msg = g_strdup_printf ("Cannot get relationship with id %s and label %s in record %s\n",
+        	    {
+		      // just log the error and reason into JSON
+		      gchar * msg = g_strdup_printf ("Cannot get relationship with id %s and label %s in record %s\n",
 								(gchar *)dupin_link_record_get_id (link_record),
 								label, (gchar *)dupin_record_get_id (record));
-                          request_set_error (client, msg);
-		          fprintf (stderr, "%s", msg);
-		          g_free (msg);
-		          continue;
-        	        }
+                      request_set_error (client, msg);
+		      fprintf (stderr, "%s", msg);
+		      g_free (msg);
+		      continue;
         	    }
 
                   // remove context_id and label due they are implied
@@ -7567,15 +7540,6 @@ request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
 				  gchar * id, gchar * mvcc,
 			          gboolean visit_docs)
 {
-
-  /* add to list of visited */
-
-  /* { "_id": XXXX, "_included": true } */
-  JsonNode * included_node = json_node_new (JSON_NODE_OBJECT);
-  JsonObject * included_node_obj = json_object_new ();
-  json_node_take_object (included_node, included_node_obj);
-  json_object_set_boolean_member (included_node_obj, RESPONSE_LINK_OBJ_INCLUDED, TRUE);
-  g_hash_table_replace (client->request_included_links, g_strdup (id), included_node);
 
   client->request_included_links_level++;
 
@@ -7783,35 +7747,27 @@ request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
                   {
 		    if (dupin_record_is_deleted (doc_id_record, NULL) == FALSE)
                       {
-			node_in = g_hash_table_lookup (client->request_included_docs, context_id);
-			if (node_in != NULL)
-			  {
-			    node_in = json_node_copy (node_in);
-			  }
-			else
-			  {
-                            if (! (node_in = request_record_revision_obj (client,
+                        if (! (node_in = request_record_revision_obj (client,
 							   arguments,
 							   doc_id_record,
 							   context_id,
 							   (gchar *)dupin_record_get_last_revision (doc_id_record),
 							   TRUE)))
-                              {
-	                        if (obj_node != NULL)
-	                          json_node_free (obj_node);
-                                dupin_record_close (doc_id_record);
-                                dupin_database_unref (parent_db);
-                                request_set_error (client, "Cannot read ancestor record from parent database");
+                          {
+	                    if (obj_node != NULL)
+	                      json_node_free (obj_node);
+                            dupin_record_close (doc_id_record);
+                            dupin_database_unref (parent_db);
+                            request_set_error (client, "Cannot read ancestor record from parent database");
 
-      			        if (fields_splitted != NULL)
-        	  	          g_strfreev (fields_splitted);
+      			    if (fields_splitted != NULL)
+        	  	      g_strfreev (fields_splitted);
 
-	                        /* TODO - pass the ret code here as well ? */
+	                    /* TODO - pass the ret code here as well ? */
 
-      			        client->request_included_links_level--;
+      			    client->request_included_links_level--;
 
-	                        return NULL;
-                              }
+	                    return NULL;
                           }
                       }
                     else
@@ -7836,37 +7792,29 @@ request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
                   {
 		    if (dupin_record_is_deleted (doc_id_record, NULL) == FALSE)
                       {
-			node_out = g_hash_table_lookup (client->request_included_docs, href);
-			if (node_out != NULL)
-			  {
-			    node_out = json_node_copy (node_out);
-			  }
-			else
-			  {
-                            if (! (node_out = request_record_revision_obj (client,
+                        if (! (node_out = request_record_revision_obj (client,
 							   arguments,
 							   doc_id_record,
 							   href,
 							   (gchar *)dupin_record_get_last_revision (doc_id_record),
 							   TRUE)))
-                              {
-	                        if (obj_node != NULL)
-	                          json_node_free (obj_node);
-	                        if (node_in != NULL)
-	                          json_node_free (node_in);
-                                dupin_record_close (doc_id_record);
-                                dupin_database_unref (parent_db);
-                                request_set_error (client, "Cannot read child record from parent database");
+                          {
+	                    if (obj_node != NULL)
+	                      json_node_free (obj_node);
+	                    if (node_in != NULL)
+	                      json_node_free (node_in);
+                            dupin_record_close (doc_id_record);
+                            dupin_database_unref (parent_db);
+                            request_set_error (client, "Cannot read child record from parent database");
 
-      			        if (fields_splitted != NULL)
-        	  	          g_strfreev (fields_splitted);
+      			    if (fields_splitted != NULL)
+        	  	      g_strfreev (fields_splitted);
 
-	                        /* TODO - pass the ret code here as well ? */
+	                    /* TODO - pass the ret code here as well ? */
 
-      			       client->request_included_links_level--;
+      			    client->request_included_links_level--;
 
-	                       return NULL;
-                             }
+	                    return NULL;
                           }
                       }
                     else
@@ -7911,35 +7859,27 @@ request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
                   {
                     if (dupin_link_record_is_deleted (link_id_record, NULL) == FALSE)
                       {
-		        node_in = g_hash_table_lookup (client->request_included_links, context_id);
-                        if (node_in != NULL)
-                          {
-                            node_in = json_node_copy (node_in);
-                          }
-			else
-			  {
-                            if (! (node_in = request_link_record_revision_obj (client,
+                        if (! (node_in = request_link_record_revision_obj (client,
 							   arguments,
 							   link_id_record,
 							   context_id,
 							   (gchar *)dupin_link_record_get_last_revision (link_id_record),
 							   TRUE)))
-                              {
-	                        if (obj_node != NULL)
-	                          json_node_free (obj_node);
-                                dupin_link_record_close (link_id_record);
-                                dupin_linkbase_unref (parent_linkb);
-                                request_set_error (client, "Cannot read record from parent linkbase");
+                          {
+	                    if (obj_node != NULL)
+	                      json_node_free (obj_node);
+                            dupin_link_record_close (link_id_record);
+                            dupin_linkbase_unref (parent_linkb);
+                            request_set_error (client, "Cannot read record from parent linkbase");
 
-      			        if (fields_splitted != NULL)
-        	  	          g_strfreev (fields_splitted);
+      			    if (fields_splitted != NULL)
+        	  	      g_strfreev (fields_splitted);
 
-	                        /* TODO - pass the ret code here as well ? */
+	                    /* TODO - pass the ret code here as well ? */
 
-    			        client->request_included_links_level--;
+    			    client->request_included_links_level--;
 
-	                        return NULL;
-                              }
+	                    return NULL;
                           }
                       }
                     else
@@ -7964,37 +7904,29 @@ request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
                   {
                     if (dupin_link_record_is_deleted (link_id_record, NULL) == FALSE)
                       {
-			node_out = g_hash_table_lookup (client->request_included_links, href);
-                        if (node_out != NULL)
-                          {
-                            node_out = json_node_copy (node_out);
-                          }
-                        else
-                          {
-                            if (! (node_out = request_link_record_revision_obj (client,
+                        if (! (node_out = request_link_record_revision_obj (client,
 							   arguments,
 							   link_id_record,
 							   href,
 							   (gchar *)dupin_link_record_get_last_revision (link_id_record),
 							   TRUE)))
-                              {
-	                        if (obj_node != NULL)
-	                          json_node_free (obj_node);
-	                        if (node_in != NULL)
-	                          json_node_free (node_in);
-                                dupin_link_record_close (link_id_record);
-                                dupin_linkbase_unref (parent_linkb);
-                                request_set_error (client, "Cannot read record from parent linkbase");
+                          {
+	                    if (obj_node != NULL)
+	                      json_node_free (obj_node);
+	                    if (node_in != NULL)
+	                      json_node_free (node_in);
+                            dupin_link_record_close (link_id_record);
+                            dupin_linkbase_unref (parent_linkb);
+                            request_set_error (client, "Cannot read record from parent linkbase");
 
-      			        if (fields_splitted != NULL)
-        	  	          g_strfreev (fields_splitted);
+      			    if (fields_splitted != NULL)
+        	  	      g_strfreev (fields_splitted);
 
-	                        /* TODO - pass the ret code here as well ? */
+	                    /* TODO - pass the ret code here as well ? */
 
-    			        client->request_included_links_level--;
+    			    client->request_included_links_level--;
 
-	                        return NULL;
-                              }
+	                    return NULL;
                           }
                       }
                     else

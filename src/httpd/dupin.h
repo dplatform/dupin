@@ -79,9 +79,7 @@ struct ds_httpd_client_t
   GList *	request_arguments;
 
   gint		request_included_docs_level;
-  GHashTable *  request_included_docs;
   gint		request_included_links_level;
-  GHashTable *  request_included_links;
 
   gchar *	body;
   gsize		body_size;

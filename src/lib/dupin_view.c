@@ -2921,20 +2921,17 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
 		  if (dupin_view_commit_transaction (view, NULL) < 0)
 		    {
 		      g_mutex_unlock (view->mutex);
-      		      sqlite3_free (str);
 
       		      break;
 		    }
 
                   g_mutex_unlock (view->mutex);
 
-                  sqlite3_free (str);
-
-		  /* flag to carry on (for any future request to sync) but exit */
+		  /* flag to carry on (for any future request to sync) */
 
                   query = "UPDATE DupinView SET sync_rereduce = 'TRUE'";
 
-		  break;
+		  continue;
                 }
 
               g_mutex_lock (view->mutex);

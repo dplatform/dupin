@@ -1590,7 +1590,8 @@ dupin_view_sync_thread_real_map (DupinView * view, GList * list)
 	      /* TODO - do bulk insert/update of 'array' element if view has output */
 
               JsonNode * response_node = NULL;
-	      if (dupin_view_get_output (view) != NULL)
+	      if (view->reduce == NULL
+		  && dupin_view_get_output (view) != NULL)
 	        {
 	          if (! (response_node = dupin_view_output_insert_bulk (view, node)))
 	            {

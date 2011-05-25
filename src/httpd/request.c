@@ -3794,6 +3794,15 @@ request_global_view_sync (DSHttpdClient * client, GList * path,
 
   dupin_view_sync (view);
 
+  if (dupin_view_get_error (view))
+    {
+      /* TODO - we do not fail yet, due either map or reduce threads map be already started
+		and thread poll will queue up the requests anyway - we just tell user/caller
+		we had an issue with thread/s eventually */
+
+      request_set_warning (client, dupin_view_get_error (view));
+    }
+
   dupin_view_unref (view);
 
   return HTTP_STATUS_200;
@@ -5401,6 +5410,11 @@ request_global_post_compact_database (DSHttpdClient * client, GList * path,
 
   dupin_database_compact (db);
 
+  if (dupin_database_get_error (db))
+    {
+      request_set_warning (client, dupin_database_get_error (db));
+    }
+
   dupin_database_unref (db);
 
   return HTTP_STATUS_200;
@@ -5422,6 +5436,11 @@ request_global_post_compact_linkbase (DSHttpdClient * client, GList * path,
 
   dupin_linkbase_compact (linkb);
 
+  if (dupin_linkbase_get_error (linkb))
+    {
+      request_set_warning (client, dupin_linkbase_get_error (linkb));
+    }
+
   dupin_linkbase_unref (linkb);
 
   return HTTP_STATUS_200;
@@ -5442,6 +5461,11 @@ request_global_post_check_linkbase (DSHttpdClient * client, GList * path,
     }
 
   dupin_linkbase_check (linkb);
+
+  if (dupin_linkbase_get_error (linkb))
+    {
+      request_set_warning (client, dupin_linkbase_get_error (linkb));
+    }
 
   dupin_linkbase_unref (linkb);
 

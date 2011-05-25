@@ -3064,15 +3064,31 @@ g_message("dupin_view_sync(%p/%s): view is still syncing view->sync_map_thread=%
 
 g_message("dupin_view_sync(%p/%s): push to thread pools view->sync_map_thread=%p view->sync_reduce_thread=%p \n", g_thread_self (), view->name, view->sync_map_thread, view->sync_reduce_thread);
 
+      GError *error=NULL;
+
       if (!view->sync_map_thread)
         {
-	  g_thread_pool_push(view->d->sync_map_workers_pool, view, NULL);
+	  g_thread_pool_push(view->d->sync_map_workers_pool, view, &error);
+
+	  if (error)
+            {
+              g_error("dupin_view_sync: view %s map thread creation error: %s", view->name, error->message);
+	      dupin_view_set_error (view, error->message);
+              g_error_free (error);
+	    }
         }
 
       if (view->reduce != NULL
           && !view->sync_reduce_thread)
         {
-	  g_thread_pool_push(view->d->sync_reduce_workers_pool, view, NULL);
+	  g_thread_pool_push(view->d->sync_reduce_workers_pool, view, &error);
+
+	  if (error)
+            {
+              g_error("dupin_view_sync: view %s reduce thread creation error: %s", view->name, error->message);
+	      dupin_view_set_error (view, error->message);
+              g_error_free (error);
+	    }
         }
     }
 }

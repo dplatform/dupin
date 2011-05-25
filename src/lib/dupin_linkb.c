@@ -1624,9 +1624,17 @@ dupin_linkbase_compact (DupinLinkB * linkb)
     {
 //g_message("dupin_linkbase_compact(%p): push to thread pools linkb->compact_thread=%p\n", g_thread_self (), linkb->compact_thread);
 
+      GError * error = NULL;
       if (!linkb->compact_thread)
         {
-          g_thread_pool_push(linkb->d->linkb_compact_workers_pool, linkb, NULL);
+          g_thread_pool_push(linkb->d->linkb_compact_workers_pool, linkb, &error);
+
+	  if (error)
+            {
+              g_error("dupin_linkbase_compact: linkbase %s compact thread creation error: %s", linkb->name, error->message);
+              dupin_linkbase_set_error (linkb, error->message);
+              g_error_free (error);
+            }
         }
     }
 }
@@ -1942,9 +1950,18 @@ dupin_linkbase_check (DupinLinkB * linkb)
     {
 //g_message("dupin_linkbase_check(%p): push to thread pools linkb->check_thread=%p\n", g_thread_self (), linkb->check_thread);
 
+      GError * error = NULL;
+
       if (!linkb->check_thread)
         {
-          g_thread_pool_push(linkb->d->linkb_check_workers_pool, linkb, NULL);
+          g_thread_pool_push(linkb->d->linkb_check_workers_pool, linkb, &error);
+
+	  if (error)
+            {
+              g_error("dupin_linkbase_check: linkbase %s check thread creation error: %s", linkb->name, error->message);
+              dupin_linkbase_set_error (linkb, error->message);
+              g_error_free (error);
+            }
         }
     }
 }

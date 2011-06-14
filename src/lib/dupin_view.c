@@ -2629,7 +2629,7 @@ dupin_view_sync_map_func (gpointer data, gpointer user_data)
   view->sync_map_thread = g_thread_self ();
   g_mutex_unlock (view->mutex);
 
-g_message("dupin_view_sync_map_func(%p/%s) started\n",g_thread_self (), view->name);
+//g_message("dupin_view_sync_map_func(%p/%s) started\n",g_thread_self (), view->name);
 
   g_mutex_lock (view->mutex);
   view->sync_map_processed_count = 0;
@@ -2644,7 +2644,7 @@ g_message("dupin_view_sync_map_func(%p/%s) started\n",g_thread_self (), view->na
 
       if (view->reduce != NULL)
         {
-g_message("dupin_view_sync_map_func(%p/%s) Mapped %d records - sending signal to reduce thread (%p)\n", g_thread_self (), view->name, (gint)view->sync_map_processed_count, view->sync_reduce_thread);
+//g_message("dupin_view_sync_map_func(%p/%s) Mapped %d records - sending signal to reduce thread (%p)\n", g_thread_self (), view->name, (gint)view->sync_map_processed_count, view->sync_reduce_thread);
 
           g_mutex_lock (view->mutex);
 	  g_cond_signal(view->sync_map_has_new_work);
@@ -2653,7 +2653,7 @@ g_message("dupin_view_sync_map_func(%p/%s) Mapped %d records - sending signal to
 
       if (map_operation == FALSE)
         {
-g_message("dupin_view_sync_map_func(%p/%s) Mapped TOTAL %d records\n", g_thread_self (), view->name, (gint)view->sync_map_processed_count);
+//g_message("dupin_view_sync_map_func(%p/%s) Mapped TOTAL %d records\n", g_thread_self (), view->name, (gint)view->sync_map_processed_count);
 
 	  if (view->tosync)
 	    {
@@ -2668,12 +2668,12 @@ g_message("dupin_view_sync_map_func(%p/%s) Mapped TOTAL %d records\n", g_thread_
         }
     }
 
-g_message("dupin_view_sync_map_func(%p/%s) finished and view map part is in sync\n",g_thread_self (), view->name);
+//g_message("dupin_view_sync_map_func(%p/%s) finished and view map part is in sync\n",g_thread_self (), view->name);
 
   /* NOTE - make sure reduce thread can terminate too eventually */
   if (view->reduce != NULL)
     {
-g_message("dupin_view_sync_map_func(%p/%s) Sending signal to reduce thread (%p)\n", g_thread_self (), view->name, view->sync_reduce_thread);
+//g_message("dupin_view_sync_map_func(%p/%s) Sending signal to reduce thread (%p)\n", g_thread_self (), view->name, view->sync_reduce_thread);
 
       g_mutex_lock (view->mutex);
       g_cond_signal(view->sync_map_has_new_work);
@@ -2681,7 +2681,7 @@ g_message("dupin_view_sync_map_func(%p/%s) Sending signal to reduce thread (%p)\
     }
   else if (view->sync_map_processed_count > 0)
     {
-g_message("dupin_view_sync_map_func(%p/%s): ANALYZE\n", g_thread_self (), view->name);
+//g_message("dupin_view_sync_map_func(%p/%s): ANALYZE\n", g_thread_self (), view->name);
 
       g_mutex_lock (view->mutex);
       if (sqlite3_exec (view->db, "ANALYZE Dupin", NULL, NULL, &errmsg) != SQLITE_OK)
@@ -2733,7 +2733,7 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
   rere_matching.total = 0;
   rere_matching.first_matching_key = NULL;
 
-g_message("dupin_view_sync_reduce_func(%p/%s) started", g_thread_self (), view->name);
+//g_message("dupin_view_sync_reduce_func(%p/%s) started", g_thread_self (), view->name);
 
   /* NOTE - if map hangs, reduce also hangs - for the moment we should make sure a _rest method is allowed on views to avoid disasters */
 
@@ -2759,12 +2759,12 @@ g_message("dupin_view_sync_reduce_func(%p/%s) started", g_thread_self (), view->
 
   while (view->sync_toquit == FALSE || view->todelete == FALSE)
     {
-g_message("view %s rereduce=%d\n", view->name, rereduce);
+//g_message("view %s rereduce=%d\n", view->name, rereduce);
 
       if (rereduce == FALSE
 	  && view->sync_map_thread)
         {
-g_message("dupin_view_sync_reduce_func(%p/%s) Going to wait for signal from map thread (%p)\n", g_thread_self (), view->name, view->sync_map_thread);
+//g_message("dupin_view_sync_reduce_func(%p/%s) Going to wait for signal from map thread (%p)\n", g_thread_self (), view->name, view->sync_map_thread);
 
 	  /* NOTE - wait for message for a maximum of limit_reduce_timeoutforthread seconds */
 
@@ -2779,10 +2779,10 @@ g_message("dupin_view_sync_reduce_func(%p/%s) Going to wait for signal from map 
 
 	  if (reduce_wait_timed_out == FALSE)
 	    {
-g_message("dupin_view_sync_reduce_func(%p/%s) waiting for signal from %p timeout after %d seconds\n", g_thread_self (), view->name, view->sync_map_thread, view->d->conf->limit_reduce_timeoutforthread);
+//g_message("dupin_view_sync_reduce_func(%p/%s) waiting for signal from %p timeout after %d seconds\n", g_thread_self (), view->name, view->sync_map_thread, view->d->conf->limit_reduce_timeoutforthread);
 	    }
 
-g_message("dupin_view_sync_reduce_func(%p/%s) CONTINUE after wait\n", g_thread_self (), view->name);
+//g_message("dupin_view_sync_reduce_func(%p/%s) CONTINUE after wait\n", g_thread_self (), view->name);
 
           g_mutex_unlock (view->mutex);
         }
@@ -2794,16 +2794,16 @@ g_message("dupin_view_sync_reduce_func(%p/%s) CONTINUE after wait\n", g_thread_s
           view->sync_reduce_total_records = (rereduce) ? rere_matching.total : view->sync_map_processed_count;
           g_mutex_unlock (view->mutex);
 
-g_message("dupin_view_sync_reduce_func(%p/%s) got %d records to REDUCE (rereduce=%d)\n",g_thread_self (), view->name, (gint)view->sync_reduce_total_records,(gint)rereduce);
+//g_message("dupin_view_sync_reduce_func(%p/%s) got %d records to REDUCE (rereduce=%d)\n",g_thread_self (), view->name, (gint)view->sync_reduce_total_records,(gint)rereduce);
 
           while (dupin_view_sync_thread_reduce (view, VIEW_SYNC_COUNT, rereduce, rere_matching.first_matching_key) == TRUE);
 
-g_message("dupin_view_sync_reduce_func(%p/%s) Reduced %d records of %d\n", g_thread_self (), view->name, (gint)view->sync_reduce_processed_count, (gint)view->sync_reduce_total_records);
+//g_message("dupin_view_sync_reduce_func(%p/%s) Reduced %d records of %d\n", g_thread_self (), view->name, (gint)view->sync_reduce_processed_count, (gint)view->sync_reduce_total_records);
         }
 
       if (!view->sync_map_thread) /* map finished */
         {
-g_message("View %s map was finished in meantime\n", view->name);
+//g_message("View %s map was finished in meantime\n", view->name);
 
 	  /* check if there is anything to re-reduce */
           rere_matching.total = 0;
@@ -2812,14 +2812,14 @@ g_message("View %s map was finished in meantime\n", view->name);
           rere_matching.first_matching_key = NULL;
           dupin_view_sync_total_rereduce (view, &rere_matching);
 
-g_message("View %s done first round of reduce but there are still %d record to re-reduce and first key to process is '%s'\n", view->name, (gint)rere_matching.total, rere_matching.first_matching_key);
+//g_message("View %s done first round of reduce but there are still %d record to re-reduce and first key to process is '%s'\n", view->name, (gint)rere_matching.total, rere_matching.first_matching_key);
 
           if (rere_matching.total > 0)
             {
               /* still work to do */
               rereduce = TRUE;
 
-g_message("View %s going to re-reduce\n", view->name);
+//g_message("View %s going to re-reduce\n", view->name);
 
               /* NOTE - the following check allows to skip any possible bad records in re-reduce process dupin_view_sync_thread_reduce()
 		and avoid infinite loop - if nothing has changed  */
@@ -2970,7 +2970,7 @@ g_message("View %s going to re-reduce\n", view->name);
             }
           else
             {
-g_message("View %s done rereduce=%d\n", view->name, (gint)rereduce);
+//g_message("View %s done rereduce=%d\n", view->name, (gint)rereduce);
               rereduce = FALSE;
 
               query = "UPDATE DupinView SET sync_rereduce = 'FALSE'";
@@ -3014,12 +3014,12 @@ g_message("View %s done rereduce=%d\n", view->name, (gint)rereduce);
   if (rere_matching.first_matching_key != NULL)
     g_free (rere_matching.first_matching_key);
 
-g_message("dupin_view_sync_reduce_func(%p/%s) finished to reduce %d total records and view reduce part is in sync\n",g_thread_self (), view->name, (gint)view->sync_reduce_total_records);
+//g_message("dupin_view_sync_reduce_func(%p/%s) finished to reduce %d total records and view reduce part is in sync\n",g_thread_self (), view->name, (gint)view->sync_reduce_total_records);
 
 
   /* claim disk space back due reduce did actually remove rows from view table */
 
-g_message("dupin_view_sync_reduce_func: view %s VACUUM and ANALYZE\n", view->name);
+//g_message("dupin_view_sync_reduce_func: view %s VACUUM and ANALYZE\n", view->name);
 
   g_mutex_lock (view->mutex);
   if (sqlite3_exec (view->db, "VACUUM", NULL, NULL, &errmsg) != SQLITE_OK
@@ -3055,14 +3055,14 @@ dupin_view_sync (DupinView * view)
       view->tosync = TRUE;
       g_mutex_unlock (view->mutex);
 
-g_message("dupin_view_sync(%p/%s): view is still syncing view->sync_map_thread=%p view->sync_reduce_thread=%p \n", g_thread_self (), view->name, view->sync_map_thread, view->sync_reduce_thread);
+//g_message("dupin_view_sync(%p/%s): view is still syncing view->sync_map_thread=%p view->sync_reduce_thread=%p \n", g_thread_self (), view->name, view->sync_map_thread, view->sync_reduce_thread);
     }
   else
     {
       /* TODO - have a master sync thread which manage the all three rather than have chain of
             dependency between map, reduce and re-reduce threads */
 
-g_message("dupin_view_sync(%p/%s): push to thread pools view->sync_map_thread=%p view->sync_reduce_thread=%p \n", g_thread_self (), view->name, view->sync_map_thread, view->sync_reduce_thread);
+//g_message("dupin_view_sync(%p/%s): push to thread pools view->sync_map_thread=%p view->sync_reduce_thread=%p \n", g_thread_self (), view->name, view->sync_map_thread, view->sync_reduce_thread);
 
       GError *error=NULL;
 

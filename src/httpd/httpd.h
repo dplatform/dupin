@@ -35,6 +35,8 @@
 #define HTTP_MIME_TEXTPLAIN	"text/plain; charset=utf-8"
 #define HTTP_MIME_TEXTHTML	"text/html; charset=utf-8"
 #define HTTP_MIME_JSON		"application/json; charset=utf-8"
+/* #define HTTP_MIME_PORTABLE_LISTINGS_JSON		"application/listings+json; charset=utf-8; profile=\"http://portablelistings.net/profiles/core/1.0/\"" */
+#define HTTP_MIME_PORTABLE_LISTINGS_JSON		HTTP_MIME_JSON
 
 typedef enum
 {

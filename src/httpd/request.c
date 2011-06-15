@@ -445,6 +445,20 @@ static DSHttpStatusCode request_global_get_uuids (DSHttpdClient * client,
 						   GList * path,
 						   GList * arguments);
 
+/* PORTABLE LISTINGS */
+
+static DSHttpStatusCode request_global_get_portable_listings (DSHttpdClient * client,
+						     	      GList * paths,
+						     	      GList * arguments);
+
+static DSHttpStatusCode request_global_get_portable_listings_record (DSHttpdClient * client,
+						     	      	     GList * paths,
+						     	      	     GList * arguments);
+
+static DSHttpStatusCode request_global_get_portable_listings_record_relationship (DSHttpdClient * client,
+						     	      	     		  GList * paths,
+						     	      	     		  GList * arguments);
+
 static DSHttpStatusCode
 request_global_get (DSHttpdClient * client, GList * path, GList * arguments)
 {
@@ -482,6 +496,28 @@ request_global_get (DSHttpdClient * client, GList * path, GList * arguments)
   /* GET /database/_all_docs */
   if (!path->next->next && !g_strcmp0 (path->next->data, REQUEST_ALL_DOCS))
     return request_global_get_all_docs (client, path, arguments);
+
+  if (!g_strcmp0 (path->next->data, REQUEST_PORTABLE_LISTINGS))
+    {
+      if (path->next->next)
+        {
+          if (path->next->next->next)
+            {
+              /* GET /database/_portable_listings/id/relationship */
+              return request_global_get_portable_listings_record_relationship (client, path, arguments);
+	    }
+	  else
+	    {
+              /* GET /database/_portable_listings/id */
+              return request_global_get_portable_listings_record (client, path, arguments);
+	    }
+	}
+      else
+	{
+          /* GET /database/_portable_listings */
+          return request_global_get_portable_listings (client, path, arguments);
+	}
+    }
 
   if (!g_strcmp0 (path->data, REQUEST_LINKBS))
     {
@@ -1107,7 +1143,7 @@ request_global_get_changes_database (DSHttpdClient * client, GList * path,
       dupin_database_unref (db);
       if (types)
         g_strfreev (types);
-      request_set_error (client, "Cannot list of changes from database");
+      request_set_error (client, "Cannot list changes from database");
       return HTTP_STATUS_500;
     }
 
@@ -1120,7 +1156,7 @@ request_global_get_changes_database (DSHttpdClient * client, GList * path,
       dupin_database_unref (db);
       if (types)
         g_strfreev (types);
-      request_set_error (client, "Cannot list of changes from database");
+      request_set_error (client, "Cannot list changes from database");
       return HTTP_STATUS_500;
     }
 
@@ -1236,7 +1272,7 @@ request_global_get_changes_database_error:
   if (types)
     g_strfreev (types);
 
-  request_set_error (client, "Cannot list of changes from database");
+  request_set_error (client, "Cannot list changes from database");
 
   return HTTP_STATUS_500;
 }
@@ -1498,7 +1534,7 @@ request_global_get_all_docs (DSHttpdClient * client, GList * path,
       if (types)
         g_strfreev (types);
 
-      request_set_error (client, "Cannot list of documents from database");
+      request_set_error (client, "Cannot list documents from database");
       return HTTP_STATUS_500;
     }
 
@@ -1518,7 +1554,7 @@ request_global_get_all_docs (DSHttpdClient * client, GList * path,
       dupin_database_unref (db);
       if (types)
         g_strfreev (types);
-      request_set_error (client, "Cannot list of documents from database");
+      request_set_error (client, "Cannot list documents from database");
       return HTTP_STATUS_500;
     }
 
@@ -1637,7 +1673,7 @@ request_global_get_all_docs_error:
   if (types)
     g_strfreev (types);
 
-  request_set_error (client, "Cannot list of documents from database");
+  request_set_error (client, "Cannot list documents from database");
 
   return HTTP_STATUS_500;
 }
@@ -3184,7 +3220,7 @@ request_global_get_changes_linkbase (DSHttpdClient * client, GList * path,
         g_strfreev (tags);
 
       dupin_linkbase_unref (linkb);
-      request_set_error (client, "Cannot list of changes from linkbase");
+      request_set_error (client, "Cannot list changes from linkbase");
       return HTTP_STATUS_500;
     }
 
@@ -3199,7 +3235,7 @@ request_global_get_changes_linkbase (DSHttpdClient * client, GList * path,
         g_strfreev (tags);
 
       dupin_linkbase_unref (linkb);
-      request_set_error (client, "Cannot list of changes from linkbase");
+      request_set_error (client, "Cannot list changes from linkbase");
       return HTTP_STATUS_500;
     }
 
@@ -3316,7 +3352,7 @@ request_global_get_changes_linkbase_error:
     json_node_free (node);
   json_object_unref (obj);
 
-  request_set_error (client, "Cannot list of changes from linkbase");
+  request_set_error (client, "Cannot list changes from linkbase");
 
   return HTTP_STATUS_500;
 }
@@ -7092,7 +7128,21 @@ request_record_revision_obj (DSHttpdClient * client,
   if (fields != NULL)
     {
       fields_splitted = g_strsplit (fields, ",", -1);
-      obj_node = dupin_util_json_node_object_filter_fields (obj_node, fields_format, fields_splitted, FALSE, NULL);
+      gint i;
+      gboolean any = FALSE;
+      for (i = 0; fields_splitted[i]; i++)
+        {
+          if ((!g_strcmp0 (fields_splitted[i],REQUEST_GET_ALL_ANY_FILTER_FIELDS_ALL))
+	      || (!g_strcmp0 (fields_splitted[i],REQUEST_GET_ALL_ANY_FILTER_FIELDS_ALL_FIELDS)))
+	    {
+	      any = TRUE;
+	      break;
+	    }
+	}
+      if (any == FALSE)
+        obj_node = dupin_util_json_node_object_filter_fields (obj_node, fields_format, fields_splitted, FALSE, NULL);
+      else
+        obj_node = json_node_copy (obj_node);
     }
   else
     obj_node = json_node_copy (obj_node);
@@ -7222,6 +7272,26 @@ request_record_revision_obj (DSHttpdClient * client,
           else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_LABELS))
             {
               include_links_labels = g_strsplit (kv->value, ",", -1);
+
+      	      gint i;
+      	      gboolean any = FALSE;
+              for (i = 0; include_links_labels[i]; i++)
+                {   
+                  if ((!g_strcmp0 (include_links_labels[i],REQUEST_GET_ALL_ANY_FILTER_FIELDS_ALL))
+                      || (!g_strcmp0 (include_links_labels[i],REQUEST_GET_ALL_ANY_FILTER_FIELDS_ALL_RELATIONSHIPS)))
+                    {
+                      any = TRUE;
+                      break;
+                    }
+                }
+
+              if (any == TRUE)
+	        {
+                  if (include_links_labels != NULL)
+                    g_strfreev (include_links_labels);
+
+		  include_links_labels=NULL;
+		}
             }
 
           else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_LABELS_OP))
@@ -7619,7 +7689,7 @@ request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
     {
       dupin_keyvalue_t *kv = list->data;
 
-      if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_ANY_FILTER_FIELDS))
+      if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_ANY_FILTER_LINK_FIELDS))
         {
           fields = kv->value;
         }
@@ -7637,7 +7707,21 @@ request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
   if (fields != NULL)
     {
       fields_splitted = g_strsplit (fields, ",", -1);
-      obj_node = dupin_util_json_node_object_filter_fields (obj_node, fields_format, fields_splitted, FALSE, NULL);
+      gint i;
+      gboolean any = FALSE;
+      for (i = 0; fields_splitted[i]; i++)
+        {   
+          if ((!g_strcmp0 (fields_splitted[i],REQUEST_GET_ALL_ANY_FILTER_FIELDS_ALL))
+              || (!g_strcmp0 (fields_splitted[i],REQUEST_GET_ALL_ANY_FILTER_FIELDS_ALL_FIELDS)))
+            {
+              any = TRUE;
+              break;
+            }
+        }
+      if (any == FALSE)
+        obj_node = dupin_util_json_node_object_filter_fields (obj_node, fields_format, fields_splitted, FALSE, NULL);
+      else
+        obj_node = json_node_copy (obj_node);
     }
   else
     obj_node = json_node_copy (obj_node);
@@ -8492,6 +8576,1420 @@ request_get_warning (DSHttpdClient * client)
   g_return_val_if_fail (client != NULL, NULL);
 
   return client->dupin_warning_msg;
+}
+
+/* PORTABLE LISTINGS */
+
+static DSHttpStatusCode
+request_global_get_portable_listings (DSHttpdClient * client, GList * path,
+			     	      GList * arguments)
+{
+  DupinDB *db;
+
+  GList *list;
+  GList *results;
+
+  gboolean descending = FALSE;
+  guint count = DUPIN_DB_MAX_DOCS_COUNT;
+  guint offset = 0;
+  gsize total_rows = 0;
+
+  JsonObject *obj;
+  JsonNode *node=NULL;
+  JsonArray *array;
+  JsonGenerator *gen=NULL;
+
+  gsize created = 0;
+  DupinCreatedType created_op = DP_CREATED_SINCE;
+
+  gboolean declining_updated_since = FALSE;
+  gboolean declining_updated_until = FALSE;
+  gboolean declining_filtered = FALSE;
+  gboolean declining_sorted = FALSE;
+
+  gboolean include_relationships = FALSE;
+
+  gchar ** types = NULL;
+  DupinFilterByType types_op = DP_FILTERBY_EQUALS;
+
+  gchar * filter_by = NULL;
+  DupinFieldsFormatType filter_by_format = DP_FIELDS_FORMAT_DOTTED;
+  DupinFilterByType filter_op = DP_FILTERBY_UNDEF;
+  gchar * filter_values = NULL;
+
+  gchar * fields = NULL;
+
+  if (!
+      (db =
+       dupin_database_open (client->thread->data->dupin, path->data, NULL)))
+    {
+      request_set_error (client, "Cannot connect to database");
+      return HTTP_STATUS_404;
+    }
+
+  for (list = arguments; list; list = list->next)
+    {
+      dupin_keyvalue_t *kv = list->data;
+
+      if (!g_strcmp0 (kv->key, REQUEST_GET_PORTABLE_LISTINGS_SORT_ORDER))
+	descending = (!g_strcmp0 (kv->value, "descending")) ? TRUE : FALSE;
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_PORTABLE_LISTINGS_FIELDS))
+        {
+          fields = kv->value;
+	}
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_PORTABLE_LISTINGS_INCLUDE_RELATIONSHIPS))
+        {
+          if (g_strcmp0 (kv->value,"false") && g_strcmp0 (kv->value,"FALSE") &&
+              g_strcmp0 (kv->value,"true") && g_strcmp0 (kv->value,"TRUE"))
+            {
+              request_set_error (client, "Invalid " REQUEST_GET_PORTABLE_LISTINGS_INCLUDE_RELATIONSHIPS " parameter. Allowed values are: true, false");
+              return HTTP_STATUS_400;
+            }
+
+          include_relationships = (!g_strcmp0 (kv->value,"false") || !g_strcmp0 (kv->value,"FALSE")) ? FALSE : TRUE;
+        }
+
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_PORTABLE_LISTINGS_COUNT))
+	count = atoi (kv->value);
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_PORTABLE_LISTINGS_START_INDEX))
+	offset = atoi (kv->value);
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_PORTABLE_LISTINGS_UPDATED_SINCE))
+        {
+	  if (dupin_util_iso8601_to_timestamp (kv->value, &created) == FALSE)
+	    {
+              request_set_error (client, "Bad " REQUEST_GET_PORTABLE_LISTINGS_UPDATED_SINCE " parameter. It must be a valie ISO8601 date expressed in UTC E.g. '2011-06-12T14:10:49.090864Z'.");
+              return HTTP_STATUS_400;
+	    }
+          created_op = DP_CREATED_SINCE;
+
+	  /* TODO - unimplemented */
+          declining_updated_since = TRUE;
+        }
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_PORTABLE_LISTINGS_UPDATED_UNTIL))
+        {
+	  if (dupin_util_iso8601_to_timestamp (kv->value, &created) == FALSE)
+	    {
+              request_set_error (client, "Bad " REQUEST_GET_PORTABLE_LISTINGS_UPDATED_UNTIL " parameter. It must be a valie ISO8601 date expressed in UTC E.g. '2011-06-12T14:10:49.090864Z'.");
+              return HTTP_STATUS_400;
+	    }
+          created_op = DP_CREATED_UNTIL;
+
+	  /* TODO - unimplemented */
+          declining_updated_until = TRUE;
+        }
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_PORTABLE_LISTINGS_FILTER_OBJECT_TYPE))
+        {
+          types = g_strsplit (kv->value, ",", -1);
+        }
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_PORTABLE_LISTINGS_FILTER_BY))
+        {
+          filter_by = kv->value;
+        }
+ 
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_PORTABLE_LISTINGS_FILTER_OP))
+        {
+          if (!g_strcmp0 (kv->value, REQUEST_GET_PORTABLE_LISTINGS_FILTER_OP_EQUALS))
+            filter_op = DP_FILTERBY_EQUALS;
+          else if (!g_strcmp0 (kv->value, REQUEST_GET_PORTABLE_LISTINGS_FILTER_OP_CONTAINS))
+            filter_op = DP_FILTERBY_CONTAINS;
+          else if (!g_strcmp0 (kv->value, REQUEST_GET_PORTABLE_LISTINGS_FILTER_OP_STARTS_WITH))
+            filter_op = DP_FILTERBY_STARTS_WITH;
+          else if (!g_strcmp0 (kv->value, REQUEST_GET_PORTABLE_LISTINGS_FILTER_OP_PRESENT))
+            filter_op = DP_FILTERBY_PRESENT;
+        }
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_PORTABLE_LISTINGS_FILTER_VALUES))
+        {
+          filter_values = kv->value;
+        }
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_PORTABLE_LISTINGS_SORT_BY))
+        {
+	  /* TODO - unimplemented */
+          declining_sorted = TRUE;
+        }
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_PORTABLE_LISTINGS_FORMAT))
+        {
+          if (g_strcmp0 (kv->value,REQUEST_GET_PORTABLE_LISTINGS_FORMAT_JSON))
+            {
+              request_set_error (client, "Invalid " REQUEST_GET_PORTABLE_LISTINGS_FORMAT " parameter. Allowed values are: " REQUEST_GET_PORTABLE_LISTINGS_FORMAT_JSON);
+              return HTTP_STATUS_400;
+            }
+	}
+    }
+
+  /* NOTE - hack params / arguments */
+
+  if (fields != NULL)
+    {
+      arguments = g_list_append (arguments, dp_keyvalue_new (REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TYPE,REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TYPE_ALL_LINKS));
+      arguments = g_list_append (arguments, dp_keyvalue_new (REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_LABELS,fields));
+
+      /* NOTE - include_links_labels=fields but fields removed prefix E.g. contributor.role -> role */
+
+//g_message ("FIELDS: %s\n", fields);
+
+      gchar ** fields_splitted = g_strsplit (fields, ",", -1);
+
+      gint i,j;
+      GString *str = g_string_new ("");
+      GString *str1 = g_string_new ("");
+      gboolean appended=FALSE;
+
+      if (fields_splitted != NULL)
+        {
+          for (i = 0; fields_splitted[i]; i++)
+            {
+	      if (appended == TRUE)
+		{
+	          g_string_append (str, ",");
+	          g_string_append (str1, ",");
+		}
+
+//g_message ("fields_splitted[%d] = %s\n", i, fields_splitted[i]);
+
+	      if (!g_strcmp0 (fields_splitted[i], ""))
+	        continue;
+
+              gchar ** field_parts = g_strsplit (fields_splitted[i], ".", -1);
+	      if (field_parts != NULL && field_parts[1])
+	        {
+	          g_string_append_printf (str1, "%s", field_parts[0]);
+
+                  for (j = 1; field_parts[j]; j++)
+                    {
+//g_message ("field_parts[%d]= %s\n", j, field_parts[j]);
+
+	              g_string_append_printf (str, "%s", field_parts[j]);
+	              if (field_parts[j+1])
+	                g_string_append (str, ".");
+	            }
+	          appended = TRUE;
+	        }
+
+	      if (field_parts != NULL)
+                g_strfreev (field_parts);
+            }
+        }
+      gchar * tmp = g_string_free (str, FALSE);
+      gchar * tmp1 = g_string_free (str1, FALSE);
+
+      if (strlen (tmp) > 0)
+        arguments = g_list_append (arguments, dp_keyvalue_new (REQUEST_GET_ALL_ANY_FILTER_LINK_FIELDS,tmp));
+
+      if (strlen (tmp1) > 0)
+        arguments = g_list_append (arguments, dp_keyvalue_new (REQUEST_GET_ALL_ANY_FILTER_FIELDS,tmp1));
+
+//g_message ("REL FIELDS: %s\n", tmp);
+//g_message ("RELS: %s\n", tmp1);
+
+      g_free (tmp);
+      g_free (tmp1);
+
+      if (fields_splitted != NULL)
+        g_strfreev (fields_splitted);
+    }
+
+  if (include_relationships == TRUE)
+    {
+      arguments = g_list_append (arguments, dp_keyvalue_new (REQUEST_GET_ALL_LINKS_INCLUDE_LINKED_DOCS,REQUEST_GET_ALL_LINKS_INCLUDE_LINKED_DOCS_OUT));
+      arguments = g_list_append (arguments, dp_keyvalue_new (REQUEST_GET_ALL_LINKS_INCLUDE_LINKED_DOCS_LEVEL,"1"));
+    }
+
+  if (types != NULL
+      || filter_by != NULL)
+      total_rows = dupin_record_get_list_total (db, 0, 0, NULL, NULL, TRUE, DP_COUNT_EXIST, types, types_op, 
+						filter_by, filter_by_format, filter_op, filter_values, NULL);
+  else
+      total_rows = dupin_database_count (db, DP_COUNT_EXIST);
+
+  /* NOTE - bear in mind we are cheating bad (on our side) and we do a full fetch from underlying DB, always even if include_docs=false */
+
+  if (dupin_record_get_list (db, count, offset, 0, 0, NULL, NULL, TRUE, DP_COUNT_EXIST,
+				DP_ORDERBY_ID, descending, types, types_op,
+				filter_by, filter_by_format, filter_op, filter_values, &results, NULL) == FALSE)
+    {
+      dupin_database_unref (db);
+      if (types)
+        g_strfreev (types);
+
+      request_set_error (client, "Cannot list documents from database");
+      return HTTP_STATUS_500;
+    }
+
+  obj = json_object_new ();
+
+  if (obj == NULL)
+    {
+      if( results )
+        dupin_record_get_list_close (results);
+
+      dupin_database_unref (db);
+      if (types)
+        g_strfreev (types);
+      request_set_error (client, "Cannot list documents from database");
+      return HTTP_STATUS_500;
+    }
+
+  json_object_set_int_member (obj, "totalResults", total_rows);
+  json_object_set_int_member (obj, "startIndex", offset);
+  json_object_set_int_member (obj, "itemsPerPage", count);
+
+  if (declining_updated_since == TRUE)
+    json_object_set_boolean_member (obj, "updatedSince", FALSE);
+
+  if (declining_updated_until == TRUE)
+    json_object_set_boolean_member (obj, "updatedUntil", FALSE);
+
+  if (declining_sorted == TRUE)
+    json_object_set_boolean_member (obj, "sorted", FALSE);
+
+  if (declining_filtered == TRUE)
+    json_object_set_boolean_member (obj, "filtered", FALSE);
+
+  array = json_array_new ();
+
+  if (array == NULL)
+    goto request_global_get_portable_listings_error;
+
+  for (list = results; list; list = list->next)
+    {
+      DupinRecord *record = list->data;
+
+      JsonNode *on;
+      if (!  (on = request_record_revision_obj (client, arguments,
+					record, (gchar *) dupin_record_get_id (record),
+					dupin_record_get_last_revision (record), TRUE)))
+        {
+	  json_array_unref (array);
+	  goto request_global_get_portable_listings_error;
+        }
+
+      /* NOTE - lift record to suit portable listings format */
+
+      JsonObject * on_obj = json_node_get_object (on);
+
+      json_object_remove_member (on_obj, REQUEST_OBJ_ATTACHMENTS);
+      json_object_remove_member (on_obj, REQUEST_OBJ_TYPE);
+      json_object_remove_member (on_obj, REQUEST_OBJ_REV);
+
+      json_object_set_string_member (on_obj, RESPONSE_OBJ_ID, json_object_get_string_member (on_obj,REQUEST_OBJ_ID));
+      json_object_remove_member (on_obj, REQUEST_OBJ_ID);
+
+      if (json_object_has_member (on_obj, "updated") == FALSE)
+        {
+          gchar * created = dupin_util_timestamp_to_iso8601 (dupin_record_get_created (record));
+          json_object_set_string_member (on_obj, "updated", created);
+          g_free (created);
+        }
+
+      if (json_object_has_member (on_obj, "objectType") == FALSE)
+        {
+          gchar * type = (gchar *)dupin_record_get_type (record);
+          if (type != NULL)
+            json_object_set_string_member (on_obj, "objectType", type);
+        }
+
+      /* relationships */
+
+      if (json_object_has_member (on_obj, REQUEST_OBJ_RELATIONSHIPS) == TRUE)
+        {
+	  JsonObject * relationships = json_object_get_object_member (on_obj, REQUEST_OBJ_RELATIONSHIPS);
+	  GList *nodes, *n;
+          nodes = json_object_get_members (relationships);
+          for (n = nodes; n != NULL; n = n->next)
+	    {
+	      if (!g_strcmp0 ((const gchar *) n->data, "_paging"))
+		continue;
+
+	      if (json_object_has_member (on_obj, (const gchar *) n->data) == FALSE)
+		{
+		  JsonArray * rel_array = json_object_get_array_member (relationships, (const gchar *) n->data);
+
+		  GList *nodes1, *n1;
+      		  nodes1 = json_array_get_elements (rel_array);
+      		  for (n1 = nodes1; n1 != NULL; n1 = n1->next)
+        	    {
+		      JsonObject * r = json_node_get_object (n1->data);
+      		      json_object_remove_member (r, REQUEST_LINK_OBJ_REV);
+      		      json_object_remove_member (r, REQUEST_LINK_OBJ_ID);
+      		      json_object_remove_member (r, REQUEST_LINK_OBJ_LABEL);
+
+      		      if (json_object_has_member (r, REQUEST_LINK_OBJ_REL) == TRUE)
+			{
+      		          json_object_set_string_member (r, RESPONSE_LINK_OBJ_REL, json_object_get_string_member (r,REQUEST_LINK_OBJ_REL));
+      		          json_object_remove_member (r, REQUEST_LINK_OBJ_REL);
+			}
+
+	              if (json_object_has_member (r, RESPONSE_LINK_OBJ_DOC_OUT) == TRUE)
+			{
+      		          json_object_remove_member (r, REQUEST_LINK_OBJ_HREF);
+
+		          JsonObject * d = json_object_get_object_member (r, RESPONSE_LINK_OBJ_DOC_OUT);
+
+      			  json_object_remove_member (d, REQUEST_OBJ_ATTACHMENTS);
+      			  json_object_remove_member (d, REQUEST_OBJ_REV);
+
+      			  json_object_set_string_member (d, RESPONSE_OBJ_ID, json_object_get_string_member (d,REQUEST_OBJ_ID));
+      			  json_object_remove_member (d, REQUEST_OBJ_ID);
+
+      			  if (json_object_has_member (d, "updated") == FALSE
+			      && json_object_has_member (d, "_created") == TRUE)
+         		    {
+      			      json_object_set_string_member (d, "updated", json_object_get_string_member (d,"_created"));
+      			      json_object_remove_member (d, "_created");
+        		    }
+
+      			  if (json_object_has_member (d, "objectType") == FALSE
+			      && json_object_has_member (d, REQUEST_OBJ_TYPE) == TRUE)
+        		    {
+      			      json_object_set_string_member (d, "objectType", json_object_get_string_member (d,REQUEST_OBJ_TYPE));
+      			      json_object_remove_member (d, REQUEST_OBJ_TYPE);
+        		    }
+
+      			  if (json_object_has_member (d, REQUEST_OBJ_RELATIONSHIPS) == TRUE)
+      		            json_object_remove_member (d, REQUEST_OBJ_RELATIONSHIPS);
+
+      			  if (json_object_has_member (d, REQUEST_OBJ_LINKS) == TRUE)
+      		            json_object_remove_member (d, REQUEST_OBJ_LINKS);
+
+      		          json_object_set_member (r, "entry", json_node_copy (json_object_get_member (r,RESPONSE_LINK_OBJ_DOC_OUT)));
+      		          json_object_remove_member (r, RESPONSE_LINK_OBJ_DOC_OUT);
+			}
+		      else
+			{
+      		          json_object_set_string_member (r, RESPONSE_LINK_OBJ_HREF, json_object_get_string_member (r,REQUEST_LINK_OBJ_HREF));
+      		          json_object_remove_member (r, REQUEST_LINK_OBJ_HREF);
+		        }
+		    }
+      		  g_list_free (nodes1);
+
+                  json_object_set_member (on_obj, (const gchar *) n->data,
+					json_node_copy (json_object_get_member (relationships, (const gchar *) n->data)));
+		}
+	    }
+          g_list_free (nodes);
+
+      	  json_object_remove_member (on_obj, REQUEST_OBJ_RELATIONSHIPS);
+	}
+
+      /* links */
+
+      if (json_object_has_member (on_obj, REQUEST_OBJ_LINKS) == TRUE)
+        {
+	  JsonObject * links = json_object_get_object_member (on_obj, REQUEST_OBJ_LINKS);
+	  GList *nodes, *n;
+          nodes = json_object_get_members (links);
+          for (n = nodes; n != NULL; n = n->next)
+	    {
+	      if (!g_strcmp0 ((const gchar *) n->data, "_paging"))
+		continue;
+
+	      if (json_object_has_member (on_obj, (const gchar *) n->data) == FALSE)
+		{
+		  JsonArray * rel_array = json_object_get_array_member (links, (const gchar *) n->data);
+
+		  GList *nodes1, *n1;
+      		  nodes1 = json_array_get_elements (rel_array);
+      		  for (n1 = nodes1; n1 != NULL; n1 = n1->next)
+        	    {
+		      JsonObject * r = json_node_get_object (n1->data);
+      		      json_object_remove_member (r, REQUEST_LINK_OBJ_REV);
+      		      json_object_remove_member (r, REQUEST_LINK_OBJ_ID);
+      		      json_object_remove_member (r, REQUEST_LINK_OBJ_LABEL);
+      		      json_object_set_string_member (r, RESPONSE_LINK_OBJ_HREF, json_object_get_string_member (r,REQUEST_LINK_OBJ_HREF));
+      		      json_object_remove_member (r, REQUEST_LINK_OBJ_HREF);
+
+      		      if (json_object_has_member (r, REQUEST_LINK_OBJ_REL) == TRUE)
+			{
+      		          json_object_set_string_member (r, RESPONSE_LINK_OBJ_REL, json_object_get_string_member (r,REQUEST_LINK_OBJ_REL));
+      		          json_object_remove_member (r, REQUEST_LINK_OBJ_REL);
+			}
+		    }
+      		  g_list_free (nodes1);
+
+                  json_object_set_member (on_obj, (const gchar *) n->data,
+					json_node_copy (json_object_get_member (links, (const gchar *) n->data)));
+		}
+	    }
+          g_list_free (nodes);
+
+      	  json_object_remove_member (on_obj, REQUEST_OBJ_LINKS);
+	}
+
+      json_array_add_element( array, on);
+    }
+
+  json_object_set_array_member (obj, "entry", array );
+
+  client->output_mime = g_strdup (HTTP_MIME_PORTABLE_LISTINGS_JSON);
+  client->output_type = DS_HTTPD_OUTPUT_STRING;
+
+  node = json_node_new (JSON_NODE_OBJECT);
+
+  if (node == NULL)
+    goto request_global_get_portable_listings_error;
+
+  json_node_set_object (node, obj);
+
+  gen = json_generator_new();
+
+  if (gen == NULL)
+    goto request_global_get_portable_listings_error;
+
+  json_generator_set_root (gen, node );
+  client->output.string.string = json_generator_to_data (gen,&client->output_size);
+
+  if (client->output.string.string == NULL)
+    goto request_global_get_portable_listings_error;
+
+  if( results )
+    dupin_record_get_list_close (results);
+
+  dupin_database_unref (db);
+
+  if (gen != NULL)
+    g_object_unref (gen);
+  if (node != NULL)
+    json_node_free (node);
+  json_object_unref (obj);
+
+  if (types)
+    g_strfreev (types);
+
+  return HTTP_STATUS_200;
+
+request_global_get_portable_listings_error:
+
+  if( results )
+    dupin_record_get_list_close (results);
+
+  dupin_database_unref (db);
+
+  if (gen != NULL)
+    g_object_unref (gen);
+  if (node != NULL)
+    json_node_free (node);
+  json_object_unref (obj);
+
+  if (types)
+    g_strfreev (types);
+
+  request_set_error (client, "Cannot list documents from database");
+
+  return HTTP_STATUS_500;
+}
+
+static DSHttpStatusCode
+request_global_get_portable_listings_record (DSHttpdClient * client, GList * path,
+			   		     GList * arguments)
+{
+  gchar * mvcc = NULL;
+
+  GList *list=NULL;
+
+  DupinDB *db=NULL;
+  DupinRecord *record=NULL;
+
+  gboolean declining_filtered = FALSE;
+
+  gboolean include_relationships = FALSE;
+
+  gchar * fields = NULL;
+
+  gchar * doc_id=NULL;
+
+  gchar * dbname = (gchar *) path->data;
+
+  /* GET document_ID */
+  doc_id = g_strdup_printf ("%s", (gchar *)path->next->next->data);
+
+  if (!
+      (db =
+       dupin_database_open (client->thread->data->dupin, dbname, NULL)))
+    {
+      g_free (doc_id);
+      request_set_error (client, "Cannot connect to database");
+      return HTTP_STATUS_404;
+    }
+
+  if (!(record = dupin_record_read (db, doc_id, NULL)))
+    {
+      dupin_database_unref (db);
+      g_free (doc_id);
+      request_set_error (client, "Cannot read record from database");
+      return HTTP_STATUS_404;
+    }
+
+  if (dupin_record_is_deleted (record, NULL) == TRUE)
+    {
+      dupin_record_close (record);
+      dupin_database_unref (db);
+      g_free (doc_id);
+      request_set_error (client, "Record is deleted");
+      return HTTP_STATUS_404;
+    }
+
+  for (list = arguments; list; list = list->next)
+    {
+      dupin_keyvalue_t *kv = list->data;
+
+      if (!g_strcmp0 (kv->key, REQUEST_GET_PORTABLE_LISTINGS_FIELDS))
+        {
+          fields = kv->value;
+        }
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_PORTABLE_LISTINGS_INCLUDE_RELATIONSHIPS))
+        {
+          if (g_strcmp0 (kv->value,"false") && g_strcmp0 (kv->value,"FALSE") &&
+              g_strcmp0 (kv->value,"true") && g_strcmp0 (kv->value,"TRUE"))
+            {
+              request_set_error (client, "Invalid " REQUEST_GET_PORTABLE_LISTINGS_INCLUDE_RELATIONSHIPS " parameter. Allowed values are: true, false");
+              return HTTP_STATUS_400;
+            }
+
+          include_relationships = (!g_strcmp0 (kv->value,"false") || !g_strcmp0 (kv->value,"FALSE")) ? FALSE : TRUE;
+        }
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_PORTABLE_LISTINGS_FORMAT))
+        {
+          if (g_strcmp0 (kv->value,REQUEST_GET_PORTABLE_LISTINGS_FORMAT_JSON))
+            {
+              request_set_error (client, "Invalid " REQUEST_GET_PORTABLE_LISTINGS_FORMAT " parameter. Allowed values are: " REQUEST_GET_PORTABLE_LISTINGS_FORMAT_JSON);
+              return HTTP_STATUS_400;
+            }
+	}
+    }
+
+  /* NOTE - hack params / arguments */
+
+  if (fields != NULL)
+    {
+      arguments = g_list_append (arguments, dp_keyvalue_new (REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TYPE,REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TYPE_ALL_LINKS));
+      arguments = g_list_append (arguments, dp_keyvalue_new (REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_LABELS,fields));
+
+      /* NOTE - include_links_labels=fields but fields removed prefix E.g. contributor.role -> role */
+
+//g_message ("FIELDS: %s\n", fields);
+
+      gchar ** fields_splitted = g_strsplit (fields, ",", -1);
+
+      gint i,j;
+      GString *str = g_string_new ("");
+      GString *str1 = g_string_new ("");
+      gboolean appended=FALSE;
+
+      if (fields_splitted != NULL)
+        {
+          for (i = 0; fields_splitted[i]; i++)
+            {
+	      if (appended == TRUE)
+		{
+	          g_string_append (str, ",");
+	          g_string_append (str1, ",");
+		}
+
+//g_message ("fields_splitted[%d] = %s\n", i, fields_splitted[i]);
+
+	      if (!g_strcmp0 (fields_splitted[i], ""))
+	        continue;
+
+              gchar ** field_parts = g_strsplit (fields_splitted[i], ".", -1);
+	      if (field_parts != NULL && field_parts[1])
+	        {
+	          g_string_append_printf (str1, "%s", field_parts[0]);
+
+                  for (j = 1; field_parts[j]; j++)
+                    {
+//g_message ("field_parts[%d]= %s\n", j, field_parts[j]);
+
+	              g_string_append_printf (str, "%s", field_parts[j]);
+	              if (field_parts[j+1])
+	                g_string_append (str, ".");
+	            }
+	          appended = TRUE;
+	        }
+
+	      if (field_parts != NULL)
+                g_strfreev (field_parts);
+            }
+        }
+      gchar * tmp = g_string_free (str, FALSE);
+      gchar * tmp1 = g_string_free (str1, FALSE);
+
+      if (strlen (tmp) > 0)
+        arguments = g_list_append (arguments, dp_keyvalue_new (REQUEST_GET_ALL_ANY_FILTER_LINK_FIELDS,tmp));
+
+      if (strlen (tmp1) > 0)
+        arguments = g_list_append (arguments, dp_keyvalue_new (REQUEST_GET_ALL_ANY_FILTER_FIELDS,tmp1));
+
+//g_message ("REL FIELDS: %s\n", tmp);
+//g_message ("RELS: %s\n", tmp1);
+
+      g_free (tmp);
+      g_free (tmp1);
+
+      if (fields_splitted != NULL)
+        g_strfreev (fields_splitted);
+    }
+
+  if (include_relationships == TRUE)
+    {
+      arguments = g_list_append (arguments, dp_keyvalue_new (REQUEST_GET_ALL_LINKS_INCLUDE_LINKED_DOCS,REQUEST_GET_ALL_LINKS_INCLUDE_LINKED_DOCS_OUT));
+      arguments = g_list_append (arguments, dp_keyvalue_new (REQUEST_GET_ALL_LINKS_INCLUDE_LINKED_DOCS_LEVEL,"1"));
+    }
+
+  /* Show a single revision: */
+
+  JsonNode *node_temp=NULL;
+
+  mvcc = dupin_record_get_last_revision (record);
+
+  if (!  (node_temp = request_record_revision_obj (client, arguments,
+					record, (gchar *) dupin_record_get_id (record),
+					mvcc,
+					TRUE)))
+    {
+      dupin_record_close (record);
+      dupin_database_unref (db);
+      g_free (doc_id);
+      request_set_error (client, "Cannot get record revision");
+      return HTTP_STATUS_404;
+    }
+
+  /* NOTE - lift record to suit portable listings format */
+
+  JsonObject * on_obj = json_node_get_object (node_temp);
+
+  json_object_remove_member (on_obj, REQUEST_OBJ_ATTACHMENTS);
+  json_object_remove_member (on_obj, REQUEST_OBJ_TYPE);
+  json_object_remove_member (on_obj, REQUEST_OBJ_REV);
+
+  json_object_set_string_member (on_obj, RESPONSE_OBJ_ID, json_object_get_string_member (on_obj,REQUEST_OBJ_ID));
+  json_object_remove_member (on_obj, REQUEST_OBJ_ID);
+
+  if (json_object_has_member (on_obj, "updated") == FALSE)
+    {
+      gchar * created = dupin_util_timestamp_to_iso8601 (dupin_record_get_created (record));
+      json_object_set_string_member (on_obj, "updated", created);
+      g_free (created);
+    }
+
+  if (json_object_has_member (on_obj, "objectType") == FALSE)
+    {
+      gchar * type = (gchar *)dupin_record_get_type (record);
+      if (type != NULL)
+        json_object_set_string_member (on_obj, "objectType", type);
+    }
+
+  /* relationships */
+
+  if (json_object_has_member (on_obj, REQUEST_OBJ_RELATIONSHIPS) == TRUE)
+    {
+      JsonObject * relationships = json_object_get_object_member (on_obj, REQUEST_OBJ_RELATIONSHIPS);
+      GList *nodes, *n;
+      nodes = json_object_get_members (relationships);
+      for (n = nodes; n != NULL; n = n->next)
+        {
+ 	  if (!g_strcmp0 ((const gchar *) n->data, "_paging"))
+	    continue;
+
+	  if (json_object_has_member (on_obj, (const gchar *) n->data) == FALSE)
+	    {
+	      JsonArray * rel_array = json_object_get_array_member (relationships, (const gchar *) n->data);
+
+	      GList *nodes1, *n1;
+    	      nodes1 = json_array_get_elements (rel_array);
+    	      for (n1 = nodes1; n1 != NULL; n1 = n1->next)
+      	        {
+		  JsonObject * r = json_node_get_object (n1->data);
+    		  json_object_remove_member (r, REQUEST_LINK_OBJ_REV);
+    		  json_object_remove_member (r, REQUEST_LINK_OBJ_ID);
+    		  json_object_remove_member (r, REQUEST_LINK_OBJ_LABEL);
+
+    		  if (json_object_has_member (r, REQUEST_LINK_OBJ_REL) == TRUE)
+		    {
+    		      json_object_set_string_member (r, RESPONSE_LINK_OBJ_REL, json_object_get_string_member (r,REQUEST_LINK_OBJ_REL));
+    		      json_object_remove_member (r, REQUEST_LINK_OBJ_REL);
+		    }
+
+	          if (json_object_has_member (r, RESPONSE_LINK_OBJ_DOC_OUT) == TRUE)
+		    {
+    		      json_object_remove_member (r, REQUEST_LINK_OBJ_HREF);
+
+		      JsonObject * d = json_object_get_object_member (r, RESPONSE_LINK_OBJ_DOC_OUT);
+
+    		      json_object_remove_member (d, REQUEST_OBJ_ATTACHMENTS);
+    		      json_object_remove_member (d, REQUEST_OBJ_REV);
+
+    	              json_object_set_string_member (d, RESPONSE_OBJ_ID, json_object_get_string_member (d,REQUEST_OBJ_ID));
+    		      json_object_remove_member (d, REQUEST_OBJ_ID);
+
+    	              if (json_object_has_member (d, "updated") == FALSE
+			  && json_object_has_member (d, "_created") == TRUE)
+       		        {
+    			  json_object_set_string_member (d, "updated", json_object_get_string_member (d,"_created"));
+    			  json_object_remove_member (d, "_created");
+      		        }
+
+    		      if (json_object_has_member (d, "objectType") == FALSE
+			  && json_object_has_member (d, REQUEST_OBJ_TYPE) == TRUE)
+      		        {
+    			  json_object_set_string_member (d, "objectType", json_object_get_string_member (d,REQUEST_OBJ_TYPE));
+    			  json_object_remove_member (d, REQUEST_OBJ_TYPE);
+      		        }
+
+    		     if (json_object_has_member (d, REQUEST_OBJ_RELATIONSHIPS) == TRUE)
+    		         json_object_remove_member (d, REQUEST_OBJ_RELATIONSHIPS);
+
+    		     if (json_object_has_member (d, REQUEST_OBJ_LINKS) == TRUE)
+    		         json_object_remove_member (d, REQUEST_OBJ_LINKS);
+
+    		     json_object_set_member (r, "entry", json_node_copy (json_object_get_member (r,RESPONSE_LINK_OBJ_DOC_OUT)));
+    		     json_object_remove_member (r, RESPONSE_LINK_OBJ_DOC_OUT);
+		   }
+		 else
+		   {
+    		     json_object_set_string_member (r, RESPONSE_LINK_OBJ_HREF, json_object_get_string_member (r,REQUEST_LINK_OBJ_HREF));
+    		     json_object_remove_member (r, REQUEST_LINK_OBJ_HREF);
+		   }
+	       }
+
+    	     g_list_free (nodes1);
+
+             json_object_set_member (on_obj, (const gchar *) n->data,
+					json_node_copy (json_object_get_member (relationships, (const gchar *) n->data)));
+           }
+	 }
+
+      g_list_free (nodes);
+
+      json_object_remove_member (on_obj, REQUEST_OBJ_RELATIONSHIPS);
+    }
+
+  /* links */
+
+  if (json_object_has_member (on_obj, REQUEST_OBJ_LINKS) == TRUE)
+    {
+      JsonObject * links = json_object_get_object_member (on_obj, REQUEST_OBJ_LINKS);
+      GList *nodes, *n;
+      nodes = json_object_get_members (links);
+      for (n = nodes; n != NULL; n = n->next)
+        {
+	  if (!g_strcmp0 ((const gchar *) n->data, "_paging"))
+	    continue;
+
+	  if (json_object_has_member (on_obj, (const gchar *) n->data) == FALSE)
+	    {
+	      JsonArray * rel_array = json_object_get_array_member (links, (const gchar *) n->data);
+
+	      GList *nodes1, *n1;
+    	      nodes1 = json_array_get_elements (rel_array);
+    	      for (n1 = nodes1; n1 != NULL; n1 = n1->next)
+      	        {
+		  JsonObject * r = json_node_get_object (n1->data);
+    		  json_object_remove_member (r, REQUEST_LINK_OBJ_REV);
+    		  json_object_remove_member (r, REQUEST_LINK_OBJ_ID);
+    		  json_object_remove_member (r, REQUEST_LINK_OBJ_LABEL);
+    		  json_object_set_string_member (r, RESPONSE_LINK_OBJ_HREF, json_object_get_string_member (r,REQUEST_LINK_OBJ_HREF));
+    		  json_object_remove_member (r, REQUEST_LINK_OBJ_HREF);
+
+    		  if (json_object_has_member (r, REQUEST_LINK_OBJ_REL) == TRUE)
+		    {
+    		      json_object_set_string_member (r, RESPONSE_LINK_OBJ_REL, json_object_get_string_member (r,REQUEST_LINK_OBJ_REL));
+    		      json_object_remove_member (r, REQUEST_LINK_OBJ_REL);
+		    }
+		}
+              g_list_free (nodes1);
+
+              json_object_set_member (on_obj, (const gchar *) n->data,
+					json_node_copy (json_object_get_member (links, (const gchar *) n->data)));
+	    }
+	}
+      g_list_free (nodes);
+
+      json_object_remove_member (on_obj, REQUEST_OBJ_LINKS);
+    }
+
+  JsonNode * entry = json_node_new (JSON_NODE_OBJECT);
+  JsonObject * entry_obj = json_object_new ();
+  json_node_take_object (entry, entry_obj);
+
+  json_object_set_member (entry_obj, "entry", json_node_copy (node_temp));
+
+  if (declining_filtered == TRUE)
+    json_object_set_boolean_member (entry_obj, "filtered", FALSE);
+
+  json_node_free (node_temp);
+
+  /* Writing: */
+
+  client->output.string.string = dupin_util_json_serialize (entry);
+  client->output_size = strlen(client->output.string.string);
+
+  if (client->output.string.string == NULL)
+    goto request_global_get_portable_listings_record_error;
+
+  client->output_mime = g_strdup (HTTP_MIME_PORTABLE_LISTINGS_JSON);
+  client->output_type = DS_HTTPD_OUTPUT_STRING;
+
+  if (entry != NULL)
+    json_node_free (entry);
+
+  dupin_record_close (record);
+  dupin_database_unref (db);
+
+  g_free (doc_id);
+
+  return HTTP_STATUS_200;
+
+request_global_get_portable_listings_record_error:
+
+  dupin_record_close (record);
+  dupin_database_unref (db);
+
+  g_free (doc_id);
+
+  request_set_error (client, "Cannot get record");
+
+  return HTTP_STATUS_500;
+}
+
+static DSHttpStatusCode
+request_global_get_portable_listings_record_relationship (DSHttpdClient * client,
+							  GList * path,
+							  GList * arguments)
+{
+  DupinLinkB *linkb;
+
+  GList *list;
+  GList *results;
+
+  gboolean descending = FALSE;
+  guint count = DUPIN_LINKB_MAX_LINKS_COUNT;
+  guint offset = 0;
+  gsize total_rows = 0;
+
+  gboolean inclusive_end = TRUE;
+
+  gchar * context_id = (gchar *)path->next->next->data;
+
+  /* TODO - check if web links will be expanded as well downwards with includeRelationships=true */
+
+  gchar ** link_rels = NULL;
+  DupinFilterByType link_rels_op = DP_FILTERBY_EQUALS;
+  gchar ** link_labels = NULL;
+  if (path->next->next->next)
+    link_labels = g_strsplit ((gchar *)path->next->next->next->data, ",", -1);
+  DupinFilterByType link_labels_op = DP_FILTERBY_EQUALS;
+  gchar ** link_hrefs = NULL;
+  DupinFilterByType link_hrefs_op = DP_FILTERBY_EQUALS;
+  gchar ** link_tags = NULL;
+  DupinFilterByType link_tags_op = DP_FILTERBY_EQUALS;
+
+  DupinLinksType link_type = DP_LINK_TYPE_RELATIONSHIP;
+
+  gchar * filter_by = NULL;
+  DupinFieldsFormatType filter_by_format = DP_FIELDS_FORMAT_DOTTED;
+  DupinFilterByType filter_op = DP_FILTERBY_UNDEF;
+  gchar * filter_values = NULL;
+
+  gboolean declining_updated_since = FALSE;
+  gboolean declining_updated_until = FALSE;
+  gboolean declining_filtered = FALSE;
+  gboolean declining_sorted = FALSE;
+
+  gboolean include_relationships = FALSE;
+
+  gchar * fields = NULL;
+
+  JsonObject *obj;
+  JsonNode *node=NULL;
+  JsonArray *array;
+  JsonGenerator *gen=NULL;
+
+  gchar * linkbase_name = (gchar *) path->data;
+
+  /* hack for labels */
+
+  if (!
+      (linkb =
+       dupin_linkbase_open (client->thread->data->dupin, linkbase_name, NULL)))
+    {
+      request_set_error (client, "Cannot connect to linkabse");
+      return HTTP_STATUS_404;
+    }
+
+  for (list = arguments; list; list = list->next)
+    {
+      dupin_keyvalue_t *kv = list->data;
+
+      if (!g_strcmp0 (kv->key, REQUEST_GET_PORTABLE_LISTINGS_SORT_ORDER))
+	descending = (!g_strcmp0 (kv->value, "descending")) ? TRUE : FALSE;
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_PORTABLE_LISTINGS_FIELDS))
+        {
+          fields = kv->value;
+	}
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_PORTABLE_LISTINGS_INCLUDE_RELATIONSHIPS))
+        {
+          if (g_strcmp0 (kv->value,"false") && g_strcmp0 (kv->value,"FALSE") &&
+              g_strcmp0 (kv->value,"true") && g_strcmp0 (kv->value,"TRUE"))
+            {
+              request_set_error (client, "Invalid " REQUEST_GET_PORTABLE_LISTINGS_INCLUDE_RELATIONSHIPS " parameter. Allowed values are: true, false");
+              return HTTP_STATUS_400;
+            }
+
+          include_relationships = (!g_strcmp0 (kv->value,"false") || !g_strcmp0 (kv->value,"FALSE")) ? FALSE : TRUE;
+        }
+
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_PORTABLE_LISTINGS_COUNT))
+	count = atoi (kv->value);
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_PORTABLE_LISTINGS_START_INDEX))
+	offset = atoi (kv->value);
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_PORTABLE_LISTINGS_UPDATED_SINCE))
+        {
+	  /* TODO - unimplemented */
+          declining_updated_since = TRUE;
+        }
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_PORTABLE_LISTINGS_UPDATED_UNTIL))
+        {
+	  /* TODO - unimplemented */
+          declining_updated_until = TRUE;
+        }
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_PORTABLE_LISTINGS_FILTER_OBJECT_TYPE))
+        {
+	  /* TODO - unimplemented */
+          declining_filtered = TRUE;
+        }
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_PORTABLE_LISTINGS_FILTER_BY))
+        {
+	  /* TODO - unimplemented */
+          declining_filtered = TRUE;
+        }
+ 
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_PORTABLE_LISTINGS_FILTER_OP))
+        {
+	  /* TODO - unimplemented */
+          declining_filtered = TRUE;
+        }
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_PORTABLE_LISTINGS_FILTER_VALUES))
+        {
+	  /* TODO - unimplemented */
+          declining_filtered = TRUE;
+        }
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_PORTABLE_LISTINGS_SORT_BY))
+        {
+	  /* TODO - unimplemented */
+          declining_sorted = TRUE;
+        }
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_PORTABLE_LISTINGS_FORMAT))
+        {
+          if (g_strcmp0 (kv->value,REQUEST_GET_PORTABLE_LISTINGS_FORMAT_JSON))
+            {
+              request_set_error (client, "Invalid " REQUEST_GET_PORTABLE_LISTINGS_FORMAT " parameter. Allowed values are: " REQUEST_GET_PORTABLE_LISTINGS_FORMAT_JSON);
+              return HTTP_STATUS_400;
+            }
+	}
+    }
+
+  /* NOTE - hack params / arguments */
+
+  if (fields != NULL)
+    {
+      arguments = g_list_append (arguments, dp_keyvalue_new (REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TYPE,REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TYPE_ALL_LINKS));
+      arguments = g_list_append (arguments, dp_keyvalue_new (REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_LABELS,fields));
+
+      /* NOTE - include_links_labels=fields but fields removed prefix E.g. contributor.role -> role */
+
+//g_message ("FIELDS: %s\n", fields);
+
+      gchar ** fields_splitted = g_strsplit (fields, ",", -1);
+
+      gint i,j;
+      GString *str = g_string_new ("");
+      GString *str1 = g_string_new ("");
+      gboolean appended=FALSE;
+
+      if (fields_splitted != NULL)
+        {
+          for (i = 0; fields_splitted[i]; i++)
+            {
+	      if (appended == TRUE)
+		{
+	          g_string_append (str, ",");
+	          g_string_append (str1, ",");
+		}
+
+//g_message ("fields_splitted[%d] = %s\n", i, fields_splitted[i]);
+
+	      if (!g_strcmp0 (fields_splitted[i], ""))
+	        continue;
+
+              gchar ** field_parts = g_strsplit (fields_splitted[i], ".", -1);
+	      if (field_parts != NULL && field_parts[1])
+	        {
+	          g_string_append_printf (str1, "%s", field_parts[0]);
+
+                  for (j = 1; field_parts[j]; j++)
+                    {
+//g_message ("field_parts[%d]= %s\n", j, field_parts[j]);
+
+	              g_string_append_printf (str, "%s", field_parts[j]);
+	              if (field_parts[j+1])
+	                g_string_append (str, ".");
+	            }
+	          appended = TRUE;
+	        }
+
+	      if (field_parts != NULL)
+                g_strfreev (field_parts);
+            }
+        }
+      gchar * tmp = g_string_free (str, FALSE);
+      gchar * tmp1 = g_string_free (str1, FALSE);
+
+      if (strlen (tmp) > 0)
+        arguments = g_list_append (arguments, dp_keyvalue_new (REQUEST_GET_ALL_ANY_FILTER_LINK_FIELDS,tmp));
+
+      if (strlen (tmp1) > 0)
+        arguments = g_list_append (arguments, dp_keyvalue_new (REQUEST_GET_ALL_ANY_FILTER_FIELDS,tmp1));
+
+//g_message ("REL FIELDS: %s\n", tmp);
+//g_message ("RELS: %s\n", tmp1);
+
+      g_free (tmp);
+      g_free (tmp1);
+
+      if (fields_splitted != NULL)
+        g_strfreev (fields_splitted);
+    }
+
+  if (include_relationships == TRUE)
+    {
+      arguments = g_list_append (arguments, dp_keyvalue_new (REQUEST_GET_ALL_LINKS_INCLUDE_LINKED_DOCS,REQUEST_GET_ALL_LINKS_INCLUDE_LINKED_DOCS_OUT));
+      arguments = g_list_append (arguments, dp_keyvalue_new (REQUEST_GET_ALL_LINKS_INCLUDE_LINKED_DOCS_LEVEL,"1"));
+
+      arguments = g_list_append (arguments, dp_keyvalue_new (REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TYPE,REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TYPE_ALL_LINKS));
+    }
+
+  /* hack to naviagte second level */
+
+  arguments = g_list_append (arguments, dp_keyvalue_new (REQUEST_GET_ALL_LINKS_INCLUDE_LINKED_DOCS,REQUEST_GET_ALL_LINKS_INCLUDE_LINKED_DOCS_OUT));
+
+  /* NOTE - try to optimize here */
+  if (context_id != NULL
+      || link_labels != NULL
+      || filter_by != NULL)
+    total_rows = dupin_link_record_get_list_total (linkb, 0, 0, link_type, NULL, NULL, inclusive_end, DP_COUNT_EXIST, 
+						   context_id, link_rels, link_rels_op,
+						   link_labels, link_labels_op, link_hrefs, link_hrefs_op, link_tags, link_tags_op,
+						   filter_by, filter_by_format, filter_op, filter_values);
+  else
+    total_rows = dupin_linkbase_count (linkb, link_type, DP_COUNT_EXIST);
+
+
+  if (dupin_link_record_get_list (linkb, count, offset, 0, 0, link_type, NULL, NULL, inclusive_end, DP_COUNT_EXIST, DP_ORDERBY_ID, descending, 
+				  context_id, link_rels, link_rels_op, link_labels, link_labels_op,
+				  link_hrefs, link_hrefs_op, link_tags, link_tags_op,
+				  filter_by, filter_by_format, filter_op, filter_values, &results, NULL) == FALSE)
+    {
+      if (link_labels)
+        g_strfreev (link_labels);
+
+      dupin_linkbase_unref (linkb);
+      request_set_error (client, "Cannot get list of links from linkabse");
+      return HTTP_STATUS_500;
+    }
+
+  obj = json_object_new ();
+
+  if (obj == NULL)
+    {
+      if( results )
+        dupin_link_record_get_list_close (results);
+
+      if (link_labels)
+        g_strfreev (link_labels);
+
+      dupin_linkbase_unref (linkb);
+      request_set_error (client, "Cannot get list of links from linkabse");
+      return HTTP_STATUS_500;
+    }
+
+  json_object_set_int_member (obj, "totalResults", total_rows);
+  json_object_set_int_member (obj, "startIndex", offset);
+  json_object_set_int_member (obj, "itemsPerPage", count);
+
+  if (declining_updated_since == TRUE)
+    json_object_set_boolean_member (obj, "updatedSince", FALSE);
+
+  if (declining_updated_until == TRUE)
+    json_object_set_boolean_member (obj, "updatedUntil", FALSE);
+
+  if (declining_sorted == TRUE)
+    json_object_set_boolean_member (obj, "sorted", FALSE);
+
+  if (declining_filtered == TRUE)
+    json_object_set_boolean_member (obj, "filtered", FALSE);
+
+  array = json_array_new ();
+
+  if (array == NULL)
+    goto request_global_get_portable_listings_record_relationship_error;
+
+  for (list = results; list; list = list->next)
+    {
+      DupinLinkRecord *record = list->data;
+
+      JsonNode *temp_node;
+      if (!  (temp_node = request_link_record_revision_obj (client, arguments,
+					     record, (gchar *) dupin_link_record_get_id (record),
+			       		     dupin_link_record_get_last_revision (record),
+					     TRUE)))
+        {
+	  json_array_unref (array);
+	  goto request_global_get_portable_listings_record_relationship_error;
+        }
+
+      if (json_object_has_member (json_node_get_object (temp_node), RESPONSE_LINK_OBJ_DOC_OUT) == FALSE)
+        continue;
+
+      JsonNode *on = json_node_copy (json_object_get_member (json_node_get_object (temp_node), RESPONSE_LINK_OBJ_DOC_OUT));
+
+      json_node_free (temp_node);
+
+      /* NOTE - lift record to suit portable listings format */
+
+      JsonObject * on_obj = json_node_get_object (on);
+
+      json_object_remove_member (on_obj, REQUEST_OBJ_ATTACHMENTS);
+      json_object_remove_member (on_obj, REQUEST_OBJ_REV);
+
+      json_object_set_string_member (on_obj, RESPONSE_OBJ_ID, json_object_get_string_member (on_obj,REQUEST_OBJ_ID));
+      json_object_remove_member (on_obj, REQUEST_OBJ_ID);
+
+      if (json_object_has_member (on_obj, "updated") == FALSE
+ 	  && json_object_has_member (on_obj, "_created") == TRUE)
+        {
+          json_object_set_string_member (on_obj, "updated", json_object_get_string_member (on_obj,"_created"));
+          json_object_remove_member (on_obj, "_created");
+        }
+
+      if (json_object_has_member (on_obj, "objectType") == FALSE
+          && json_object_has_member (on_obj, REQUEST_OBJ_TYPE) == TRUE)
+        {
+          json_object_set_string_member (on_obj, "objectType", json_object_get_string_member (on_obj,REQUEST_OBJ_TYPE));
+          json_object_remove_member (on_obj, REQUEST_OBJ_TYPE);
+        }
+
+      /* relationships */
+
+      if (json_object_has_member (on_obj, REQUEST_OBJ_RELATIONSHIPS) == TRUE)
+        {
+	  JsonObject * relationships = json_object_get_object_member (on_obj, REQUEST_OBJ_RELATIONSHIPS);
+	  GList *nodes, *n;
+          nodes = json_object_get_members (relationships);
+          for (n = nodes; n != NULL; n = n->next)
+	    {
+	      if (!g_strcmp0 ((const gchar *) n->data, "_paging"))
+		continue;
+
+	      if (json_object_has_member (on_obj, (const gchar *) n->data) == FALSE)
+		{
+		  JsonArray * rel_array = json_object_get_array_member (relationships, (const gchar *) n->data);
+
+		  GList *nodes1, *n1;
+      		  nodes1 = json_array_get_elements (rel_array);
+      		  for (n1 = nodes1; n1 != NULL; n1 = n1->next)
+        	    {
+		      JsonObject * r = json_node_get_object (n1->data);
+      		      json_object_remove_member (r, REQUEST_LINK_OBJ_REV);
+      		      json_object_remove_member (r, REQUEST_LINK_OBJ_ID);
+      		      json_object_remove_member (r, REQUEST_LINK_OBJ_LABEL);
+
+      		      if (json_object_has_member (r, REQUEST_LINK_OBJ_REL) == TRUE)
+			{
+      		          json_object_set_string_member (r, RESPONSE_LINK_OBJ_REL, json_object_get_string_member (r,REQUEST_LINK_OBJ_REL));
+      		          json_object_remove_member (r, REQUEST_LINK_OBJ_REL);
+			}
+
+	              if (json_object_has_member (r, RESPONSE_LINK_OBJ_DOC_OUT) == TRUE)
+			{
+      		          json_object_remove_member (r, REQUEST_LINK_OBJ_HREF);
+
+		          JsonObject * d = json_object_get_object_member (r, RESPONSE_LINK_OBJ_DOC_OUT);
+
+      			  json_object_remove_member (d, REQUEST_OBJ_ATTACHMENTS);
+      			  json_object_remove_member (d, REQUEST_OBJ_REV);
+
+      			  json_object_set_string_member (d, RESPONSE_OBJ_ID, json_object_get_string_member (d,REQUEST_OBJ_ID));
+      			  json_object_remove_member (d, REQUEST_OBJ_ID);
+
+      			  if (json_object_has_member (d, "updated") == FALSE
+			      && json_object_has_member (d, "_created") == TRUE)
+         		    {
+      			      json_object_set_string_member (d, "updated", json_object_get_string_member (d,"_created"));
+      			      json_object_remove_member (d, "_created");
+        		    }
+
+      			  if (json_object_has_member (d, "objectType") == FALSE
+			      && json_object_has_member (d, REQUEST_OBJ_TYPE) == TRUE)
+        		    {
+      			      json_object_set_string_member (d, "objectType", json_object_get_string_member (d,REQUEST_OBJ_TYPE));
+      			      json_object_remove_member (d, REQUEST_OBJ_TYPE);
+        		    }
+
+      			  if (json_object_has_member (d, REQUEST_OBJ_RELATIONSHIPS) == TRUE)
+      		            json_object_remove_member (d, REQUEST_OBJ_RELATIONSHIPS);
+
+      			  if (json_object_has_member (d, REQUEST_OBJ_LINKS) == TRUE)
+      		            json_object_remove_member (d, REQUEST_OBJ_LINKS);
+
+      		          json_object_set_member (r, "entry", json_node_copy (json_object_get_member (r,RESPONSE_LINK_OBJ_DOC_OUT)));
+      		          json_object_remove_member (r, RESPONSE_LINK_OBJ_DOC_OUT);
+			}
+		      else
+			{
+      		          json_object_set_string_member (r, RESPONSE_LINK_OBJ_HREF, json_object_get_string_member (r,REQUEST_LINK_OBJ_HREF));
+      		          json_object_remove_member (r, REQUEST_LINK_OBJ_HREF);
+		        }
+		    }
+      		  g_list_free (nodes1);
+
+                  json_object_set_member (on_obj, (const gchar *) n->data,
+					json_node_copy (json_object_get_member (relationships, (const gchar *) n->data)));
+		}
+	    }
+          g_list_free (nodes);
+
+      	  json_object_remove_member (on_obj, REQUEST_OBJ_RELATIONSHIPS);
+	}
+
+      /* links */
+
+      if (json_object_has_member (on_obj, REQUEST_OBJ_LINKS) == TRUE)
+        {
+	  JsonObject * links = json_object_get_object_member (on_obj, REQUEST_OBJ_LINKS);
+	  GList *nodes, *n;
+          nodes = json_object_get_members (links);
+          for (n = nodes; n != NULL; n = n->next)
+	    {
+	      if (!g_strcmp0 ((const gchar *) n->data, "_paging"))
+		continue;
+
+	      if (json_object_has_member (on_obj, (const gchar *) n->data) == FALSE)
+		{
+		  JsonArray * rel_array = json_object_get_array_member (links, (const gchar *) n->data);
+
+		  GList *nodes1, *n1;
+      		  nodes1 = json_array_get_elements (rel_array);
+      		  for (n1 = nodes1; n1 != NULL; n1 = n1->next)
+        	    {
+		      JsonObject * r = json_node_get_object (n1->data);
+      		      json_object_remove_member (r, REQUEST_LINK_OBJ_REV);
+      		      json_object_remove_member (r, REQUEST_LINK_OBJ_ID);
+      		      json_object_remove_member (r, REQUEST_LINK_OBJ_LABEL);
+      		      json_object_set_string_member (r, RESPONSE_LINK_OBJ_HREF, json_object_get_string_member (r,REQUEST_LINK_OBJ_HREF));
+      		      json_object_remove_member (r, REQUEST_LINK_OBJ_HREF);
+
+      		      if (json_object_has_member (r, REQUEST_LINK_OBJ_REL) == TRUE)
+			{
+      		          json_object_set_string_member (r, RESPONSE_LINK_OBJ_REL, json_object_get_string_member (r,REQUEST_LINK_OBJ_REL));
+      		          json_object_remove_member (r, REQUEST_LINK_OBJ_REL);
+			}
+		    }
+      		  g_list_free (nodes1);
+
+                  json_object_set_member (on_obj, (const gchar *) n->data,
+					json_node_copy (json_object_get_member (links, (const gchar *) n->data)));
+		}
+	    }
+          g_list_free (nodes);
+
+      	  json_object_remove_member (on_obj, REQUEST_OBJ_LINKS);
+	}
+
+      json_array_add_element( array, on);
+    }
+
+  json_object_set_array_member (obj, "entry", array );
+
+  client->output_mime = g_strdup (HTTP_MIME_PORTABLE_LISTINGS_JSON);
+  client->output_type = DS_HTTPD_OUTPUT_STRING;
+
+  node = json_node_new (JSON_NODE_OBJECT);
+
+  if (node == NULL)
+    goto request_global_get_portable_listings_record_relationship_error;
+
+  json_node_set_object (node, obj);
+
+  gen = json_generator_new();
+
+  if (gen == NULL)
+    goto request_global_get_portable_listings_record_relationship_error;
+
+  json_generator_set_root (gen, node );
+  client->output.string.string = json_generator_to_data (gen,&client->output_size);
+
+  if (client->output.string.string == NULL)
+    goto request_global_get_portable_listings_record_relationship_error;
+
+  if( results )
+    dupin_link_record_get_list_close (results);
+
+  dupin_linkbase_unref (linkb);
+
+  if (gen != NULL)
+    g_object_unref (gen);
+  if (node != NULL)
+    json_node_free (node);
+  json_object_unref (obj);
+
+  if (link_labels)
+    g_strfreev (link_labels);
+
+  return HTTP_STATUS_200;
+
+request_global_get_portable_listings_record_relationship_error:
+
+  if( results )
+    dupin_link_record_get_list_close (results);
+
+  dupin_linkbase_unref (linkb);
+
+  if (gen != NULL)
+    g_object_unref (gen);
+  if (node != NULL)
+    json_node_free (node);
+  json_object_unref (obj);
+
+  if (link_labels)
+    g_strfreev (link_labels);
+
+  request_set_error (client, "Cannot get list of links from linkabse");
+
+  return HTTP_STATUS_500;
 }
 
 /* EOF */

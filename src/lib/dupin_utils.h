@@ -88,6 +88,9 @@ gsize		dupin_util_timestamp_now	();
 
 gchar *		dupin_util_timestamp_to_iso8601	(gsize timestamp);
 
+gboolean	dupin_util_iso8601_to_timestamp (gchar * iso8601_date,
+						 gsize * timestamp);
+
 gboolean	dupin_util_is_valid_mr_lang	(gchar *	lang);
 
 DupinMRLang	dupin_util_mr_lang_to_enum	(gchar *	lang);

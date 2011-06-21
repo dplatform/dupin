@@ -861,16 +861,16 @@ httpd_client_header_parse (DSHttpdClient * client, gchar * request,
 
       /* NOTE - we need to un-escape '+' sign spaces too */
 
-      key1 = g_uri_unescape_string (attribute[0], NULL);
-      gchar ** spaces = g_strsplit (key1, "+", -1);
-      key = g_strjoinv (" ", spaces);
+      gchar ** spaces = g_strsplit (attribute[0], "+", -1);
+      key1 = g_strjoinv (" ", spaces);
       g_strfreev (spaces);
+      key = g_uri_unescape_string (key1, NULL);
       g_free (key1);
 
-      value1 = g_uri_unescape_string (attribute[1], NULL);
-      spaces = g_strsplit (value1, "+", -1);
-      value = g_strjoinv (" ", spaces);
+      spaces = g_strsplit (attribute[1], "+", -1);
+      value1 = g_strjoinv (" ", spaces);
       g_strfreev (spaces);
+      value = g_uri_unescape_string (value1, NULL);
       g_free (value1);
 
       ret = g_list_prepend (ret, dp_keyvalue_new (key, value));

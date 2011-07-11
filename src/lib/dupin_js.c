@@ -1828,6 +1828,32 @@ dupin_js_dupin_class_util_http_client_return_headers (const gchar *name,
   json_object_set_string_member (data, name, value);
 }
 
+static gboolean
+_dupin_js_dupin_class_util_http_client_session_authenticate (SoupSession *session,
+							     SoupMessage *msg,
+							     SoupAuth *auth,
+							     gboolean retrying,
+							     gpointer callback_data)
+{
+  g_return_val_if_fail (callback_data != NULL, FALSE);
+
+  /* TODO - we do not use retry yet */
+
+  JsonObject * params_node_obj = (JsonObject *)callback_data;
+
+  gchar * username = NULL;
+  if (json_object_has_member (params_node_obj, "username"))
+    username = (gchar *)json_object_get_string_member (params_node_obj, "username");
+
+  gchar * password = NULL;
+  if (json_object_has_member (params_node_obj, "password"))
+    password = (gchar *)json_object_get_string_member (params_node_obj, "password");
+
+  soup_auth_authenticate (auth, username, password);
+
+  return TRUE;
+}
+
 static JSValueRef
 dupin_js_dupin_class_util_http_client (JSContextRef ctx,
                    	    	       JSObjectRef object,
@@ -1848,7 +1874,11 @@ dupin_js_dupin_class_util_http_client (JSContextRef ctx,
 	  "headers": { .... },
 	  "params": { .... },
 	  "method": "get / post",
-	  "body": " body to post ... "
+	  "body": " body to post ... ",
+	  "username": "foo",
+	  "password": "password",
+	  "user_agent": "Foo/Bar",
+	  "debug": true
         }
 
      returns:
@@ -1960,7 +1990,6 @@ dupin_js_dupin_class_util_http_client (JSContextRef ctx,
 
 //DUPIN_UTIL_DUMP_JSON ("dupin_js_dupin_class_util_http_client: params:", params_node);
 
-
   session = soup_session_sync_new_with_options (
 #ifdef HAVE_GNOME
               SOUP_SESSION_ADD_FEATURE_BY_TYPE, SOUP_TYPE_GNOME_FEATURES_2_26,
@@ -1979,6 +2008,9 @@ dupin_js_dupin_class_util_http_client (JSContextRef ctx,
     {
       g_object_set (G_OBJECT (session), SOUP_SESSION_PROXY_URI, proxy, NULL);
     }
+
+  /* auth stuff */
+  g_signal_connect (session, "authenticate", G_CALLBACK (_dupin_js_dupin_class_util_http_client_session_authenticate), params_node_obj);
 
   /* NOTE - do HTTP GET */
 

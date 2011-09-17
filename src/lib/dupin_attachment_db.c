@@ -682,18 +682,6 @@ dupin_attachment_db_commit_transaction (DupinAttachmentDB * attachment_db, GErro
 
 //g_message ("dupin_attachment_db_commit_transaction: attachment database %s transaction commit", attachment_db->name);
 
-//g_message("dupin_attachment_db_commit_transaction: VACUUM and ANALYZE\n");
-
-  if (sqlite3_exec (attachment_db->db, "VACUUM", NULL, NULL, &errmsg) != SQLITE_OK
-      || sqlite3_exec (attachment_db->db, "ANALYZE Dupin", NULL, NULL, &errmsg) != SQLITE_OK)
-    {
-      g_error("dupin_attachment_db_commit_transaction: %s", errmsg);
-
-      sqlite3_free (errmsg);
-
-      return -1;
-    }
-
   return 0;
 }
 

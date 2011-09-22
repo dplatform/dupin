@@ -145,6 +145,7 @@ dupin_attachment_record_delete (DupinAttachmentDB * attachment_db,
       g_error("dupin_attachment_record_delete: %s", errmsg);
       sqlite3_free (errmsg);
       sqlite3_free (query);
+      dupin_attachment_db_rollback_transaction (attachment_db, NULL);
       return FALSE;
     }
 
@@ -192,6 +193,7 @@ dupin_attachment_record_delete_all (DupinAttachmentDB * attachment_db,
       g_error("dupin_attachment_record_delete_all: %s", errmsg);
       sqlite3_free (errmsg);
       sqlite3_free (query);
+      dupin_attachment_db_rollback_transaction (attachment_db, NULL);
       return FALSE;
     }
 

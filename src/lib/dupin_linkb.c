@@ -193,6 +193,7 @@ dupin_linkbase_new (Dupin * d, gchar * linkb,
 
       sqlite3_free (errmsg);
       sqlite3_free (str);
+      dupin_linkbase_rollback_transaction (ret, error);
       dupin_linkb_disconnect (ret);
       return NULL;
     }
@@ -390,7 +391,7 @@ dupin_linkbase_p_record_delete (DupinLinkBP * p, gchar * pid)
 
       dupin_linkbase_p_record_delete (&linkb->linkbs, pid);
 
-      //dupin_link_record_delete (linkb, pid);
+      /* TODO - delete any link where 'pid' is context_id or href of links; and viceversa */
     }
 }
 
@@ -620,6 +621,7 @@ dupin_linkb_connect (Dupin * d, gchar * name, gchar * path,
           g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
 		   errmsg);
           sqlite3_free (errmsg);
+          dupin_linkbase_rollback_transaction (linkb, error);
           dupin_linkb_disconnect (linkb);
           return NULL;
         }
@@ -652,7 +654,7 @@ dupin_linkb_connect (Dupin * d, gchar * name, gchar * path,
           see also http://www.sqlite.org/pragma.html#pragma_synchronous
    */
 
-  if (sqlite3_exec (linkb->db, "PRAGMA synchronous = FULL", NULL, NULL, &errmsg) != SQLITE_OK)
+  if (sqlite3_exec (linkb->db, "PRAGMA synchronous = NORMAL", NULL, NULL, &errmsg) != SQLITE_OK)
     {   
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot set pragma synchronous: %s",
                    errmsg);

@@ -445,6 +445,7 @@ dupin_link_record_create_with_id_real (DupinLinkB * linkb, JsonNode * obj_node,
       dupin_link_record_close (record);
       sqlite3_free (errmsg);
       sqlite3_free (tmp);
+      dupin_linkbase_rollback_transaction (linkb, error);
       return NULL;
     }
 
@@ -1703,6 +1704,7 @@ dupin_link_record_update (DupinLinkRecord * record, JsonNode * obj_node,
 
       sqlite3_free (errmsg);
       sqlite3_free (tmp);
+      dupin_linkbase_rollback_transaction (record->linkb, error);
       return FALSE;
     }
 
@@ -1739,6 +1741,7 @@ dupin_link_record_update (DupinLinkRecord * record, JsonNode * obj_node,
 
       sqlite3_free (errmsg);
       sqlite3_free (tmp);
+      dupin_linkbase_rollback_transaction (record->linkb, error);
       return FALSE;
     }
   else
@@ -1758,6 +1761,7 @@ dupin_link_record_update (DupinLinkRecord * record, JsonNode * obj_node,
 
               sqlite3_free (errmsg);
               sqlite3_free (tmp);
+      	      dupin_linkbase_rollback_transaction (record->linkb, error);
               return FALSE;
             }
           else
@@ -1821,6 +1825,7 @@ dupin_link_record_update (DupinLinkRecord * record, JsonNode * obj_node,
 
                   sqlite3_free (errmsg);
                   sqlite3_free (tmp);
+      		  dupin_linkbase_rollback_transaction (record->linkb, error);
                   return FALSE;
                 }
             }
@@ -1926,6 +1931,7 @@ dupin_link_record_delete (DupinLinkRecord * record, GError ** error)
 
       sqlite3_free (errmsg);
       sqlite3_free (tmp);
+      dupin_linkbase_rollback_transaction (record->linkb, error);
       return FALSE;
     }
 
@@ -1963,6 +1969,8 @@ dupin_link_record_delete (DupinLinkRecord * record, GError ** error)
 
       sqlite3_free (errmsg);
       ret = FALSE;
+
+      dupin_linkbase_rollback_transaction (record->linkb, error);
     }
   else
     {
@@ -1978,6 +1986,8 @@ dupin_link_record_delete (DupinLinkRecord * record, GError ** error)
 
           sqlite3_free (errmsg);
           ret = FALSE;
+
+          dupin_linkbase_rollback_transaction (record->linkb, error);
         }
       else
         {
@@ -2003,6 +2013,8 @@ dupin_link_record_delete (DupinLinkRecord * record, GError ** error)
 
              sqlite3_free (errmsg);
              ret = FALSE;
+
+             dupin_linkbase_rollback_transaction (record->linkb, error);
            }
        }
     }

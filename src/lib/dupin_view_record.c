@@ -836,7 +836,7 @@ dupin_view_record_get_max_rowid_cb (void *data, int argc, char **argv,
 }
 
 gboolean
-dupin_view_record_get_max_rowid (DupinView * view, gsize * max_rowid)
+dupin_view_record_get_max_rowid (DupinView * view, gsize * max_rowid, gboolean lock)
 {
   gchar *query;
   gchar * errmsg=NULL;
@@ -847,11 +847,13 @@ dupin_view_record_get_max_rowid (DupinView * view, gsize * max_rowid)
 
   query = "SELECT max(ROWID) as max_rowid FROM Dupin";
 
-  g_mutex_lock (view->mutex);
+  if (lock == TRUE)
+    g_mutex_lock (view->mutex);
 
   if (sqlite3_exec (view->db, query, dupin_view_record_get_max_rowid_cb, max_rowid, &errmsg) != SQLITE_OK)
     {
-      g_mutex_unlock (view->mutex);
+      if (lock == TRUE)
+        g_mutex_unlock (view->mutex);
 
       g_error("dupin_view_record_get_max_rowid: %s", errmsg);
       sqlite3_free (errmsg);
@@ -859,7 +861,8 @@ dupin_view_record_get_max_rowid (DupinView * view, gsize * max_rowid)
       return FALSE;
     }
 
-  g_mutex_unlock (view->mutex);
+  if (lock == TRUE)
+    g_mutex_unlock (view->mutex);
 
   return TRUE;
 }

@@ -194,6 +194,7 @@ dupin_record_create_with_id_real (DupinDB * db, JsonNode * obj_node,
       dupin_record_close (record);
       sqlite3_free (errmsg);
       sqlite3_free (tmp);
+      dupin_database_rollback_transaction (db, error);
       return NULL;
     }
 
@@ -211,6 +212,7 @@ dupin_record_create_with_id_real (DupinDB * db, JsonNode * obj_node,
 
       dupin_record_close (record);
       sqlite3_free (errmsg);
+      dupin_database_rollback_transaction (db, error);
       return NULL;
     }
 
@@ -229,6 +231,7 @@ dupin_record_create_with_id_real (DupinDB * db, JsonNode * obj_node,
       dupin_record_close (record);
       sqlite3_free (errmsg);
       sqlite3_free (tmp);
+      dupin_database_rollback_transaction (db, error);
       return NULL;
     }
 
@@ -1108,6 +1111,7 @@ dupin_record_update (DupinRecord * record, JsonNode * obj_node,
 
       sqlite3_free (errmsg);
       sqlite3_free (tmp);
+      dupin_database_rollback_transaction (record->db, error);
       return FALSE;
     }
 
@@ -1137,6 +1141,7 @@ dupin_record_update (DupinRecord * record, JsonNode * obj_node,
 
       sqlite3_free (errmsg);
       sqlite3_free (tmp);
+      dupin_database_rollback_transaction (record->db, error);
       return FALSE;
     }
   else
@@ -1157,6 +1162,7 @@ dupin_record_update (DupinRecord * record, JsonNode * obj_node,
 
               sqlite3_free (errmsg);
               sqlite3_free (tmp);
+              dupin_database_rollback_transaction (record->db, error);
               return FALSE;
             }
           else
@@ -1177,6 +1183,7 @@ dupin_record_update (DupinRecord * record, JsonNode * obj_node,
 
                   sqlite3_free (errmsg);
                   sqlite3_free (tmp);
+                  dupin_database_rollback_transaction (record->db, error);
                   return FALSE;
                 }
             }
@@ -1285,6 +1292,7 @@ dupin_record_delete (DupinRecord * record, GError ** error)
 
       sqlite3_free (errmsg);
       sqlite3_free (tmp);
+      dupin_database_rollback_transaction (record->db, error);
       return FALSE;
     }
 
@@ -1305,6 +1313,8 @@ dupin_record_delete (DupinRecord * record, GError ** error)
 
       sqlite3_free (errmsg);
       ret = FALSE;
+
+      dupin_database_rollback_transaction (record->db, error);
     }
   else
     {
@@ -1320,6 +1330,8 @@ dupin_record_delete (DupinRecord * record, GError ** error)
 
           sqlite3_free (errmsg);
           ret = FALSE;
+
+          dupin_database_rollback_transaction (record->db, error);
         }
       else
         {
@@ -1337,6 +1349,8 @@ dupin_record_delete (DupinRecord * record, GError ** error)
 
              sqlite3_free (errmsg);
              ret = FALSE;
+
+             dupin_database_rollback_transaction (record->db, error);
            }
        }
     }

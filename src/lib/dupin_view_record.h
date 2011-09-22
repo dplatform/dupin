@@ -34,7 +34,7 @@ gboolean        dupin_view_record_get_list_total
 
 /* get max rowid for view DB */
 gboolean        dupin_view_record_get_max_rowid (DupinView * view,
-						 gsize * max_rowid);
+						 gsize * max_rowid, gboolean lock);
 
 /* List of DupinViewRecord: */
 gboolean	dupin_view_record_get_list

@@ -165,6 +165,7 @@ dupin_attachment_db_new (Dupin * d, gchar * attachment_db,
 
       sqlite3_free (errmsg);
       sqlite3_free (str);
+      dupin_attachment_db_rollback_transaction (ret, error);
       dupin_attachment_db_disconnect (ret);
       return NULL;
     }
@@ -545,6 +546,7 @@ dupin_attachment_db_connect (Dupin * d, gchar * name, gchar * path,
           g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
 		   errmsg);
           sqlite3_free (errmsg);
+	  dupin_attachment_db_rollback_transaction (attachment_db, error);
           dupin_attachment_db_disconnect (attachment_db);
           return NULL;
         }
@@ -577,7 +579,7 @@ dupin_attachment_db_connect (Dupin * d, gchar * name, gchar * path,
           see also http://www.sqlite.org/pragma.html#pragma_synchronous
    */
 
-  if (sqlite3_exec (attachment_db->db, "PRAGMA synchronous = FULL", NULL, NULL, &errmsg) != SQLITE_OK)
+  if (sqlite3_exec (attachment_db->db, "PRAGMA synchronous = NORMAL", NULL, NULL, &errmsg) != SQLITE_OK)
     {   
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot set pragma synchronous: %s",
                    errmsg);

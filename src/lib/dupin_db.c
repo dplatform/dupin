@@ -1392,6 +1392,13 @@ dupin_database_compact_func (gpointer data, gpointer user_data)
 
           g_mutex_lock (attachment_db->mutex);
 
+          /* NOTE - make sure last transaction is commited */
+
+          if (dupin_attachment_db_commit_transaction (attachment_db, NULL) < 0)
+            {
+              dupin_attachment_db_rollback_transaction (attachment_db, NULL);
+            }
+
           if (sqlite3_exec (attachment_db->db, "VACUUM", NULL, NULL, &errmsg) != SQLITE_OK
              || sqlite3_exec (attachment_db->db, "ANALYZE Dupin", NULL, NULL, &errmsg) != SQLITE_OK)
             {

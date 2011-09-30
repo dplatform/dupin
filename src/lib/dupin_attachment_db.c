@@ -613,6 +613,7 @@ dupin_attachment_db_begin_transaction (DupinAttachmentDB * attachment_db, GError
   g_return_val_if_fail (attachment_db != NULL, -1);
 
   gchar *errmsg;
+  gint rc = -1;
 
   if (attachment_db->d->bulk_transaction == TRUE)
     {
@@ -621,7 +622,14 @@ dupin_attachment_db_begin_transaction (DupinAttachmentDB * attachment_db, GError
       return 1;
     }
 
-  if (sqlite3_exec (attachment_db->db, "BEGIN TRANSACTION", NULL, NULL, &errmsg) != SQLITE_OK)
+  rc = sqlite3_exec (attachment_db->db, "BEGIN TRANSACTION", NULL, NULL, &errmsg);
+
+  if (rc == SQLITE_BUSY)
+    {
+        rc = dupin_sqlite_subs_mgr_busy_handler(attachment_db->db, "BEGIN TRANSACTION", NULL, NULL, &errmsg, rc);
+    }
+
+  if (rc != SQLITE_OK)
     {
       if (error != NULL)
         g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot begin attachment database %s transaction: %s", attachment_db->name, errmsg);
@@ -642,8 +650,16 @@ dupin_attachment_db_rollback_transaction (DupinAttachmentDB * attachment_db, GEr
   g_return_val_if_fail (attachment_db != NULL, -1);
 
   gchar *errmsg;
+  gint rc = -1;
 
-  if (sqlite3_exec (attachment_db->db, "ROLLBACK", NULL, NULL, &errmsg) != SQLITE_OK)
+  rc = sqlite3_exec (attachment_db->db, "ROLLBACK", NULL, NULL, &errmsg);
+
+  if (rc == SQLITE_BUSY)
+    {
+        rc = dupin_sqlite_subs_mgr_busy_handler(attachment_db->db, "ROLLBACK", NULL, NULL, &errmsg, rc);
+    }
+
+  if (rc != SQLITE_OK)
     {
       if (error != NULL)
         g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot rollback attachment database %s transaction: %s", attachment_db->name, errmsg);
@@ -664,6 +680,7 @@ dupin_attachment_db_commit_transaction (DupinAttachmentDB * attachment_db, GErro
   g_return_val_if_fail (attachment_db != NULL, -1);
 
   gchar *errmsg;
+  gint rc = -1;
 
   if (attachment_db->d->bulk_transaction == TRUE)
     {
@@ -672,7 +689,14 @@ dupin_attachment_db_commit_transaction (DupinAttachmentDB * attachment_db, GErro
       return 1;
     }
 
-  if (sqlite3_exec (attachment_db->db, "COMMIT", NULL, NULL, &errmsg) != SQLITE_OK)
+  rc = sqlite3_exec (attachment_db->db, "COMMIT", NULL, NULL, &errmsg);
+
+  if (rc == SQLITE_BUSY)
+    {
+        rc = dupin_sqlite_subs_mgr_busy_handler(attachment_db->db, "COMMIT", NULL, NULL, &errmsg, rc);
+    }
+
+  if (rc != SQLITE_OK)
     {
       if (error != NULL)
         g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot commit attachment database %s transaction: %s", attachment_db->name, errmsg);

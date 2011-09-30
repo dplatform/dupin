@@ -80,6 +80,14 @@ void		dupin_sqlite_json_filterby	(sqlite3_context *ctx,
 						 int argc,
 						 sqlite3_value **argv);
 
+gint		dupin_sqlite_subs_mgr_busy_handler
+						(sqlite3* dbconn,
+						 gchar *sql_stmt,
+						 gint (*callback_func)(void *, gint, char **, gchar **),
+						 void *args,
+						 gchar **error_msg,
+						 gint rc);
+
 gboolean	dupin_util_is_valid_obj		(JsonObject *obj);
 
 void		dupin_util_generate_id		(gchar		id[DUPIN_ID_MAX_LEN]);

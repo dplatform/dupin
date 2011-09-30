@@ -680,6 +680,7 @@ dupin_linkbase_begin_transaction (DupinLinkB * linkb, GError ** error)
   g_return_val_if_fail (linkb != NULL, -1);
 
   gchar *errmsg;
+  gint rc = -1;
 
   if (linkb->d->bulk_transaction == TRUE)
     {
@@ -688,7 +689,14 @@ dupin_linkbase_begin_transaction (DupinLinkB * linkb, GError ** error)
       return 1;
     }
 
-  if (sqlite3_exec (linkb->db, "BEGIN TRANSACTION", NULL, NULL, &errmsg) != SQLITE_OK)
+  rc = sqlite3_exec (linkb->db, "BEGIN TRANSACTION", NULL, NULL, &errmsg);
+
+  if (rc == SQLITE_BUSY)
+    {
+        rc = dupin_sqlite_subs_mgr_busy_handler(linkb->db, "BEGIN TRANSACTION", NULL, NULL, &errmsg, rc);
+    }
+
+  if (rc != SQLITE_OK)
     {
       if (error != NULL)
         g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot begin linkbase %s transaction: %s", linkb->name, errmsg);
@@ -709,8 +717,16 @@ dupin_linkbase_rollback_transaction (DupinLinkB * linkb, GError ** error)
   g_return_val_if_fail (linkb != NULL, -1);
 
   gchar *errmsg;
+  gint rc = -1;
 
-  if (sqlite3_exec (linkb->db, "ROLLBACK", NULL, NULL, &errmsg) != SQLITE_OK)
+  rc = sqlite3_exec (linkb->db, "ROLLBACK", NULL, NULL, &errmsg);
+
+  if (rc == SQLITE_BUSY)
+    {
+        rc = dupin_sqlite_subs_mgr_busy_handler(linkb->db, "ROLLBACK", NULL, NULL, &errmsg, rc);
+    }
+
+  if (rc != SQLITE_OK)
     {
       if (error != NULL)
         g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot rollback linkbase %s transaction: %s", linkb->name, errmsg);
@@ -731,6 +747,7 @@ dupin_linkbase_commit_transaction (DupinLinkB * linkb, GError ** error)
   g_return_val_if_fail (linkb != NULL, -1);
 
   gchar *errmsg;
+  gint rc = -1;
 
   if (linkb->d->bulk_transaction == TRUE)
     {
@@ -739,7 +756,14 @@ dupin_linkbase_commit_transaction (DupinLinkB * linkb, GError ** error)
       return 1;
     }
 
-  if (sqlite3_exec (linkb->db, "COMMIT", NULL, NULL, &errmsg) != SQLITE_OK)
+  rc = sqlite3_exec (linkb->db, "COMMIT", NULL, NULL, &errmsg);
+
+  if (rc == SQLITE_BUSY)
+    {
+        rc = dupin_sqlite_subs_mgr_busy_handler(linkb->db, "COMMIT", NULL, NULL, &errmsg, rc);
+    }
+
+  if (rc != SQLITE_OK)
     {
       if (error != NULL)
         g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot commit linkbase %s transaction: %s", linkb->name, errmsg);

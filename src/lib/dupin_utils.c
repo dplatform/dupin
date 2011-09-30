@@ -1215,6 +1215,45 @@ dupin_sqlite_json_filterby (sqlite3_context *ctx, int argc, sqlite3_value **argv
   sqlite3_result_int(ctx, ret);
 }
 
+/* NOTE - try to make SQLite operations more robust */
+
+gint
+dupin_sqlite_subs_mgr_busy_handler (sqlite3* dbconn,
+				    gchar *sql_stmt,
+                                    gint (*callback_func)(void *, gint, char **, gchar **),
+                                    void *args,
+                                    gchar **error_msg,
+                                    gint rc)
+{
+  gint counter = 0;
+
+g_message("sqlite in busy handler BEGIN\n");
+
+  while(rc == SQLITE_BUSY && counter < 512)
+    {
+g_message("sqlite in busy handler\n");
+
+      if (*error_msg)
+        {
+          g_error ("dupin_sqlite_subs_mgr_busy_handler: %s", *error_msg);
+
+          sqlite3_free (*error_msg);
+        }
+
+      counter++;
+
+      /* TODO - check glib if there is a better way to do this ? */
+
+      usleep(100000);
+
+      rc = sqlite3_exec(dbconn, sql_stmt, callback_func, args, error_msg);
+    }
+
+g_message("sqlite in busy handler END\n");
+
+  return rc; 
+}
+
 /* NOTE - Portable Listings related utilities - some of the above too should
           be included into separated library/file */
 

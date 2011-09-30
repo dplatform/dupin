@@ -1530,8 +1530,16 @@ dupin_view_begin_transaction (DupinView * view, GError ** error)
   g_return_val_if_fail (view != NULL, -1);
 
   gchar *errmsg;
+  gint rc = -1;
 
-  if (sqlite3_exec (view->db, "BEGIN TRANSACTION", NULL, NULL, &errmsg) != SQLITE_OK)
+  rc = sqlite3_exec (view->db, "BEGIN TRANSACTION", NULL, NULL, &errmsg);
+
+  if (rc == SQLITE_BUSY)
+    {
+        rc = dupin_sqlite_subs_mgr_busy_handler(view->db, "BEGIN TRANSACTION", NULL, NULL, &errmsg, rc);
+    }
+
+  if (rc != SQLITE_OK)
     {
       if (error != NULL)
         g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot begin view %s transaction: %s", view->name, errmsg);
@@ -1552,8 +1560,16 @@ dupin_view_rollback_transaction (DupinView * view, GError ** error)
   g_return_val_if_fail (view != NULL, -1);
 
   gchar *errmsg;
+  gint rc = -1;
 
-  if (sqlite3_exec (view->db, "ROLLBACK", NULL, NULL, &errmsg) != SQLITE_OK)
+  rc = sqlite3_exec (view->db, "ROLLBACK", NULL, NULL, &errmsg);
+
+  if (rc == SQLITE_BUSY)
+    {
+        rc = dupin_sqlite_subs_mgr_busy_handler(view->db, "ROLLBACK", NULL, NULL, &errmsg, rc);
+    }
+
+  if (rc != SQLITE_OK)
     {
       if (error != NULL)
         g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot rollback view %s transaction: %s", view->name, errmsg);
@@ -1574,8 +1590,16 @@ dupin_view_commit_transaction (DupinView * view, GError ** error)
   g_return_val_if_fail (view != NULL, -1);
 
   gchar *errmsg;
+  gint rc = -1;
 
-  if (sqlite3_exec (view->db, "COMMIT", NULL, NULL, &errmsg) != SQLITE_OK)
+  rc = sqlite3_exec (view->db, "COMMIT", NULL, NULL, &errmsg);
+
+  if (rc == SQLITE_BUSY)
+    {
+        rc = dupin_sqlite_subs_mgr_busy_handler(view->db, "COMMIT", NULL, NULL, &errmsg, rc);
+    }
+
+  if (rc != SQLITE_OK)
     {
       if (error != NULL)
         g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot commit view %s transaction: %s", view->name, errmsg);

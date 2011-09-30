@@ -526,6 +526,7 @@ dupin_database_begin_transaction (DupinDB * db, GError ** error)
   g_return_val_if_fail (db != NULL, -1);
 
   gchar *errmsg;
+  gint rc = -1;
 
   if (db->d->bulk_transaction == TRUE)
     {
@@ -534,7 +535,14 @@ dupin_database_begin_transaction (DupinDB * db, GError ** error)
       return 1;
     }
 
-  if (sqlite3_exec (db->db, "BEGIN TRANSACTION", NULL, NULL, &errmsg) != SQLITE_OK)
+  rc = sqlite3_exec (db->db, "BEGIN TRANSACTION", NULL, NULL, &errmsg);
+
+  if (rc == SQLITE_BUSY)
+    {
+        rc = dupin_sqlite_subs_mgr_busy_handler(db->db, "BEGIN TRANSACTION", NULL, NULL, &errmsg, rc);
+    }
+
+  if (rc != SQLITE_OK)
     {
       if (error != NULL)
         g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot begin database %s transaction: %s", db->name, errmsg);
@@ -555,8 +563,16 @@ dupin_database_rollback_transaction (DupinDB * db, GError ** error)
   g_return_val_if_fail (db != NULL, -1);
 
   gchar *errmsg;
+  gint rc = -1;
 
-  if (sqlite3_exec (db->db, "ROLLBACK", NULL, NULL, &errmsg) != SQLITE_OK)
+  rc = sqlite3_exec (db->db, "ROLLBACK", NULL, NULL, &errmsg);
+
+  if (rc == SQLITE_BUSY)
+    {
+        rc = dupin_sqlite_subs_mgr_busy_handler(db->db, "ROLLBACK", NULL, NULL, &errmsg, rc);
+    }
+
+  if (rc != SQLITE_OK)
     {
       if (error != NULL)
         g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot rollback database %s transaction: %s", db->name, errmsg);
@@ -577,6 +593,7 @@ dupin_database_commit_transaction (DupinDB * db, GError ** error)
   g_return_val_if_fail (db != NULL, -1);
 
   gchar *errmsg;
+  gint rc = -1;
 
   if (db->d->bulk_transaction == TRUE)
     {
@@ -585,7 +602,14 @@ dupin_database_commit_transaction (DupinDB * db, GError ** error)
       return 1;
     }
 
-  if (sqlite3_exec (db->db, "COMMIT", NULL, NULL, &errmsg) != SQLITE_OK)
+  rc = sqlite3_exec (db->db, "COMMIT", NULL, NULL, &errmsg);
+
+  if (rc == SQLITE_BUSY)
+    {
+        rc = dupin_sqlite_subs_mgr_busy_handler(db->db, "COMMIT", NULL, NULL, &errmsg, rc);
+    }
+
+  if (rc != SQLITE_OK)
     {
       if (error != NULL)
         g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot commit database %s transaction: %s", db->name, errmsg);

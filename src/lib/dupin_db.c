@@ -1373,7 +1373,7 @@ dupin_database_compact_func (gpointer data, gpointer user_data)
              || sqlite3_exec (db->db, "ANALYZE Dupin", NULL, NULL, &errmsg) != SQLITE_OK)
             {
               g_mutex_unlock (db->d->mutex);
-              g_error ("dupin_database_compact_func: %s", errmsg);
+              g_error ("dupin_database_compact_func: %s while vacuum and analyze db", errmsg);
               sqlite3_free (errmsg);
               break;
             }
@@ -1404,7 +1404,7 @@ dupin_database_compact_func (gpointer data, gpointer user_data)
             {
               g_mutex_unlock (attachment_db->mutex);
               dupin_attachment_db_unref (attachment_db);
-              g_error("dupin_database_compact_func: %s", errmsg);
+              g_error("dupin_database_compact_func: %s while vacuum and analyze attachemtns db", errmsg);
               sqlite3_free (errmsg);
 	      break;
             }

@@ -22,6 +22,8 @@
 #  include <sys/wait.h>
 #endif
 
+/* TODO - turn this into #if defined(__APPLE__) */
+
 #if defined(DARWIN) && !defined(__cplusplus) && !defined(_ANSI_SOURCE)
 /* work around Darwin header file bugs
  *   http://www.opensource.apple.com/bugs/X/BSD%20Kernel/2657228.html

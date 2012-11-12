@@ -1314,7 +1314,12 @@ dupin_view_disconnect (DupinView * view)
   if (view->todelete == TRUE)
     g_unlink (view->path);
 
+#if GLIB_CHECK_VERSION (2,31,3)
+  g_cond_clear (view->sync_map_has_new_work);
+  g_free (view->sync_map_has_new_work);
+#else
   g_cond_free(view->sync_map_has_new_work);
+#endif
 
   if (view->name)
     g_free (view->name);
@@ -1329,7 +1334,14 @@ dupin_view_disconnect (DupinView * view)
     g_free (view->output);
 
   if (view->mutex)
-    g_mutex_free (view->mutex);
+    {
+#if GLIB_CHECK_VERSION (2,31,3)
+      g_mutex_clear (view->mutex);
+      g_free (view->mutex);
+#else
+      g_mutex_free (view->mutex);
+#endif
+    }
 
   if (view->views.views)
     g_free (view->views.views);
@@ -1400,7 +1412,12 @@ dupin_view_connect (Dupin * d, gchar * name, gchar * path,
   view->sync_reduce_total_records = 0;
   view->sync_reduce_processed_count = 0;
 
+#if GLIB_CHECK_VERSION (2,31,3)
+  view->sync_map_has_new_work = g_new0 (GCond, 1);
+  g_cond_init (view->sync_map_has_new_work);
+#else
   view->sync_map_has_new_work = g_cond_new();
+#endif
 
   view->d = d;
 
@@ -1515,7 +1532,12 @@ dupin_view_connect (Dupin * d, gchar * name, gchar * path,
       dupin_view_disconnect (view);
     }
 
+#if GLIB_CHECK_VERSION (2,31,3)
+  view->mutex = g_new0 (GMutex, 1);
+  g_mutex_init (view->mutex);
+#else
   view->mutex = g_mutex_new ();
+#endif
 
   return view;
 }
@@ -3043,6 +3065,9 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
   struct dupin_view_sync_total_rereduce_t rere_matching;
 
   GTimeVal endtime = {0,0};
+#if GLIB_CHECK_VERSION (2,31,3)
+  gint64 endtime_usec;
+#endif
   gboolean reduce_wait_timed_out;
 
   DupinView * view = (DupinView*) data;
@@ -3106,7 +3131,24 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
 
 	  g_get_current_time(&endtime);
 	  g_time_val_add(&endtime, view->d->conf->limit_reduce_timeoutforthread * G_USEC_PER_SEC);
-	  reduce_wait_timed_out = g_cond_timed_wait (view->sync_map_has_new_work, view->mutex, &endtime);
+
+#if GLIB_CHECK_VERSION (2,31,3)
+          /* see https://gitorious.org/ghelp/glib/blobs/99f0eaa4c5a86f6fa721044bb6841f6bda4c689b/glib/deprecated/gthread-deprecated.c */
+
+          endtime_usec = endtime.tv_sec;
+          endtime_usec *= G_USEC_PER_SEC;
+          endtime_usec += endtime.tv_usec;
+
+#ifdef CLOCK_MONOTONIC
+          /* would be nice if we had clock_rtoffset, but that didn't seem to make it into the kernel yet... */
+          endtime_usec += g_get_monotonic_time () - g_get_real_time ();
+#else
+          /* if CLOCK_MONOTONIC is not defined then g_get_montonic_time() and g_get_real_time() are returning the same clock, so don't bother... */
+#endif
+          reduce_wait_timed_out = g_cond_wait_until (view->sync_map_has_new_work, view->mutex, endtime_usec);
+#else
+          reduce_wait_timed_out = g_cond_timed_wait (view->sync_map_has_new_work, view->mutex, &endtime);
+#endif
 
 	  if (reduce_wait_timed_out == FALSE)
 	    {

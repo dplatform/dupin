@@ -390,7 +390,14 @@ dupin_db_disconnect (DupinDB * db)
     g_free (db->path);
 
   if (db->mutex)
-    g_mutex_free (db->mutex);
+    {
+#if GLIB_CHECK_VERSION (2,31,3)
+      g_mutex_clear (db->mutex);
+      g_free (db->mutex);
+#else
+      g_mutex_free (db->mutex);
+#endif
+    }
 
   if (db->views.views)
     g_free (db->views.views);
@@ -513,7 +520,12 @@ dupin_db_connect (Dupin * d, gchar * name, gchar * path,
 
   sqlite3_create_function(db->db, "filterBy", 5, SQLITE_ANY, d, dupin_sqlite_json_filterby, NULL, NULL);
 
+#if GLIB_CHECK_VERSION (2,31,3)
+  db->mutex = g_new0 (GMutex, 1);
+  g_mutex_init (db->mutex);
+#else
   db->mutex = g_mutex_new ();
+#endif
 
   return db;
 }

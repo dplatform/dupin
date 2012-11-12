@@ -33,8 +33,11 @@
 - Software Dev
   - rework soource code to have more pluggable indexes/modules/handlers as needed - see for example
     how couchdb does with hanlders http://vmx.cx/couchdb/tutorial/indexer.html
-    a good starting point is to port src/httpd/request.c and httpd.c to libsoup see
-    http://library.gnome.org/devel/libsoup/stable/libsoup-server-howto.html
+    a good starting point is to port src/httpd/request.c and httpd.c to APR or libsoup see
+    http://library.gnome.org/devel/libsoup/stable/libsoup-server-howto.html. Bearing in mind
+    APR may be preferred to libsoup for server stuff.
+  - use libcurl instead of libsoup for HTTP/S client requests in src/lib/dupin_js.c
+  - remove libxml dependency and stick to JSON config (or INI/TXT).
 - Caching:
   - Add ETag and If-None-Match headers and negotiation to methods
 - Add simple triggers/handlers at start view map/reduce and finish to generate SQLite indexes

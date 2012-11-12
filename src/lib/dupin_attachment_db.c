@@ -471,7 +471,14 @@ dupin_attachment_db_disconnect (DupinAttachmentDB * attachment_db)
     g_free (attachment_db->parent);
 
   if (attachment_db->mutex)
-    g_mutex_free (attachment_db->mutex);
+    {
+#if GLIB_CHECK_VERSION (2,31,3)
+      g_mutex_clear (attachment_db->mutex);
+      g_free (attachment_db->mutex);
+#else
+      g_mutex_free (attachment_db->mutex);
+#endif
+    }
 
   if (attachment_db->error_msg)
     g_free (attachment_db->error_msg);
@@ -600,7 +607,12 @@ dupin_attachment_db_connect (Dupin * d, gchar * name, gchar * path,
       dupin_attachment_db_disconnect (attachment_db);
     }
 
+#if GLIB_CHECK_VERSION (2,31,3)
+  attachment_db->mutex = g_new0 (GMutex, 1);
+  g_mutex_init (attachment_db->mutex);
+#else
   attachment_db->mutex = g_mutex_new ();
+#endif
 
   return attachment_db;
 }

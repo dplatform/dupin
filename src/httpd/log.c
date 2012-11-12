@@ -10,7 +10,12 @@
 gboolean
 log_open (DSGlobal * data, GError ** error)
 {
+#if GLIB_CHECK_VERSION (2,31,3)
+  data->logmutex = g_new0 (GMutex, 1);
+  g_mutex_init (data->logmutex);
+#else
   data->logmutex = g_mutex_new ();
+#endif
 
   if (!(data->logio = g_io_channel_new_file (data->logfile, "a", error)))
     return FALSE;
@@ -26,7 +31,13 @@ log_close (DSGlobal * data)
 
   g_io_channel_shutdown (data->logio, TRUE, NULL);
   g_io_channel_unref (data->logio);
+
+#if GLIB_CHECK_VERSION (2,31,3)
+  g_mutex_clear (data->logmutex);
+  g_free (data->logmutex);
+#else
   g_mutex_free (data->logmutex);
+#endif
 }
 
 /* WRITE SYSTEM *************************************************************/

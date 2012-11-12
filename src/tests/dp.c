@@ -117,9 +117,12 @@ main (void)
   GIOChannel *io;
   GError *error = NULL;
 
+#if !GLIB_CHECK_VERSION (2, 31, 0)
   // better make double-sure glib itself is initialized properly.
   if (!g_thread_supported ())
         g_thread_init (NULL);
+#endif
+
   g_type_init();
 
   if (!(d = dupin_init (NULL, &error)))

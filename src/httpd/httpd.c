@@ -1881,14 +1881,23 @@ httpd_thread_new (DSGlobal * data, GError ** error)
   thread = g_malloc0 (sizeof (DSHttpdThread));
   thread->data = data;
 
+#if GLIB_CHECK_VERSION (2,31,3)
+  thread->mutex = g_new0 (GMutex, 1);
+  g_mutex_init (thread->mutex);
+#else
   thread->mutex = g_mutex_new ();
+#endif
 
   thread->context = g_main_context_new ();
   thread->loop = g_main_loop_new (thread->context, FALSE);
 
   if (!
       (thread->thread =
+#if GLIB_CHECK_VERSION (2,31,8)
+       g_thread_new ("httpd_thread", (GThreadFunc) httpd_thread, thread)))
+#else
        g_thread_create ((GThreadFunc) httpd_thread, thread, TRUE, error)))
+#endif
     {
       httpd_thread_free (thread);
       return NULL;
@@ -1964,7 +1973,14 @@ httpd_thread_free (DSHttpdThread * thread)
     g_main_context_unref (thread->context);
 
   if (thread->mutex)
-    g_mutex_free (thread->mutex);
+    {
+#if GLIB_CHECK_VERSION (2,31,3)
+      g_mutex_clear (thread->mutex);
+      g_free (thread->mutex);
+#else
+      g_mutex_free (thread->mutex);
+#endif
+    }
 
   g_free (thread);
 }

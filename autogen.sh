@@ -1,29 +1,29 @@
 #!/bin/bash
 
-if [ `uname` == "Darwin" ]; then
-  if [ ! -e /usr/share/aclocal/pkg.m4 ]; then
-    echo ""
-    echo "WARNING !"
-    echo ""
-    echo "There is a known problem with PKG_CHECK_MODULES macro on OSX/Darwin using Fink or Darwin Ports and pgk-config"
-    echo "See details at http://playerstage.sourceforge.net/wiki/Basic_FAQ#I_have_a_syntax_error_involving_PKG_CHECK_MODULES._What.27s_the_fix.3F"
-    echo ""
-    echo "To fix it if you using Fink try the following command:"
-    echo ""
-    echo "  sudo ln -s /sw/share/aclocal/pkg.m4 /usr/share/aclocal/pkg.m4"
-    echo ""
-    echo "If you using Darwin Ports try the following command:"
-    echo ""
-    echo "  sudo ln -s /opt/local/share/aclocal/pkg.m4 /usr/share/aclocal/pkg.m4"
-    echo ""
-    echo "If you using Homebrew try the following command:"
-    echo ""
-    echo " sudo ln -s /usr/local/share/aclocal/pkg.m4 /usr/share/aclocal/pkg.m4"
-    echo " (you might need to run the above command also for other libraries such as gtk-doc)"
-    echo ""
-    exit 1;
-  fi
-fi
+#if [ `uname` == "Darwin" ]; then
+#  if [ ! -e /usr/share/aclocal/pkg.m4 ]; then
+#    echo ""
+#    echo "WARNING !"
+#    echo ""
+#    echo "There is a known problem with PKG_CHECK_MODULES macro on OSX/Darwin using Fink or Darwin Ports and pgk-config"
+#    echo "See details at http://playerstage.sourceforge.net/wiki/Basic_FAQ#I_have_a_syntax_error_involving_PKG_CHECK_MODULES._What.27s_the_fix.3F"
+#    echo ""
+#    echo "To fix it if you using Fink try the following command:"
+#    echo ""
+#    echo "  sudo ln -s /sw/share/aclocal/pkg.m4 /usr/share/aclocal/pkg.m4"
+#    echo ""
+#    echo "If you using Darwin Ports try the following command:"
+#    echo ""
+#    echo "  sudo ln -s /opt/local/share/aclocal/pkg.m4 /usr/share/aclocal/pkg.m4"
+#    echo ""
+#    echo "If you using Homebrew try the following command:"
+#    echo ""
+#    echo " sudo ln -s /usr/local/share/aclocal/pkg.m4 /usr/share/aclocal/pkg.m4"
+#    echo " (you might need to run the above command also for other libraries such as gtk-doc)"
+#    echo ""
+#    exit 1;
+#  fi
+#fi
 
 echo "aclocal..."
 aclocal &> /dev/null || exit 1

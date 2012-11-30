@@ -1,0 +1,17 @@
+Makefile.in
+aclocal.m4
+config.h.in~
+configure
+index-formats.view.dupin
+index-formats.view.dupin-shm
+index-formats.view.dupin-wal
+ltmain.sh
+m4/
+src/Makefile.in
+src/httpd/Makefile.in
+src/lib/Makefile.in
+src/tbjson/Makefile.in
+src/tbjsonpath/Makefile.in
+src/tests/Makefile.in
+src/www/Makefile.in
+support/Makefile.in

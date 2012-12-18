@@ -1,12 +1,19 @@
+dnl ==============================================================
+dnl Process this file with autoconf to produce a configure script.
+dnl ==============================================================
+
 AC_PREREQ(2.54)
 
-AC_INIT(src/httpd/main.c)
-AC_CANONICAL_HOST
-AC_CANONICAL_TARGET
-
-AC_PROG_MAKE_SET
-
+AC_INIT([dupin], [0.3])
 AC_CONFIG_MACRO_DIR([m4])
+
+AC_CANONICAL_HOST
+
+AC_CONFIG_HEADER([config.h])
+AC_CONFIG_SRCDIR([src/httpd/main.c])
+
+#AC_CANONICAL_TARGET
+#AC_PROG_MAKE_SET
 
 AC_PATH_PROG(PKG_CONFIG, pkg-config)
 
@@ -44,9 +51,10 @@ case "$host_os" in
        ;;
 esac
 
-AM_SANITY_CHECK
-AM_INIT_AUTOMAKE(dupin, 0.3)
-AM_CONFIG_HEADER(config.h)
+AM_INIT_AUTOMAKE
+m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
+
+# never run autotools and configure automatically
 AM_MAINTAINER_MODE
 
 AC_PROG_CC
@@ -63,115 +71,91 @@ AC_HEADER_STDC
 AC_HEADER_DIRENT
 AC_CHECK_HEADERS(stdio.h sys/stat.h sys/types.h unistd.h string.h)
 
+AC_MSG_CHECKING([if using g_content_type_guess])
 AC_ARG_WITH(mimeguess,
-   AC_HELP_STRING([--with-mimeguess=none|auto (default=auto)],
-                  [do you want dupin following the couchdb protocol strictly?]),
-   MIMEGUESS=$withval,
-   MIMEGUESS=yes)
+            AC_HELP_STRING([--with-mimeguess],
+                           [Build using with g_content_type_guess support [default=no]]),
+            [],[with_mimeguess="no"])
+AC_MSG_RESULT([$with_mimeguess])
 
 AH_TEMPLATE([MIMEGUESS_STRICT], [Define to 1 if you want to compile this code with g_content_type_guess])
 
-if test "$MIMEGUESS" = yes; then
+if test "$with_mimeguess" = yes; then
   AC_DEFINE(MIMEGUESS_STRICT)
 fi
 
+AC_MSG_CHECKING([if using WebKit Framework])
 AC_ARG_WITH(webkitframework,
-   AC_HELP_STRING([--with-webkitframework=none|auto (default=auto)],
-                  [Build dupin using OSX Darwin Webkit built in Framework.]),
-   USEWEBKITFRAMEWORK=$withval,
-   USEWEBKITFRAMEWORK=yes)
-
-AC_ARG_WITH(couchdbstrict,
-   AC_HELP_STRING([--with-couchdbstrict=none|auto (default=no)],
-                  [do you want dupin following the couchdb protocol strictly?]),
-   COUCHDB=$withval,
-   COUCHDB=no)
-
-AH_TEMPLATE([COUCHDB_STRICT], [Define to 1 if you want dupin following the couchdb protocol strictly?])
-
-if test "$COUCHDB" = yes; then
-  AC_DEFINE(COUCHDB_STRICT)
-fi
+            AC_HELP_STRING([--with-webkitframework],
+                           [Build using OSX Darwin Webkit built in Framework [default=no]]),
+            [],[with_webkitframework="no"])
+AC_MSG_RESULT([$with_webkitframework])
 
 AH_TEMPLATE([WEBKIT_FRAMEWORK], [Define to 1 if you want to compile this code with Webkit framework under Darwin])
 
-if test -n "$PKG_CONFIG"; then
+# minimum base dependencies
+LIBXML_REQUIRED_VERSION=2.6.0
+GLIB_REQUIRED_VERSION=2.6.0
+GTHREAD_REQUIRED_VERSION=2.6.0
+GIO_REQUIRED_VERSION=2.6.0
+JSONGLIB_REQUIRED_VERSION=0.10.4
+SQLITE_REQUIRED_VERSION=3.7.0 # SQLite WAL support needed
+LIBSOUP_REQUIRED_VERSION=2.24.0
+WEBKIT_REQUIRED_VERSION=1.0.0
 
-	# SQLite
-	PKG_CHECK_MODULES(sqlite, [ sqlite3 >= 3.7.0 ],
-		[	[sqlite_LIBS=`$PKG_CONFIG --libs "sqlite3" 2>/dev/null`]
-			[sqlite_CFLAGS=`$PKG_CONFIG --cflags "sqlite3" 2>/dev/null`]
-		],
-		[	AC_CHECK_HEADER(sqlite3.h,,AC_MSG_ERROR(SQLite3 is required to build Dupin))
-			AC_CHECK_LIB(sqlite3,sqlite3_exec,, AC_MSG_ERROR(SQLite3 is required to build Dupin))
-		]
-		)
+# libXML2
+PKG_CHECK_MODULES([LIBXML], [libxml-2.0 >= $LIBXML_REQUIRED_VERSION])
+AC_SUBST([LIBXML_CFLAGS])
+AC_SUBST([LIBXML_LIBS])
 
-	# libXML2
-	PKG_CHECK_MODULES(libxml2, [ libxml-2.0 >= 2.6.0 ],
-		[	[libxml2_LIBS=`$PKG_CONFIG --libs "libxml-2.0" 2>/dev/null`]
-			[libxml2_CFLAGS=`$PKG_CONFIG --cflags "libxml-2.0" 2>/dev/null`]
-		],
-		[	AC_CHECK_HEADER(libxml/parser.h,,AC_MSG_ERROR(libxml2 is required to build Dupin))
-			AC_CHECK_LIB(xml2,xmlParseFile,, AC_MSG_ERROR(libxml2 is required to build Dupin))
-		]
-		)
+# GLib
+PKG_CHECK_MODULES([GLIB], [glib-2.0 >= $GLIB_REQUIRED_VERSION])
+AC_SUBST([GLIB_CFLAGS])
+AC_SUBST([GLIB_LIBS])
 
-	# libsoup
-	PKG_CHECK_MODULES(libsoup, [ libsoup-2.4 >= 2.24.0 ],
-		[	[libsoup_LIBS=`$PKG_CONFIG --libs "libsoup-2.4" 2>/dev/null`]
-			[libsoup_CFLAGS=`$PKG_CONFIG --cflags "libsoup-2.4" 2>/dev/null`]
-		],
-		[	AC_CHECK_HEADER(libsoup/soup.h,,AC_MSG_ERROR(libsoup is required to build Dupin))
-		]
-		)
+# GThread
+PKG_CHECK_MODULES([GTHREAD], [gthread-2.0 >= $GTHREAD_REQUIRED_VERSION])
+AC_SUBST([GTHREAD_CFLAGS])
+AC_SUBST([GTHREAD_LIBS])
 
-	# json-glib
-	PKG_CHECK_MODULES(jsonglib, [ json-glib-1.0 >= 0.10.4 ],
-		[	[jsonglib_LIBS=`$PKG_CONFIG --libs "json-glib-1.0" 2>/dev/null`]
-			[jsonglib_CFLAGS=`$PKG_CONFIG --cflags "json-glib-1.0" 2>/dev/null`]
-		],
-		[
-  			AC_CHECK_HEADER(json-glib/json-glib.h,,AC_MSG_ERROR(jsonglib 0.10.4 or newer is required to build Dupin))
-			AC_CHECK_LIB(json-glib,json_parser_load_from_file,, AC_MSG_ERROR(jsonglib 0.10.4 or newer is required to build Dupin - see http://live.gnome.org/JsonGlib))
-		]
-		)
+# Gio
+PKG_CHECK_MODULES([GIO], [gio-2.0 >= $GIO_REQUIRED_VERSION])
+AC_SUBST([GIO_CFLAGS])
+AC_SUBST([GIO_LIBS])
 
-	# GLib
-	# TODO: make a full check eventually and fall-back
-	PKG_CHECK_MODULES(glib, [
-		glib-2.0    >= 2.6.0
-		gthread-2.0 >= 2.6.0
-		gio-2.0     >= 2.6.0 ])
+# json-glib
+PKG_CHECK_MODULES([JSONGLIB], [json-glib-1.0 >= $JSONGLIB_REQUIRED_VERSION])
+AC_SUBST([JSONGLIB_CFLAGS])
+AC_SUBST([JSONGLIB_LIBS])
 
-	if	test "$USEWEBKITFRAMEWORK" != "yes" ; then
+# SQLite
+#
+# TODO - Add FTS and ICU library built in support
+#
+PKG_CHECK_MODULES([SQLITE], [sqlite3 >= $SQLITE_REQUIRED_VERSION])
+AC_SUBST([SQLITE3_CFLAGS])
+AC_SUBST([SQLITE3_LIBS])
 
-		# WebKit
-		PKG_CHECK_MODULES(webkit, [ webkit-1.0 >= 1.0.0 ],
-			[	[webkit_LIBS=`$PKG_CONFIG --libs "webkit-1.0" 2>/dev/null`]
-				[webkit_CFLAGS=`$PKG_CONFIG --cflags "webkit-1.0" 2>/dev/null`]
-			],
-			[
-				AC_MSG_ERROR(Webkit library is required to build Dupin)
-			]
-			)
+# libsoup
+PKG_CHECK_MODULES([LIBSOUP], [libsoup-2.4 >= $LIBSOUP_REQUIRED_VERSION])
+AC_SUBST([LIBSOUP_CFLAGS])
+AC_SUBST([LIBSOUP_LIBS])
 
-	else
-  		# Darwin with frameworks
-  		AC_DEFINE(WEBKIT_FRAMEWORK)
-
-  		# WebKit
-  		webkit_CFLAGS="-I /System/Library/Frameworks/JavaScriptCore.framework/Headers"
-  		webkit_LIBS="-framework JavaScriptCore"
-	fi
-
-  # 3. set env
-  LDFLAGS="$LDFLAGS $webkit_LIBS $sqlite_LIBS $libxml2_LIBS $libsoup_LIBS $glib_LIBS $jsonglib_LIBS"
-  CFLAGS="$CFLAGS $webkit_CFLAGS $sqlite_CFLAGS $libxml2_CFLAGS $libsoup_CFLAGS $glib_CFLAGS $jsonglib_CFLAGS -DG_DISABLE_DEPRECATED"
-
+# Webkit
+if test "$with_webkitframework" != "yes" ; then
+  PKG_CHECK_MODULES([WEBKIT], [webkit-1.0 >= $WEBKIT_REQUIRED_VERSION])
+  AC_SUBST([WEBKIT_CFLAGS])
+  AC_SUBST([WEBKIT_LIBS])
 else
-	AC_MSG_ERROR(pkg-config is required to build Dupin)
+  # Darwin with frameworks
+  AC_DEFINE(WEBKIT_FRAMEWORK)
+
+  WEBKIT_CFLAGS="-I /System/Library/Frameworks/JavaScriptCore.framework/Headers"
+  WEBKIT_LIBS="-framework JavaScriptCore"
 fi
+
+LDFLAGS="$LDFLAGS $WEBKIT_LIBS $SQLITE_LIBS $LIBXML_LIBS $LIBSOUP_LIBS $GLIB_LIBS $GTHREAD_LIBS $GIO_LIBS $JSONGLIB_LIBS"
+CFLAGS="$CFLAGS $WEBKIT_CFLAGS $SQLITE_CFLAGS $LIBXML_CFLAGS $LIBSOUP_CFLAGS $GLIB_CFLAGS $GTHREAD_CFLAGS $GIO_CFLAGS $JSONGLIB_CFLAGS -DG_DISABLE_DEPRECATED"
 
 #CFLAGS="-g $CFLAGS -Wall"
 CFLAGS="-g $CFLAGS -Wall -Werror -O0"
@@ -191,7 +175,3 @@ src/tests/Makefile
 
 support/Makefile
 ])
-
-echo "
-	****WARNING**** : You must make sure that the version of SQLite used is compiled with FreeText (FTS) and ICU collation support/modules.
-"

@@ -1777,12 +1777,10 @@ request_global_get_database (DSHttpdClient * client, GList * path,
   json_object_set_int_member (obj, "doc_count", dupin_database_count (db, DP_COUNT_EXIST));
   json_object_set_int_member (obj, "doc_del_count", dupin_database_count (db, DP_COUNT_DELETE));
 
-#ifdef COUCHDB_STRICT
   /* FIXME: not really a lot of documentation about this stuff (update_seq)... - see also
      http://guide.couchdb.org/draft/replication.html and http://ayende.com/Blog/archive/2008/10/04/erlang-reading-couchdb-digging-down-to-disk.aspx
      and https://issues.apache.org/jira/browse/COUCHDB-576?page=com.atlassian.jira.plugin.system.issuetabpanels:all-tabpanel */
-  json_object_set_int_member (obj, "update_seq", 0);
-#endif
+  /* json_object_set_int_member (obj, "update_seq", 0); */
 
   json_object_set_int_member (obj, "disk_size", dupin_database_get_size (db));
 

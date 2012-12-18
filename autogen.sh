@@ -1,52 +1,72 @@
-#!/bin/bash
+#!/bin/sh
+# Run this to set up the build system: configure, makefiles, etc.
 
-#if [ `uname` == "Darwin" ]; then
-#  if [ ! -e /usr/share/aclocal/pkg.m4 ]; then
-#    echo ""
-#    echo "WARNING !"
-#    echo ""
-#    echo "There is a known problem with PKG_CHECK_MODULES macro on OSX/Darwin using Fink or Darwin Ports and pgk-config"
-#    echo "See details at http://playerstage.sourceforge.net/wiki/Basic_FAQ#I_have_a_syntax_error_involving_PKG_CHECK_MODULES._What.27s_the_fix.3F"
-#    echo ""
-#    echo "To fix it if you using Fink try the following command:"
-#    echo ""
-#    echo "  sudo ln -s /sw/share/aclocal/pkg.m4 /usr/share/aclocal/pkg.m4"
-#    echo ""
-#    echo "If you using Darwin Ports try the following command:"
-#    echo ""
-#    echo "  sudo ln -s /opt/local/share/aclocal/pkg.m4 /usr/share/aclocal/pkg.m4"
-#    echo ""
-#    echo "If you using Homebrew try the following command:"
-#    echo ""
-#    echo " sudo ln -s /usr/local/share/aclocal/pkg.m4 /usr/share/aclocal/pkg.m4"
-#    echo " (you might need to run the above command also for other libraries such as gtk-doc)"
-#    echo ""
-#    exit 1;
-#  fi
-#fi
+warn() {
+	echo "WARNING: $@" 1>&2
+}
 
-echo "aclocal..."
-aclocal &> /dev/null || exit 1
+package="dupin"
 
-echo "autoheader..."
-autoheader &> /dev/null || exit 1
+DIE=0
 
-if [ `uname` == "Darwin" ]; then
-  echo "glibtoolize..."
-  glibtoolize --force --copy &>/dev/null || exit 1
-else
-  echo "libtoolize..."
-  libtoolize --force --copy &>/dev/null || exit 1
+(autoconf --version) < /dev/null > /dev/null 2>&1 || {
+        echo
+        echo "You must have autoconf installed to compile $package."
+        echo "Download the appropriate package for your distribution,"
+        echo "or get the source tarball at ftp://ftp.gnu.org/pub/gnu/"
+        DIE=1
+}
+
+(automake --version) < /dev/null > /dev/null 2>&1 || {
+        echo
+        echo "You must have automake installed to compile $package."
+	echo "Download the appropriate package for your system,"
+	echo "or get the source from one of the GNU ftp sites"
+	echo "listed in http://www.gnu.org/order/ftp.html"
+        DIE=1
+}
+
+if test "$DIE" -eq 1; then
+        exit 1
 fi
+
+case `uname -s` in
+Darwin)
+	LIBTOOLIZE=glibtoolize
+	;;
+FreeBSD)
+	LIBTOOLIZE=libtoolize
+	;;
+Linux)
+	LIBTOOLIZE=libtoolize
+	;;
+SunOS)
+	LIBTOOLIZE=libtoolize
+	;;
+*)
+	warn "unrecognized platform:" `uname -s`
+	LIBTOOLIZE=libtoolize
+esac
+
+set -e
+
+echo "Generating configuration files for $package, please wait...."
+
+echo "  aclocal"
+aclocal > /dev/null 2>&1
+
+echo "  autoheader"
+autoheader > /dev/null 2>&1
+
+echo "  $LIBTOOLIZE"
+$LIBTOOLIZE --force --copy > /dev/null 2>&1
 
 touch NEWS README AUTHORS ChangeLog
 
-echo "automake..."
-automake --copy --gnu --add-missing &> /dev/null || exit 1
+echo "  automake --add-missing"
+automake --copy --gnu --add-missing -c > /dev/null 2>&1
 
-echo "autoconf..."
-autoconf &> /dev/null || exit 1
+echo "  autoconf"
+autoconf > /dev/null 2>&1
 
 rm -rf autom4te.cache
-
-echo "Bye :)"

@@ -26,10 +26,6 @@ DIE=0
         DIE=1
 }
 
-if test "$DIE" -eq 1; then
-        exit 1
-fi
-
 case `uname -s` in
 Darwin)
 	LIBTOOLIZE=glibtoolize
@@ -47,6 +43,19 @@ SunOS)
 	warn "unrecognized platform:" `uname -s`
 	LIBTOOLIZE=libtoolize
 esac
+
+($LIBTOOLIZE --version) < /dev/null > /dev/null 2>&1 || {
+        echo
+        echo "You must have $LIBTOOLIZE installed to compile $package."
+	echo "Download the appropriate package for your system,"
+	echo "or get the source from one of the GNU ftp sites"
+	echo "listed in http://www.gnu.org/software/libtool/"
+        DIE=1
+}
+
+if test "$DIE" -eq 1; then
+        exit 1
+fi
 
 set -e
 

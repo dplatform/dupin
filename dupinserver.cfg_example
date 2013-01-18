@@ -5,12 +5,16 @@
     <Background>false</Background>
 
     <!-- Log file, User and group -->
-    <LogFile>/tmp/controller.txt</LogFile>
+    <!--<LogFile>/usr/local/dupin/log/dupin-log.json</LogFile>-->
+    <LogFile>/dev/null</LogFile>
     <LogVerbose>info</LogVerbose>
-    <PidFile>/tmp/pid.txt</PidFile>
+    <PidFile>/var/run/dupin.pid</PidFile>
 
-    <User>baku</User>
-    <Group>baku</Group>
+    <User>foobar</User>
+    <Group>wheel</Group>
+
+    <!--<SQLitePath>/usr/local/dupin/var/dupin/dbs</SQLitePath>-->
+    <!--<SQLiteMode>readonly</SQLiteMode>-->
   </General>
 
   <Network active="true">
@@ -26,10 +30,14 @@
     <MaxClients>100</MaxClients>
     <ClientsForThread>10</ClientsForThread>
     <ThreadNumb>5</ThreadNumb>
-    <Timeout>5</Timeout>
+    <Timeout>25</Timeout>
+    <!--<TimeoutForThread>5</TimeoutForThread>-->
     <TimeoutForThread>5</TimeoutForThread>
     <CacheSize>20</CacheSize>
     <CacheMaxFile>1024</CacheMaxFile>
+    <MapMaxThreads>5</MapMaxThreads>
+    <ReduceMaxThreads>5</ReduceMaxThreads>
+    <ReduceTimeoutForThread>60</ReduceTimeoutForThread>
   </Limits>
 
 </DupinServer>

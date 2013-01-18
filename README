@@ -1,0 +1,52 @@
+Build and Run Dupin
+===================
+
+The Dupin source-code is hosted at [github.com/dplatform/dupin](http://github.com/dplatform/dupin)
+
+## Linux
+
+A fresh Linux installation (e.g. Ubuntu 12.04 x64 LTS image) generally requires:
+
+Configuration dependences:
+
+	apt-get install autoconf
+	apt-get install libtool
+	apt-get install pkg-config
+
+Build dependences (including the development files):
+
+	apt-get install libxml2-dev
+	apt-get install libglib2.0-dev
+	apt-get install libjson-glib-dev
+	apt-get install libsqlite3-dev
+	apt-get install libsoup2.4-dev
+	apt-get install libwebkitgtk-dev
+
+## Building and Running
+
+So, to get everything built and ready:
+
+	sh autogen.sh
+	./configure --prefix=/your/prefix/here
+	make
+	sudo make install
+
+Configure
+	
+	cp /your/prefix/here/etc/dupinserver.cfg_example /your/prefix/here/etc/dupinserver.cfg
+	mkdir -p /your/prefix/here/var/dupin/dbs
+	chmod -R foobar.wheel /your/prefix/here/var
+
+Edit dupinserver.cfg as appropriate.
+
+To startup Dupin
+
+	dupinctl start
+
+This will startup Dupin locally.
+
+Go to
+
+	http://localhost:8088
+
+Enjoy!

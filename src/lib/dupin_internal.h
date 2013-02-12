@@ -121,6 +121,8 @@ struct dupin_db_t
 
   gchar *       error_msg;
   gchar *       warning_msg;
+
+  gsize		creation_time;
 };
 
 struct dupin_linkb_t
@@ -156,6 +158,8 @@ struct dupin_linkb_t
 
   gchar *       error_msg;
   gchar *       warning_msg;
+
+  gsize		creation_time;
 };
 
 struct dupin_view_t
@@ -205,6 +209,8 @@ struct dupin_view_t
 
   GList *	deletes_queue;
   guint		deletes_queue_size;
+
+  gsize		creation_time;
 };
 
 struct dupin_attachment_db_t
@@ -225,6 +231,8 @@ struct dupin_attachment_db_t
 
   gchar *       error_msg;
   gchar *       warning_msg;
+
+  gsize		creation_time;
 };
 
 struct dupin_attachment_record_t

@@ -45,9 +45,15 @@
   "  total_rel_del   INTEGER NOT NULL DEFAULT 0,\n" \
   "  parent          CHAR(255) NOT NULL,\n" \
   "  isdb            BOOL DEFAULT TRUE,\n" \
-  "  compact_id      CHAR(255),\n" \
-  "  check_id        CHAR(255)\n" \
-  ");"
+  "  compact_id      CHAR(255) NOT NULL DEFAULT '0',\n" \
+  "  check_id        CHAR(255) NOT NULL DEFAULT '0',\n" \
+  "  creation_time   CHAR(255) NOT NULL DEFAULT '0'\n" \
+  ");\n" \
+  "PRAGMA user_version = 2"
+
+#define DUPIN_LINKB_SQL_DESC_UPGRADE_FROM_VERSION_1 \
+  "ALTER TABLE DupinLinkB ADD COLUMN creation_time CHAR(255) NOT NULL DEFAULT '0';\n" \
+  "PRAGMA user_version = 2"
 
 #define DUPIN_LINKB_SQL_TOTAL \
         "SELECT count(*) AS c FROM Dupin AS d WHERE d.rev_head = 'TRUE' "
@@ -181,9 +187,13 @@ dupin_linkbase_new (Dupin * d, gchar * linkb,
       return NULL;
     }
 
+  gchar * creation_time = g_strdup_printf ("%" G_GSIZE_FORMAT, (dupin_util_timestamp_now ()/1000));
+
   str = sqlite3_mprintf ("INSERT OR REPLACE INTO DupinLinkB "
-                         "(parent, isdb, compact_id, check_id) "
-                         "VALUES('%q', '%s', 0, 0)", parent, is_db ? "TRUE" : "FALSE");
+                         "(parent, isdb, compact_id, check_id, creation_time) "
+                         "VALUES('%q', '%s', 0, 0, '%q')", parent, is_db ? "TRUE" : "FALSE", creation_time);
+
+  g_free (creation_time);
 
   if (sqlite3_exec (ret->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
     {
@@ -476,6 +486,46 @@ dupin_linkbase_get_size (DupinLinkB * linkb)
   return (gsize) st.st_size;
 }
 
+static int
+dupin_linkbase_get_creation_time_cb (void *data, int argc, char **argv, char **col)
+{
+  gsize *creation_time = data;
+
+  if (argv[0])
+    *creation_time = atoi (argv[0]);
+
+  return 0;
+}
+
+gboolean
+dupin_linkbase_get_creation_time (DupinLinkB * linkb, gsize * creation_time)
+{
+  gchar * query;
+  gchar * errmsg=NULL;
+
+  g_return_val_if_fail (linkb != NULL, 0);
+
+  *creation_time = 0;
+
+  /* get creation time out of linkbase */
+  query = "SELECT creation_time as creation_time FROM DupinLinkB";
+  g_mutex_lock (linkb->mutex);
+
+  if (sqlite3_exec (linkb->db, query, dupin_linkbase_get_creation_time_cb, creation_time, &errmsg) != SQLITE_OK)
+    {
+      g_mutex_unlock (linkb->mutex);
+
+      g_error("dupin_linkbase_get_creation_time: %s", errmsg);
+      sqlite3_free (errmsg);
+
+      return FALSE;
+    }
+
+  g_mutex_unlock (linkb->mutex);
+
+  return TRUE;
+}
+
 static void
 dupin_linkbase_generate_id_create (DupinLinkB * linkb, gchar id[DUPIN_ID_MAX_LEN])
 {
@@ -572,6 +622,18 @@ dupin_linkb_disconnect (DupinLinkB * linkb)
   g_free (linkb);
 }
 
+static int
+dupin_linkb_get_user_version_cb (void *data, int argc, char **argv,
+                                    char **col)
+{
+  gint *user_version = data;
+
+  if (argv[0])
+    *user_version = atoi (argv[0]);
+
+  return 0;
+}
+
 DupinLinkB *
 dupin_linkb_connect (Dupin * d, gchar * name, gchar * path,
 		     DupinSQLiteOpenType mode,
@@ -635,6 +697,36 @@ dupin_linkb_connect (Dupin * d, gchar * name, gchar * path,
 
       if (dupin_linkbase_commit_transaction (linkb, error) < 0)
         {
+          dupin_linkb_disconnect (linkb);
+          return NULL;
+        }
+    }
+
+  /* check linkbase version */
+  gint user_version = 0;
+
+  if (sqlite3_exec (linkb->db, "PRAGMA user_version", dupin_linkb_get_user_version_cb, &user_version, &errmsg) != SQLITE_OK)
+    {
+      /* default to 1 if not found or error - TODO check not SQLITE_OK error only */
+      user_version = 1;
+    }
+
+  if (user_version > DUPIN_SQLITE_MAX_USER_VERSION)
+    {
+      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "SQLite linkbase user version (%d) is newer than I know how to work with (%d).",
+			user_version, DUPIN_SQLITE_MAX_USER_VERSION);
+      sqlite3_free (errmsg);
+      dupin_linkb_disconnect (linkb);
+      return NULL;
+    }
+
+  if (user_version <= 1)
+    {
+      if (sqlite3_exec (linkb->db, DUPIN_LINKB_SQL_DESC_UPGRADE_FROM_VERSION_1, NULL, NULL, &errmsg) != SQLITE_OK)
+        {
+          g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
+                   errmsg);
+          sqlite3_free (errmsg);
           dupin_linkb_disconnect (linkb);
           return NULL;
         }

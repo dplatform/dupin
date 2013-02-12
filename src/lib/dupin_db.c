@@ -33,8 +33,14 @@
   "CREATE TABLE IF NOT EXISTS DupinDB (\n" \
   "  total_doc_ins   INTEGER NOT NULL DEFAULT 0,\n" \
   "  total_doc_del   INTEGER NOT NULL DEFAULT 0,\n" \
-  "  compact_id      CHAR(255)\n" \
-  ");"
+  "  compact_id      CHAR(255) NOT NULL DEFAULT '0',\n" \
+  "  creation_time   CHAR(255) NOT NULL DEFAULT '0'\n" \
+  ");\n" \
+  "PRAGMA user_version = 2"
+
+#define DUPIN_DB_SQL_DESC_UPGRADE_FROM_VERSION_1 \
+  "ALTER TABLE DupinDB ADD COLUMN creation_time CHAR(255) NOT NULL DEFAULT '0';\n" \
+  "PRAGMA user_version = 2"
 
 #define DUPIN_DB_SQL_TOTAL \
         "SELECT count(*) AS c FROM Dupin AS d WHERE d.rev_head = 'TRUE' "
@@ -163,7 +169,11 @@ dupin_database_new (Dupin * d, gchar * db, GError ** error)
       return NULL;
     }
 
-  str = sqlite3_mprintf ("INSERT OR REPLACE INTO DupinDB (compact_id) VALUES (0)");
+  gchar * creation_time = g_strdup_printf ("%" G_GSIZE_FORMAT, (dupin_util_timestamp_now ()/1000));
+
+  str = sqlite3_mprintf ("INSERT OR REPLACE INTO DupinDB (compact_id, creation_time) VALUES (0, '%q')", creation_time);
+
+  g_free (creation_time);
 
   if (sqlite3_exec (ret->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
     {
@@ -331,6 +341,46 @@ dupin_database_get_size (DupinDB * db)
   return (gsize) st.st_size;
 }
 
+static int
+dupin_database_get_creation_time_cb (void *data, int argc, char **argv, char **col)
+{
+  gsize *creation_time = data;
+
+  if (argv[0])
+    *creation_time = atoi (argv[0]);
+
+  return 0;
+}
+
+gboolean
+dupin_database_get_creation_time (DupinDB * db, gsize * creation_time)
+{
+  gchar * query;
+  gchar * errmsg=NULL;
+
+  *creation_time = 0;
+
+  g_return_val_if_fail (db != NULL, 0);
+
+  /* get creation time out of database */
+  query = "SELECT creation_time as creation_time FROM DupinDB";
+  g_mutex_lock (db->mutex);
+
+  if (sqlite3_exec (db->db, query, dupin_database_get_creation_time_cb, creation_time, &errmsg) != SQLITE_OK)
+    {
+      g_mutex_unlock (db->mutex);
+
+      g_error("dupin_database_get_creation_time: %s", errmsg);
+      sqlite3_free (errmsg);
+
+      return FALSE;
+    }
+
+  g_mutex_unlock (db->mutex);
+
+  return TRUE;
+}
+
 static void
 dupin_database_generate_id_create (DupinDB * db, gchar id[DUPIN_ID_MAX_LEN])
 {
@@ -417,6 +467,18 @@ dupin_db_disconnect (DupinDB * db)
   g_free (db);
 }
 
+static int
+dupin_database_get_user_version_cb (void *data, int argc, char **argv,
+                                    char **col)
+{
+  gint *user_version = data;
+
+  if (argv[0])
+    *user_version = atoi (argv[0]);
+
+  return 0;
+}
+
 DupinDB *
 dupin_db_connect (Dupin * d, gchar * name, gchar * path,
  		  DupinSQLiteOpenType mode,
@@ -481,6 +543,36 @@ dupin_db_connect (Dupin * d, gchar * name, gchar * path,
 
       if (dupin_database_commit_transaction (db, error) < 0)
         {
+          dupin_db_disconnect (db);
+          return NULL;
+        }
+    }
+
+  /* check database version */
+  gint user_version = 0;
+
+  if (sqlite3_exec (db->db, "PRAGMA user_version", dupin_database_get_user_version_cb, &user_version, &errmsg) != SQLITE_OK)
+    {
+      /* default to 1 if not found or error - TODO check not SQLITE_OK error only */
+      user_version = 1;
+    }
+
+  if (user_version > DUPIN_SQLITE_MAX_USER_VERSION)
+    {
+      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "SQLite database user version (%d) is newer than I know how to work with (%d).",
+			user_version, DUPIN_SQLITE_MAX_USER_VERSION);
+      sqlite3_free (errmsg);
+      dupin_db_disconnect (db);
+      return NULL;
+    }
+
+  if (user_version <= 1)
+    {
+      if (sqlite3_exec (db->db, DUPIN_DB_SQL_DESC_UPGRADE_FROM_VERSION_1, NULL, NULL, &errmsg) != SQLITE_OK)
+        {
+          g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
+		   errmsg);
+          sqlite3_free (errmsg);
           dupin_db_disconnect (db);
           return NULL;
         }

@@ -102,7 +102,9 @@ dupin_init (DSGlobal *data, GError ** error)
       if (d->conf->sqlite_connect != NULL
 	  && !g_regex_match (d->conf->sqlite_connect, filename, 0, NULL))
         {
-g_message("dupin_init: skipped database %s (sqlite_connect)\n", filename);
+#if DEBUG
+	  g_message("dupin_init: skipped database %s (sqlite_connect)\n", filename);
+#endif
 
           continue;
 	}
@@ -110,7 +112,9 @@ g_message("dupin_init: skipped database %s (sqlite_connect)\n", filename);
       if (d->conf->sqlite_db_connect != NULL
 	  && !g_regex_match (d->conf->sqlite_db_connect, filename, 0, NULL))
         {
-g_message("dupin_init: skipped database %s (sqlite_db_connect)\n", filename);
+#if DEBUG
+	  g_message("dupin_init: skipped database %s (sqlite_db_connect)\n", filename);
+#endif
 
           continue;
 	}
@@ -128,7 +132,9 @@ g_message("dupin_init: skipped database %s (sqlite_db_connect)\n", filename);
 	  return NULL;
 	}
 
-g_message("dupin_init: connected database %s\n", name);
+#if DEBUG
+      g_message("dupin_init: connected database %s\n", name);
+#endif
 
       g_hash_table_insert (d->dbs, g_strdup (name), db);
       g_free (path);
@@ -149,7 +155,9 @@ g_message("dupin_init: connected database %s\n", name);
       if (d->conf->sqlite_connect != NULL
 	  && !g_regex_match (d->conf->sqlite_connect, filename, 0, NULL))
         {
-g_message("dupin_init: skipped linkbase %s (sqlite_connect)\n", filename);
+#if DEBUG
+          g_message("dupin_init: skipped linkbase %s (sqlite_connect)\n", filename);
+#endif
 
           continue;
 	}
@@ -157,7 +165,9 @@ g_message("dupin_init: skipped linkbase %s (sqlite_connect)\n", filename);
       if (d->conf->sqlite_linkb_connect != NULL
 	  && !g_regex_match (d->conf->sqlite_linkb_connect, filename, 0, NULL))
         {
-g_message("dupin_init: skipped linkbase %s (sqlite_linkb_connect)\n", filename);
+#if DEBUG
+          g_message("dupin_init: skipped linkbase %s (sqlite_linkb_connect)\n", filename);
+#endif
 
           continue;
 	}
@@ -175,7 +185,9 @@ g_message("dupin_init: skipped linkbase %s (sqlite_linkb_connect)\n", filename);
 	  return NULL;
 	}
 
-g_message("dupin_init: connected linkbase %s\n", name);
+#if DEBUG
+      g_message("dupin_init: connected linkbase %s\n", name);
+#endif
 
       if (dupin_linkbase_p_update (linkb, error) == FALSE)
 	{
@@ -204,7 +216,9 @@ g_message("dupin_init: connected linkbase %s\n", name);
       if (d->conf->sqlite_connect != NULL
 	  && !g_regex_match (d->conf->sqlite_connect, filename, 0, NULL))
         {
-g_message("dupin_init: skipped attachment database %s (sqlite_connect)\n", filename);
+#if DEBUG
+          g_message("dupin_init: skipped attachment database %s (sqlite_connect)\n", filename);
+#endif
 
           continue;
 	}
@@ -212,7 +226,9 @@ g_message("dupin_init: skipped attachment database %s (sqlite_connect)\n", filen
       if (d->conf->sqlite_attachment_db_connect != NULL
 	  && !g_regex_match (d->conf->sqlite_attachment_db_connect, filename, 0, NULL))
         {
-g_message("dupin_init: skipped attachment database %s (sqlite_attachment_db_connect)\n", filename);
+#if DEBUG
+          g_message("dupin_init: skipped attachment database %s (sqlite_attachment_db_connect)\n", filename);
+#endif
 
           continue;
 	}
@@ -230,7 +246,9 @@ g_message("dupin_init: skipped attachment database %s (sqlite_attachment_db_conn
 	  return NULL;
 	}
 
-g_message("dupin_init: connected attachment database %s\n", name);
+#if DEBUG
+      g_message("dupin_init: connected attachment database %s\n", name);
+#endif
 
       if (dupin_attachment_db_p_update (attachment_db, error) == FALSE)
 	{
@@ -259,7 +277,9 @@ g_message("dupin_init: connected attachment database %s\n", name);
       if (d->conf->sqlite_connect != NULL
 	  && !g_regex_match (d->conf->sqlite_connect, filename, 0, NULL))
         {
-g_message("dupin_init: skipped view %s (sqlite_connect)\n", filename);
+#if DEBUG
+          g_message("dupin_init: skipped view %s (sqlite_connect)\n", filename);
+#endif
 
           continue;
 	}
@@ -267,7 +287,9 @@ g_message("dupin_init: skipped view %s (sqlite_connect)\n", filename);
       if (d->conf->sqlite_view_connect != NULL
 	  && !g_regex_match (d->conf->sqlite_view_connect, filename, 0, NULL))
         {
-g_message("dupin_init: skipped view %s (sqlite_view_connect)\n", filename);
+#if DEBUG
+          g_message("dupin_init: skipped view %s (sqlite_view_connect)\n", filename);
+#endif
 
           continue;
 	}
@@ -285,7 +307,9 @@ g_message("dupin_init: skipped view %s (sqlite_view_connect)\n", filename);
 	  return NULL;
 	}
 
-g_message("dupin_init: connected view %s\n", name);
+#if DEBUG
+      g_message("dupin_init: connected view %s\n", name);
+#endif
 
       if (dupin_view_p_update (view, error) == FALSE)
 	{
@@ -320,7 +344,9 @@ dupin_shutdown (Dupin * d)
   g_thread_pool_free (d->sync_map_workers_pool, TRUE, TRUE);
   g_thread_pool_free (d->sync_reduce_workers_pool, TRUE, TRUE);
 
-g_message("dupin_shutdown: worker pools freed\n");
+#if DEBUG
+  g_message("dupin_shutdown: worker pools freed\n");
+#endif
 
   if (d->mutex)
     {

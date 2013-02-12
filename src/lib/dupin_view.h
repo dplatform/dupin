@@ -83,6 +83,10 @@ DupinMRLang	dupin_view_get_reduce_language
 
 gsize		dupin_view_get_size	(DupinView *	view);
 
+gboolean	dupin_view_get_creation_time
+					(DupinView * view,
+					 gsize * creation_time);
+
 gsize		dupin_view_count	(DupinView *	view);
 
 gboolean	dupin_view_is_sync	(DupinView *	view);

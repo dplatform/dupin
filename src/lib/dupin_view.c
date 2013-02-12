@@ -55,8 +55,14 @@ See http://wiki.apache.org/couchdb/Introduction_to_CouchDB_views
   "  output                    CHAR(255),\n" \
   "  output_isdb               BOOL DEFAULT TRUE,\n" \
   "  output_islinkb            BOOL DEFAULT FALSE,\n" \
-  "  last_to_delete_id         CHAR(255) DEFAULT NULL\n" \
-  ");"
+  "  last_to_delete_id         CHAR(255) DEFAULT NULL,\n" \
+  "  creation_time   	       CHAR(255) NOT NULL DEFAULT '0'\n" \
+  ");\n" \
+  "PRAGMA user_version = 2"
+
+#define DUPIN_VIEW_SQL_DESC_UPGRADE_FROM_VERSION_1 \
+  "ALTER TABLE DupinView ADD COLUMN creation_time CHAR(255) NOT NULL DEFAULT '0';\n" \
+  "PRAGMA user_version = 2"
 
 #define DUPIN_VIEW_SQL_INSERT \
 	"INSERT OR REPLACE INTO Dupin (id, pid, key, obj) " \
@@ -265,10 +271,12 @@ dupin_view_new (Dupin * d, gchar * view, gchar * parent, gboolean is_db, gboolea
       return NULL;
     }
 
+  gchar * creation_time = g_strdup_printf ("%" G_GSIZE_FORMAT, (dupin_util_timestamp_now ()/1000));
+
   str =
     sqlite3_mprintf ("INSERT OR REPLACE INTO DupinView "
-		     "(parent, isdb, islinkb, map, map_lang, reduce, reduce_lang, output, output_isdb, output_islinkb) "
-		     "VALUES('%q', '%s', '%s', '%q', '%q', '%q' ,'%q', '%q', '%s', '%s')", parent,
+		     "(parent, isdb, islinkb, map, map_lang, reduce, reduce_lang, output, output_isdb, output_islinkb, creation_time) "
+		     "VALUES('%q', '%s', '%s', '%q', '%q', '%q' ,'%q', '%q', '%s', '%s', '%q')", parent,
 		     is_db ? "TRUE" : "FALSE",
 		     is_linkb ? "TRUE" : "FALSE",
 		     map,
@@ -276,7 +284,10 @@ dupin_view_new (Dupin * d, gchar * view, gchar * parent, gboolean is_db, gboolea
 		     dupin_util_mr_lang_to_string (reduce_language),
 		     output,
 		     output_is_db ? "TRUE" : "FALSE",
-		     output_is_linkb ? "TRUE" : "FALSE");
+		     output_is_linkb ? "TRUE" : "FALSE",
+		     creation_time);
+
+  g_free (creation_time);
 
   if (sqlite3_exec (ret->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
     {
@@ -1287,6 +1298,46 @@ dupin_view_get_size (DupinView * view)
   return (gsize) st.st_size;
 }
 
+static int
+dupin_view_get_creation_time_cb (void *data, int argc, char **argv, char **col)
+{
+  gsize *creation_time = data;
+
+  if (argv[0])
+    *creation_time = atoi (argv[0]);
+
+  return 0;
+}
+
+gboolean
+dupin_view_get_creation_time (DupinView * view, gsize * creation_time)
+{
+  gchar * query;
+  gchar * errmsg=NULL;
+
+  *creation_time = 0;
+
+  g_return_val_if_fail (view != NULL, 0);
+
+  /* get creation time out of view */
+  query = "SELECT creation_time as creation_time FROM DupinView";
+  g_mutex_lock (view->mutex);
+
+  if (sqlite3_exec (view->db, query, dupin_view_get_creation_time_cb, creation_time, &errmsg) != SQLITE_OK)
+    {
+      g_mutex_unlock (view->mutex);
+
+      g_error("dupin_view_get_creation_time: %s", errmsg);
+      sqlite3_free (errmsg);
+
+      return FALSE;
+    }
+
+  g_mutex_unlock (view->mutex);
+
+  return TRUE;
+}
+
 /* Internal: */
 void
 dupin_view_disconnect (DupinView * view)
@@ -1395,6 +1446,18 @@ dupin_view_connect_cb (void *data, int argc, char **argv, char **col)
   return 0;
 }
 
+static int
+dupin_view_get_user_version_cb (void *data, int argc, char **argv,
+                                    char **col)
+{
+  gint *user_version = data;
+
+  if (argv[0])
+    *user_version = atoi (argv[0]);
+
+  return 0;
+}
+
 DupinView *
 dupin_view_connect (Dupin * d, gchar * name, gchar * path,
 		    DupinSQLiteOpenType mode,
@@ -1481,6 +1544,36 @@ dupin_view_connect (Dupin * d, gchar * name, gchar * path,
 
       if (dupin_view_commit_transaction (view, error) < 0)
         {
+          dupin_view_disconnect (view);
+          return NULL;
+        }
+    }
+
+  /* check view version */
+  gint user_version = 0;
+
+  if (sqlite3_exec (view->db, "PRAGMA user_version", dupin_view_get_user_version_cb, &user_version, &errmsg) != SQLITE_OK)
+    {
+      /* default to 1 if not found or error - TODO check not SQLITE_OK error only */
+      user_version = 1;
+    }
+
+  if (user_version > DUPIN_SQLITE_MAX_USER_VERSION)
+    {
+      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "SQLite view user version (%d) is newer than I know how to work with (%d).",
+                        user_version, DUPIN_SQLITE_MAX_USER_VERSION);
+      sqlite3_free (errmsg);
+      dupin_view_disconnect (view);
+      return NULL;
+    }
+
+  if (user_version <= 1)
+    {
+      if (sqlite3_exec (view->db, DUPIN_VIEW_SQL_DESC_UPGRADE_FROM_VERSION_1, NULL, NULL, &errmsg) != SQLITE_OK)
+        {
+          g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
+                   errmsg);
+          sqlite3_free (errmsg);
           dupin_view_disconnect (view);
           return NULL;
         }

@@ -44,6 +44,10 @@ const gchar *	dupin_linkbase_get_name	(DupinLinkB *	linkb);
 
 gsize		dupin_linkbase_get_size	(DupinLinkB *	linkb);
 
+gboolean	dupin_linkbase_get_creation_time
+					(DupinLinkB * linkb,
+					 gsize * creation_time);
+
 gchar *		dupin_linkbase_generate_id
 					(DupinLinkB *	linkb,
 					 GError **	error);

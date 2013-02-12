@@ -48,6 +48,9 @@ const gchar *	dupin_attachment_db_get_parent		(DupinAttachmentDB *	attachment_db
 
 gsize		dupin_attachment_db_get_size		(DupinAttachmentDB *	attachment_db);
 
+gboolean	dupin_attachment_db_get_creation_time	(DupinAttachmentDB *    attachment_db,
+							 gsize * creation_time);
+
 gsize		dupin_attachment_db_count		(DupinAttachmentDB *	attachment_db);
 
 void		dupin_attachment_db_set_error		(DupinAttachmentDB * 	attachment_db,

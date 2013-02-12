@@ -25,8 +25,14 @@
 
 #define DUPIN_ATTACHMENT_DB_SQL_DESC_CREATE \
   "CREATE TABLE IF NOT EXISTS DupinAttachmentDB (\n" \
-  "  parent                    CHAR(255) NOT NULL\n" \
-  ");"
+  "  parent          CHAR(255) NOT NULL,\n" \
+  "  creation_time   CHAR(255) NOT NULL DEFAULT '0'\n" \
+  ");\n" \
+  "PRAGMA user_version = 2"
+
+#define DUPIN_ATTACHMENT_DB_SQL_DESC_UPGRADE_FROM_VERSION_1 \
+  "ALTER TABLE DupinAttachmentDB ADD COLUMN creation_time CHAR(255) NOT NULL DEFAULT '0';\n" \
+  "PRAGMA user_version = 2"
 
 gchar **
 dupin_get_attachment_dbs (Dupin * d)
@@ -151,10 +157,14 @@ dupin_attachment_db_new (Dupin * d, gchar * attachment_db,
       return NULL;
     }
 
+  gchar * creation_time = g_strdup_printf ("%" G_GSIZE_FORMAT, (dupin_util_timestamp_now ()/1000));
+
   str =
     sqlite3_mprintf ("INSERT OR REPLACE INTO DupinAttachmentDB "
-		     "(parent) "
-		     "VALUES('%q')", parent);
+		     "(parent, creation_time) "
+		     "VALUES('%q', '%q')", parent, creation_time);
+
+  g_free (creation_time);
 
   if (sqlite3_exec (ret->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
     {
@@ -449,6 +459,46 @@ dupin_attachment_db_get_size (DupinAttachmentDB * attachment_db)
   return (gsize) st.st_size;
 }
 
+static int
+dupin_attachment_db_get_creation_time_cb (void *data, int argc, char **argv, char **col)
+{
+  gsize *creation_time = data;
+
+  if (argv[0])
+    *creation_time = atoi (argv[0]);
+
+  return 0;
+}
+
+gboolean
+dupin_attachment_db_get_creation_time (DupinAttachmentDB * attachment_db, gsize * creation_time)
+{
+  gchar * query;
+  gchar * errmsg=NULL;
+
+  *creation_time = 0;
+
+  g_return_val_if_fail (attachment_db != NULL, 0);
+
+  /* get creation time out of attachment db */
+  query = "SELECT creation_time as creation_time FROM DupinAttachmentDB";
+  g_mutex_lock (attachment_db->mutex);
+
+  if (sqlite3_exec (attachment_db->db, query, dupin_attachment_db_get_creation_time_cb, creation_time, &errmsg) != SQLITE_OK)
+    {
+      g_mutex_unlock (attachment_db->mutex);
+
+      g_error("dupin_attachment_db_get_creation_time: %s", errmsg);
+      sqlite3_free (errmsg);
+
+      return FALSE;
+    }
+
+  g_mutex_unlock (attachment_db->mutex);
+
+  return TRUE;
+}
+
 /* Internal: */
 void
 dupin_attachment_db_disconnect (DupinAttachmentDB * attachment_db)
@@ -498,6 +548,18 @@ dupin_attachment_db_connect_cb (void *data, int argc, char **argv, char **col)
     {
       attachment_db->parent = g_strdup (argv[0]);
     }
+
+  return 0;
+}
+
+static int
+dupin_attachment_db_get_user_version_cb (void *data, int argc, char **argv,
+                                    char **col)
+{
+  gint *user_version = data;
+
+  if (argv[0])
+    *user_version = atoi (argv[0]);
 
   return 0;
 }
@@ -560,6 +622,36 @@ dupin_attachment_db_connect (Dupin * d, gchar * name, gchar * path,
 
       if (dupin_attachment_db_commit_transaction (attachment_db, error) < 0)
         {
+          dupin_attachment_db_disconnect (attachment_db);
+          return NULL;
+        }
+    }
+
+  /* check attachment_db version */
+  gint user_version = 0;
+
+  if (sqlite3_exec (attachment_db->db, "PRAGMA user_version", dupin_attachment_db_get_user_version_cb, &user_version, &errmsg) != SQLITE_OK)
+    {
+      /* default to 1 if not found or error - TODO check not SQLITE_OK error only */
+      user_version = 1;
+    }
+
+  if (user_version > DUPIN_SQLITE_MAX_USER_VERSION)
+    {
+      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "SQLite attachment db user version (%d) is newer than I know how to work with (%d).",
+				user_version, DUPIN_SQLITE_MAX_USER_VERSION);
+      sqlite3_free (errmsg);
+      dupin_attachment_db_disconnect (attachment_db);
+      return NULL;
+    }
+
+  if (user_version <= 1)
+    {
+      if (sqlite3_exec (attachment_db->db, DUPIN_ATTACHMENT_DB_SQL_DESC_UPGRADE_FROM_VERSION_1, NULL, NULL, &errmsg) != SQLITE_OK)
+        {
+          g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
+                   errmsg);
+          sqlite3_free (errmsg);
           dupin_attachment_db_disconnect (attachment_db);
           return NULL;
         }

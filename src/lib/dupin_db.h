@@ -42,6 +42,10 @@ const gchar *	dupin_database_get_name	(DupinDB *	db);
 
 gsize		dupin_database_get_size	(DupinDB *	db);
 
+gboolean	dupin_database_get_creation_time
+					(DupinDB * db,
+					 gsize * creation_time);
+
 gchar *		dupin_database_generate_id
 					(DupinDB *	db,
 					 GError **	error);

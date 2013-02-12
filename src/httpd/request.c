@@ -1784,6 +1784,11 @@ request_global_get_database (DSHttpdClient * client, GList * path,
 
   json_object_set_int_member (obj, "disk_size", dupin_database_get_size (db));
 
+  gsize creation_time;
+  dupin_database_get_creation_time (db, &creation_time);
+  creation_time /= 1000;
+  json_object_set_string_member (obj, "instance_start_time", g_strdup_printf ("%" G_GSIZE_FORMAT, creation_time));
+
   /* FIXME: this does not make sense for dupin yet, see also http://blog.couchone.com/post/632718824/simple-document-versioning-with-couchdb */
   /* NOTE - Compaction removes old revs, only the latest rev is represented in view queries, and only the latest revision is replicated. */
   json_object_set_boolean_member (obj, "compact_running", dupin_database_is_compacting (db));
@@ -2437,6 +2442,11 @@ request_global_get_linkbase (DSHttpdClient * client, GList * path,
   json_object_set_int_member (obj, "relationships_del_count", dupin_linkbase_count (linkb, DP_LINK_TYPE_RELATIONSHIP, DP_COUNT_DELETE));
 
   json_object_set_int_member (obj, "disk_size", dupin_linkbase_get_size (linkb));
+
+  gsize creation_time;
+  dupin_linkbase_get_creation_time (linkb, &creation_time);
+  creation_time /= 1000;
+  json_object_set_string_member (obj, "instance_start_time", g_strdup_printf ("%" G_GSIZE_FORMAT, creation_time));
 
   json_object_set_boolean_member (obj, "compact_running", dupin_linkbase_is_compacting (linkb));
   json_object_set_boolean_member (obj, "check_running", dupin_linkbase_is_checking (linkb));
@@ -3761,6 +3771,12 @@ request_global_get_view (DSHttpdClient * client, GList * path,
 
   json_object_set_int_member (obj, "doc_count", dupin_view_count (view));
   json_object_set_int_member (obj, "disk_size", dupin_view_get_size (view));
+
+  gsize creation_time;
+  dupin_view_get_creation_time (view, &creation_time);
+  creation_time /= 1000;
+  json_object_set_string_member (obj, "instance_start_time", g_strdup_printf ("%" G_GSIZE_FORMAT, creation_time));
+
   json_object_set_boolean_member (obj, "sync", dupin_view_is_sync (view));
   json_object_set_boolean_member (obj, "sync_running", dupin_view_is_syncing (view));
   json_object_set_boolean_member (obj, "sync_map_running", (view->sync_map_thread) ? TRUE : FALSE);

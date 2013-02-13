@@ -106,11 +106,14 @@ dupin_database_open (Dupin * d, gchar * db, GError ** error)
     g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
 		 "Database '%s' doesn't exist.", db);
 
-  else {
-     //fprintf(stderr,"dupin_database_open: (%p) ref++\n", g_thread_self ());
-    ret->ref++;
-     //fprintf(stderr,"dupin_database_open: (%p) \t ref=%d\n", g_thread_self (), (gint) ret->ref);
-	};
+  else
+    {
+      ret->ref++;
+
+#if DEBUG
+      fprintf(stderr,"dupin_database_open: (%p) name=%s \t ref++=%d\n", g_thread_self (), db, (gint) ret->ref);
+#endif
+    }
 
   g_mutex_unlock (d->mutex);
 
@@ -156,9 +159,11 @@ dupin_database_new (Dupin * d, gchar * db, GError ** error)
 
   g_free (path);
 
-    //fprintf(stderr,"dupin_database_new: (%p) ref++\n", g_thread_self ());
   ret->ref++;
-    //fprintf(stderr,"dupin_database_new: (%p) \t ref=%d\n", g_thread_self (), (gint) ret->ref);
+
+#if DEBUG
+  fprintf(stderr,"dupin_database_new: (%p) name=%s \t ref++=%d\n", g_thread_self (), db, (gint) ret->ref);
+#endif
 
   g_hash_table_insert (d->dbs, g_strdup (db), ret);
 
@@ -205,15 +210,13 @@ dupin_database_new (Dupin * d, gchar * db, GError ** error)
   if (!  (linkb = dupin_linkbase_new (d, ret->default_linkbase_name, db, TRUE, NULL)))
     return NULL;
 
-  // keep a ref to default linkbase so it can not be accidentally deleted
-  //dupin_linkbase_unref (linkb);
+  // NOTE: we keep a ref to default linkbase so it can not be accidentally deleted - see dupin_database_delete()
 
   if (!  (attachment_db =
        dupin_attachment_db_new (d, ret->default_attachment_db_name, db, NULL)))
     return NULL;
 
-  // keep a ref to default attachments db so it can not be accidentally deleted
-  //dupin_attachment_db_unref (attachment_db);
+  // NOTE: we keep a ref to default attachments db so it can not be accidentally deleted - see dupin_database_delete()
 
   return ret;
 }
@@ -228,9 +231,13 @@ dupin_database_ref (DupinDB * db)
   d = db->d;
 
   g_mutex_lock (d->mutex);
-   //fprintf(stderr,"dupin_database_ref: (%p) ref++\n", g_thread_self ());
+
   db->ref++;
-   //fprintf(stderr,"dupin_database_ref: (%p) \t ref=%d\n", g_thread_self (), (gint) db->ref);
+
+#if DEBUG
+  fprintf(stderr,"dupin_database_ref: (%p) name=%s \t ref++=%d\n", g_thread_self (), db->name, (gint) db->ref);
+#endif
+
   g_mutex_unlock (d->mutex);
 }
 
@@ -244,11 +251,14 @@ dupin_database_unref (DupinDB * db)
   d = db->d;
   g_mutex_lock (d->mutex);
 
-  if (db->ref >= 0) {
-     //fprintf(stderr,"dupin_database_unref: (%p) ref--\n", g_thread_self ());
-    db->ref--;
-     //fprintf(stderr,"dupin_database_unref: (%p) \t ref=%d\n", g_thread_self (), (gint) db->ref);
-    };
+  if (db->ref > 0)
+    {
+      db->ref--;
+
+#if DEBUG
+      fprintf(stderr,"dupin_database_unref: (%p) name=%s \t ref--=%d\n", g_thread_self (), db->name, (gint) db->ref);
+#endif
+    }
 
   if (db->ref != 0 && db->todelete == TRUE)
     g_warning ("dupin_database_unref: (thread=%p) database %s flagged for deletion but can't free it due ref is %d\n", g_thread_self (), db->name, (gint) db->ref);
@@ -272,7 +282,7 @@ dupin_database_delete (DupinDB * db, GError ** error)
 
   /* NOTE - delete default link base and attachment database named after the main database */
 
-  /* NOTE - the following "repeats" of "unref" must be left due we kept a ref to those since we first created this DB
+  /* NOTE - the following repeated unrefs must be left due we kept a ref to those since we first created this DB
             of course, this will not survive stop/start of server - we will need to prob have
             linkbases and attachment dbs to be only deleted via the main DB 
 	    Note we do the second unref after open to make sure the linkbase and 
@@ -419,7 +429,9 @@ dupin_database_generate_id (DupinDB * db, GError ** error)
 void
 dupin_db_disconnect (DupinDB * db)
 {
+#if DEBUG
   g_message("dupin_db_disconnect: total number of changes for '%s' database: %d\n", db->name, (gint)sqlite3_total_changes (db->db));
+#endif
 
   if (db->db)
     sqlite3_close (db->db);

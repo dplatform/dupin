@@ -148,7 +148,13 @@ dupin_view_open (Dupin * d, gchar * view, GError ** error)
       return NULL;
     }
   else
-    ret->ref++;
+    {
+      ret->ref++;
+
+#if DEBUG
+      fprintf(stderr,"dupin_view_open: (%p) name=%s \t ref++=%d\n", g_thread_self (), view, (gint) ret->ref);
+#endif
+    }
 
   g_mutex_unlock (d->mutex);
 
@@ -262,7 +268,12 @@ dupin_view_new (Dupin * d, gchar * view, gchar * parent, gboolean is_db, gboolea
   ret->output_is_linkb = output_is_linkb;
 
   g_free (path);
+
   ret->ref++;
+
+#if DEBUG
+  fprintf(stderr,"dupin_view_new: (%p) name=%s \t ref++=%d\n", g_thread_self (), view, (gint) ret->ref);
+#endif
 
   if (dupin_view_begin_transaction (ret, error) < 0)
     {
@@ -1134,7 +1145,13 @@ dupin_view_ref (DupinView * view)
   d = view->d;
 
   g_mutex_lock (d->mutex);
+
   view->ref++;
+
+#if DEBUG
+  fprintf(stderr,"dupin_view_ref: (%p) name=%s \t ref++=%d\n", g_thread_self (), view->name, (gint) view->ref);
+#endif
+
   g_mutex_unlock (d->mutex);
 }
 
@@ -1148,8 +1165,14 @@ dupin_view_unref (DupinView * view)
   d = view->d;
   g_mutex_lock (d->mutex);
 
-  if (view->ref >= 0)
-    view->ref--;
+  if (view->ref > 0)
+    {
+      view->ref--;
+
+#if DEBUG
+      fprintf(stderr,"dupin_view_ref: (%p) name=%s \t ref--=%d\n", g_thread_self (), view->name, (gint) view->ref);
+#endif
+    }
 
   if (view->ref != 0 && view->todelete == TRUE)
     g_warning ("dupin_view_unref: (thread=%p) view %s flagged for deletion but can't free it due ref is %d\n", g_thread_self (), view->name, (gint) view->ref);
@@ -1342,7 +1365,9 @@ dupin_view_get_creation_time (DupinView * view, gsize * creation_time)
 void
 dupin_view_disconnect (DupinView * view)
 {
+#if DEBUG
   g_message("dupin_view_disconnect: total number of changes for '%s' view database: %d\n", view->name, (gint)sqlite3_total_changes (view->db));
+#endif
 
   /* NOTE - empty deletes queue before quitting */
 

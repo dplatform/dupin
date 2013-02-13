@@ -98,7 +98,13 @@ dupin_attachment_db_open (Dupin * d, gchar * attachment_db, GError ** error)
       return NULL;
     }
   else
-    ret->ref++;
+    {
+      ret->ref++;
+
+#if DEBUG
+      fprintf(stderr,"dupin_attachment_db_open: (%p) name=%s \t ref++=%d\n", g_thread_self (), attachment_db, (gint) ret->ref);
+#endif
+    }
 
   g_mutex_unlock (d->mutex);
 
@@ -148,7 +154,12 @@ dupin_attachment_db_new (Dupin * d, gchar * attachment_db,
   ret->parent = g_strdup (parent);
 
   g_free (path);
+
   ret->ref++;
+
+#if DEBUG
+  fprintf(stderr,"dupin_attachment_db_new: (%p) name=%s \t ref++=%d\n", g_thread_self (), attachment_db, (gint) ret->ref);
+#endif
 
   if (dupin_attachment_db_begin_transaction (ret, error) < 0)
     {
@@ -383,7 +394,13 @@ dupin_attachment_db_ref (DupinAttachmentDB * attachment_db)
   d = attachment_db->d;
 
   g_mutex_lock (d->mutex);
+
   attachment_db->ref++;
+
+#if DEBUG
+  fprintf(stderr,"dupin_attachment_db_ref: (%p) name=%s \t ref++=%d\n", g_thread_self (), attachment_db->name, (gint) attachment_db->ref);
+#endif
+
   g_mutex_unlock (d->mutex);
 }
 
@@ -397,8 +414,14 @@ dupin_attachment_db_unref (DupinAttachmentDB * attachment_db)
   d = attachment_db->d;
   g_mutex_lock (d->mutex);
 
-  if (attachment_db->ref >= 0)
-    attachment_db->ref--;
+  if (attachment_db->ref > 0)
+    {
+      attachment_db->ref--;
+
+#if DEBUG
+      fprintf(stderr,"dupin_attachment_db_new: (%p) name=%s \t ref--=%d\n", g_thread_self (), attachment_db->name, (gint) attachment_db->ref);
+#endif
+    }
 
   if (attachment_db->ref != 0 && attachment_db->todelete == TRUE)
     g_warning ("dupin_attachment_db_unref: (thread=%p) attachment database %s flagged for deletion but can't free it due ref is %d\n", g_thread_self (), attachment_db->name, (gint) attachment_db->ref);
@@ -503,7 +526,9 @@ dupin_attachment_db_get_creation_time (DupinAttachmentDB * attachment_db, gsize 
 void
 dupin_attachment_db_disconnect (DupinAttachmentDB * attachment_db)
 {
+#if DEBUG
   g_message("dupin_attachment_db_disconnect: total number of changes for '%s' attachments database: %d\n", attachment_db->name, (gint)sqlite3_total_changes (attachment_db->db));
+#endif
 
   if (attachment_db->db)
     sqlite3_close (attachment_db->db);

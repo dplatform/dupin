@@ -120,10 +120,14 @@ dupin_linkbase_open (Dupin * d, gchar * linkb, GError ** error)
     g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
 		 "Linkbase '%s' doesn't exist.", linkb);
 
-  else {
-    /* fprintf(stderr,"ref++\n"); */
-    ret->ref++;
-	};
+  else
+    {
+      ret->ref++;
+
+#if DEBUG
+      fprintf(stderr,"dupin_linkbase_open: (%p) name=%s \t ref++=%d\n", g_thread_self (), linkb, (gint) ret->ref);
+#endif
+    }
 
   g_mutex_unlock (d->mutex);
 
@@ -177,8 +181,11 @@ dupin_linkbase_new (Dupin * d, gchar * linkb,
   ret->parent = g_strdup (parent);
   ret->parent_is_db = is_db;
 
-  /* fprintf(stderr,"ref++\n"); */
   ret->ref++;
+
+#if DEBUG
+  fprintf(stderr,"dupin_linkbase_new: (%p) name=%s \t ref++=%d\n", g_thread_self (), linkb, (gint) ret->ref);
+#endif
 
   if (dupin_linkbase_begin_transaction (ret, error) < 0)
     {
@@ -415,8 +422,13 @@ dupin_linkbase_ref (DupinLinkB * linkb)
   d = linkb->d;
 
   g_mutex_lock (d->mutex);
-  /* fprintf(stderr,"ref++\n"); */
+
   linkb->ref++;
+
+#if DEBUG
+  fprintf(stderr,"dupin_linkbase_ref: (%p) name=%s \t ref++=%d\n", g_thread_self (), linkb->name, (gint) linkb->ref);
+#endif
+
   g_mutex_unlock (d->mutex);
 }
 
@@ -430,10 +442,14 @@ dupin_linkbase_unref (DupinLinkB * linkb)
   d = linkb->d;
   g_mutex_lock (d->mutex);
 
-  if (linkb->ref >= 0) {
-    /* fprintf(stderr,"ref--\n"); */
-    linkb->ref--;
-    };
+  if (linkb->ref > 0)
+    {
+      linkb->ref--;
+
+#if DEBUG
+      fprintf(stderr,"dupin_linkbase_unref: (%p) name=%s \t ref--=%d\n", g_thread_self (), linkb->name, (gint) linkb->ref);
+#endif
+    }
 
   if (linkb->ref != 0 && linkb->todelete == TRUE)
     g_warning ("dupin_linkbase_unref: (thread=%p) linkbase %s flagged for deletion but can't free it due ref is %d\n", g_thread_self (), linkb->name, (gint) linkb->ref);
@@ -580,7 +596,9 @@ dupin_linkbase_get_parent_is_db (DupinLinkB * linkb)
 void
 dupin_linkb_disconnect (DupinLinkB * linkb)
 {
+#if DEBUG
   g_message("dupin_linkb_disconnect: total number of changes for '%s' linkbase: %d\n", linkb->name, (gint)sqlite3_total_changes (linkb->db));
+#endif
 
   if (linkb->db)
     sqlite3_close (linkb->db);

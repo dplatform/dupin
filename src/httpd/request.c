@@ -7752,7 +7752,7 @@ request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
 
   obj = json_node_get_object (obj_node);
 
-  //json_object_set_string_member (obj, RESPONSE_LINK_OBJ_CONTEXT_ID, dupin_link_record_get_context_id (record));
+  json_object_set_string_member (obj, REQUEST_LINK_OBJ_CONTEXT_ID, dupin_link_record_get_context_id (record));
   json_object_set_string_member (obj, REQUEST_LINK_OBJ_LABEL, dupin_link_record_get_label (record));
   json_object_set_string_member (obj, REQUEST_LINK_OBJ_HREF, dupin_link_record_get_href (record));
 

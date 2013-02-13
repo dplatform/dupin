@@ -2432,8 +2432,8 @@ request_global_get_linkbase (DSHttpdClient * client, GList * path,
       return HTTP_STATUS_500;
     }
 
-  json_object_set_string_member (obj, "linkbase_name", (gchar *) dupin_linkbase_get_name (linkb));
-  json_object_set_string_member (obj, "linkbase_parent", (gchar *) dupin_linkbase_get_parent (linkb));
+  json_object_set_string_member (obj, "db_name", (gchar *) dupin_linkbase_get_name (linkb));
+  json_object_set_string_member (obj, "parent", (gchar *) dupin_linkbase_get_parent (linkb));
   json_object_set_int_member (obj, "links_count", dupin_linkbase_count (linkb, DP_LINK_TYPE_ANY, DP_COUNT_EXIST));
   json_object_set_int_member (obj, "web_links_count", dupin_linkbase_count (linkb, DP_LINK_TYPE_WEB_LINK, DP_COUNT_EXIST));
   json_object_set_int_member (obj, "relationships_count", dupin_linkbase_count (linkb, DP_LINK_TYPE_RELATIONSHIP, DP_COUNT_EXIST));

@@ -1091,7 +1091,7 @@ request_global_get_changes_database (DSHttpdClient * client, GList * path,
       client->output.changes_comet.param_style = style;
 
       /* NOTE: special case since "now" for continuous and longpoll - see https://issues.apache.org/jira/browse/COUCHDB-1501 */
-      if (since < 0)
+      if (since == -1)
         {
           client->output.changes_comet.param_since = client->output.changes_comet.change_max_rowid;
 	}
@@ -1129,6 +1129,20 @@ request_global_get_changes_database (DSHttpdClient * client, GList * path,
         g_strfreev (types);
       request_set_error (client, "Cannot connect to changes database");
       return HTTP_STATUS_404;
+    }
+
+  if (dupin_database_get_max_rowid (db, &last_seq) == FALSE)
+    {
+      if (types)
+        g_strfreev (types);
+      request_set_error (client, "Cannot get last change from database");
+      return HTTP_STATUS_404;
+    }
+
+  if (since == -1)
+    {
+      /* NOTE: This is only for completness, due we expect to always return an empty changes when feed poll with since=-1 */
+      since = (gint)last_seq;
     }
 
   if (since == 0)
@@ -1221,10 +1235,6 @@ request_global_get_changes_database (DSHttpdClient * client, GList * path,
 
   if (total_rows > 0)
     {
-      if (dupin_database_get_max_rowid (db, &last_seq) == FALSE)
-        {
-          goto request_global_get_changes_database_error;
-        }
       json_object_set_int_member (obj, "last_seq", last_seq);
     }
 
@@ -3182,7 +3192,7 @@ request_global_get_changes_linkbase (DSHttpdClient * client, GList * path,
       client->output.changes_comet.param_style = style;
 
       /* NOTE: special case since "now" for continuous and longpoll - see https://issues.apache.org/jira/browse/COUCHDB-1501 */
-      if (since < 0)
+      if (since == -1)
         {
           client->output.changes_comet.param_since = client->output.changes_comet.change_max_rowid;
         }
@@ -3222,6 +3232,21 @@ request_global_get_changes_linkbase (DSHttpdClient * client, GList * path,
 
       request_set_error (client, "Cannot connect to changes linkbase");
       return HTTP_STATUS_404;
+    }
+
+  if (dupin_linkbase_get_max_rowid (linkb, &last_seq) == FALSE)
+    {
+      if (tags != NULL)
+        g_strfreev (tags);
+
+      request_set_error (client, "Cannot get last change from linkbase");
+      return HTTP_STATUS_404;
+    }
+
+  if (since == -1)
+    {
+      /* NOTE: This is only for completness, due we expect to always return an empty changes when feed poll with since=-1 */
+      since = (gint)last_seq;
     }
 
   if (since == 0)
@@ -3319,10 +3344,6 @@ request_global_get_changes_linkbase (DSHttpdClient * client, GList * path,
 
   if (total_rows > 0)
     {
-      if (dupin_linkbase_get_max_rowid (linkb, &last_seq) == FALSE)
-        {
-          goto request_global_get_changes_linkbase_error;
-        }
       json_object_set_int_member (obj, "last_seq", last_seq);
     }
 

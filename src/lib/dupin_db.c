@@ -962,11 +962,11 @@ dupin_database_get_changes_list (DupinDB *              db,
 
   if (since > 0 && to > 0)
     {
-      g_string_append_printf (str, " %s d.ROWID >= %d AND d.ROWID <= %d ", op, (gint)since, (gint)to);
+      g_string_append_printf (str, " %s d.ROWID > %d AND d.ROWID <= %d ", op, (gint)since, (gint)to);
     }
   else if (since > 0)
     {
-      g_string_append_printf (str, " %s d.ROWID >= %d ", op, (gint)since);
+      g_string_append_printf (str, " %s d.ROWID > %d ", op, (gint)since);
     }
   else if (to > 0)
     {
@@ -1136,11 +1136,11 @@ dupin_database_get_total_changes
 
   if (since > 0 && to > 0)
     {
-      g_string_append_printf (str, " %s d.ROWID >= %d AND d.ROWID <= %d ", op, (gint)since, (gint)to);
+      g_string_append_printf (str, " %s d.ROWID > %d AND d.ROWID <= %d ", op, (gint)since, (gint)to);
     }
   else if (since > 0)
     {
-      g_string_append_printf (str, " %s d.ROWID >= %d ", op, (gint)since);
+      g_string_append_printf (str, " %s d.ROWID > %d ", op, (gint)since);
     }
   else if (to > 0)
     {

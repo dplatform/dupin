@@ -1151,7 +1151,7 @@ request_global_get_changes_database (DSHttpdClient * client, GList * path,
     }
   else
     {
-      if (dupin_database_get_total_changes (db, &total_rows, (gsize)since+1, 0, DP_COUNT_CHANGES, TRUE, types, types_op, NULL) == FALSE)
+      if (dupin_database_get_total_changes (db, &total_rows, (gsize)since, 0, DP_COUNT_CHANGES, TRUE, types, types_op, NULL) == FALSE)
         {
           dupin_database_unref (db);
           if (types)
@@ -1161,7 +1161,7 @@ request_global_get_changes_database (DSHttpdClient * client, GList * path,
         }
    }
 
-  if (dupin_database_get_changes_list (db, count, 0, (gsize)since+1, 0, style, DP_COUNT_CHANGES, DP_ORDERBY_ROWID, descending, types, types_op, &results, NULL) ==
+  if (dupin_database_get_changes_list (db, count, 0, (gsize)since, 0, style, DP_COUNT_CHANGES, DP_ORDERBY_ROWID, descending, types, types_op, &results, NULL) ==
       FALSE)
     {
       dupin_database_unref (db);
@@ -1784,6 +1784,14 @@ request_global_get_database (DSHttpdClient * client, GList * path,
       return HTTP_STATUS_404;
     }
 
+  gsize max_rowid;
+  if (dupin_database_get_max_rowid (db, &max_rowid) == FALSE)
+    {
+      dupin_database_unref (db);
+      request_set_error (client, "Cannot get last seq number from changes database");
+      return HTTP_STATUS_500;
+    }
+
   obj = json_object_new ();
 
   if (obj == NULL)
@@ -1800,7 +1808,8 @@ request_global_get_database (DSHttpdClient * client, GList * path,
   /* FIXME: not really a lot of documentation about this stuff (update_seq)... - see also
      http://guide.couchdb.org/draft/replication.html and http://ayende.com/Blog/archive/2008/10/04/erlang-reading-couchdb-digging-down-to-disk.aspx
      and https://issues.apache.org/jira/browse/COUCHDB-576?page=com.atlassian.jira.plugin.system.issuetabpanels:all-tabpanel */
-  /* json_object_set_int_member (obj, "update_seq", 0); */
+
+  json_object_set_int_member (obj, "update_seq", max_rowid);
 
   json_object_set_int_member (obj, "disk_size", dupin_database_get_size (db));
 
@@ -2443,6 +2452,14 @@ request_global_get_linkbase (DSHttpdClient * client, GList * path,
       return HTTP_STATUS_404;
     }
 
+  gsize max_rowid;
+  if (dupin_linkbase_get_max_rowid (linkb, &max_rowid) == FALSE)
+    {
+      dupin_linkbase_unref (linkb);
+      request_set_error (client, "Cannot get last seq number from changes linkbase");
+      return HTTP_STATUS_500;
+    }
+
   obj = json_object_new ();
 
   if (obj == NULL)
@@ -2460,6 +2477,8 @@ request_global_get_linkbase (DSHttpdClient * client, GList * path,
   json_object_set_int_member (obj, "links_del_count", dupin_linkbase_count (linkb, DP_LINK_TYPE_ANY, DP_COUNT_DELETE));
   json_object_set_int_member (obj, "web_links_del_count", dupin_linkbase_count (linkb, DP_LINK_TYPE_WEB_LINK, DP_COUNT_DELETE));
   json_object_set_int_member (obj, "relationships_del_count", dupin_linkbase_count (linkb, DP_LINK_TYPE_RELATIONSHIP, DP_COUNT_DELETE));
+
+  json_object_set_int_member (obj, "update_seq", max_rowid);
 
   json_object_set_int_member (obj, "disk_size", dupin_linkbase_get_size (linkb));
 
@@ -3255,7 +3274,7 @@ request_global_get_changes_linkbase (DSHttpdClient * client, GList * path,
     }
   else
     {
-      if (dupin_linkbase_get_total_changes (linkb, &total_rows, (gsize)since+1, 0, style, DP_COUNT_CHANGES, TRUE, context_id, tags, tags_op, NULL) == FALSE)
+      if (dupin_linkbase_get_total_changes (linkb, &total_rows, (gsize)since, 0, style, DP_COUNT_CHANGES, TRUE, context_id, tags, tags_op, NULL) == FALSE)
         {
           if (tags != NULL)
             g_strfreev (tags);
@@ -3266,7 +3285,7 @@ request_global_get_changes_linkbase (DSHttpdClient * client, GList * path,
         }
     }
 
-  if (dupin_linkbase_get_changes_list (linkb, count, 0, (gsize)since+1, 0, style, DP_COUNT_CHANGES, DP_ORDERBY_ROWID, descending, context_id, tags, tags_op, &results, NULL) ==
+  if (dupin_linkbase_get_changes_list (linkb, count, 0, (gsize)since, 0, style, DP_COUNT_CHANGES, DP_ORDERBY_ROWID, descending, context_id, tags, tags_op, &results, NULL) ==
       FALSE)
     {
       if (tags != NULL)
@@ -8195,7 +8214,7 @@ request_get_changes_comet_database_next:
       if (dupin_database_get_changes_list (client->output.changes_comet.db,
                                        DUPIN_DB_MAX_CHANGES_COMET_COUNT,
                                        client->output.changes_comet.change_results_offset,
-                                       client->output.changes_comet.param_since+1,
+                                       client->output.changes_comet.param_since,
                                        0,
                                        client->output.changes_comet.param_style,
                                        DP_COUNT_CHANGES, DP_ORDERBY_ROWID,
@@ -8281,7 +8300,7 @@ request_get_changes_comet_database_next:
             if ((client->output.changes_comet.param_feed == DP_CHANGES_FEED_LONGPOLL)
                 && ((client->output.changes_comet.change_last_seq == client->output.changes_comet.change_max_rowid)
                      || (client->output.changes_comet.change_last_seq > client->output.changes_comet.change_max_rowid
-                         && client->output.changes_comet.change_last_seq == (client->output.changes_comet.param_since+1))))
+                         && client->output.changes_comet.change_last_seq == (client->output.changes_comet.param_since))))
               g_string_append_printf (str,"], \"last_seq\": %" G_GSIZE_FORMAT " }", client->output.changes_comet.change_last_seq);
 
             client->output.changes_comet.change_generated = TRUE;
@@ -8394,7 +8413,7 @@ request_get_changes_comet_linkbase_next:
       if (dupin_linkbase_get_changes_list (client->output.changes_comet.linkb,
                                        DUPIN_DB_MAX_CHANGES_COMET_COUNT,
                                        client->output.changes_comet.change_results_offset,
-                                       client->output.changes_comet.param_since+1,
+                                       client->output.changes_comet.param_since,
                                        0,
                                        client->output.changes_comet.param_style,
                                        DP_COUNT_CHANGES, DP_ORDERBY_ROWID,
@@ -8481,7 +8500,7 @@ request_get_changes_comet_linkbase_next:
             if ((client->output.changes_comet.param_feed == DP_CHANGES_FEED_LONGPOLL)
                 && ((client->output.changes_comet.change_last_seq == client->output.changes_comet.change_max_rowid)
                      || (client->output.changes_comet.change_last_seq > client->output.changes_comet.change_max_rowid
-                         && client->output.changes_comet.change_last_seq == (client->output.changes_comet.param_since+1))))
+                         && client->output.changes_comet.change_last_seq == (client->output.changes_comet.param_since))))
               g_string_append_printf (str,"], \"last_seq\": %" G_GSIZE_FORMAT " }", client->output.changes_comet.change_last_seq);
 
             client->output.changes_comet.change_generated = TRUE;

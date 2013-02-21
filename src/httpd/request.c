@@ -818,7 +818,7 @@ request_global_get_all_attachment_dbs (DSHttpdClient * client, GList * paths,
 
   if (client->request != DS_HTTPD_REQUEST_GET)
     {
-      request_set_error (client, "Linkabse /_all_linkbs allows only GET method");
+      request_set_error (client, "Attachment db /_all_attachment_dbs allows only GET method");
       return HTTP_STATUS_400;
     }
 
@@ -968,7 +968,7 @@ request_global_get_changes_database (DSHttpdClient * client, GList * path,
   gsize total_rows = 0;
 
   gsize last_seq=0;
-  gsize since = 0;
+  gint since = 0;
   DupinChangesType style = DP_CHANGES_MAIN_ONLY;
   DupinChangesFeedType feed = DP_CHANGES_FEED_POLL;
   gboolean include_docs = FALSE;
@@ -992,7 +992,7 @@ request_global_get_changes_database (DSHttpdClient * client, GList * path,
 	count = atoi (kv->value);
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_SINCE))
-	since = (gsize)atof (kv->value);
+	since = (gint)atof (kv->value);
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_HEARTBEAT))
 	heartbeat = atoi (kv->value);
@@ -1089,7 +1089,17 @@ request_global_get_changes_database (DSHttpdClient * client, GList * path,
       client->output.changes_comet.param_timeout = timeout;
       client->output.changes_comet.param_descending = descending;
       client->output.changes_comet.param_style = style;
-      client->output.changes_comet.param_since = since;
+
+      /* NOTE: special case since "now" for continuous and longpoll - see https://issues.apache.org/jira/browse/COUCHDB-1501 */
+      if (since < 0)
+        {
+          client->output.changes_comet.param_since = client->output.changes_comet.change_max_rowid;
+	}
+      else
+        {
+          client->output.changes_comet.param_since = (gsize)since;
+        }
+
       client->output.changes_comet.param_feed = feed;
       client->output.changes_comet.param_include_docs = include_docs;
       client->output.changes_comet.param_types = types;
@@ -1127,7 +1137,7 @@ request_global_get_changes_database (DSHttpdClient * client, GList * path,
     }
   else
     {
-      if (dupin_database_get_total_changes (db, &total_rows, since+1, 0, DP_COUNT_CHANGES, TRUE, types, types_op, NULL) == FALSE)
+      if (dupin_database_get_total_changes (db, &total_rows, (gsize)since+1, 0, DP_COUNT_CHANGES, TRUE, types, types_op, NULL) == FALSE)
         {
           dupin_database_unref (db);
           if (types)
@@ -1137,7 +1147,7 @@ request_global_get_changes_database (DSHttpdClient * client, GList * path,
         }
    }
 
-  if (dupin_database_get_changes_list (db, count, 0, since+1, 0, style, DP_COUNT_CHANGES, DP_ORDERBY_ROWID, descending, types, types_op, &results, NULL) ==
+  if (dupin_database_get_changes_list (db, count, 0, (gsize)since+1, 0, style, DP_COUNT_CHANGES, DP_ORDERBY_ROWID, descending, types, types_op, &results, NULL) ==
       FALSE)
     {
       dupin_database_unref (db);
@@ -3053,7 +3063,7 @@ request_global_get_changes_linkbase (DSHttpdClient * client, GList * path,
   gsize total_rows = 0;
 
   gsize last_seq=0;
-  gsize since = 0;
+  gint since = 0;
   DupinChangesType style = DP_CHANGES_MAIN_ONLY;
   DupinChangesFeedType feed = DP_CHANGES_FEED_POLL;
   gboolean include_links = FALSE;
@@ -3075,7 +3085,7 @@ request_global_get_changes_linkbase (DSHttpdClient * client, GList * path,
 	count = atoi (kv->value);
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_SINCE))
-	since = (gsize)atof (kv->value);
+	since = (gint)atof (kv->value);
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_HEARTBEAT))
 	heartbeat = atoi (kv->value);
@@ -3170,7 +3180,17 @@ request_global_get_changes_linkbase (DSHttpdClient * client, GList * path,
       client->output.changes_comet.param_timeout = timeout;
       client->output.changes_comet.param_descending = descending;
       client->output.changes_comet.param_style = style;
-      client->output.changes_comet.param_since = since;
+
+      /* NOTE: special case since "now" for continuous and longpoll - see https://issues.apache.org/jira/browse/COUCHDB-1501 */
+      if (since < 0)
+        {
+          client->output.changes_comet.param_since = client->output.changes_comet.change_max_rowid;
+        }
+      else
+        {
+          client->output.changes_comet.param_since = (gsize)since;
+        }
+
       client->output.changes_comet.param_feed = feed;
       client->output.changes_comet.param_include_links = include_links;
       client->output.changes_comet.param_context_id = context_id;
@@ -3210,7 +3230,7 @@ request_global_get_changes_linkbase (DSHttpdClient * client, GList * path,
     }
   else
     {
-      if (dupin_linkbase_get_total_changes (linkb, &total_rows, since+1, 0, style, DP_COUNT_CHANGES, TRUE, context_id, tags, tags_op, NULL) == FALSE)
+      if (dupin_linkbase_get_total_changes (linkb, &total_rows, (gsize)since+1, 0, style, DP_COUNT_CHANGES, TRUE, context_id, tags, tags_op, NULL) == FALSE)
         {
           if (tags != NULL)
             g_strfreev (tags);
@@ -3221,7 +3241,7 @@ request_global_get_changes_linkbase (DSHttpdClient * client, GList * path,
         }
     }
 
-  if (dupin_linkbase_get_changes_list (linkb, count, 0, since+1, 0, style, DP_COUNT_CHANGES, DP_ORDERBY_ROWID, descending, context_id, tags, tags_op, &results, NULL) ==
+  if (dupin_linkbase_get_changes_list (linkb, count, 0, (gsize)since+1, 0, style, DP_COUNT_CHANGES, DP_ORDERBY_ROWID, descending, context_id, tags, tags_op, &results, NULL) ==
       FALSE)
     {
       if (tags != NULL)

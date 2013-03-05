@@ -8207,6 +8207,11 @@ request_get_changes_comet_database (DSHttpdClient * client,
 
 request_get_changes_comet_database_next:
 
+  if (client->output.changes_comet.db->todelete == TRUE)
+    {
+      goto request_get_changes_comet_database_error;
+    }
+
 //g_message("request_get_changes_comet_database: count=%d offset=%d\n", (gint)count, (gint)offset);
 
   if (client->output.changes_comet.change_generated == FALSE)
@@ -8405,6 +8410,11 @@ request_get_changes_comet_linkbase (DSHttpdClient * client,
   GString * str = NULL;
 
 request_get_changes_comet_linkbase_next:
+
+  if (client->output.changes_comet.linkb->todelete == TRUE)
+    {
+      goto request_get_changes_comet_linkbase_error;
+    }
 
 //g_message("request_get_changes_comet_linkbase: count=%d offset=%d\n", (gint)count, (gint)offset);
 

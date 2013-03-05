@@ -296,7 +296,7 @@ dupin_view_record_read_cb (void *data, int argc, char **argv, char **col)
 	}
       else if (!g_strcmp0 (col[i], "rowid"))
 	{
-	  record->rowid = atoi(argv[i]);
+	  record->rowid = (gsize) g_ascii_strtoll (argv[i], NULL, 10);
         }
     }
 
@@ -399,7 +399,7 @@ dupin_view_record_get_list_cb (void *data, int argc, char **argv, char **col)
         }
       else if (!g_strcmp0 (col[i], "rowid"))
         {
-          rowid = (gsize)atof(argv[i]);
+          rowid = (gsize) g_ascii_strtoll (argv[i], NULL, 10);
         }
     }
 
@@ -830,7 +830,7 @@ dupin_view_record_get_max_rowid_cb (void *data, int argc, char **argv,
   gsize *max_rowid = data;
 
   if (argv[0])
-    *max_rowid = atoi (argv[0]);
+    *max_rowid = (gsize) g_ascii_strtoll (argv[0], NULL, 10);
 
   return 0;
 }

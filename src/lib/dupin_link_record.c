@@ -133,16 +133,16 @@ dupin_link_record_select_total_cb (void *data, int argc, char **argv, char **col
   struct dupin_link_record_select_total_t *t = data;
 
   if (argv[0] && *argv[0])
-    t->total_webl_ins = atoi (argv[0]);
+    t->total_webl_ins = (gsize) g_ascii_strtoll (argv[0], NULL, 10);
 
   if (argv[1] && *argv[1])
-    t->total_webl_del = atoi (argv[1]);
+    t->total_webl_del = (gsize) g_ascii_strtoll (argv[1], NULL, 10);
 
   if (argv[2] && *argv[2])
-    t->total_rel_ins = atoi (argv[2]);
+    t->total_rel_ins = (gsize) g_ascii_strtoll (argv[2], NULL, 10);
 
   if (argv[3] && *argv[3])
-    t->total_rel_del = atoi (argv[3]);
+    t->total_rel_del = (gsize) g_ascii_strtoll (argv[3], NULL, 10);
 
   return 0;
 }
@@ -490,12 +490,12 @@ dupin_link_record_read_cb (void *data, int argc, char **argv, char **col)
 
   for (i = 0; i < argc; i++)
     {
-      /* shouldn't this be double and use atof() ?!? */
+      /* shouldn't this be double and use g_ascii_strtoll() ?!? */
       if (!g_strcmp0 (col[i], "rev"))
 	rev = atoi (argv[i]);
 
       else if (!g_strcmp0 (col[i], "tm"))
-	tm = (gsize)atof (argv[i]);
+	tm = (gsize) g_ascii_strtoll (argv[i], NULL, 10);
 
       else if (!g_strcmp0 (col[i], "hash"))
 	hash = argv[i];
@@ -507,7 +507,7 @@ dupin_link_record_read_cb (void *data, int argc, char **argv, char **col)
 	delete = !g_strcmp0 (argv[i], "TRUE") ? TRUE : FALSE;
 
       else if (!g_strcmp0 (col[i], "rowid"))
-	rowid = (gsize)atof(argv[i]);
+	rowid = (gsize) g_ascii_strtoll (argv[i], NULL, 10);
 
       else if (!g_strcmp0 (col[i], "context_id"))
 	context_id = argv[i];
@@ -600,7 +600,7 @@ dupin_link_record_get_list_total_cb (void *data, int argc, char **argv, char **c
   gsize *numb = data;
 
   if (argv[0] && *argv[0])
-    *numb=atoi(argv[0]);
+    *numb = (gsize) g_ascii_strtoll (argv[0], NULL, 10);
 
   return 0;
 }
@@ -989,12 +989,12 @@ dupin_link_record_get_list_cb (void *data, int argc, char **argv, char **col)
 
   for (i = 0; i < argc; i++)
     {
-      /* shouldn't this be double and use atof() ?!? */
+      /* shouldn't this be double and use g_ascii_strtoll() ?!? */
       if (!g_strcmp0 (col[i], "rev"))
 	rev = atoi (argv[i]);
 
       else if (!g_strcmp0 (col[i], "tm"))
-	tm = (gsize)atof (argv[i]);
+	tm = (gsize) g_ascii_strtoll (argv[i], NULL, 10);
 
       else if (!g_strcmp0 (col[i], "hash"))
 	hash = argv[i];
@@ -1006,7 +1006,7 @@ dupin_link_record_get_list_cb (void *data, int argc, char **argv, char **col)
 	delete = !g_strcmp0 (argv[i], "TRUE") ? TRUE : FALSE;
 
       else if (!g_strcmp0 (col[i], "rowid"))
-	rowid = (gsize)atof(argv[i]);
+	rowid = (gsize) g_ascii_strtoll (argv[i], NULL, 10);
 
       else if (!g_strcmp0 (col[i], "context_id"))
 	context_id = argv[i];
@@ -1577,7 +1577,7 @@ dupin_link_record_get_total_revisions_cb (void *data, int argc, char **argv,
   gsize *numb = data;
 
   if (argv[0])
-    *numb = atoi (argv[0]);
+    *numb = (gsize) g_ascii_strtoll (argv[0], NULL, 10);
 
   return 0;
 }

@@ -282,7 +282,7 @@ dupin_view_new (Dupin * d, gchar * view, gchar * parent, gboolean is_db, gboolea
       return NULL;
     }
 
-  gchar * creation_time = g_strdup_printf ("%" G_GSIZE_FORMAT, (dupin_util_timestamp_now ()/1000));
+  gchar * creation_time = g_strdup_printf ("%" G_GSIZE_FORMAT, dupin_util_timestamp_now ());
 
   str =
     sqlite3_mprintf ("INSERT OR REPLACE INTO DupinView "
@@ -964,7 +964,7 @@ dupin_view_record_delete_cb (void *data, int argc, char **argv, char **col)
   gsize *numb = data;
 
   if (argv[0] && *argv[0])
-    *numb = atoi(argv[0]);
+    *numb = (gsize) g_ascii_strtoll (argv[0], NULL, 10);
 
   return 0;
 }
@@ -1327,7 +1327,7 @@ dupin_view_get_creation_time_cb (void *data, int argc, char **argv, char **col)
   gsize *creation_time = data;
 
   if (argv[0])
-    *creation_time = atoi (argv[0]);
+    *creation_time = (gsize) g_ascii_strtoll (argv[0], NULL, 10);
 
   return 0;
 }
@@ -1760,7 +1760,7 @@ dupin_view_count_cb (void *data, int argc, char **argv, char **col)
   gsize *size = data;
 
   if (argv[0] && *argv[0])
-    *size = atoi (argv[0]);
+    *size = (gsize) g_ascii_strtoll (argv[0], NULL, 10);
 
   return 0;
 }
@@ -1978,7 +1978,7 @@ dupin_view_sync_thread_map_db (DupinView * view, gsize count)
 
   g_mutex_unlock (view->mutex);
 
-  gsize start_rowid = (sync_map_id != NULL) ? atoi(sync_map_id)+1 : 1;
+  gsize start_rowid = (sync_map_id != NULL) ? (gsize) g_ascii_strtoll (sync_map_id, NULL, 10)+1 : 1;
 
   if (dupin_record_get_list (db, count, 0, start_rowid, 0, NULL, NULL, TRUE, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE, NULL, DP_FILTERBY_EQUALS,
 				NULL, DP_FIELDS_FORMAT_DOTTED, DP_FILTERBY_EQUALS, NULL, &results, NULL) == FALSE || !results)
@@ -2150,7 +2150,7 @@ dupin_view_sync_thread_map_linkb (DupinView * view, gsize count)
 
   g_mutex_unlock (view->mutex);
 
-  gsize start_rowid = (sync_map_id != NULL) ? atoi(sync_map_id)+1 : 1;
+  gsize start_rowid = (sync_map_id != NULL) ? (gsize) g_ascii_strtoll (sync_map_id, NULL, 10)+1 : 1;
 
   if (dupin_link_record_get_list (linkb, count, 0, start_rowid, 0, DP_LINK_TYPE_ANY, NULL, NULL, TRUE, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE,
 				  NULL, NULL, DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS,
@@ -2338,7 +2338,7 @@ dupin_view_sync_thread_map_view (DupinView * view, gsize count)
 
   g_mutex_unlock (view->mutex);
 
-  gsize start_rowid = (sync_map_id != NULL) ? atoi(sync_map_id)+1 : 1;
+  gsize start_rowid = (sync_map_id != NULL) ? (gsize) g_ascii_strtoll (sync_map_id, NULL, 10)+1 : 1;
 
   if (dupin_view_record_get_list (v, count, 0, start_rowid, 0, DP_ORDERBY_ROWID, FALSE, NULL, NULL, TRUE, NULL, NULL, TRUE,
 					NULL, DP_FIELDS_FORMAT_DOTTED, DP_FILTERBY_EQUALS, NULL, &results, NULL) ==
@@ -2751,7 +2751,7 @@ dupin_view_sync_thread_reduce (DupinView * view, gsize count, gboolean rereduce,
 
   g_mutex_unlock (view->mutex);
 
-  gsize start_rowid = (sync_reduce_id != NULL) ? atoi(sync_reduce_id)+1 : 1;
+  gsize start_rowid = (sync_reduce_id != NULL) ? (gsize) g_ascii_strtoll (sync_reduce_id, NULL, 10)+1 : 1;
 
   if (dupin_view_record_get_list (view, count, 0, start_rowid, 0, (rereduce) ? DP_ORDERBY_KEY : DP_ORDERBY_ROWID, FALSE,
 					matching_key, matching_key, TRUE, NULL, NULL, TRUE,
@@ -3047,7 +3047,7 @@ dupin_view_sync_total_rereduce_cb (void *data, int argc, char **argv,
     rere->first_matching_key = g_strdup (argv[0]);
 
   if (argv[1] && *argv[1])
-    rere->total += atoi (argv[1]);
+    rere->total += (gsize) g_ascii_strtoll (argv[1], NULL, 10);
 
   return 0;
 }

@@ -168,7 +168,7 @@ dupin_attachment_db_new (Dupin * d, gchar * attachment_db,
       return NULL;
     }
 
-  gchar * creation_time = g_strdup_printf ("%" G_GSIZE_FORMAT, (dupin_util_timestamp_now ()/1000));
+  gchar * creation_time = g_strdup_printf ("%" G_GSIZE_FORMAT, dupin_util_timestamp_now ());
 
   str =
     sqlite3_mprintf ("INSERT OR REPLACE INTO DupinAttachmentDB "
@@ -488,7 +488,7 @@ dupin_attachment_db_get_creation_time_cb (void *data, int argc, char **argv, cha
   gsize *creation_time = data;
 
   if (argv[0])
-    *creation_time = atoi (argv[0]);
+    *creation_time = (gsize) g_ascii_strtoll (argv[0], NULL, 10);
 
   return 0;
 }
@@ -846,7 +846,7 @@ dupin_attachment_db_count_cb (void *data, int argc, char **argv, char **col)
   gsize *size = data;
 
   if (argv[0] && *argv[0])
-    *size = atoi (argv[0]);
+    *size = (gsize) g_ascii_strtoll (argv[0], NULL, 10);
 
   return 0;
 }

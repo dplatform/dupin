@@ -174,7 +174,7 @@ dupin_database_new (Dupin * d, gchar * db, GError ** error)
       return NULL;
     }
 
-  gchar * creation_time = g_strdup_printf ("%" G_GSIZE_FORMAT, (dupin_util_timestamp_now ()/1000));
+  gchar * creation_time = g_strdup_printf ("%" G_GSIZE_FORMAT, dupin_util_timestamp_now ());
 
   str = sqlite3_mprintf ("INSERT OR REPLACE INTO DupinDB (compact_id, creation_time) VALUES (0, '%q')", creation_time);
 
@@ -357,7 +357,7 @@ dupin_database_get_creation_time_cb (void *data, int argc, char **argv, char **c
   gsize *creation_time = data;
 
   if (argv[0])
-    *creation_time = atoi (argv[0]);
+    *creation_time = (gsize) g_ascii_strtoll (argv[0], NULL, 10);
 
   return 0;
 }
@@ -784,7 +784,7 @@ dupin_database_get_max_rowid_cb (void *data, int argc, char **argv,
   gsize *max_rowid = data;
 
   if (argv[0])
-    *max_rowid = atoi (argv[0]);
+    *max_rowid = (gsize) g_ascii_strtoll (argv[0], NULL, 10);
 
   return 0;
 }
@@ -842,12 +842,12 @@ dupin_database_get_changes_list_cb (void *data, int argc, char **argv, char **co
 
   for (i = 0; i < argc; i++)
     {
-      /* shouldn't this be double and use atof() ?!? */
+      /* shouldn't this be double and use g_ascii_strtoll() ?!? */
       if (!g_strcmp0 (col[i], "rev"))
         rev = atoi (argv[i]);
 
       else if (!g_strcmp0 (col[i], "tm"))
-        tm = (gsize)atof(argv[i]);
+        tm = (gsize) g_ascii_strtoll (argv[i], NULL, 10);
 
       else if (!g_strcmp0 (col[i], "type"))
         type = argv[i];
@@ -862,7 +862,7 @@ dupin_database_get_changes_list_cb (void *data, int argc, char **argv, char **co
         delete = !g_strcmp0 (argv[i], "TRUE") ? TRUE : FALSE;
 
       else if (!g_strcmp0 (col[i], "rowid"))
-        rowid = atoi(argv[i]);
+        rowid = (gsize) g_ascii_strtoll (argv[i], NULL, 10);
 
       else if (!g_strcmp0 (col[i], "id"))
         id = argv[i];
@@ -1088,7 +1088,7 @@ dupin_database_get_total_changes_cb
   gsize *numb = data;
 
   if (argv[0] && *argv[0])
-    *numb=atoi(argv[0]);
+    *numb = (gsize) g_ascii_strtoll (argv[0], NULL, 10);
 
   return 0;
 }
@@ -1279,7 +1279,7 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
 
   g_mutex_unlock (db->mutex);
 
-  gsize start_rowid = (compact_id != NULL) ? atoi(compact_id)+1 : 1;
+  gsize start_rowid = (compact_id != NULL) ? (gsize) g_ascii_strtoll (compact_id, NULL, 10)+1 : 1;
 
   if (dupin_record_get_list (db, count, 0, start_rowid, 0, NULL, NULL, TRUE, DP_COUNT_ALL, DP_ORDERBY_ROWID, FALSE, NULL, DP_FILTERBY_EQUALS,
 				NULL, DP_FIELDS_FORMAT_DOTTED, DP_FILTERBY_EQUALS, NULL, &results, NULL) == FALSE || !results)

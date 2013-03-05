@@ -992,7 +992,7 @@ request_global_get_changes_database (DSHttpdClient * client, GList * path,
 	count = atoi (kv->value);
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_SINCE))
-	since = (gint)atof (kv->value);
+	since = (gint) g_ascii_strtoll (kv->value, NULL, 10);
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_HEARTBEAT))
 	heartbeat = atoi (kv->value);
@@ -1356,13 +1356,13 @@ request_global_get_all_docs (DSHttpdClient * client, GList * path,
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_ANY_FILTER_CREATED_SINCE))
         {
-          created = (gsize)atof (kv->value);
+          created = (gsize) g_ascii_strtoll (kv->value, NULL, 10);
           created_op = DP_CREATED_SINCE;
         }
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_ANY_FILTER_CREATED_UNTIL))
         {
-          created = (gsize)atof (kv->value);
+          created = (gsize) g_ascii_strtoll (kv->value, NULL, 10);
           created_op = DP_CREATED_UNTIL;
         }
 
@@ -1815,7 +1815,6 @@ request_global_get_database (DSHttpdClient * client, GList * path,
 
   gsize creation_time;
   dupin_database_get_creation_time (db, &creation_time);
-  creation_time /= 1000;
   json_object_set_string_member (obj, "instance_start_time", g_strdup_printf ("%" G_GSIZE_FORMAT, creation_time));
 
   /* FIXME: this does not make sense for dupin yet, see also http://blog.couchone.com/post/632718824/simple-document-versioning-with-couchdb */
@@ -2484,7 +2483,6 @@ request_global_get_linkbase (DSHttpdClient * client, GList * path,
 
   gsize creation_time;
   dupin_linkbase_get_creation_time (linkb, &creation_time);
-  creation_time /= 1000;
   json_object_set_string_member (obj, "instance_start_time", g_strdup_printf ("%" G_GSIZE_FORMAT, creation_time));
 
   json_object_set_boolean_member (obj, "compact_running", dupin_linkbase_is_compacting (linkb));
@@ -2607,13 +2605,13 @@ request_global_get_all_links_linkbase (DSHttpdClient * client, GList * path,
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_ANY_FILTER_CREATED_SINCE))
         {
-	  created = (gsize)atof (kv->value);
+          created = (gsize) g_ascii_strtoll (kv->value, NULL, 10);
           created_op = DP_CREATED_SINCE;
         }
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_ANY_FILTER_CREATED_UNTIL))
         {
-	  created = (gsize)atof (kv->value);
+          created = (gsize) g_ascii_strtoll (kv->value, NULL, 10);
           created_op = DP_CREATED_UNTIL;
         }
 
@@ -3114,7 +3112,7 @@ request_global_get_changes_linkbase (DSHttpdClient * client, GList * path,
 	count = atoi (kv->value);
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_SINCE))
-	since = (gint)atof (kv->value);
+	since = (gint) g_ascii_strtoll (kv->value, NULL, 10);
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_HEARTBEAT))
 	heartbeat = atoi (kv->value);
@@ -3834,7 +3832,6 @@ request_global_get_view (DSHttpdClient * client, GList * path,
 
   gsize creation_time;
   dupin_view_get_creation_time (view, &creation_time);
-  creation_time /= 1000;
   json_object_set_string_member (obj, "instance_start_time", g_strdup_printf ("%" G_GSIZE_FORMAT, creation_time));
 
   json_object_set_boolean_member (obj, "sync", dupin_view_is_sync (view));
@@ -7316,13 +7313,13 @@ request_record_revision_obj (DSHttpdClient * client,
 
 	  else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_FILTER_CREATED_SINCE))
             {
-	      include_links_created = (gsize)atof (kv->value);
+	      include_links_created = (gsize) g_ascii_strtoll (kv->value, NULL, 10);
               include_links_created_op = DP_CREATED_SINCE;
             }
 
           else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_FILTER_CREATED_SINCE))
             {
-	      include_links_created = (gsize)atof (kv->value);
+	      include_links_created = (gsize) g_ascii_strtoll (kv->value, NULL, 10);
               include_links_created_op = DP_CREATED_UNTIL;
             }
 

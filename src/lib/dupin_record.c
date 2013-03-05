@@ -43,10 +43,10 @@ dupin_record_select_total_cb (void *data, int argc, char **argv, char **col)
   struct dupin_record_select_total_t *t = data;
 
   if (argv[0] && *argv[0])
-    t->total_doc_ins = atoi (argv[0]);
+    t->total_doc_ins = (gsize) g_ascii_strtoll (argv[0], NULL, 10);
 
   if (argv[1] && *argv[1])
-    t->total_doc_del = atoi (argv[1]);
+    t->total_doc_del = (gsize) g_ascii_strtoll (argv[1], NULL, 10);
 
   return 0;
 }
@@ -66,7 +66,7 @@ dupin_record_exists_real_cb (void *data, int argc, char **argv, char **col)
   gsize *numb = data;
 
   if (argv[0] && *argv[0])
-    *numb = atoi(argv[0]);
+    *numb = (gsize) g_ascii_strtoll (argv[0], NULL, 10);
 
   return 0;
 }
@@ -275,12 +275,12 @@ dupin_record_read_cb (void *data, int argc, char **argv, char **col)
 
   for (i = 0; i < argc; i++)
     {
-      /* shouldn't this be double and use atof() ?!? */
+      /* shouldn't this be double and use g_ascii_strtoll() ?!? */
       if (!g_strcmp0 (col[i], "rev"))
 	rev = atoi (argv[i]);
 
       else if (!g_strcmp0 (col[i], "tm"))
-	tm = (gsize)atof (argv[i]);
+	tm = (gsize) g_ascii_strtoll (argv[i], NULL, 10);
 
       else if (!g_strcmp0 (col[i], "hash"))
 	hash = argv[i];
@@ -295,7 +295,7 @@ dupin_record_read_cb (void *data, int argc, char **argv, char **col)
 	delete = !g_strcmp0 (argv[i], "TRUE") ? TRUE : FALSE;
 
       else if (!g_strcmp0 (col[i], "rowid"))
-	rowid = (gsize)atof(argv[i]);
+	rowid = (gsize) g_ascii_strtoll (argv[i], NULL, 10);
     }
 
   if (rev && hash !=NULL)
@@ -368,7 +368,7 @@ dupin_record_get_list_total_cb (void *data, int argc, char **argv, char **col)
   gsize *numb = data;
 
   if (argv[0] && *argv[0])
-    *numb = atoi(argv[0]);
+    *numb = (gsize) g_ascii_strtoll (argv[0], NULL, 10);
 
   return 0;
 }
@@ -599,12 +599,12 @@ dupin_record_get_list_cb (void *data, int argc, char **argv, char **col)
 
   for (i = 0; i < argc; i++)
     {
-      /* shouldn't this be double and use atof() ?!? */
+      /* shouldn't this be double and use g_ascii_strtoll() ?!? */
       if (!g_strcmp0 (col[i], "rev"))
         rev = atoi (argv[i]);
 
       else if (!g_strcmp0 (col[i], "tm"))
-        tm = (gsize)atof (argv[i]);
+        tm = (gsize) g_ascii_strtoll (argv[i], NULL, 10);
 
       else if (!g_strcmp0 (col[i], "hash"))
         hash = argv[i];
@@ -619,7 +619,7 @@ dupin_record_get_list_cb (void *data, int argc, char **argv, char **col)
         delete = !g_strcmp0 (argv[i], "TRUE") ? TRUE : FALSE;
 
       else if (!g_strcmp0 (col[i], "rowid"))
-        rowid = (gsize)atof(argv[i]);
+        rowid = (gsize) g_ascii_strtoll (argv[i], NULL, 10);
 
       else if (!g_strcmp0 (col[i], "id"))
         id = argv[i];
@@ -1009,7 +1009,7 @@ dupin_record_get_total_revisions_cb (void *data, int argc, char **argv,
   gsize *numb = data;
 
   if (argv[0] && *argv[0])
-    *numb = atoi(argv[0]);
+    *numb = (gsize) g_ascii_strtoll (argv[0], NULL, 10);
 
   return 0;
 }

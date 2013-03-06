@@ -376,7 +376,7 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 #define REQUEST_QUERY           "_query"
 
 #define REQUEST_RECORD_ARG_REV  "rev"
-#define REQUEST_RECORD_ARG_REVS "revs"
+#define REQUEST_RECORD_ARG_REVS "revs_info"
 
 #define REQUEST_RECORD_ARG_LINKS_TAG    "links_tag"
 

@@ -2005,6 +2005,47 @@ request_global_get_record (DSHttpdClient * client, GList * path,
       doc_id = g_strdup_printf ("%s", (gchar *)path->next->data);
     }
 
+  for (list = arguments; list; list = list->next)
+    {
+      dupin_keyvalue_t *kv = list->data;
+
+      if (!g_strcmp0 (kv->key, REQUEST_RECORD_ARG_REV))
+        {
+          if (dupin_util_is_valid_mvcc (kv->value) == FALSE)
+            {
+              g_free (doc_id);
+              request_set_error (client, "Invalid record MVCC revision");
+              return HTTP_STATUS_400;
+            }
+	  mvcc = kv->value;
+        }
+
+      else if (!g_strcmp0 (kv->key, REQUEST_RECORD_ARG_REVS)
+	       && !g_strcmp0 (kv->value, "true"))
+	allrevs = TRUE;
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_DESCENDING)
+	  && !g_strcmp0 (kv->value, "true"))
+	descending = TRUE;
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_COUNT))
+	count = atoi (kv->value);
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_OFFSET))
+	offset = atoi (kv->value);
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_ATTACHMENTS_DESCENDING)
+	       && !g_strcmp0 (kv->value, "true"))
+	attachments_descending = TRUE;
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_ATTACHMENTS_COUNT))
+	attachments_count = atoi (kv->value);
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_ATTACHMENTS_OFFSET))
+	attachments_offset = atoi (kv->value);
+
+    }
+
   if (!
       (db =
        dupin_database_open (client->thread->data->dupin, dbname, NULL)))
@@ -2032,7 +2073,7 @@ request_global_get_record (DSHttpdClient * client, GList * path,
       return HTTP_STATUS_404;
     }
 
-  if (dupin_record_is_deleted (record, NULL) == TRUE)
+  if ((dupin_record_is_deleted (record, NULL) == TRUE) && (allrevs == FALSE))
     {
       dupin_record_close (record);
       dupin_attachment_db_unref (attachment_db);
@@ -2105,49 +2146,6 @@ request_global_get_record (DSHttpdClient * client, GList * path,
       g_free (doc_id);
 
       return HTTP_STATUS_200;
-    }
-
-  for (list = arguments; list; list = list->next)
-    {
-      dupin_keyvalue_t *kv = list->data;
-
-      if (!g_strcmp0 (kv->key, REQUEST_RECORD_ARG_REV))
-        {
-          if (dupin_util_is_valid_mvcc (kv->value) == FALSE)
-            {
-              dupin_attachment_db_unref (attachment_db);
-              dupin_database_unref (db);
-              g_free (doc_id);
-              request_set_error (client, "Invalid record MVCC revision");
-              return HTTP_STATUS_400;
-            }
-	  mvcc = kv->value;
-        }
-
-      else if (!g_strcmp0 (kv->key, REQUEST_RECORD_ARG_REVS)
-	       && !g_strcmp0 (kv->value, "true"))
-	allrevs = TRUE;
-
-      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_DESCENDING)
-	  && !g_strcmp0 (kv->value, "true"))
-	descending = TRUE;
-
-      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_COUNT))
-	count = atoi (kv->value);
-
-      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_OFFSET))
-	offset = atoi (kv->value);
-
-      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_ATTACHMENTS_DESCENDING)
-	       && !g_strcmp0 (kv->value, "true"))
-	attachments_descending = TRUE;
-
-      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_ATTACHMENTS_COUNT))
-	attachments_count = atoi (kv->value);
-
-      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_ATTACHMENTS_OFFSET))
-	attachments_offset = atoi (kv->value);
-
     }
 
   /* Show all revisions: */
@@ -3495,32 +3493,6 @@ request_global_get_record_linkbase (DSHttpdClient * client, GList * path,
 
 //g_message("request_global_get_record_linkbase: link_id=%s request_fields=%s\n", link_id, request_fields);
 
-  if (!
-      (linkb =
-       dupin_linkbase_open (client->thread->data->dupin, path->data, NULL)))
-    {
-      g_free (link_id);
-      request_set_error (client, "Cannot connect to linkbase");
-      return HTTP_STATUS_404;
-    }
-
-  if (!(record = dupin_link_record_read (linkb, link_id, NULL)))
-    {
-      dupin_linkbase_unref (linkb);
-      g_free (link_id);
-      request_set_error (client, "Cannot read link record from linkbase");
-      return HTTP_STATUS_404;
-    }
-
-  if (dupin_link_record_is_deleted (record, NULL) == TRUE)
-    {   
-      dupin_link_record_close (record);
-      dupin_linkbase_unref (linkb);
-      g_free (link_id);
-      request_set_error (client, "Link record is deleted");
-      return HTTP_STATUS_404;
-    } 
-
   for (list = arguments; list; list = list->next)
     {
       dupin_keyvalue_t *kv = list->data;
@@ -3529,7 +3501,6 @@ request_global_get_record_linkbase (DSHttpdClient * client, GList * path,
         {
           if (dupin_util_is_valid_mvcc (kv->value) == FALSE)
             {
-              dupin_linkbase_unref (linkb);
               g_free (link_id);
 	      request_set_error (client, "Invalid link record MVCC revision");
               return HTTP_STATUS_400;
@@ -3551,6 +3522,33 @@ request_global_get_record_linkbase (DSHttpdClient * client, GList * path,
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_OFFSET))
 	offset = atoi (kv->value);
     }
+
+  if (!
+      (linkb =
+       dupin_linkbase_open (client->thread->data->dupin, path->data, NULL)))
+    {
+      g_free (link_id);
+      request_set_error (client, "Cannot connect to linkbase");
+      return HTTP_STATUS_404;
+    }
+
+  if (!(record = dupin_link_record_read (linkb, link_id, NULL)))
+    {
+      dupin_linkbase_unref (linkb);
+      g_free (link_id);
+      request_set_error (client, "Cannot read link record from linkbase");
+      return HTTP_STATUS_404;
+    }
+
+  if ((dupin_link_record_is_deleted (record, NULL) == TRUE) && (allrevs == FALSE))
+
+    {   
+      dupin_link_record_close (record);
+      dupin_linkbase_unref (linkb);
+      g_free (link_id);
+      request_set_error (client, "Link record is deleted");
+      return HTTP_STATUS_404;
+    } 
 
   /* Show all revisions: */
   if (allrevs == TRUE)
@@ -7157,6 +7155,9 @@ request_record_revision_obj (DSHttpdClient * client,
 
       json_node_take_object (obj_node, obj);
 
+      /* Setting _id, _rev and _deleted: */
+      json_object_set_string_member (obj, REQUEST_OBJ_ID, id);
+      json_object_set_string_member (obj, REQUEST_OBJ_REV, mvcc);
       json_object_set_boolean_member (obj, RESPONSE_OBJ_DELETED, TRUE);
 
       client->request_included_docs_level--;
@@ -7736,6 +7737,9 @@ request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
 
       json_node_take_object (obj_node, obj);
 
+      /* Setting _id, _rev and _deleted: */
+      json_object_set_string_member (obj, REQUEST_OBJ_ID, id);
+      json_object_set_string_member (obj, REQUEST_OBJ_REV, mvcc);
       json_object_set_boolean_member (obj, RESPONSE_OBJ_DELETED, TRUE);
 
       client->request_included_links_level--;

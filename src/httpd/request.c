@@ -8311,7 +8311,7 @@ request_get_changes_comet_database_next:
 
             client->output.changes_comet.change_generated = TRUE;
 
-            client->output.changes_comet.change_results_offset += g_list_length (results);
+            client->output.changes_comet.change_results_offset += g_list_length (results)-1;
         }
 
       if (results)
@@ -8516,7 +8516,7 @@ request_get_changes_comet_linkbase_next:
 
             client->output.changes_comet.change_generated = TRUE;
 
-            client->output.changes_comet.change_results_offset += g_list_length (results);
+            client->output.changes_comet.change_results_offset += g_list_length (results)-1;
         }
 
       if (results)

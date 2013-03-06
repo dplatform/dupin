@@ -399,8 +399,8 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 
 /* Changes API */
 
-#define DUPIN_DB_MAX_CHANGES_COMET_COUNT  1
-#define DUPIN_LINKB_MAX_CHANGES_COMET_COUNT  1
+#define DUPIN_DB_MAX_CHANGES_COMET_COUNT  255
+#define DUPIN_LINKB_MAX_CHANGES_COMET_COUNT  255
 
 /* Portable Listings */
 

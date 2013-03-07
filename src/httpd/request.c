@@ -6541,7 +6541,7 @@ request_global_delete_database (DSHttpdClient * client, GList * path,
     {
       request_set_error (client, "Cannot delete database");
       dupin_database_unref (db);
-      return HTTP_STATUS_409;
+      return HTTP_STATUS_404;
     }
 
   dupin_database_unref (db);

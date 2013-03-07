@@ -271,11 +271,11 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 #define REQUEST_GET_ALL_ANY_FILTER_VALUES			"filter_value"
 
 #define REQUEST_GET_ALL_DOCS_DESCENDING           "descending"
-#define REQUEST_GET_ALL_DOCS_COUNT                "count"
+#define REQUEST_GET_ALL_DOCS_LIMIT                "limit"
 #define REQUEST_GET_ALL_DOCS_OFFSET               "offset"
 
 #define REQUEST_GET_ALL_ATTACHMENTS_DESCENDING  "attachments_descending"
-#define REQUEST_GET_ALL_ATTACHMENTS_COUNT       "attachments_count"
+#define REQUEST_GET_ALL_ATTACHMENTS_LIMIT       "attachments_limit"
 #define REQUEST_GET_ALL_ATTACHMENTS_OFFSET      "attachments_offset"
 #define RESPONSE_OBJ_ATTACHMENTS_PAGING		RESPONSE_OBJ_LINKS_PAGING
 
@@ -307,10 +307,10 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 #define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_FILTER_CREATED_SINCE "include_links_created_since"
 #define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_FILTER_CREATED_UNTIL "include_links_created_until"
 #define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_WEBLINKS_DESCENDING  "include_links_weblinks_descending"
-#define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_WEBLINKS_COUNT       "include_links_weblinks_count"
+#define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_WEBLINKS_LIMIT       "include_links_weblinks_limit"
 #define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_WEBLINKS_OFFSET      "include_links_weblinks_offset"
 #define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_RELATIONSHIPS_DESCENDING     "include_links_relationships_descending"
-#define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_RELATIONSHIPS_COUNT          "include_links_relationships_count"
+#define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_RELATIONSHIPS_LIMIT          "include_links_relationships_limit"
 #define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_RELATIONSHIPS_OFFSET         "include_links_relationships_offset"
 #define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_FILTER_BY			"include_links_filter_by"
 #define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_FILTER_BY_FORMAT		"include_links_filter_by_format"
@@ -320,7 +320,7 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 #define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_FILTER_VALUES		"include_links_filter_value"
 
 #define REQUEST_GET_ALL_LINKS_DESCENDING        REQUEST_GET_ALL_DOCS_DESCENDING
-#define REQUEST_GET_ALL_LINKS_COUNT             REQUEST_GET_ALL_DOCS_COUNT
+#define REQUEST_GET_ALL_LINKS_LIMIT             REQUEST_GET_ALL_DOCS_LIMIT
 #define REQUEST_GET_ALL_LINKS_OFFSET            REQUEST_GET_ALL_DOCS_OFFSET
 #define REQUEST_GET_ALL_LINKS_KEY               REQUEST_GET_ALL_DOCS_KEY
 

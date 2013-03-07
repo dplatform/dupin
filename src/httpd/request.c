@@ -988,7 +988,7 @@ request_global_get_changes_database (DSHttpdClient * client, GList * path,
 	  && !g_strcmp0 (kv->value, "true"))
 	descending = TRUE;
 
-      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_COUNT))
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_LIMIT))
 	count = atoi (kv->value);
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_SINCE))
@@ -1348,7 +1348,7 @@ request_global_get_all_docs (DSHttpdClient * client, GList * path,
 	  && !g_strcmp0 (kv->value, "true"))
 	descending = TRUE;
 
-      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_COUNT))
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_LIMIT))
 	count = atoi (kv->value);
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_OFFSET))
@@ -2028,7 +2028,7 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 	  && !g_strcmp0 (kv->value, "true"))
 	descending = TRUE;
 
-      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_COUNT))
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_LIMIT))
 	count = atoi (kv->value);
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_OFFSET))
@@ -2038,7 +2038,7 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 	       && !g_strcmp0 (kv->value, "true"))
 	attachments_descending = TRUE;
 
-      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_ATTACHMENTS_COUNT))
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_ATTACHMENTS_LIMIT))
 	attachments_count = atoi (kv->value);
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_ATTACHMENTS_OFFSET))
@@ -2592,7 +2592,7 @@ request_global_get_all_links_linkbase (DSHttpdClient * client, GList * path,
 	  && !g_strcmp0 (kv->value, "true"))
 	descending = TRUE;
 
-      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_COUNT))
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_LIMIT))
 	count = atoi (kv->value);
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_OFFSET))
@@ -3106,7 +3106,7 @@ request_global_get_changes_linkbase (DSHttpdClient * client, GList * path,
 	  && !g_strcmp0 (kv->value, "true"))
 	descending = TRUE;
 
-      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_COUNT))
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_LIMIT))
 	count = atoi (kv->value);
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_SINCE))
@@ -3516,7 +3516,7 @@ request_global_get_record_linkbase (DSHttpdClient * client, GList * path,
 	  && !g_strcmp0 (kv->value, "true"))
 	descending = TRUE;
 
-      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_COUNT))
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_LIMIT))
 	count = atoi (kv->value);
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_OFFSET))
@@ -3963,7 +3963,7 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
 	  && !g_strcmp0 (kv->value, "true"))
 	descending = TRUE;
 
-      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_COUNT))
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_LIMIT))
 	count = atoi (kv->value);
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_OFFSET))
@@ -7337,7 +7337,7 @@ request_record_revision_obj (DSHttpdClient * client,
 	           && !g_strcmp0 (kv->value, "true"))
 	    include_links_weblinks_descending = TRUE;
 
-          else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_WEBLINKS_COUNT))
+          else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_WEBLINKS_LIMIT))
 	    include_links_weblinks_count = atoi (kv->value);
 
           else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_WEBLINKS_OFFSET))
@@ -7347,7 +7347,7 @@ request_record_revision_obj (DSHttpdClient * client,
 	           && !g_strcmp0 (kv->value, "true"))
 	    include_links_relationships_descending = TRUE;
 
-          else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_RELATIONSHIPS_COUNT))
+          else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_RELATIONSHIPS_LIMIT))
 	    include_links_relationships_count = atoi (kv->value);
 
           else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_RELATIONSHIPS_OFFSET))

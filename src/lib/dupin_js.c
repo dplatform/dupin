@@ -1089,7 +1089,7 @@ dupin_js_dupin_class_links (JSContextRef ctx,
             }
         }
 
-      else if (!g_strcmp0 (member_name, REQUEST_GET_ALL_LINKS_COUNT))
+      else if (!g_strcmp0 (member_name, REQUEST_GET_ALL_LINKS_LIMIT))
         {
  	  if (json_node_get_node_type (member) == JSON_NODE_VALUE
 	      && (json_node_get_value_type (member) == G_TYPE_INT

@@ -7206,9 +7206,9 @@ request_record_revision_obj (DSHttpdClient * client,
       return obj_node;
     }
 
-  obj_node = dupin_record_get_revision_node (record, mvcc);
+  JsonNode *record_obj_node = dupin_record_get_revision_node (record, mvcc);
 
-  if (obj_node == NULL)
+  if (record_obj_node == NULL)
     {
       client->request_included_docs_level--;
 
@@ -7253,12 +7253,12 @@ request_record_revision_obj (DSHttpdClient * client,
 	    }
 	}
       if (any == FALSE)
-        obj_node = dupin_util_json_node_object_filter_fields (obj_node, fields_format, fields_splitted, FALSE, NULL);
+        obj_node = dupin_util_json_node_object_filter_fields (record_obj_node, fields_format, fields_splitted, FALSE, NULL);
       else
-        obj_node = json_node_copy (obj_node);
+        obj_node = json_node_copy (record_obj_node);
     }
   else
-    obj_node = json_node_copy (obj_node);
+    obj_node = json_node_copy (record_obj_node);
 
   if (obj_node == NULL)
     {
@@ -7788,9 +7788,9 @@ request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
       return obj_node;
     }
 
-  obj_node = dupin_link_record_get_revision_node (record, mvcc);
+  JsonNode * record_obj_node = dupin_link_record_get_revision_node (record, mvcc);
 
-  if (obj_node == NULL)
+  if (record_obj_node == NULL)
     {
       client->request_included_links_level--;
 
@@ -7835,12 +7835,12 @@ request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
             }
         }
       if (any == FALSE)
-        obj_node = dupin_util_json_node_object_filter_fields (obj_node, fields_format, fields_splitted, FALSE, NULL);
+        obj_node = dupin_util_json_node_object_filter_fields (record_obj_node, fields_format, fields_splitted, FALSE, NULL);
       else
-        obj_node = json_node_copy (obj_node);
+        obj_node = json_node_copy (record_obj_node);
     }
   else
-    obj_node = json_node_copy (obj_node);
+    obj_node = json_node_copy (record_obj_node);
 
   if (obj_node == NULL)
     {

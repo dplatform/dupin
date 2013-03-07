@@ -1082,7 +1082,8 @@ dupin_attachment_record_insert (DupinAttachmentDB * attachment_db,
 
       /* NOTE - need to "touch" (update) the metadata record anyway */
 
-      if (!(obj_node = dupin_record_get_revision_node (record, caller_mvcc)))
+      JsonNode * record_node = dupin_record_get_revision_node (record, caller_mvcc);
+      if (record_node == NULL)
         {
           g_free (title);
           dupin_record_close (record);
@@ -1091,6 +1092,8 @@ dupin_attachment_record_insert (DupinAttachmentDB * attachment_db,
           dupin_attachment_db_set_error (attachment_db, "Cannot fetch record for update");
           return FALSE;
         }
+
+      obj_node = json_node_copy (record_node);
 
       if ( dupin_attachment_record_delete (attachment_db, id, title) == FALSE
           || dupin_attachment_record_create (attachment_db, id, title,

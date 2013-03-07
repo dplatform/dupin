@@ -2007,8 +2007,10 @@ dupin_view_sync_thread_map_db (DupinView * view, gsize count)
 
       if (obj_node)
         {
+          data->obj = json_node_copy (obj_node);
+
           /* Setting _id, _rev and _created fields - we do not store them into serialized object */
-          JsonObject * obj = json_node_get_object (obj_node);
+          JsonObject * obj = json_node_get_object (data->obj);
           json_object_set_string_member (obj, "_id", (gchar *) dupin_record_get_id (list->data));
           json_object_set_string_member (obj, "_rev", dupin_record_get_last_revision (list->data));
 
@@ -2027,8 +2029,6 @@ dupin_view_sync_thread_map_db (DupinView * view, gsize count)
           if (json_object_has_member (obj, "_linkbase") == TRUE)
             json_object_remove_member (obj, "_linkbase"); // ignore any record one if set by user, ever
           json_object_set_string_member (obj, "_linkbase", dupin_database_get_default_linkbase_name (db));
-
-          data->obj = json_node_copy (obj_node);
         }
 
       data->pid = json_node_new (JSON_NODE_ARRAY);
@@ -2181,8 +2181,10 @@ dupin_view_sync_thread_map_linkb (DupinView * view, gsize count)
 
       if (obj_node)
         {
+          data->obj = json_node_copy (obj_node);
+
           /* Setting _id, _rev and _created fields - we do not store them into serialized object */
-          JsonObject * obj = json_node_get_object (obj_node);
+          JsonObject * obj = json_node_get_object (data->obj);
           json_object_set_string_member (obj, "_id", (gchar *) dupin_link_record_get_id (list->data));
           json_object_set_string_member (obj, "_rev", dupin_link_record_get_last_revision (list->data));
 
@@ -2215,8 +2217,6 @@ dupin_view_sync_thread_map_linkb (DupinView * view, gsize count)
 	  if (json_object_has_member (obj, "_is_weblink") == TRUE)
             json_object_remove_member (obj, "_is_weblink"); // ignore any record one if set by user, ever
           json_object_set_boolean_member (obj, "_is_weblink", dupin_link_record_is_weblink (list->data));
-
-          data->obj = json_node_copy (obj_node);
         }
 
       data->pid = json_node_new (JSON_NODE_ARRAY);

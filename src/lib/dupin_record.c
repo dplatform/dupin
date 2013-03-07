@@ -1568,8 +1568,10 @@ dupin_record_add_revision_obj (DupinRecord * record, guint rev,
 
   if (obj_node)
     {
+      JsonNode * obj_node_copy = json_node_copy (obj_node);
+
       /* NOTE - check if JSON object has _type and store it separately */
-      JsonObject *obj = json_node_get_object (obj_node);
+      JsonObject *obj = json_node_get_object (obj_node_copy);
 
       if (json_object_has_member (obj, REQUEST_OBJ_TYPE) == TRUE)
         {
@@ -1588,7 +1590,7 @@ dupin_record_add_revision_obj (DupinRecord * record, guint rev,
 
       JsonGenerator * gen = json_generator_new();
 
-      r->obj = json_node_copy (obj_node);
+      r->obj = obj_node_copy;
 
       json_generator_set_root (gen, r->obj );
 

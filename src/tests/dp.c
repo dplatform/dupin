@@ -807,20 +807,17 @@ showRecord (DupinRecord * record)
 
       else
 	{
-	  JsonObject *obj;
 	  gchar *buffer;
 	  gsize size;
 
-	  obj = json_node_get_object (json_node_copy (dupin_record_get_revision_node (record, (gchar *)list->data)));
+	  JsonNode *record_node = dupin_record_get_revision_node (record, (gchar *)list->data);
 
-	  JsonNode *node = json_node_new (JSON_NODE_OBJECT);
-
-          if (node == NULL)
+          if (record_node == NULL)
             {
               return;
             }
 
-  	  json_node_set_object (node, obj);
+	  JsonNode *node = json_node_copy (record_node);
 
 	  JsonGenerator *gen = json_generator_new();
 

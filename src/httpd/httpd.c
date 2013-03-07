@@ -43,6 +43,9 @@ DSHttpStatus DSHttpStatusList[] = {
   {HTTP_STATUS_409, "HTTP/1.1 409 Conflict",
    "The request URI generated a conflict.", 37, HTTP_MIME_TEXTHTML, TRUE}
   ,
+  {HTTP_STATUS_412, "HTTP/1.1 412 Precondition Failed",
+   "Precondition Failed", 19, HTTP_MIME_TEXTHTML, TRUE}
+  ,
   {HTTP_STATUS_500, "HTTP/1.1 500 Internal Server Error",
    "Internal Server Error", 21, HTTP_MIME_TEXTHTML, TRUE}
   ,

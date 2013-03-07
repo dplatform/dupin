@@ -5649,8 +5649,8 @@ request_global_put_database (DSHttpdClient * client, GList * path,
       (db =
        dupin_database_new (client->thread->data->dupin, path->data, NULL)))
     {
-      request_set_error (client, "Cannot connect to database");
-      return HTTP_STATUS_409;
+      request_set_error (client, "The database could not be created, the file already exists.");
+      return HTTP_STATUS_412;
     }
 
   dupin_database_unref (db);

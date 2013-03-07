@@ -170,13 +170,15 @@ gboolean	dupin_record_insert	(DupinDB * db,
                                          JsonNode * obj_node,
                                          gchar * id, gchar * caller_mvcc,
                                          GList ** response_list,
-					 gboolean use_latest_revision);
+					 gboolean use_latest_revision,
+					 GError ** error);
 
 gboolean	dupin_record_insert_bulk
 					(DupinDB * db,
 					 JsonNode * bulk_node,
                                          GList ** response_list,
-					 gboolean use_latest_revision);
+					 gboolean use_latest_revision,
+					 GError ** error);
 
 G_END_DECLS
 

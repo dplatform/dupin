@@ -1860,14 +1860,14 @@ dupin_record_insert (DupinDB * db,
                      gchar * id,
 		     gchar * caller_mvcc,
                      GList ** response_list,
-	             gboolean use_latest_revision)
+	             gboolean use_latest_revision,
+		     GError ** error)
 {
   g_return_val_if_fail (db != NULL, FALSE);
 
   DupinLinkB *linkb;
   DupinAttachmentDB *attachment_db;
   DupinRecord *record=NULL;
-  GError *error = NULL;
 
   gchar * mvcc=NULL;
   gchar * json_record_id=NULL;
@@ -1965,13 +1965,7 @@ dupin_record_insert (DupinDB * db,
     {
       if (dupin_record_exists (db, id) == TRUE)
 	{
-          record = dupin_record_read (db, id, &error);
-	  
-	  if (record == NULL || error)
-	    {
-	      fprintf (stderr, "Error: %s\n", error->message);
-	      g_error_free (error);
-	    }
+          record = dupin_record_read (db, id, error);
 	}
 
       /* NOTE - we this we allow selective update implicitly on the latest version if requested. For example
@@ -1985,7 +1979,7 @@ dupin_record_insert (DupinDB * db,
       if (to_delete == TRUE)
         {
           if (!record || dupin_util_mvcc_revision_cmp (mvcc, dupin_record_get_last_revision (record))
-              || dupin_record_delete (record, &error) == FALSE)
+              || dupin_record_delete (record, error) == FALSE)
             {
               if (record)
                 dupin_record_close (record);
@@ -1995,14 +1989,14 @@ dupin_record_insert (DupinDB * db,
       else if (record == NULL)
         {
           if (dupin_record_exists (db, id) == FALSE)
-            record = dupin_record_create_with_id (db, obj_node, id, &error);
+            record = dupin_record_create_with_id (db, obj_node, id, error);
           else
             record = NULL;
         }
       else if (to_patch == TRUE)
         {
           if (!record || dupin_util_mvcc_revision_cmp (mvcc, dupin_record_get_last_revision (record))
-              || dupin_record_patch (record, obj_node, &error) == FALSE)
+              || dupin_record_patch (record, obj_node, error) == FALSE)
             {
               if (record)
                 dupin_record_close (record);
@@ -2012,7 +2006,7 @@ dupin_record_insert (DupinDB * db,
       else
         {
           if (!record || dupin_util_mvcc_revision_cmp (mvcc, dupin_record_get_last_revision (record))
-              || dupin_record_update (record, obj_node, &error) == FALSE)
+              || dupin_record_update (record, obj_node, error) == FALSE)
             {
               if (record)
                 dupin_record_close (record);
@@ -2020,7 +2014,6 @@ dupin_record_insert (DupinDB * db,
             }
         }
     }
-
   else if (!id)
     {
       if ( to_delete == TRUE )
@@ -2031,7 +2024,7 @@ dupin_record_insert (DupinDB * db,
         }
       else
         {
-          record = dupin_record_create (db, obj_node, &error);
+          record = dupin_record_create (db, obj_node, error);
         }
     }
 
@@ -2046,7 +2039,7 @@ dupin_record_insert (DupinDB * db,
       else
         {
           if (dupin_record_exists (db, id) == FALSE)
-            record = dupin_record_create_with_id (db, obj_node, id, &error);
+            record = dupin_record_create_with_id (db, obj_node, id, error);
           else
             record = NULL;
         }
@@ -2064,8 +2057,8 @@ dupin_record_insert (DupinDB * db,
       if (relationships_node != NULL)
         json_node_free (relationships_node);
       
-      if (error != NULL)
-        dupin_database_set_error (db, error->message);
+      if (error != NULL && *error != NULL)
+        dupin_database_set_error (db, (*error)->message);
       else
         {
           if (to_delete == TRUE)
@@ -2078,7 +2071,15 @@ dupin_record_insert (DupinDB * db,
           else if (mvcc != NULL)
             dupin_database_set_error (db, "Cannot update record");
           else
-            dupin_database_set_error (db, "Cannot insert record");
+	    {
+	      if (id)
+	        {
+                  dupin_database_set_error (db, "The record could not be created, it already exists.");
+		  g_set_error (error, dupin_error_quark (), DUPIN_ERROR_RECORD_CONFLICT, "%s", dupin_database_get_error (db));
+		}
+	      else
+                dupin_database_set_error (db, "Cannot insert record");
+	    }
         }
 
       if (mvcc != NULL)
@@ -2098,7 +2099,7 @@ dupin_record_insert (DupinDB * db,
 //g_message("process _attachments object for inline attachments\n");
 
       if (!  (attachment_db =
-               dupin_attachment_db_open (db->d, dupin_database_get_default_attachment_db_name (db), &error)))
+               dupin_attachment_db_open (db->d, dupin_database_get_default_attachment_db_name (db), error)))
         {
           if (attachments_node != NULL)
             json_node_free (attachments_node);
@@ -2109,8 +2110,8 @@ dupin_record_insert (DupinDB * db,
           if (mvcc != NULL)
             g_free (mvcc);
           
-          if (error != NULL)
-            dupin_database_set_error (db, error->message);
+          if (error != NULL && *error != NULL)
+            dupin_database_set_error (db, (*error)->message);
           else
             dupin_database_set_error (db, "Cannot connect to attachments database");
 
@@ -2236,7 +2237,7 @@ dupin_record_insert (DupinDB * db,
       gchar * context_id = (gchar *)dupin_record_get_id (record);
 
       if (!  (linkb =
-               dupin_linkbase_open (db->d, dupin_database_get_default_linkbase_name (db), &error)))
+               dupin_linkbase_open (db->d, dupin_database_get_default_linkbase_name (db), error)))
         {
           dupin_record_close (record);
 
@@ -2249,8 +2250,8 @@ dupin_record_insert (DupinDB * db,
           if (mvcc != NULL)
             g_free (mvcc);
           
-          if (error != NULL)
-            dupin_database_set_error (db, error->message);
+          if (error != NULL && *error != NULL)
+            dupin_database_set_error (db, (*error)->message);
           else
             dupin_database_set_error (db, "Cannot connect to linkbase");
 
@@ -2332,7 +2333,7 @@ dupin_record_insert (DupinDB * db,
                           continue;
                         }
 
-                      if (dupin_link_record_insert (linkb, lnode, NULL, NULL, context_id, DP_LINK_TYPE_WEB_LINK, &links_response_list, FALSE, use_latest_revision) == FALSE)
+                      if (dupin_link_record_insert (linkb, lnode, NULL, NULL, context_id, DP_LINK_TYPE_WEB_LINK, &links_response_list, FALSE, use_latest_revision, error) == FALSE)
                         {
                           JsonObject * error_obj = json_object_new ();
                           GString * str = g_string_new("");
@@ -2470,7 +2471,7 @@ dupin_record_insert (DupinDB * db,
                           continue;
                         }
 
-                      if (dupin_link_record_insert (linkb, rnode, NULL, NULL, context_id, DP_LINK_TYPE_RELATIONSHIP, &relationships_response_list, FALSE, use_latest_revision) == FALSE)
+                      if (dupin_link_record_insert (linkb, rnode, NULL, NULL, context_id, DP_LINK_TYPE_RELATIONSHIP, &relationships_response_list, FALSE, use_latest_revision, error) == FALSE)
                         {
                           JsonObject * error_obj = json_object_new ();
                           GString * str = g_string_new("");
@@ -2565,7 +2566,8 @@ gboolean
 dupin_record_insert_bulk (DupinDB * db,
 			  JsonNode * bulk_node,
 			  GList ** response_list,
-	                  gboolean use_latest_revision)
+	                  gboolean use_latest_revision,
+			  GError ** error)
 {
   g_return_val_if_fail (db != NULL, FALSE);
 
@@ -2730,7 +2732,7 @@ dupin_record_insert_bulk (DupinDB * db,
       if (json_object_has_member (json_node_get_object (element_node), REQUEST_OBJ_REV) == TRUE)
         rev = g_strdup ((gchar *)json_object_get_string_member (json_node_get_object (element_node), REQUEST_OBJ_REV));
 
-      if (dupin_record_insert (db, element_node, NULL, NULL, response_list, use_latest_revision) == FALSE)
+      if (dupin_record_insert (db, element_node, NULL, NULL, response_list, use_latest_revision, error) == FALSE)
         {
           /* NOTE - we report errors inline in the JSON response */
 

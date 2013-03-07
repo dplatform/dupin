@@ -505,12 +505,12 @@ main (int argc, char *argv[])
 //g_message("context_id = %s\n", context_id);
 
 	      res =  dupin_link_record_insert_bulk (linkb, json_object_node, context_id, &response_list,
-						    options.strict_links, options.use_latest_revision);
+						    options.strict_links, options.use_latest_revision, &error);
 
 	      g_free (context_id); 
             }
           else
-            res = dupin_record_insert_bulk (db, json_object_node, &response_list, options.use_latest_revision);
+            res = dupin_record_insert_bulk (db, json_object_node, &response_list, options.use_latest_revision, &error);
 
 	  if (bulk_tx_num_count == options.bulk_tx_num)
 	    {
@@ -545,12 +545,12 @@ main (int argc, char *argv[])
                 }
 
 	      res = dupin_link_record_insert (linkb, json_object_node, NULL, NULL, context_id,
-					      DP_LINK_TYPE_ANY, &response_list, options.strict_links, options.use_latest_revision);
+					      DP_LINK_TYPE_ANY, &response_list, options.strict_links, options.use_latest_revision, &error);
 
 	      g_free (context_id); 
             }
           else
-            res = dupin_record_insert (db, json_object_node, NULL, NULL, &response_list, options.use_latest_revision);
+            res = dupin_record_insert (db, json_object_node, NULL, NULL, &response_list, options.use_latest_revision, &error);
        }
 
       if (res == TRUE)

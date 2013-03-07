@@ -979,7 +979,8 @@ dupin_attachment_record_insert (DupinAttachmentDB * attachment_db,
 			        gsize  attachment_body_size,	
 			        gchar * attachment_input_mime,
                                 const void ** attachment_body, // try to avoid to pass megabytes on stack
-                                GList ** response_list)
+                                GList ** response_list,
+                                GError ** error)
 {
   g_return_val_if_fail (attachment_db != NULL, FALSE);
 
@@ -987,7 +988,6 @@ dupin_attachment_record_insert (DupinAttachmentDB * attachment_db,
   DupinRecord *record=NULL;
   JsonNode * obj_node=NULL;
 
-  GError *error = NULL;
   GString *str;
   gchar * title = NULL;
   GList * l=NULL;
@@ -1014,17 +1014,17 @@ dupin_attachment_record_insert (DupinAttachmentDB * attachment_db,
 
 //g_message("dupin_attachment_record_insert: title=%s\n", title);
 
-  if (!(db = dupin_database_open (attachment_db->d, attachment_db->parent, &error)))
+  if (!(db = dupin_database_open (attachment_db->d, attachment_db->parent, error)))
     {
       g_free (title);
-      if (error != NULL)
-        dupin_attachment_db_set_error (attachment_db, error->message);
+      if (error != NULL && *error != NULL)
+        dupin_attachment_db_set_error (attachment_db, (*error)->message);
       else
         dupin_attachment_db_set_error (attachment_db, "Cannot connect to record database");
       return FALSE;
     }
 
-  record = dupin_record_read (db, id, &error);
+  record = dupin_record_read (db, id, error);
 
   if (caller_mvcc == NULL && record != NULL)
     {
@@ -1033,8 +1033,8 @@ dupin_attachment_record_insert (DupinAttachmentDB * attachment_db,
       
       dupin_database_unref (db);
 
-      if (error != NULL)
-        dupin_attachment_db_set_error (attachment_db, error->message);
+      if (error != NULL && *error != NULL)
+        dupin_attachment_db_set_error (attachment_db, (*error)->message);
       else
         dupin_attachment_db_set_error (attachment_db, "Record found but MVCC revision number is missing");
 
@@ -1052,15 +1052,15 @@ dupin_attachment_record_insert (DupinAttachmentDB * attachment_db,
                                           attachment_body_size,
                                           attachment_input_mime,
                                           attachment_body) == FALSE
-         || (!( record = dupin_record_create_with_id (db, obj_node, id, &error))))
+         || (!( record = dupin_record_create_with_id (db, obj_node, id, error))))
         {
           g_free (title);
           json_node_free (obj_node);
           
           dupin_database_unref (db);
 
-          if (error != NULL)
-            dupin_attachment_db_set_error (attachment_db, error->message);
+      	  if (error != NULL && *error != NULL)
+            dupin_attachment_db_set_error (attachment_db, (*error)->message);
           else
             dupin_attachment_db_set_error (attachment_db, "Cannot insert attachment or create record to contain attachment");
 
@@ -1097,7 +1097,7 @@ dupin_attachment_record_insert (DupinAttachmentDB * attachment_db,
                                              attachment_body_size,
                                              attachment_input_mime,
                                              attachment_body) == FALSE
-          || dupin_record_update (record, obj_node, &error) == FALSE)
+          || dupin_record_update (record, obj_node, error) == FALSE)
         {
           g_free (title);
           dupin_record_close (record);
@@ -1105,8 +1105,8 @@ dupin_attachment_record_insert (DupinAttachmentDB * attachment_db,
           dupin_database_unref (db);
           json_node_free (obj_node);
 
-          if (error != NULL)
-            dupin_attachment_db_set_error (attachment_db, error->message);
+      	  if (error != NULL && *error != NULL)
+            dupin_attachment_db_set_error (attachment_db, (*error)->message);
           else
             dupin_attachment_db_set_error (attachment_db, "Cannot replace attachment");
 

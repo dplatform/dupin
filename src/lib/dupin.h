@@ -10,7 +10,8 @@ enum
 {
   DUPIN_ERROR_INIT,
   DUPIN_ERROR_OPEN,
-  DUPIN_ERROR_CRUD
+  DUPIN_ERROR_CRUD,
+  DUPIN_ERROR_RECORD_CONFLICT
 };
 
 GQuark     	dupin_error_quark	(void);	

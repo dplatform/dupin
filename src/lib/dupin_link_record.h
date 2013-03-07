@@ -307,7 +307,8 @@ gboolean	dupin_link_record_insert
                                          DupinLinksType link_type,
                                          GList ** response_list,
 					 gboolean strict_links,
-					 gboolean use_latest_revision);
+					 gboolean use_latest_revision,
+					 GError ** error);
 
 gboolean	dupin_link_record_insert_bulk
 					(DupinLinkB * linkb,
@@ -315,7 +316,8 @@ gboolean	dupin_link_record_insert_bulk
 					 gchar * context_id,
 					 GList ** response_list,
 					 gboolean strict_links,
-					 gboolean use_latest_revision);
+					 gboolean use_latest_revision,
+					 GError ** error);
 
 /* Utility functions - mainly internal */
 

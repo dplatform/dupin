@@ -134,7 +134,8 @@ gboolean	dupin_attachment_record_insert
                                 	 gsize  attachment_body_size,
                                 	 gchar * attachment_input_mime,
                                 	 const void ** attachment_body, // try to avoid to pass megabytes on stack
-                                	 GList ** response_list);
+                                	 GList ** response_list,
+					 GError ** error);
 
 G_END_DECLS
 

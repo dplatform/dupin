@@ -5160,17 +5160,24 @@ request_global_post_record (DSHttpdClient * client, GList * path,
       goto request_global_post_record_end;
     }
 
-  if (dupin_record_insert (db, node, NULL, NULL, &response_list, FALSE) == TRUE)
+  if (dupin_record_insert (db, node, NULL, NULL, &response_list, FALSE, &error) == TRUE)
     {
       if (request_record_response (client, response_list) == FALSE)
         {
 	  code = HTTP_STATUS_500;
           request_set_error (client, "Cannot generate JSON output response");
         }
+      else
+        {
+          code = HTTP_STATUS_201;
+        }
     }
   else
     {
-      code = HTTP_STATUS_400;
+      if (error != NULL && error->code == DUPIN_ERROR_RECORD_CONFLICT)
+        code = HTTP_STATUS_409;
+      else
+        code = HTTP_STATUS_400;
       request_set_error (client, dupin_database_get_error (db));
     }
 
@@ -5186,6 +5193,9 @@ request_global_post_record_end:
 
   if (parser != NULL)
     g_object_unref (parser);
+
+  if (error)
+    g_error_free (error);
 
   return code;
 }
@@ -5275,17 +5285,24 @@ request_global_post_doc_link (DSHttpdClient * client, GList * path,
 
   dupin_database_unref (db);
 
-  if (dupin_link_record_insert (linkb, node, NULL, NULL, context_id, link_type, &response_list, strict_links, FALSE) == TRUE)
+  if (dupin_link_record_insert (linkb, node, NULL, NULL, context_id, link_type, &response_list, strict_links, FALSE, &error) == TRUE)
     {
       if (request_record_response (client, response_list) == FALSE)
         {
           code = HTTP_STATUS_500;
           request_set_error (client, "Cannot generate JSON output response");
         }
+      else
+        {
+          code = HTTP_STATUS_201;
+        }
     }
   else
     {
-      code = HTTP_STATUS_400;
+      if (error != NULL && error->code == DUPIN_ERROR_RECORD_CONFLICT)
+        code = HTTP_STATUS_409;
+      else
+        code = HTTP_STATUS_400;
       request_set_error (client, dupin_linkbase_get_error (linkb));
     }
 
@@ -5301,6 +5318,9 @@ request_global_post_doc_link_end:
 
   if (parser != NULL)
     g_object_unref (parser);
+
+  if (error)
+    g_error_free (error);
 
   return code;
 }
@@ -5355,7 +5375,7 @@ request_global_post_bulk_docs (DSHttpdClient * client, GList * path,
       goto request_global_post_bulk_docs_end;
     }
 
-  if (dupin_record_insert_bulk (db, node, &response_list, FALSE) == TRUE)
+  if (dupin_record_insert_bulk (db, node, &response_list, FALSE, &error) == TRUE)
     {
       if (request_record_response (client, response_list) == FALSE)
         {
@@ -5469,7 +5489,7 @@ request_global_post_bulk_doc_links (DSHttpdClient * client, GList * path,
 
   dupin_database_unref (db);
 
-  if (dupin_link_record_insert_bulk (linkb, node, context_id, &response_list, strict_links, FALSE) == TRUE)
+  if (dupin_link_record_insert_bulk (linkb, node, context_id, &response_list, strict_links, FALSE, &error) == TRUE)
     {
       if (request_record_response (client, response_list) == FALSE)
         {
@@ -6017,13 +6037,6 @@ request_global_put_record (DSHttpdClient * client, GList * path,
         }
     }
 
-  if (mvcc == NULL)
-    {
-      request_set_error (client, "Record MVCC revision is missing");
-      code = HTTP_STATUS_400;
-      goto request_global_put_record_end;
-    }
-
   if (!  (db = dupin_database_open (client->thread->data->dupin, path->data, NULL)))
     {
       request_set_error (client, "Cannot open database");
@@ -6033,6 +6046,13 @@ request_global_put_record (DSHttpdClient * client, GList * path,
 
   if (request_fields != NULL)
     {
+      if (mvcc == NULL)
+        {
+          request_set_error (client, "Record MVCC revision is missing");
+          code = HTTP_STATUS_400;
+          goto request_global_put_record_end;
+        }
+
       JsonNode * patch = json_node_new (JSON_NODE_OBJECT);
       JsonObject * patch_obj = json_object_new ();
       json_node_take_object (patch, patch_obj);
@@ -6045,13 +6065,13 @@ request_global_put_record (DSHttpdClient * client, GList * path,
       json_object_set_member (patch_obj, (const gchar *)request_fields, json_node_copy (node));
       json_object_set_boolean_member (patch_obj, REQUEST_OBJ_PATCHED, TRUE);
 
-      res = dupin_record_insert (db, patch, doc_id, mvcc, &response_list, FALSE);
+      res = dupin_record_insert (db, patch, doc_id, mvcc, &response_list, FALSE, &error);
 
       json_node_free (patch);
     }
   else
     {
-      res = dupin_record_insert (db, node, doc_id, mvcc, &response_list, FALSE);
+      res = dupin_record_insert (db, node, doc_id, mvcc, &response_list, FALSE, &error);
     }
 
   if (res == TRUE)
@@ -6061,10 +6081,17 @@ request_global_put_record (DSHttpdClient * client, GList * path,
           code = HTTP_STATUS_500;
           request_set_error (client, "Cannot generate JSON output response");
         }
+      else
+        {
+	  code = HTTP_STATUS_201;
+	}
     }
   else
     {
-      code = HTTP_STATUS_400;
+      if (error != NULL && error->code == DUPIN_ERROR_RECORD_CONFLICT)
+        code = HTTP_STATUS_409;
+      else
+        code = HTTP_STATUS_400;
       request_set_error (client, dupin_database_get_error (db));
     }
 
@@ -6082,6 +6109,9 @@ request_global_put_record_end:
     g_object_unref (parser);
 
   g_free (doc_id);
+
+  if (error)
+    g_error_free (error);
 
   return code;
 }
@@ -6223,13 +6253,6 @@ request_global_put_link_record (DSHttpdClient * client, GList * path,
         }
     }
 
-  if (mvcc == NULL)
-    {
-      request_set_error (client, "Link record MVCC revision is missing");
-      code = HTTP_STATUS_404;
-      goto request_global_put_link_record_end;
-    }
-
   /* NOTE - need to get the right linkbase to put/update to */
   if (!  (db = dupin_database_open (client->thread->data->dupin, path->data, NULL)))
     {
@@ -6250,6 +6273,13 @@ request_global_put_link_record (DSHttpdClient * client, GList * path,
 
   if (request_fields != NULL)
     {
+      if (mvcc == NULL)
+        {
+          request_set_error (client, "Link record MVCC revision is missing");
+          code = HTTP_STATUS_404;
+          goto request_global_put_link_record_end;
+        }
+
       JsonNode * patch = json_node_new (JSON_NODE_OBJECT);
       JsonObject * patch_obj = json_object_new ();
       json_node_take_object (patch, patch_obj);
@@ -6262,13 +6292,13 @@ request_global_put_link_record (DSHttpdClient * client, GList * path,
       json_object_set_member (patch_obj, (const gchar *)request_fields, json_node_copy (node));
       json_object_set_boolean_member (patch_obj, REQUEST_OBJ_PATCHED, TRUE);
 
-      res = dupin_link_record_insert (linkb, patch, link_id, mvcc, NULL, DP_LINK_TYPE_ANY, &response_list, strict_links, FALSE);
+      res = dupin_link_record_insert (linkb, patch, link_id, mvcc, NULL, DP_LINK_TYPE_ANY, &response_list, strict_links, FALSE, &error);
 
       json_node_free (patch);
     }
   else
     {
-      res = dupin_link_record_insert (linkb, node, link_id, mvcc, NULL, DP_LINK_TYPE_ANY, &response_list, strict_links, FALSE);
+      res = dupin_link_record_insert (linkb, node, link_id, mvcc, NULL, DP_LINK_TYPE_ANY, &response_list, strict_links, FALSE, &error);
     }
 
   if (res == TRUE)
@@ -6278,10 +6308,17 @@ request_global_put_link_record (DSHttpdClient * client, GList * path,
           code = HTTP_STATUS_500;
           request_set_error (client, "Cannot generate JSON output response");
         }
+      else
+        {
+	  code = HTTP_STATUS_201;
+	}
     }
   else
     {
-      code = HTTP_STATUS_400;
+      if (error != NULL && error->code == DUPIN_ERROR_RECORD_CONFLICT)
+        code = HTTP_STATUS_409;
+      else
+        code = HTTP_STATUS_400;
       request_set_error (client, dupin_linkbase_get_error (linkb));
     }
 
@@ -6300,6 +6337,9 @@ request_global_put_link_record_end:
 
   g_free (link_id);
 
+  if (error)
+    g_error_free (error);
+
   return code;
 }
 
@@ -6315,6 +6355,7 @@ request_global_put_record_attachment (DSHttpdClient * client, GList * path,
   DupinAttachmentDB * attachment_db=NULL;
   gchar * mvcc=NULL;
   GList * l=NULL;
+  GError *error = NULL;
 
   if (!client->body
       || !client->input_mime
@@ -6398,7 +6439,7 @@ request_global_put_record_attachment (DSHttpdClient * client, GList * path,
 
   if (dupin_attachment_record_insert (attachment_db, doc_id, mvcc, title_parts,
 				      client->body_size, client->input_mime,
-				      &client_body_ref, &response_list ) == TRUE)
+				      &client_body_ref, &response_list, &error) == TRUE)
     {
       if (request_record_response (client, response_list) == FALSE)
         {

@@ -1806,7 +1806,9 @@ dupin_view_output_insert_bulk (DupinView * view, JsonNode * bulk_node)
       if (! (db = dupin_database_open (view->d, (gchar *)dupin_view_get_output (view), NULL)))
         return NULL;
                     
-      if (dupin_record_insert_bulk (db, bulk_node, &response_list, TRUE) == TRUE)
+      GError * error = NULL;
+
+      if (dupin_record_insert_bulk (db, bulk_node, &response_list, TRUE, &error) == TRUE)
         {
           response_node = json_node_new (JSON_NODE_ARRAY);
           JsonArray * response_array = json_array_new ();

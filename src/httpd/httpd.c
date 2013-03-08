@@ -722,6 +722,8 @@ httpd_client_header (DSHttpdClient * client, DSHttpStatusCode * error)
     {
       gchar *line = list->data;
 
+      //g_message ("%s\n", line);
+
       if (!strncasecmp (line, HTTP_CONTENT_LENGTH, HTTP_CONTENT_LENGTH_LEN))
 	{
 	  line += HTTP_CONTENT_LENGTH_LEN;
@@ -762,9 +764,10 @@ httpd_client_header (DSHttpdClient * client, DSHttpStatusCode * error)
 
   log_write (client->thread->data, LOG_VERBOSE_INFO, LOG_HTTPD_CLIENT_CONNECT,
 	     "client", LOG_VERBOSE_INFO, LOG_TYPE_STRING, client->ip,
-	     "request", LOG_VERBOSE_INFO, LOG_TYPE_STRING,
-	     client->headers->data, "contentTypeLength", LOG_VERBOSE_INFO,
-	     LOG_TYPE_INTEGER, (gint) csize, NULL);
+	     "request", LOG_VERBOSE_INFO, LOG_TYPE_STRING, client->headers->data,
+	     "Content-Length", LOG_VERBOSE_INFO, LOG_TYPE_INTEGER, (gint) csize,
+	     "Content-Type", LOG_VERBOSE_INFO, LOG_TYPE_STRING, client->input_mime,
+	     NULL);
 
   if (csize != 0)
     {

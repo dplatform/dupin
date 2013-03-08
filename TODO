@@ -53,3 +53,5 @@
   originally "published" put into the system.
 - Critical:
   - Add validation of IDs and REVs at least
+- HTTP
+  - Add Connection: keep-alive and Transfer-Encoding: chunked on input

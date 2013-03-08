@@ -1905,15 +1905,8 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 
           if (path->next->next->next)
             {
-              /* GET _special_document/document_ID/_attachments/attachment  */
-              if (!g_strcmp0 (path->next->next->next->data, REQUEST_OBJ_ATTACHMENTS))
-                {
-                  if (path->next->next->next->next)
-                    title_parts = path->next->next->next->next;
-                }
-
               /* GET _special_document/document_ID/_fields/field */
-              else if (!g_strcmp0 (path->next->next->next->data, REQUEST_FIELDS))
+              if (!g_strcmp0 (path->next->next->next->data, REQUEST_FIELDS))
                 {
                   if (!path->next->next->next->next
                        || !g_strcmp0 (path->next->next->next->next->data, REQUEST_OBJ_ATTACHMENTS))
@@ -1926,8 +1919,8 @@ request_global_get_record (DSHttpdClient * client, GList * path,
                 }
               else
                 {
-                  request_set_error (client, "Cannot GET record");
-                  return HTTP_STATUS_400;
+                  /* GET _special_document/document_ID/attachment  */
+                  title_parts = path->next->next->next;
                 }
             }
         }
@@ -1947,14 +1940,6 @@ request_global_get_record (DSHttpdClient * client, GList * path,
                 }
 
               request_fields=(gchar *)path->next->next->next->data;
-            }
-
-          /* GET document_ID/_attachments/attachment */
-          else if (path->next->next->next
-                   && (!g_strcmp0 (path->next->next->data, REQUEST_OBJ_ATTACHMENTS)))
-            {
-              /* GET /document_ID/_attachments/attachment */
-              title_parts = path->next->next->next;
             }
 
           /* NOTE - the following two works becuase the database and the default linkbase
@@ -1994,10 +1979,11 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 
 	      return request_global_get_all_links_linkbase (client, path, client->request_arguments);
 	    }
+
+          /* GET /document_ID/attachment */
           else
             {
-              request_set_error (client, "Cannot GET record");
-              return HTTP_STATUS_400;
+              title_parts = path->next->next;
             }
         }
 
@@ -5943,15 +5929,10 @@ request_global_put_record (DSHttpdClient * client, GList * path,
               request_fields=path->next->next->next->next->data;
             }
 
-          /* PUT _special_document/document_ID/_attachments/attachment */
-          else if (!g_strcmp0 (path->next->next->next->data, REQUEST_OBJ_ATTACHMENTS))
+          /* PUT _special_document/document_ID/attachment */
+          else
             {
 	      return request_global_put_record_attachment (client, path, arguments);
-            }
-	  else
-            {
-      	      request_set_error (client, "Cannot update record");
-              return HTTP_STATUS_400;
             }
         }
 
@@ -5979,8 +5960,8 @@ request_global_put_record (DSHttpdClient * client, GList * path,
               request_fields=path->next->next->next->data;
             }
 
-          /* PUT /document_ID/_attachments/attachment */
-          else if (!g_strcmp0 (path->next->next->data, REQUEST_OBJ_ATTACHMENTS))
+          /* PUT /document_ID/attachment */
+          else
             {
               return request_global_put_record_attachment (client, path, arguments);
             }
@@ -6371,28 +6352,25 @@ request_global_put_record_attachment (DSHttpdClient * client, GList * path,
 
   if (ch == '_')
     {
-      /* PUT _special_document/document_ID/_attachments/attachment */
+      /* PUT _special_document/document_ID/attachment */
       doc_id = g_strdup_printf ("%s/%s", (gchar *)path->next->data, (gchar *)path->next->next->data);
 
-      if (path->next->next->next
-	  && (!g_strcmp0 (path->next->next->next->data, REQUEST_OBJ_ATTACHMENTS)))
+      if (path->next->next->next)
         {
-          if (path->next->next->next->next)
-            title_parts = path->next->next->next->next;
+          title_parts = path->next->next->next;
         }
     }
   else
     {
-       if (path->next->next->next
-	   && (!g_strcmp0 (path->next->next->data, REQUEST_OBJ_ATTACHMENTS)))
+       if (path->next->next)
          {
-           /* PUT /document_ID/_attachments/attachment */
+           /* PUT /document_ID/attachment */
           doc_id = g_strdup_printf ("%s", (gchar *)path->next->data);
-          title_parts = path->next->next->next;
+          title_parts = path->next->next;
          }
        else
          {
-           request_set_error (client, "PUT /document_ID/_attachments/attachment is the only allowed command");
+           request_set_error (client, "PUT /document_ID/attachment is the only allowed command");
            return HTTP_STATUS_400;
          }
     }
@@ -6601,12 +6579,10 @@ request_global_delete_record (DSHttpdClient * client, GList * path,
         {
           doc_id = g_strdup_printf ("%s/%s", (gchar *)path->next->data, (gchar *)path->next->next->data);
 
-          /* DELETE _special_document/document_ID/_attachments/attachment */
-          if (path->next->next->next
-              && (!g_strcmp0 (path->next->next->next->data, REQUEST_OBJ_ATTACHMENTS)))
+          /* DELETE _special_document/document_ID/attachment */
+          if (path->next->next->next)
             {
-              if (path->next->next->next->next)
-                title_parts = path->next->next->next->next;
+              title_parts = path->next->next->next;
             }
         }
 
@@ -6632,16 +6608,10 @@ request_global_delete_record (DSHttpdClient * client, GList * path,
               request_fields=path->next->next->next->data;
             }
 
-          /* DELETE /document_ID/_attachments/attachment */
-          else if (path->next->next->next
-                   && (!g_strcmp0 (path->next->next->data, REQUEST_OBJ_ATTACHMENTS)))
-            {
-              title_parts = path->next->next->next;
-            }
+          /* DELETE /document_ID/attachment */
           else
             {
-      	      request_set_error (client, "DELETE /document_ID allowed commands: /document_ID/_fields/field /document_ID/_attachments/attachment");
-              return HTTP_STATUS_400;
+              title_parts = path->next->next;
             }
         }
 

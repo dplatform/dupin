@@ -5368,6 +5368,10 @@ request_global_post_bulk_docs (DSHttpdClient * client, GList * path,
 	  code = HTTP_STATUS_500;
           request_set_error (client, "Cannot generate JSON output response");
         }
+      else
+        {
+	  code = HTTP_STATUS_201;
+        }
     }
   else
     {
@@ -5481,6 +5485,10 @@ request_global_post_bulk_doc_links (DSHttpdClient * client, GList * path,
         {
 	  code = HTTP_STATUS_500;
           request_set_error (client, "Cannot generate JSON output response");
+        }
+      else
+        {
+	  code = HTTP_STATUS_201;
         }
     }
   else

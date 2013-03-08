@@ -5911,7 +5911,7 @@ request_global_put_record (DSHttpdClient * client, GList * path,
     {
 //g_message("request_global_put_record: dbname=%s id=%s\n", (gchar *) path->data, (gchar *)path->next->data);
 
-      if (path->next->next->next)
+      if (path->next->next && path->next->next->next)
         {
           /* PUT _special_document/document_ID/_fields/field */
           if (!g_strcmp0 (path->next->next->next->data, REQUEST_FIELDS))
@@ -6129,7 +6129,7 @@ request_global_put_link_record (DSHttpdClient * client, GList * path,
     {
 //g_message("request_global_put_link_record: linkbname=%s id=%s\n", (gchar *) path->data, (gchar *)path->next->data);
 
-      if (path->next->next->next)
+      if (path->next->next && path->next->next->next)
         {
           /* PUT _special_link/link_ID/_fields/field */
           if (!g_strcmp0 (path->next->next->next->data, REQUEST_FIELDS))
@@ -6355,7 +6355,7 @@ request_global_put_record_attachment (DSHttpdClient * client, GList * path,
       /* PUT _special_document/document_ID/attachment */
       doc_id = g_strdup_printf ("%s/%s", (gchar *)path->next->data, (gchar *)path->next->next->data);
 
-      if (path->next->next->next)
+      if (path->next->next && path->next->next->next)
         {
           title_parts = path->next->next->next;
         }
@@ -6568,6 +6568,12 @@ request_global_delete_record (DSHttpdClient * client, GList * path,
   GString *str;
   gchar * doc_id=NULL;
   gchar * request_fields=NULL;
+
+  if (!path->next->data)
+    {
+      request_set_error (client, "Cannot delete record field");
+      return HTTP_STATUS_400;
+    }
 
   /* check if special document name/id */
   gunichar ch = g_utf8_get_char (path->next->data);
@@ -6862,6 +6868,12 @@ request_global_delete_link_record (DSHttpdClient * client, GList * path,
   GList * l=NULL;
   gchar * link_id=NULL;
   gchar * request_fields=NULL;
+
+  if (!path->next->data)
+    {
+      request_set_error (client, "Cannot delete link record field");
+      return HTTP_STATUS_400;
+    }
 
   /* check if special document name/id */
   gunichar ch = g_utf8_get_char (path->next->data);
@@ -9578,6 +9590,12 @@ request_global_get_portable_listings_record_relationship (DSHttpdClient * client
   gsize total_rows = 0;
 
   gboolean inclusive_end = TRUE;
+
+  if (!path->next->data || !path->next->next)
+    {
+      request_set_error (client, "Cannot get portable listings relationship");
+      return HTTP_STATUS_404;
+    }
 
   gchar * context_id = (gchar *)path->next->next->data;
 

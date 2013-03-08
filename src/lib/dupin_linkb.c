@@ -1685,13 +1685,10 @@ dupin_linkbase_compact_func (gpointer data, gpointer user_data)
 
   dupin_linkbase_ref (linkb);
 
-  g_mutex_lock (linkb->mutex);
-  linkb->compact_thread = g_thread_self ();
-  g_mutex_unlock (linkb->mutex);
-
 //g_message("dupin_linkbase_compact_func(%p) started\n",g_thread_self ());
 
   g_mutex_lock (linkb->mutex);
+  linkb->compact_thread = g_thread_self ();
   linkb->compact_processed_count = 0;
   g_mutex_unlock (linkb->mutex);
 
@@ -1707,18 +1704,16 @@ dupin_linkbase_compact_func (gpointer data, gpointer user_data)
 
 	  /* NOTE - wait till next transaction is finished */
 
-	  g_mutex_lock (linkb->d->mutex);
-
           if (linkb->d->bulk_transaction == TRUE)
             {
-              g_mutex_unlock (linkb->d->mutex);
-
 //g_message("dupin_linkbase_compact_func(%p) waiting for transaction to finish\n", g_thread_self ());
 
               continue;
             }
 
           /* NOTE - make sure last transaction is commited */
+
+          g_mutex_lock (linkb->mutex);
 
           if (dupin_linkbase_commit_transaction (linkb, NULL) < 0)
             {
@@ -1730,13 +1725,13 @@ dupin_linkbase_compact_func (gpointer data, gpointer user_data)
           if (sqlite3_exec (linkb->db, "VACUUM", NULL, NULL, &errmsg) != SQLITE_OK
              || sqlite3_exec (linkb->db, "ANALYZE Dupin", NULL, NULL, &errmsg) != SQLITE_OK)
             {
-              g_mutex_unlock (linkb->d->mutex);
+              g_mutex_unlock (linkb->mutex);
               g_error ("dupin_linkbase_compact_func: %s", errmsg);
               sqlite3_free (errmsg);
               break;
             }
 
-          g_mutex_unlock (linkb->d->mutex);
+          g_mutex_unlock (linkb->mutex);
 
           break;
         }
@@ -1746,9 +1741,6 @@ dupin_linkbase_compact_func (gpointer data, gpointer user_data)
 
   g_mutex_lock (linkb->mutex);
   linkb->tocompact = FALSE;
-  g_mutex_unlock (linkb->mutex);
-
-  g_mutex_lock (linkb->mutex);
   linkb->compact_thread = NULL;
   g_mutex_unlock (linkb->mutex);
 
@@ -2008,13 +2000,10 @@ dupin_linkbase_check_func (gpointer data, gpointer user_data)
 
   dupin_linkbase_ref (linkb);
 
-  g_mutex_lock (linkb->mutex);
-  linkb->check_thread = g_thread_self ();
-  g_mutex_unlock (linkb->mutex);
-
 //g_message("dupin_linkbase_check_func(%p) started\n",g_thread_self ());
 
   g_mutex_lock (linkb->mutex);
+  linkb->check_thread = g_thread_self ();
   linkb->check_processed_count = 0;
   g_mutex_unlock (linkb->mutex);
 
@@ -2032,18 +2021,16 @@ dupin_linkbase_check_func (gpointer data, gpointer user_data)
 
 	  /* NOTE - wait till next transaction is finished */
 
-          g_mutex_lock (linkb->d->mutex);
-
           if (linkb->d->bulk_transaction == TRUE)
             {
-              g_mutex_unlock (linkb->d->mutex);
-
 //g_message("dupin_linkbase_check_func(%p) waiting for transaction to finish\n", g_thread_self ());
 
               continue;
             }
 
           /* NOTE - make sure last transaction is commited */
+
+          g_mutex_lock (linkb->mutex);
 
           if (dupin_linkbase_commit_transaction (linkb, NULL) < 0)
             {
@@ -2055,13 +2042,13 @@ dupin_linkbase_check_func (gpointer data, gpointer user_data)
           if (sqlite3_exec (linkb->db, "VACUUM", NULL, NULL, &errmsg) != SQLITE_OK
              || sqlite3_exec (linkb->db, "ANALYZE Dupin", NULL, NULL, &errmsg) != SQLITE_OK)
             {
-              g_mutex_unlock (linkb->d->mutex);
+              g_mutex_unlock (linkb->mutex);
               g_error ("dupin_linkbase_check_func: %s", errmsg);
               sqlite3_free (errmsg);
               break;
             }
 
-          g_mutex_unlock (linkb->d->mutex);
+          g_mutex_unlock (linkb->mutex);
 #endif
 
           break;
@@ -2072,9 +2059,6 @@ dupin_linkbase_check_func (gpointer data, gpointer user_data)
 
   g_mutex_lock (linkb->mutex);
   linkb->tocheck = FALSE;
-  g_mutex_unlock (linkb->mutex);
-
-  g_mutex_lock (linkb->mutex);
   linkb->check_thread = NULL;
   g_mutex_unlock (linkb->mutex);
 

@@ -1462,13 +1462,10 @@ dupin_database_compact_func (gpointer data, gpointer user_data)
 
   dupin_database_ref (db);
 
-  g_mutex_lock (db->mutex);
-  db->compact_thread = g_thread_self ();
-  g_mutex_unlock (db->mutex);
-
 //g_message("dupin_database_compact_func(%p) started\n",g_thread_self ());
 
   g_mutex_lock (db->mutex);
+  db->compact_thread = g_thread_self ();
   db->compact_processed_count = 0;
   g_mutex_unlock (db->mutex);
 
@@ -1484,18 +1481,16 @@ dupin_database_compact_func (gpointer data, gpointer user_data)
 
 	  /* NOTE - wait till next transaction is finished */
 
-          g_mutex_lock (db->d->mutex);
-
 	  if (db->d->bulk_transaction == TRUE)
             {
-              g_mutex_unlock (db->d->mutex);
-
 //g_message("dupin_database_compact_func(%p) waiting for transaction to finish\n", g_thread_self ());
 
 	      continue;
 	    }
 
 	  /* NOTE - make sure last transaction is commited */
+
+          g_mutex_lock (db->mutex);
 
 	  if (dupin_database_commit_transaction (db, NULL) < 0)
 	    {
@@ -1512,43 +1507,46 @@ dupin_database_compact_func (gpointer data, gpointer user_data)
           if (sqlite3_exec (db->db, "VACUUM", NULL, NULL, &errmsg) != SQLITE_OK
              || sqlite3_exec (db->db, "ANALYZE Dupin", NULL, NULL, &errmsg) != SQLITE_OK)
             {
-              g_mutex_unlock (db->d->mutex);
+              g_mutex_unlock (db->mutex);
               g_error ("dupin_database_compact_func: %s while vacuum and analyze db", errmsg);
               sqlite3_free (errmsg);
               break;
             }
 
-//g_message("dupin_database_compact_func: VACUUM and ANALYZE attachments database\n");
+          g_mutex_unlock (db->mutex);
 
           DupinAttachmentDB *attachment_db;
 
           if (!  (attachment_db = dupin_attachment_db_open (db->d, db->default_attachment_db_name, NULL)))
             {
-              g_mutex_unlock (db->d->mutex);
               g_error ("dupin_database_compact_func: %s",  "Cannot connect to default attachments database");
               break;
             }
 
           /* NOTE - make sure last transaction is commited */
 
+          g_mutex_lock (attachment_db->mutex);
+
           if (dupin_attachment_db_commit_transaction (attachment_db, NULL) < 0)
             {
               dupin_attachment_db_rollback_transaction (attachment_db, NULL);
             }
 
+//g_message("dupin_database_compact_func: VACUUM and ANALYZE attachments database\n");
+
           if (sqlite3_exec (attachment_db->db, "VACUUM", NULL, NULL, &errmsg) != SQLITE_OK
              || sqlite3_exec (attachment_db->db, "ANALYZE Dupin", NULL, NULL, &errmsg) != SQLITE_OK)
             {
-              g_mutex_unlock (db->d->mutex);
+              g_mutex_unlock (attachment_db->mutex);
               dupin_attachment_db_unref (attachment_db);
               g_error("dupin_database_compact_func: %s while vacuum and analyze attachemtns db", errmsg);
               sqlite3_free (errmsg);
 	      break;
             }
 
-          dupin_attachment_db_unref (attachment_db);
+          g_mutex_unlock (attachment_db->mutex);
 
-          g_mutex_unlock (db->d->mutex);
+          dupin_attachment_db_unref (attachment_db);
 
           break;
         }
@@ -1558,9 +1556,6 @@ dupin_database_compact_func (gpointer data, gpointer user_data)
 
   g_mutex_lock (db->mutex);
   db->tocompact = FALSE;
-  g_mutex_unlock (db->mutex);
-
-  g_mutex_lock (db->mutex);
   db->compact_thread = NULL;
   g_mutex_unlock (db->mutex);
 

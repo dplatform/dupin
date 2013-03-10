@@ -43,7 +43,8 @@ static JsonNode *request_view_record_obj (DSHttpdClient * client,
 					  gboolean visit_docs);
 
 static gboolean request_record_response (DSHttpdClient * client,
-					 GList * response_list);
+					 GList * response_list,
+			 		 gboolean is_bulk);
 
 /* WWW FUNCTION *************************************************************/
 static DSHttpStatusCode
@@ -5148,7 +5149,7 @@ request_global_post_record (DSHttpdClient * client, GList * path,
 
   if (dupin_record_insert (db, node, NULL, NULL, &response_list, FALSE, &error) == TRUE)
     {
-      if (request_record_response (client, response_list) == FALSE)
+      if (request_record_response (client, response_list, FALSE) == FALSE)
         {
 	  code = HTTP_STATUS_500;
           request_set_error (client, "Cannot generate JSON output response");
@@ -5273,7 +5274,7 @@ request_global_post_doc_link (DSHttpdClient * client, GList * path,
 
   if (dupin_link_record_insert (linkb, node, NULL, NULL, context_id, link_type, &response_list, strict_links, FALSE, &error) == TRUE)
     {
-      if (request_record_response (client, response_list) == FALSE)
+      if (request_record_response (client, response_list, FALSE) == FALSE)
         {
           code = HTTP_STATUS_500;
           request_set_error (client, "Cannot generate JSON output response");
@@ -5363,7 +5364,7 @@ request_global_post_bulk_docs (DSHttpdClient * client, GList * path,
 
   if (dupin_record_insert_bulk (db, node, &response_list, FALSE, &error) == TRUE)
     {
-      if (request_record_response (client, response_list) == FALSE)
+      if (request_record_response (client, response_list, TRUE) == FALSE)
         {
 	  code = HTTP_STATUS_500;
           request_set_error (client, "Cannot generate JSON output response");
@@ -5481,7 +5482,7 @@ request_global_post_bulk_doc_links (DSHttpdClient * client, GList * path,
 
   if (dupin_link_record_insert_bulk (linkb, node, context_id, &response_list, strict_links, FALSE, &error) == TRUE)
     {
-      if (request_record_response (client, response_list) == FALSE)
+      if (request_record_response (client, response_list, TRUE) == FALSE)
         {
 	  code = HTTP_STATUS_500;
           request_set_error (client, "Cannot generate JSON output response");
@@ -6065,7 +6066,7 @@ request_global_put_record (DSHttpdClient * client, GList * path,
 
   if (res == TRUE)
     {
-      if (request_record_response (client, response_list) == FALSE)
+      if (request_record_response (client, response_list, FALSE) == FALSE)
         {
           code = HTTP_STATUS_500;
           request_set_error (client, "Cannot generate JSON output response");
@@ -6292,7 +6293,7 @@ request_global_put_link_record (DSHttpdClient * client, GList * path,
 
   if (res == TRUE)
     {
-      if (request_record_response (client, response_list) == FALSE)
+      if (request_record_response (client, response_list, FALSE) == FALSE)
         {
           code = HTTP_STATUS_500;
           request_set_error (client, "Cannot generate JSON output response");
@@ -6427,7 +6428,7 @@ request_global_put_record_attachment (DSHttpdClient * client, GList * path,
 				      client->body_size, client->input_mime,
 				      &client_body_ref, &response_list, &error) == TRUE)
     {
-      if (request_record_response (client, response_list) == FALSE)
+      if (request_record_response (client, response_list, FALSE) == FALSE)
         {
           code = HTTP_STATUS_500;
           request_set_error (client, "Cannot generate JSON output response");
@@ -6838,7 +6839,7 @@ request_global_delete_record (DSHttpdClient * client, GList * path,
   GList * response_list = NULL;
   response_list = g_list_prepend (response_list, record_response_node);
 
-  if (request_record_response (client, response_list) == FALSE)
+  if (request_record_response (client, response_list, FALSE) == FALSE)
     {
       while (response_list)
         {
@@ -7028,7 +7029,7 @@ request_global_delete_link_record (DSHttpdClient * client, GList * path,
   GList * response_list = NULL;
   response_list = g_list_prepend (response_list, record_response_node);
 
-  if (request_record_response (client, response_list) == FALSE)
+  if (request_record_response (client, response_list, FALSE) == FALSE)
     {
       while (response_list)
         {
@@ -7073,15 +7074,18 @@ RequestType request_types[] = {
 
 static gboolean
 request_record_response (DSHttpdClient * client,
-			 GList * response_list)
+			 GList * response_list,
+			 gboolean is_bulk)
 {
   JsonGenerator *gen=NULL;
   JsonNode *response_node=NULL;
 
+/*
   if (g_list_length (response_list) == 0)
     return FALSE;
+*/
 
-  if (g_list_length (response_list) == 1)
+  if (g_list_length (response_list) == 1 && is_bulk == FALSE)
     {
       response_node = (JsonNode *) response_list->data;
 

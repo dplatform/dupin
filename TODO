@@ -55,3 +55,5 @@
   - Add validation of IDs and REVs at least
 - HTTP
   - Add Connection: keep-alive and Transfer-Encoding: chunked on input
+- Bulk API
+  - Add "all_or_nothing" to rollback/commit super transaction

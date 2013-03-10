@@ -3195,7 +3195,7 @@ dupin_link_record_insert_bulk (DupinLinkB * linkb,
 
   if (json_object_has_member (obj, REQUEST_POST_BULK_LINKS_LINKS) == FALSE)
     {
-      dupin_linkbase_set_error (linkb, "Bulk body does not contain a mandatory " REQUEST_POST_BULK_LINKS_LINKS " object memeber");
+      dupin_linkbase_set_error (linkb, "Bulk body does not contain a mandatory " REQUEST_POST_BULK_LINKS_LINKS " object member");
       return FALSE;
     }
 
@@ -3203,13 +3203,13 @@ dupin_link_record_insert_bulk (DupinLinkB * linkb,
 
   if (node == NULL)
     {
-      dupin_linkbase_set_error (linkb, "Bulk body does not contain a valid " REQUEST_POST_BULK_LINKS_LINKS " object memeber");
+      dupin_linkbase_set_error (linkb, "Bulk body does not contain a valid " REQUEST_POST_BULK_LINKS_LINKS " object member");
       return FALSE;
     }
 
   if (json_node_get_node_type (node) != JSON_NODE_ARRAY)
     {
-      dupin_linkbase_set_error (linkb, "Bulk body " REQUEST_POST_BULK_LINKS_LINKS " object memeber is not an array");
+      dupin_linkbase_set_error (linkb, "Bulk body " REQUEST_POST_BULK_LINKS_LINKS " object member is not an array");
       return FALSE;
     }
 
@@ -3217,7 +3217,7 @@ dupin_link_record_insert_bulk (DupinLinkB * linkb,
 
   if (array == NULL)
     {
-      dupin_linkbase_set_error (linkb, "Bulk body " REQUEST_POST_BULK_LINKS_LINKS " object memeber is not a valid array");
+      dupin_linkbase_set_error (linkb, "Bulk body " REQUEST_POST_BULK_LINKS_LINKS " object member is not a valid array");
       return FALSE;
     }
 

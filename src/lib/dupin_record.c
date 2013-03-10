@@ -2591,7 +2591,7 @@ dupin_record_insert_bulk (DupinDB * db,
 
   if (json_object_has_member (obj, REQUEST_POST_BULK_DOCS_DOCS) == FALSE)
     {
-      dupin_database_set_error (db, "Bulk body does not contain a mandatory " REQUEST_POST_BULK_DOCS_DOCS " object memeber");
+      dupin_database_set_error (db, "Bulk body does not contain a mandatory " REQUEST_POST_BULK_DOCS_DOCS " object member");
       return FALSE;
     }
 
@@ -2599,13 +2599,13 @@ dupin_record_insert_bulk (DupinDB * db,
 
   if (node == NULL)
     {
-      dupin_database_set_error (db, "Bulk body does not contain a valid " REQUEST_POST_BULK_DOCS_DOCS " object memeber");
+      dupin_database_set_error (db, "Bulk body does not contain a valid " REQUEST_POST_BULK_DOCS_DOCS " object member");
       return FALSE;
     }
 
   if (json_node_get_node_type (node) != JSON_NODE_ARRAY)
     {
-      dupin_database_set_error (db, "Bulk body " REQUEST_POST_BULK_DOCS_DOCS " object memeber is not an array");
+      dupin_database_set_error (db, "Bulk body " REQUEST_POST_BULK_DOCS_DOCS " object member is not an array");
       return FALSE;
     }
 
@@ -2613,7 +2613,7 @@ dupin_record_insert_bulk (DupinDB * db,
 
   if (array == NULL)
     {
-      dupin_database_set_error (db, "Bulk body " REQUEST_POST_BULK_DOCS_DOCS " object memeber is not a valid array");
+      dupin_database_set_error (db, "Bulk body " REQUEST_POST_BULK_DOCS_DOCS " object member is not a valid array");
       return FALSE;
     }
 

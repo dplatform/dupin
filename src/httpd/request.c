@@ -969,7 +969,7 @@ request_global_get_changes_database (DSHttpdClient * client, GList * path,
   gsize total_rows = 0;
 
   gsize last_seq=0;
-  gint since = 0;
+  gsize since = 0;
   DupinChangesType style = DP_CHANGES_MAIN_ONLY;
   DupinChangesFeedType feed = DP_CHANGES_FEED_POLL;
   gboolean include_docs = FALSE;
@@ -993,7 +993,7 @@ request_global_get_changes_database (DSHttpdClient * client, GList * path,
 	count = atoi (kv->value);
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_SINCE))
-	since = (gint) g_ascii_strtoll (kv->value, NULL, 10);
+	since = (gsize) g_ascii_strtoll (kv->value, NULL, 10);
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_HEARTBEAT))
 	heartbeat = atoi (kv->value);
@@ -1098,7 +1098,7 @@ request_global_get_changes_database (DSHttpdClient * client, GList * path,
 	}
       else
         {
-          client->output.changes_comet.param_since = (gsize)since;
+          client->output.changes_comet.param_since = since;
         }
 
       client->output.changes_comet.param_feed = feed;
@@ -1143,7 +1143,7 @@ request_global_get_changes_database (DSHttpdClient * client, GList * path,
   if (since == -1)
     {
       /* NOTE: This is only for completness, due we expect to always return an empty changes when feed poll with since=-1 */
-      since = (gint)last_seq;
+      since = last_seq;
     }
 
   if (since == 0)
@@ -1152,7 +1152,7 @@ request_global_get_changes_database (DSHttpdClient * client, GList * path,
     }
   else
     {
-      if (dupin_database_get_total_changes (db, &total_rows, (gsize)since, 0, DP_COUNT_CHANGES, TRUE, types, types_op, NULL) == FALSE)
+      if (dupin_database_get_total_changes (db, &total_rows, since, 0, DP_COUNT_CHANGES, TRUE, types, types_op, NULL) == FALSE)
         {
           dupin_database_unref (db);
           if (types)
@@ -1162,7 +1162,7 @@ request_global_get_changes_database (DSHttpdClient * client, GList * path,
         }
    }
 
-  if (dupin_database_get_changes_list (db, count, 0, (gsize)since, 0, style, DP_COUNT_CHANGES, DP_ORDERBY_ROWID, descending, types, types_op, &results, NULL) ==
+  if (dupin_database_get_changes_list (db, count, 0, since, 0, style, DP_COUNT_CHANGES, DP_ORDERBY_ROWID, descending, types, types_op, &results, NULL) ==
       FALSE)
     {
       dupin_database_unref (db);
@@ -3075,7 +3075,7 @@ request_global_get_changes_linkbase (DSHttpdClient * client, GList * path,
   gsize total_rows = 0;
 
   gsize last_seq=0;
-  gint since = 0;
+  gsize since = 0;
   DupinChangesType style = DP_CHANGES_MAIN_ONLY;
   DupinChangesFeedType feed = DP_CHANGES_FEED_POLL;
   gboolean include_links = FALSE;
@@ -3097,7 +3097,7 @@ request_global_get_changes_linkbase (DSHttpdClient * client, GList * path,
 	count = atoi (kv->value);
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_SINCE))
-	since = (gint) g_ascii_strtoll (kv->value, NULL, 10);
+	since = (gsize) g_ascii_strtoll (kv->value, NULL, 10);
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_HEARTBEAT))
 	heartbeat = atoi (kv->value);
@@ -3200,7 +3200,7 @@ request_global_get_changes_linkbase (DSHttpdClient * client, GList * path,
         }
       else
         {
-          client->output.changes_comet.param_since = (gsize)since;
+          client->output.changes_comet.param_since = since;
         }
 
       client->output.changes_comet.param_feed = feed;
@@ -3248,7 +3248,7 @@ request_global_get_changes_linkbase (DSHttpdClient * client, GList * path,
   if (since == -1)
     {
       /* NOTE: This is only for completness, due we expect to always return an empty changes when feed poll with since=-1 */
-      since = (gint)last_seq;
+      since = last_seq;
     }
 
   if (since == 0)
@@ -3257,7 +3257,7 @@ request_global_get_changes_linkbase (DSHttpdClient * client, GList * path,
     }
   else
     {
-      if (dupin_linkbase_get_total_changes (linkb, &total_rows, (gsize)since, 0, style, DP_COUNT_CHANGES, TRUE, context_id, tags, tags_op, NULL) == FALSE)
+      if (dupin_linkbase_get_total_changes (linkb, &total_rows, since, 0, style, DP_COUNT_CHANGES, TRUE, context_id, tags, tags_op, NULL) == FALSE)
         {
           if (tags != NULL)
             g_strfreev (tags);
@@ -3268,7 +3268,7 @@ request_global_get_changes_linkbase (DSHttpdClient * client, GList * path,
         }
     }
 
-  if (dupin_linkbase_get_changes_list (linkb, count, 0, (gsize)since, 0, style, DP_COUNT_CHANGES, DP_ORDERBY_ROWID, descending, context_id, tags, tags_op, &results, NULL) ==
+  if (dupin_linkbase_get_changes_list (linkb, count, 0, since, 0, style, DP_COUNT_CHANGES, DP_ORDERBY_ROWID, descending, context_id, tags, tags_op, &results, NULL) ==
       FALSE)
     {
       if (tags != NULL)
@@ -8269,7 +8269,7 @@ request_get_changes_comet_database_next:
           goto request_get_changes_comet_database_error;
         }
 
-//g_message("request_get_changes_comet_database: param_since=%d results_count=%d\n", (gint)client->output.changes_comet.param_since, (gint)g_list_length (results));
+//g_message("request_get_changes_comet_database: param_since=%" G_GSIZE_FORMAT " results_count=%d\n", client->output.changes_comet.param_since, (gint)g_list_length (results));
 
       str = g_string_new (NULL);
 
@@ -8329,21 +8329,15 @@ request_get_changes_comet_database_next:
                 g_string_append (str, change_str);
 		g_free (change_str);
 
-                if ((client->output.changes_comet.param_feed == DP_CHANGES_FEED_LONGPOLL)
-                    && ((client->output.changes_comet.change_last_seq < client->output.changes_comet.change_max_rowid)
-                         || (client->output.changes_comet.change_last_seq > client->output.changes_comet.change_max_rowid
-                             && client->output.changes_comet.change_last_seq < (client->output.changes_comet.param_since+DUPIN_DB_MAX_CHANGES_COMET_COUNT))))
-                  g_string_append (str, ",");
+		if ((client->output.changes_comet.param_feed == DP_CHANGES_FEED_LONGPOLL) && (list->next != NULL))
+		  g_string_append (str, ",");
 
                 g_string_append (str, "\n");
             }
 
 //g_message("request_get_changes_comet_database: last_seq=%d max_rowid=%d\n", (gint)client->output.changes_comet.change_last_seq , (gint) client->output.changes_comet.change_max_rowid);
 
-            if ((client->output.changes_comet.param_feed == DP_CHANGES_FEED_LONGPOLL)
-                && ((client->output.changes_comet.change_last_seq == client->output.changes_comet.change_max_rowid)
-                     || (client->output.changes_comet.change_last_seq > client->output.changes_comet.change_max_rowid
-                         && client->output.changes_comet.change_last_seq == (client->output.changes_comet.param_since))))
+            if (client->output.changes_comet.param_feed == DP_CHANGES_FEED_LONGPOLL)
               g_string_append_printf (str,"], \"last_seq\": %" G_GSIZE_FORMAT " }", client->output.changes_comet.change_last_seq);
 
             client->output.changes_comet.change_generated = TRUE;
@@ -8382,6 +8376,13 @@ request_get_changes_comet_database_next:
           client->output.changes_comet.offset = 0;
 
 //g_message("request_get_changes_comet_database: NEXT -> last_seq=%d < max_rowid=%d\n", (gint)client->output.changes_comet.change_last_seq, (gint)client->output.changes_comet.change_max_rowid);
+
+	  if ((client->output.changes_comet.param_feed == DP_CHANGES_FEED_CONTINUOUS) &&
+	      (client->output.changes_comet.change_last_seq >= client->output.changes_comet.change_max_rowid))
+	    {
+	      client->output.changes_comet.change_results_offset = 0;
+	      client->output.changes_comet.param_since = client->output.changes_comet.change_last_seq;
+	    }
 
           goto request_get_changes_comet_database_next;
         }
@@ -8474,7 +8475,7 @@ request_get_changes_comet_linkbase_next:
           goto request_get_changes_comet_linkbase_error;
         }
 
-//g_message("request_get_changes_comet_linkbase: param_since=%d results_count=%d\n", (gint)client->output.changes_comet.param_since, (gint)g_list_length (results));
+//g_message("request_get_changes_comet_linkbase: param_since=%" G_GSIZE_FORMAT " results_count=%d\n", client->output.changes_comet.param_since, (gint)g_list_length (results));
 
       str = g_string_new (NULL);
 
@@ -8534,10 +8535,7 @@ request_get_changes_comet_linkbase_next:
                 g_string_append (str, change_str);
 		g_free (change_str);
 
-                if ((client->output.changes_comet.param_feed == DP_CHANGES_FEED_LONGPOLL)
-                    && ((client->output.changes_comet.change_last_seq < client->output.changes_comet.change_max_rowid)
-                         || (client->output.changes_comet.change_last_seq > client->output.changes_comet.change_max_rowid
-                             && client->output.changes_comet.change_last_seq < (client->output.changes_comet.param_since+DUPIN_DB_MAX_CHANGES_COMET_COUNT))))
+		if ((client->output.changes_comet.param_feed == DP_CHANGES_FEED_LONGPOLL) && (list->next != NULL))
                   g_string_append (str, ",");
 
                 g_string_append (str, "\n");
@@ -8545,10 +8543,7 @@ request_get_changes_comet_linkbase_next:
 
 //g_message("request_get_changes_comet_linkbase: last_seq=%d max_rowid=%d\n", (gint)client->output.changes_comet.change_last_seq , (gint) client->output.changes_comet.change_max_rowid);
 
-            if ((client->output.changes_comet.param_feed == DP_CHANGES_FEED_LONGPOLL)
-                && ((client->output.changes_comet.change_last_seq == client->output.changes_comet.change_max_rowid)
-                     || (client->output.changes_comet.change_last_seq > client->output.changes_comet.change_max_rowid
-                         && client->output.changes_comet.change_last_seq == (client->output.changes_comet.param_since))))
+            if (client->output.changes_comet.param_feed == DP_CHANGES_FEED_LONGPOLL)
               g_string_append_printf (str,"], \"last_seq\": %" G_GSIZE_FORMAT " }", client->output.changes_comet.change_last_seq);
 
             client->output.changes_comet.change_generated = TRUE;
@@ -8587,6 +8582,13 @@ request_get_changes_comet_linkbase_next:
           client->output.changes_comet.offset = 0;
 
 //g_message("request_get_changes_comet_linkbase: NEXT -> last_seq=%d < max_rowid=%d\n", (gint)client->output.changes_comet.change_last_seq, (gint)client->output.changes_comet.change_max_rowid);
+
+	  if ((client->output.changes_comet.param_feed == DP_CHANGES_FEED_CONTINUOUS) &&
+              (client->output.changes_comet.change_last_seq >= client->output.changes_comet.change_max_rowid))
+            {
+              client->output.changes_comet.change_results_offset = 0;
+              client->output.changes_comet.param_since = client->output.changes_comet.change_last_seq;
+            }
 
           goto request_get_changes_comet_linkbase_next;
         }

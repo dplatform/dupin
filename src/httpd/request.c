@@ -990,7 +990,11 @@ request_global_get_changes_database (DSHttpdClient * client, GList * path,
 	descending = TRUE;
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_LIMIT))
-	count = atoi (kv->value);
+        {
+	  count = atoi (kv->value);
+	  if (count == 0)
+            count = DUPIN_DB_MAX_CHANGES_COUNT;
+        }
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_SINCE))
 	since = (gsize) g_ascii_strtoll (kv->value, NULL, 10);
@@ -1101,6 +1105,7 @@ request_global_get_changes_database (DSHttpdClient * client, GList * path,
           client->output.changes_comet.param_since = since;
         }
 
+      client->output.changes_comet.param_limit = count;
       client->output.changes_comet.param_feed = feed;
       client->output.changes_comet.param_include_docs = include_docs;
       client->output.changes_comet.param_types = types;
@@ -1350,7 +1355,11 @@ request_global_get_all_docs (DSHttpdClient * client, GList * path,
 	descending = TRUE;
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_LIMIT))
-	count = atoi (kv->value);
+        {
+	  count = atoi (kv->value);
+	  if (count == 0)
+            count = DUPIN_DB_MAX_DOCS_COUNT;
+        }
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_OFFSET))
 	offset = atoi (kv->value);
@@ -2016,7 +2025,11 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 	descending = TRUE;
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_LIMIT))
-	count = atoi (kv->value);
+	{
+          count = atoi (kv->value);
+          if (count == 0)
+  	    count = DUPIN_REVISIONS_COUNT;
+        }
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_OFFSET))
 	offset = atoi (kv->value);
@@ -2026,7 +2039,11 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 	attachments_descending = TRUE;
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_ATTACHMENTS_LIMIT))
-	attachments_count = atoi (kv->value);
+	{
+	  attachments_count = atoi (kv->value);
+          if (attachments_count == 0)
+            attachments_count = DUPIN_ATTACHMENTS_COUNT;
+        }
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_ATTACHMENTS_OFFSET))
 	attachments_offset = atoi (kv->value);
@@ -2580,7 +2597,11 @@ request_global_get_all_links_linkbase (DSHttpdClient * client, GList * path,
 	descending = TRUE;
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_LIMIT))
-	count = atoi (kv->value);
+	{
+          count = atoi (kv->value);
+          if (count == 0)
+            count = DUPIN_LINKB_MAX_LINKS_COUNT;
+        }
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_OFFSET))
 	offset = atoi (kv->value);
@@ -3063,7 +3084,7 @@ request_global_get_changes_linkbase (DSHttpdClient * client, GList * path,
   GList *results;
 
   gboolean descending = FALSE;
-  guint count = DUPIN_DB_MAX_CHANGES_COUNT;
+  guint count = DUPIN_LINKB_MAX_CHANGES_COUNT;
 
   guint heartbeat=REQUEST_GET_ALL_CHANGES_HEARTBEAT_DEFAULT;
   guint timeout=REQUEST_GET_ALL_CHANGES_TIMEOUT_DEFAULT;
@@ -3094,7 +3115,11 @@ request_global_get_changes_linkbase (DSHttpdClient * client, GList * path,
 	descending = TRUE;
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_LIMIT))
-	count = atoi (kv->value);
+	{
+          count = atoi (kv->value);
+          if (count == 0)
+  	    count = DUPIN_LINKB_MAX_CHANGES_COUNT;
+        }
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_SINCE))
 	since = (gsize) g_ascii_strtoll (kv->value, NULL, 10);
@@ -3203,6 +3228,7 @@ request_global_get_changes_linkbase (DSHttpdClient * client, GList * path,
           client->output.changes_comet.param_since = since;
         }
 
+      client->output.changes_comet.param_limit = count;
       client->output.changes_comet.param_feed = feed;
       client->output.changes_comet.param_include_links = include_links;
       client->output.changes_comet.param_context_id = context_id;
@@ -3504,7 +3530,11 @@ request_global_get_record_linkbase (DSHttpdClient * client, GList * path,
 	descending = TRUE;
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_LIMIT))
-	count = atoi (kv->value);
+	{
+          count = atoi (kv->value);
+          if (count == 0)
+  	    count = DUPIN_LINKB_MAX_LINKS_COUNT;
+        }
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_OFFSET))
 	offset = atoi (kv->value);
@@ -3951,7 +3981,11 @@ request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
 	descending = TRUE;
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_LIMIT))
-	count = atoi (kv->value);
+	{
+          count = atoi (kv->value);
+          if (count == 0)
+  	    count = DUPIN_VIEW_MAX_DOCS_COUNT;
+        }
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_OFFSET))
 	offset = atoi (kv->value);
@@ -7334,7 +7368,11 @@ request_record_revision_obj (DSHttpdClient * client,
 	    include_links_weblinks_descending = TRUE;
 
           else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_WEBLINKS_LIMIT))
-	    include_links_weblinks_count = atoi (kv->value);
+	    {
+              include_links_weblinks_count = atoi (kv->value);
+              if (include_links_weblinks_count == 0)
+                include_links_weblinks_count = DUPIN_LINKB_MAX_LINKS_COUNT;
+            }
 
           else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_WEBLINKS_OFFSET))
 	    include_links_weblinks_offset = atoi (kv->value);
@@ -7344,7 +7382,11 @@ request_record_revision_obj (DSHttpdClient * client,
 	    include_links_relationships_descending = TRUE;
 
           else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_RELATIONSHIPS_LIMIT))
-	    include_links_relationships_count = atoi (kv->value);
+	    {
+              include_links_relationships_count = atoi (kv->value);
+              if (include_links_relationships_count == 0)
+                include_links_relationships_count = DUPIN_LINKB_MAX_LINKS_COUNT;
+            }
 
           else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_RELATIONSHIPS_OFFSET))
 	    include_links_relationships_offset = atoi (kv->value);
@@ -8255,7 +8297,8 @@ request_get_changes_comet_database_next:
   if (client->output.changes_comet.change_generated == FALSE)
     {
       if (dupin_database_get_changes_list (client->output.changes_comet.db,
-                                       DUPIN_DB_MAX_CHANGES_COMET_COUNT,
+                                       //DUPIN_DB_MAX_CHANGES_COUNT,
+                                       client->output.changes_comet.param_limit,
                                        client->output.changes_comet.change_results_offset,
                                        client->output.changes_comet.param_since,
                                        0,
@@ -8369,7 +8412,11 @@ request_get_changes_comet_database_next:
       client->output.changes_comet.change_generated = FALSE;
       *bytes_read = 0;
 
-      if (client->output.changes_comet.change_last_seq < client->output.changes_comet.change_max_rowid
+      if (client->output.changes_comet.param_feed == DP_CHANGES_FEED_LONGPOLL)
+        {
+          return FALSE; /* done */
+        }
+      else if (client->output.changes_comet.change_last_seq < client->output.changes_comet.change_max_rowid
           || client->output.changes_comet.param_feed == DP_CHANGES_FEED_CONTINUOUS)
         {
 	  offset = 0;
@@ -8377,18 +8424,13 @@ request_get_changes_comet_database_next:
 
 //g_message("request_get_changes_comet_database: NEXT -> last_seq=%d < max_rowid=%d\n", (gint)client->output.changes_comet.change_last_seq, (gint)client->output.changes_comet.change_max_rowid);
 
-	  if ((client->output.changes_comet.param_feed == DP_CHANGES_FEED_CONTINUOUS) &&
-	      (client->output.changes_comet.change_last_seq >= client->output.changes_comet.change_max_rowid))
+	  if (client->output.changes_comet.param_feed == DP_CHANGES_FEED_CONTINUOUS)
 	    {
 	      client->output.changes_comet.change_results_offset = 0;
 	      client->output.changes_comet.param_since = client->output.changes_comet.change_last_seq;
 	    }
 
           goto request_get_changes_comet_database_next;
-        }
-      else if (client->output.changes_comet.param_feed == DP_CHANGES_FEED_LONGPOLL)
-        {
-          return FALSE; /* done */
         }
     }
 
@@ -8460,7 +8502,7 @@ request_get_changes_comet_linkbase_next:
   if (client->output.changes_comet.change_generated == FALSE)
     {
       if (dupin_linkbase_get_changes_list (client->output.changes_comet.linkb,
-                                       DUPIN_DB_MAX_CHANGES_COMET_COUNT,
+                                       DUPIN_LINKB_MAX_CHANGES_COUNT,
                                        client->output.changes_comet.change_results_offset,
                                        client->output.changes_comet.param_since,
                                        0,
@@ -8575,7 +8617,11 @@ request_get_changes_comet_linkbase_next:
       client->output.changes_comet.change_generated = FALSE;
       *bytes_read = 0;
 
-      if (client->output.changes_comet.change_last_seq < client->output.changes_comet.change_max_rowid
+      if (client->output.changes_comet.param_feed == DP_CHANGES_FEED_LONGPOLL)
+        {
+          return FALSE; /* done */
+        }
+      else if (client->output.changes_comet.change_last_seq < client->output.changes_comet.change_max_rowid
           || client->output.changes_comet.param_feed == DP_CHANGES_FEED_CONTINUOUS)
         {
 	  offset = 0;
@@ -8583,18 +8629,13 @@ request_get_changes_comet_linkbase_next:
 
 //g_message("request_get_changes_comet_linkbase: NEXT -> last_seq=%d < max_rowid=%d\n", (gint)client->output.changes_comet.change_last_seq, (gint)client->output.changes_comet.change_max_rowid);
 
-	  if ((client->output.changes_comet.param_feed == DP_CHANGES_FEED_CONTINUOUS) &&
-              (client->output.changes_comet.change_last_seq >= client->output.changes_comet.change_max_rowid))
+	  if (client->output.changes_comet.param_feed == DP_CHANGES_FEED_CONTINUOUS)
             {
               client->output.changes_comet.change_results_offset = 0;
               client->output.changes_comet.param_since = client->output.changes_comet.change_last_seq;
             }
 
           goto request_get_changes_comet_linkbase_next;
-        }
-      else if (client->output.changes_comet.param_feed == DP_CHANGES_FEED_LONGPOLL)
-        {
-          return FALSE; /* done */
         }
     }
 
@@ -8777,7 +8818,11 @@ request_global_get_portable_listings (DSHttpdClient * client, GList * path,
 
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_PORTABLE_LISTINGS_COUNT))
-	count = atoi (kv->value);
+	{
+	  count = atoi (kv->value);
+          if (count == 0)
+      	    count = DUPIN_DB_MAX_DOCS_COUNT;
+        }
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_PORTABLE_LISTINGS_START_INDEX))
 	offset = atoi (kv->value);
@@ -9685,7 +9730,11 @@ request_global_get_portable_listings_record_relationship (DSHttpdClient * client
 
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_PORTABLE_LISTINGS_COUNT))
-	count = atoi (kv->value);
+	{
+          count = atoi (kv->value);
+          if (count == 0)
+            count = DUPIN_LINKB_MAX_LINKS_COUNT;
+        }
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_PORTABLE_LISTINGS_START_INDEX))
 	offset = atoi (kv->value);

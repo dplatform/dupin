@@ -153,6 +153,7 @@ struct ds_httpd_client_t
       guint		   param_heartbeat;
       guint		   param_timeout;
       gboolean 		   param_descending;
+      guint		   param_limit;
       gsize		   param_since;
       DupinChangesFeedType param_feed;
       DupinChangesType	   param_style;

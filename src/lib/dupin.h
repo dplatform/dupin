@@ -224,7 +224,6 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 #define DUPIN_VIEW_MAX_DOCS_COUNT   50
 #define DUPIN_ATTACHMENTS_COUNT     100
 #define DUPIN_REVISIONS_COUNT       100
-#define DUPIN_DB_MAX_CHANGES_COUNT  100
 
 #define DUPIN_INCLUDE_DEFAULT_LEVEL	1	
 #define DUPIN_INCLUDE_MAX_LEVEL		2	
@@ -400,8 +399,8 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 
 /* Changes API */
 
-#define DUPIN_DB_MAX_CHANGES_COMET_COUNT  255
-#define DUPIN_LINKB_MAX_CHANGES_COMET_COUNT  255
+#define DUPIN_DB_MAX_CHANGES_COUNT           255
+#define DUPIN_LINKB_MAX_CHANGES_COUNT        DUPIN_DB_MAX_CHANGES_COUNT
 
 /* Portable Listings */
 

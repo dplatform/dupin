@@ -5354,8 +5354,19 @@ request_global_post_bulk_docs (DSHttpdClient * client, GList * path,
   GError *error = NULL;
   GList *response_list=NULL;
   DupinDB * db=NULL;
+  gboolean user_latest_revision = FALSE;
+  GList * l=NULL;
 
   DSHttpStatusCode code;
+
+  for (l = arguments; l; l = l->next)
+    {
+      dupin_keyvalue_t *kv = l->data;
+
+      if (!g_strcmp0 (kv->key, REQUEST_POST_BULK_DOCS_USE_LATEST_REVISION)
+	  && !g_strcmp0 (kv->value, "true"))
+	user_latest_revision = TRUE;
+    }
 
   JsonParser *parser = json_parser_new ();
 
@@ -5387,6 +5398,11 @@ request_global_post_bulk_docs (DSHttpdClient * client, GList * path,
       goto request_global_post_bulk_docs_end;
     }
 
+  /* NOTE - posted docu override URL parameter eventually */
+  if ((json_node_get_node_type (node) == JSON_NODE_OBJECT) &&
+      (json_object_has_member (json_node_get_object (node), REQUEST_POST_BULK_DOCS_USE_LATEST_REVISION) == TRUE))
+    user_latest_revision = json_node_get_boolean (node);
+
   if (!
       (db =
        dupin_database_open (client->thread->data->dupin, path->data, NULL)))
@@ -5396,7 +5412,7 @@ request_global_post_bulk_docs (DSHttpdClient * client, GList * path,
       goto request_global_post_bulk_docs_end;
     }
 
-  if (dupin_record_insert_bulk (db, node, &response_list, FALSE, &error) == TRUE)
+  if (dupin_record_insert_bulk (db, node, &response_list, user_latest_revision, &error) == TRUE)
     {
       if (request_record_response (client, response_list, TRUE) == FALSE)
         {
@@ -5441,6 +5457,7 @@ request_global_post_bulk_doc_links (DSHttpdClient * client, GList * path,
   DupinLinkB * linkb = NULL;
   gboolean strict_links = FALSE;
   GList * l=NULL;
+  gboolean user_latest_revision = FALSE;
 
   DSHttpStatusCode code;
 
@@ -5462,6 +5479,9 @@ request_global_post_bulk_doc_links (DSHttpdClient * client, GList * path,
               strict_links = true;
             }
         }
+      else if (!g_strcmp0 (kv->key, REQUEST_POST_BULK_LINKS_USE_LATEST_REVISION)
+	       && !g_strcmp0 (kv->value, "true"))
+	user_latest_revision = TRUE;
     }
 
   gchar * context_id = path->next->data;
@@ -5496,6 +5516,11 @@ request_global_post_bulk_doc_links (DSHttpdClient * client, GList * path,
       goto request_global_post_bulk_doc_links_end;
     }
 
+  /* NOTE - posted docu override URL parameter eventually */
+  if ((json_node_get_node_type (node) == JSON_NODE_OBJECT) &&
+      (json_object_has_member (json_node_get_object (node), REQUEST_POST_BULK_LINKS_USE_LATEST_REVISION) == TRUE))
+    user_latest_revision = json_node_get_boolean (node);
+
   /* NOTE - need to get the right linkbase to post to */
   if (!  (db = dupin_database_open (client->thread->data->dupin, path->data, NULL)))
     {
@@ -5514,7 +5539,7 @@ request_global_post_bulk_doc_links (DSHttpdClient * client, GList * path,
 
   dupin_database_unref (db);
 
-  if (dupin_link_record_insert_bulk (linkb, node, context_id, &response_list, strict_links, FALSE, &error) == TRUE)
+  if (dupin_link_record_insert_bulk (linkb, node, context_id, &response_list, strict_links, user_latest_revision, &error) == TRUE)
     {
       if (request_record_response (client, response_list, TRUE) == FALSE)
         {

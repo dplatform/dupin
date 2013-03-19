@@ -383,14 +383,16 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 #define REQUEST_FIELDS          "_fields"
 
 /* POST */
-#define REQUEST_POST_BULK_DOCS          "_bulk_docs"
-#define REQUEST_POST_BULK_DOCS_DOCS     "docs"
-#define REQUEST_POST_COMPACT_DATABASE   "_compact"
+#define REQUEST_POST_BULK_DOCS          	    "_bulk_docs"
+#define REQUEST_POST_BULK_DOCS_DOCS     	    "docs"
+#define REQUEST_POST_BULK_DOCS_USE_LATEST_REVISION  "use_latest_revision"
+#define REQUEST_POST_COMPACT_DATABASE		    "_compact"
 
-#define REQUEST_POST_BULK_LINKS         "_bulk_links"
-#define REQUEST_POST_BULK_LINKS_LINKS   "links"
-#define REQUEST_POST_COMPACT_LINKBASE   REQUEST_POST_COMPACT_DATABASE
-#define REQUEST_POST_CHECK_LINKBASE     "_check"
+#define REQUEST_POST_BULK_LINKS         	    "_bulk_links"
+#define REQUEST_POST_BULK_LINKS_LINKS   	    "links"
+#define REQUEST_POST_BULK_LINKS_USE_LATEST_REVISION REQUEST_POST_BULK_DOCS_USE_LATEST_REVISION
+#define REQUEST_POST_COMPACT_LINKBASE   	    REQUEST_POST_COMPACT_DATABASE
+#define REQUEST_POST_CHECK_LINKBASE     	    "_check"
 
 /* DATA STRUCT */
 #define REQUEST_WWW             "_www"

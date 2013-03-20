@@ -2966,9 +2966,9 @@ dupin_link_record_insert (DupinLinkB * linkb,
           record = dupin_link_record_read (linkb, id, error);
 	}
 
-      /* NOTE - we this we allow selective update implicitly on the latest version if requested. For example
-                to allow incremental updates of a record - this is only used in support/dupin_loader
-                and never made available via the REST API */
+      /* NOTE - With this we allow selective update implicitly on the latest version if requested. For example
+                to allow incremental updates of a record - this is used in support/dupin_loader
+                and made available via the bulk REST API */
       if (mvcc == NULL
           && (id && use_latest_revision == TRUE)
           && record != NULL)

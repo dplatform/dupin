@@ -186,6 +186,9 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 #define RESPONSE_OBJ_RELATIONSHIPS      REQUEST_OBJ_RELATIONSHIPS
 #define RESPONSE_OBJ_CONTENT            REQUEST_OBJ_CONTENT
 #define RESPONSE_OBJ_DELETED            REQUEST_OBJ_DELETED
+#define RESPONSE_OBJ_STATUS	        "status"
+#define RESPONSE_OBJ_STATUS_AVAILABLE	"available"
+#define RESPONSE_OBJ_STATUS_DELETED	"deleted"
 #define RESPONSE_OBJ_EMPTY              "_empty"
 #define RESPONSE_OBJ_INCLUDED           "_included"
 #define RESPONSE_OBJ_LINKS_PAGING       "_paging"

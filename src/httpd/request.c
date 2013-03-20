@@ -2192,6 +2192,8 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 					   &revisions, NULL) == FALSE)
          || (dupin_record_get_total_revisions (record, &total_rows, NULL) == FALSE))
 	{
+          if (revisions != NULL)
+ 	    dupin_record_get_revisions_list_close (revisions);
           if (node != NULL)
             json_node_free (node);
 	  json_array_unref (array);
@@ -2205,46 +2207,41 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 
       for (list = revisions; list; list = list->next)
         {
-	  JsonNode *on;
+	  JsonNode *obj_node = json_node_new (JSON_NODE_OBJECT);
+	  JsonObject *obj=NULL;
 
-	  if (!
-	      (on =
-	       request_record_revision_obj (client, arguments,
-					    record,
-					    (gchar *) dupin_record_get_id (record),
-					    (gchar *) list->data,
-					    FALSE)))
+          if (obj_node == NULL)
             {
+              json_array_unref (array);
               dupin_record_get_revisions_list_close (revisions);
-	      json_array_unref (array);
 	      goto request_global_get_record_error;
             }
 
-          if (request_fields != NULL)
-            {
-              JsonObject * on_obj = json_node_get_object (on);
+          obj = json_object_new ();
 
-              if (json_object_has_member (on_obj, (const gchar *)request_fields) == FALSE)
-                {
-                  dupin_record_get_revisions_list_close (revisions);
-                  if (node != NULL)
-                    json_node_free (node);
-	          json_array_unref (array);
-	          dupin_record_close (record);
-	          dupin_database_unref (db);
-                  dupin_attachment_db_unref (attachment_db);
-                  g_free (doc_id);
-                  request_set_error (client, "Cannot get field for record revisions list");
-	          return HTTP_STATUS_404;
-                }
-
-              json_array_add_element( array, json_node_copy (json_object_get_member (on_obj, (const gchar *)request_fields)));
-              json_node_free (on);
-            }
-          else
+          if (obj == NULL)
             {
-              json_array_add_element( array, on);
+              json_node_free (obj_node);
+
+              json_array_unref (array);
+              dupin_record_get_revisions_list_close (revisions);
+	      goto request_global_get_record_error;
             }
+
+          json_node_take_object (obj_node, obj);
+
+          json_object_set_string_member (obj, RESPONSE_OBJ_REV, dupin_record_get_last_revision (record));
+
+	  if (dupin_record_is_deleted (record, mvcc) == TRUE)
+            {
+              json_object_set_string_member (obj, RESPONSE_OBJ_STATUS, RESPONSE_OBJ_STATUS_DELETED);
+	    }
+   	  else 
+	    {
+              json_object_set_string_member (obj, RESPONSE_OBJ_STATUS, RESPONSE_OBJ_STATUS_AVAILABLE);
+ 	    }
+
+          json_array_add_element( array, obj_node);
         }
 
       dupin_record_get_revisions_list_close (revisions);
@@ -3590,14 +3587,14 @@ request_global_get_record_linkbase (DSHttpdClient * client, GList * path,
       obj = json_object_new ();
 
       if (obj == NULL)
-        goto request_global_get_record_error;
+        goto request_global_get_record_linkbase_error;
 
       json_node_take_object (node, obj);
 
       array = json_array_new ();
 
       if (array == NULL)
-        goto request_global_get_record_error;
+        goto request_global_get_record_linkbase_error;
 
       if ((dupin_link_record_get_revisions_list (record,
 				           count,
@@ -3606,6 +3603,9 @@ request_global_get_record_linkbase (DSHttpdClient * client, GList * path,
 					   &revisions, NULL) == FALSE)
          || (dupin_link_record_get_total_revisions (record, &total_rows, NULL) == FALSE))
 	{
+	  if (revisions != NULL)
+	    dupin_link_record_get_revisions_list_close (revisions);
+          json_array_unref (array);
 	  dupin_link_record_close (record);
 	  dupin_linkbase_unref (linkb);
           g_free (link_id);
@@ -3615,43 +3615,40 @@ request_global_get_record_linkbase (DSHttpdClient * client, GList * path,
 
       for (list = revisions; list; list = list->next)
         {
-	  JsonNode *on;
+	  JsonNode *obj_node = json_node_new (JSON_NODE_OBJECT);
+          JsonObject *obj=NULL;
 
-	  if (!
-	      (on =
-	       request_link_record_revision_obj (client, arguments,
-						 record,
-						 (gchar *) dupin_link_record_get_id (record),
-				   		 (gchar *) list->data,
-						 FALSE)))
+          if (obj_node == NULL)
             {
-              dupin_link_record_get_revisions_list_close (revisions);
-	      json_array_unref (array);
-	      goto request_global_get_record_error;
+	      dupin_link_record_get_revisions_list_close (revisions);
+              json_array_unref (array);
+              goto request_global_get_record_linkbase_error;
             }
 
-          if (request_fields != NULL)
+          obj = json_object_new ();
+
+          if (obj == NULL)
             {
-              JsonObject * on_obj = json_node_get_object (on);
+              json_node_free (obj_node);
+	      dupin_link_record_get_revisions_list_close (revisions);
+              json_array_unref (array);
+              goto request_global_get_record_linkbase_error;
+            }
 
-              if (json_object_has_member (on_obj, (const gchar *)request_fields) == FALSE)
-                {
-                  dupin_link_record_get_revisions_list_close (revisions);
-	          json_array_unref (array);
-	          dupin_link_record_close (record);
-	          dupin_linkbase_unref (linkb);
-                  g_free (link_id);
-		  request_set_error (client, "Cannot get field for link record revisions list");
-	          return HTTP_STATUS_404;
-                }
+          json_node_take_object (obj_node, obj);
 
-              json_array_add_element( array, json_node_copy (json_object_get_member (on_obj, (const gchar *)request_fields)));
-              json_node_free (on);
+          json_object_set_string_member (obj, RESPONSE_OBJ_REV, dupin_link_record_get_last_revision (record));
+
+          if (dupin_link_record_is_deleted (record, mvcc) == TRUE)
+            {
+              json_object_set_string_member (obj, RESPONSE_OBJ_STATUS, RESPONSE_OBJ_STATUS_DELETED);
             }
           else
             {
-              json_array_add_element( array, on);
+              json_object_set_string_member (obj, RESPONSE_OBJ_STATUS, RESPONSE_OBJ_STATUS_AVAILABLE);
             }
+
+          json_array_add_element( array, obj_node);
         }
 
       dupin_link_record_get_revisions_list_close (revisions);
@@ -3727,7 +3724,7 @@ request_global_get_record_linkbase (DSHttpdClient * client, GList * path,
   client->output_size = strlen(client->output.string.string);
 
   if (client->output.string.string == NULL)
-    goto request_global_get_record_error;
+    goto request_global_get_record_linkbase_error;
 
   client->output_mime = g_strdup (HTTP_MIME_JSON);
   client->output_type = DS_HTTPD_OUTPUT_STRING;
@@ -3742,7 +3739,7 @@ request_global_get_record_linkbase (DSHttpdClient * client, GList * path,
 
   return HTTP_STATUS_200;
 
-request_global_get_record_error:
+request_global_get_record_linkbase_error:
 
   if (node != NULL)
     json_node_free (node);

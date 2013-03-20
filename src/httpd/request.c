@@ -2230,9 +2230,9 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 
           json_node_take_object (obj_node, obj);
 
-          json_object_set_string_member (obj, RESPONSE_OBJ_REV, dupin_record_get_last_revision (record));
+          json_object_set_string_member (obj, RESPONSE_OBJ_REV, (gchar *) list->data);
 
-	  if (dupin_record_is_deleted (record, mvcc) == TRUE)
+	  if (dupin_record_is_deleted (record, (gchar *) list->data) == TRUE)
             {
               json_object_set_string_member (obj, RESPONSE_OBJ_STATUS, RESPONSE_OBJ_STATUS_DELETED);
 	    }
@@ -2391,6 +2391,10 @@ request_global_get_record (DSHttpdClient * client, GList * path,
 
   if (client->output.string.string == NULL)
     goto request_global_get_record_error;
+
+  /* Etag */
+  gchar * etag = dupin_record_get_last_revision (record);
+  memcpy (client->output_etag, etag, strlen(etag));
 
   client->output_mime = g_strdup (HTTP_MIME_JSON);
   client->output_type = DS_HTTPD_OUTPUT_STRING;
@@ -3637,9 +3641,9 @@ request_global_get_record_linkbase (DSHttpdClient * client, GList * path,
 
           json_node_take_object (obj_node, obj);
 
-          json_object_set_string_member (obj, RESPONSE_OBJ_REV, dupin_link_record_get_last_revision (record));
+          json_object_set_string_member (obj, RESPONSE_OBJ_REV, (gchar *) list->data);
 
-          if (dupin_link_record_is_deleted (record, mvcc) == TRUE)
+          if (dupin_link_record_is_deleted (record, (gchar *) list->data) == TRUE)
             {
               json_object_set_string_member (obj, RESPONSE_OBJ_STATUS, RESPONSE_OBJ_STATUS_DELETED);
             }
@@ -3725,6 +3729,10 @@ request_global_get_record_linkbase (DSHttpdClient * client, GList * path,
 
   if (client->output.string.string == NULL)
     goto request_global_get_record_linkbase_error;
+
+  /* Etag */
+  gchar * etag = dupin_link_record_get_last_revision (record);
+  memcpy (client->output_etag, etag, strlen(etag));
 
   client->output_mime = g_strdup (HTTP_MIME_JSON);
   client->output_type = DS_HTTPD_OUTPUT_STRING;
@@ -7143,22 +7151,37 @@ request_record_response (DSHttpdClient * client,
 
   if (g_list_length (response_list) == 1 && is_bulk == FALSE)
     {
-      response_node = (JsonNode *) response_list->data;
+      JsonNode * r = (JsonNode *) response_list->data;
 
-      if (json_node_get_node_type (response_node) != JSON_NODE_OBJECT)
+      if (json_node_get_node_type (r) != JSON_NODE_OBJECT)
         return FALSE;
  
-      response_node = json_node_copy (response_node);
+      response_node = json_node_copy (r);
 
       if (json_object_has_member (json_node_get_object (response_node), RESPONSE_STATUS_ERROR) == FALSE)
         json_object_set_boolean_member (json_node_get_object (response_node), "ok", TRUE);
+
+      /* Etag */
+      if (json_object_has_member (json_node_get_object (response_node), RESPONSE_OBJ_REV) == TRUE)
+        {
+          gchar * etag = (gchar *) json_object_get_string_member (json_node_get_object (response_node), RESPONSE_OBJ_REV);
+          memcpy (client->output_etag, etag, strlen(etag));
+	}
+      else if (json_object_has_member (json_node_get_object (response_node), REQUEST_OBJ_REV) == TRUE)
+        {
+          gchar * etag = (gchar *) json_object_get_string_member (json_node_get_object (response_node), REQUEST_OBJ_REV);
+          memcpy (client->output_etag, etag, strlen(etag));
+	}
     }
   else
     {
       response_node = json_node_new (JSON_NODE_ARRAY);
+
       if (response_node == NULL)
         return FALSE;
+
       JsonArray * response_array = json_array_new ();
+
       json_node_take_array (response_node, response_array);
 
       if (response_array == NULL)

@@ -1691,6 +1691,10 @@ httpd_client_send (DSHttpdClient * client, DSHttpStatusCode code)
 
   g_string_append_printf (str, "Date: %s\r\n", buf);
 
+  /* Etag */
+  if (g_strcmp0 (client->output_etag, ""))
+    g_string_append_printf (str, "ETag: %s\r\n", client->output_etag);
+
   /* Body length: */
   if (client->output_type != DS_HTTPD_OUTPUT_CHANGES_COMET)
     {

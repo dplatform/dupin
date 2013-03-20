@@ -8,6 +8,7 @@
 #include <glib-object.h>
 
 #include "../lib/dupin.h"
+#include "../lib/dupin_internal.h"
 
 #include "configure.h"
 
@@ -86,6 +87,8 @@ struct ds_httpd_client_t
   gsize		body_done;
 
   DSHttpdOutputType output_type;
+
+  gchar 	output_etag[DUPIN_ID_MAX_LEN];
 
   gchar *	output_header;
   gsize		output_header_size;

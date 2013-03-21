@@ -4,6 +4,7 @@
 
 #include "dupin_internal.h"
 #include "dupin_utils.h"
+#include "dupin_date.h"
 #include "dupin_view.h"
 
 #include <stdlib.h>
@@ -282,7 +283,7 @@ dupin_view_new (Dupin * d, gchar * view, gchar * parent, gboolean is_db, gboolea
       return NULL;
     }
 
-  gchar * creation_time = g_strdup_printf ("%" G_GSIZE_FORMAT, dupin_util_timestamp_now ());
+  gchar * creation_time = g_strdup_printf ("%" G_GSIZE_FORMAT, dupin_date_timestamp_now (0));
 
   str =
     sqlite3_mprintf ("INSERT OR REPLACE INTO DupinView "
@@ -2016,7 +2017,7 @@ dupin_view_sync_thread_map_db (DupinView * view, gsize count)
 
 	  if (json_object_has_member (obj, "_created") == TRUE)
             json_object_remove_member (obj, "_created"); // ignore any record one if set by user, ever
-          gchar * created = dupin_util_timestamp_to_iso8601 (dupin_record_get_created (list->data));
+          gchar * created = dupin_date_timestamp_to_iso8601 (dupin_record_get_created (list->data));
           json_object_set_string_member (obj, "_created", created);
           g_free (created);
 
@@ -2190,7 +2191,7 @@ dupin_view_sync_thread_map_linkb (DupinView * view, gsize count)
 
           if (json_object_has_member (obj, "_created") == TRUE)
             json_object_remove_member (obj, "_created"); // ignore any record one if set by user, ever
-	  gchar * created = dupin_util_timestamp_to_iso8601 (dupin_link_record_get_created (list->data));
+	  gchar * created = dupin_date_timestamp_to_iso8601 (dupin_link_record_get_created (list->data));
           json_object_set_string_member (obj, "_created", created);
           g_free (created);
 

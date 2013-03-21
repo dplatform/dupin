@@ -143,54 +143,6 @@ dupin_util_generate_id (gchar id[DUPIN_ID_MAX_LEN])
    g_free (md5);
 }
 
-gsize
-dupin_util_timestamp_now ()
-{
-  gsize ttime=0;
-  GTimeVal tnow;
-
-  g_get_current_time(&tnow); 
-  ttime= tnow.tv_sec * 1000000 + tnow.tv_usec;
-
-  return ttime;
-}
-
-gchar *
-dupin_util_timestamp_to_iso8601 (gsize timestamp)
-{
-  GTimeVal tv;
-
-  tv.tv_sec = timestamp / 1000000;
-  tv.tv_usec = timestamp % 1000000;
-
-//g_message ("dupin_util_timestamp_to_iso8601: timestamp=%" G_GSIZE_FORMAT "\n", (long unsigned int)timestamp);
-  
-  return g_time_val_to_iso8601 (&tv);
-}
-
-/* NOTE - we assume dates in UTC absiolute time like "2011-06-12T14:10:49.090864Z" */
-
-gboolean
-dupin_util_iso8601_to_timestamp (gchar * iso8601_date, gsize * timestamp)
-{
-  g_return_val_if_fail (iso8601_date != NULL, FALSE);
-  g_return_val_if_fail (timestamp != NULL, FALSE);
-
-  GTimeVal date;
-
-  if (g_time_val_from_iso8601 (iso8601_date, &date) == FALSE)
-    {
-      return FALSE;
-    }
-
-  *timestamp = (date.tv_sec*1000000) + date.tv_usec;
-
-//g_message ("dupin_util_iso8601_to_timestamp: timestamp=%" G_GSIZE_FORMAT "\n", (long unsigned int)timestamp);
-  
-  return TRUE;
-}
-
-
 gboolean
 dupin_util_is_valid_mr_lang (gchar * lang)
 {
@@ -201,7 +153,6 @@ dupin_util_is_valid_mr_lang (gchar * lang)
 
   return FALSE;
 }
-
 
 DupinMRLang
 dupin_util_mr_lang_to_enum (gchar * lang)

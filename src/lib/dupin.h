@@ -449,6 +449,7 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 
 #include <dupin_internal.h>
 #include <dupin_utils.h>
+#include <dupin_date.h>
 
 #endif
 

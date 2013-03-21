@@ -4,6 +4,7 @@
 
 #include "dupin_internal.h"
 #include "dupin_utils.h"
+#include "dupin_date.h"
 #include "dupin_attachment_db.h"
 
 #include <stdlib.h>
@@ -168,7 +169,7 @@ dupin_attachment_db_new (Dupin * d, gchar * attachment_db,
       return NULL;
     }
 
-  gchar * creation_time = g_strdup_printf ("%" G_GSIZE_FORMAT, dupin_util_timestamp_now ());
+  gchar * creation_time = g_strdup_printf ("%" G_GSIZE_FORMAT, dupin_date_timestamp_now (0));
 
   str =
     sqlite3_mprintf ("INSERT OR REPLACE INTO DupinAttachmentDB "

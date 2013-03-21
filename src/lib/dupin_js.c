@@ -4,6 +4,7 @@
 
 #include "dupin_internal.h"
 #include "dupin_utils.h"
+#include "dupin_date.h"
 #include "dupin_js.h"
 
 #include <string.h>
@@ -1607,7 +1608,7 @@ dupin_js_dupin_class_links (JSContextRef ctx,
 
                   if (json_object_has_member (node_out_obj, "_created") == TRUE)
                     json_object_remove_member (node_out_obj, "_created"); // ignore any record one if set by user, ever
-                  gchar * created = dupin_util_timestamp_to_iso8601 (dupin_record_get_created (doc_id_record));
+                  gchar * created = dupin_date_timestamp_to_iso8601 (dupin_record_get_created (doc_id_record));
                   json_object_set_string_member (node_out_obj, "_created", created);
                   g_free (created);
 
@@ -1689,7 +1690,7 @@ dupin_js_dupin_class_links (JSContextRef ctx,
 
                 if (json_object_has_member (node_out_obj, "_created") == TRUE)
                   json_object_remove_member (node_out_obj, "_created"); // ignore any record one if set by user, ever
-                gchar * created = dupin_util_timestamp_to_iso8601 (dupin_link_record_get_created (link_id_record));
+                gchar * created = dupin_date_timestamp_to_iso8601 (dupin_link_record_get_created (link_id_record));
                 json_object_set_string_member (node_out_obj, "_created", created);
                 g_free (created);
 
@@ -1726,7 +1727,7 @@ dupin_js_dupin_class_links (JSContextRef ctx,
       json_object_set_string_member (obj, REQUEST_LINK_OBJ_ID, (gchar *) dupin_link_record_get_id (record));
       json_object_set_string_member (obj, REQUEST_LINK_OBJ_REV, mvcc);
 
-      gchar * created = dupin_util_timestamp_to_iso8601 (dupin_link_record_get_created (record));
+      gchar * created = dupin_date_timestamp_to_http_date (dupin_link_record_get_created (record));
       json_object_set_string_member (obj, RESPONSE_OBJ_CREATED, created);
       g_free (created);
 

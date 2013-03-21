@@ -5,6 +5,7 @@
 #include "dupin_internal.h"
 #include "dupin_record.h"
 #include "dupin_utils.h"
+#include "dupin_date.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -163,7 +164,7 @@ dupin_record_create_with_id_real (DupinDB * db, JsonNode * obj_node,
 
   record = dupin_record_new (db, id);
 
-  gsize created = dupin_util_timestamp_now ();
+  gsize created = dupin_date_timestamp_now (0);
 
   dupin_record_add_revision_obj (record, 1, &md5, obj_node, FALSE, created);
 
@@ -1121,7 +1122,7 @@ dupin_record_update (DupinRecord * record, JsonNode * obj_node,
 
   rev = record->last->revision + 1;
 
-  gsize created = dupin_util_timestamp_now ();
+  gsize created = dupin_date_timestamp_now (0);
 
   dupin_record_add_revision_obj (record, rev, &md5, obj_node, FALSE, created);
 
@@ -1300,7 +1301,7 @@ dupin_record_delete (DupinRecord * record, GError ** error)
 
   rev = record->last->revision + 1;
 
-  gsize created = dupin_util_timestamp_now ();
+  gsize created = dupin_date_timestamp_now (0);
 
   dupin_record_add_revision_obj (record, rev, &md5, NULL, TRUE, created);
 
@@ -2554,6 +2555,10 @@ dupin_record_insert (DupinDB * db,
 
   json_object_set_string_member (record_response_obj, RESPONSE_OBJ_ID, (gchar *) dupin_record_get_id (record));
   json_object_set_string_member (record_response_obj, RESPONSE_OBJ_REV, dupin_record_get_last_revision (record));
+
+  gchar * created = dupin_date_timestamp_to_http_date (dupin_record_get_created (record));
+  json_object_set_string_member (record_response_obj, RESPONSE_OBJ_CREATED, created);
+  g_free (created);
 
   dupin_record_close (record);
   

@@ -18,6 +18,8 @@ libdupin_la_SOURCES = \
 	dupin_record.h \
 	dupin_utils.c \
 	dupin_utils.h \
+	dupin_date.c \
+	dupin_date.h \
 	dupin_view.c \
 	dupin_view.h \
 	dupin_view_record.c \

@@ -95,6 +95,13 @@ struct ds_httpd_client_t
   gsize		output_header_done;
 
   gchar *	input_mime;
+  gchar *	input_if_none_match;
+  gchar *	input_if_match;
+  gchar *	input_if_modified_since;
+  gchar *	input_if_unmodified_since;
+
+  gsize		output_last_modified;
+
   gchar *	output_mime;
 
   gsize		output_size;

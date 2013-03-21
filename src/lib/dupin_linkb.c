@@ -4,6 +4,7 @@
 
 #include "dupin_internal.h"
 #include "dupin_utils.h"
+#include "dupin_date.h"
 #include "dupin_linkb.h"
 #include "dupin_link_record.h"
 #include "dupin_view.h"
@@ -194,7 +195,7 @@ dupin_linkbase_new (Dupin * d, gchar * linkb,
       return NULL;
     }
 
-  gchar * creation_time = g_strdup_printf ("%" G_GSIZE_FORMAT, dupin_util_timestamp_now ());
+  gchar * creation_time = g_strdup_printf ("%" G_GSIZE_FORMAT, dupin_date_timestamp_now (0));
 
   str = sqlite3_mprintf ("INSERT OR REPLACE INTO DupinLinkB "
                          "(parent, isdb, compact_id, check_id, creation_time) "
@@ -1090,7 +1091,7 @@ dupin_linkbase_get_changes_list_cb (void *data, int argc, char **argv, char **co
       dupin_util_mvcc_new (rev, hash, mvcc);
 
       json_object_set_string_member (node_obj, "rev", mvcc);
-      gchar * created = dupin_util_timestamp_to_iso8601 (tm);
+      gchar * created = dupin_date_timestamp_to_http_date (tm);
       json_object_set_string_member (node_obj, RESPONSE_OBJ_CREATED, created);
       g_free (created);
 

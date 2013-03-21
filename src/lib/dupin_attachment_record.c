@@ -1124,6 +1124,10 @@ dupin_attachment_record_insert (DupinAttachmentDB * attachment_db,
   json_object_set_string_member (record_response_obj, RESPONSE_OBJ_ID, (gchar *) dupin_record_get_id (record));
   json_object_set_string_member (record_response_obj, RESPONSE_OBJ_REV, dupin_record_get_last_revision (record));
 
+  gchar * created = dupin_date_timestamp_to_http_date (dupin_record_get_created (record));
+  json_object_set_string_member (record_response_obj, RESPONSE_OBJ_CREATED, created);
+  g_free (created);
+
   dupin_record_close (record);
   
   dupin_database_unref (db);

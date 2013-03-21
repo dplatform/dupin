@@ -1609,7 +1609,7 @@ request_global_get_all_docs (DSHttpdClient * client, GList * path,
 
       JsonObject *value_obj = json_object_new ();
       json_object_set_string_member (value_obj, RESPONSE_OBJ_REV, (gchar *)dupin_record_get_last_revision (record));
-      gchar * created = dupin_util_timestamp_to_iso8601 (dupin_record_get_created (record));
+      gchar * created = dupin_date_timestamp_to_http_date (dupin_record_get_created (record));
       json_object_set_string_member (value_obj, RESPONSE_OBJ_CREATED, created);
       g_free (created);
       gchar * type = (gchar *)dupin_record_get_type (record);
@@ -2077,6 +2077,41 @@ request_global_get_record (DSHttpdClient * client, GList * path,
       return HTTP_STATUS_404;
     }
 
+  /* Has the document changed ? */
+  if (client->input_if_none_match &&
+     (g_strstr_len (client->input_if_none_match, strlen (client->input_if_none_match), "*") ||
+      g_strstr_len (client->input_if_none_match, strlen (client->input_if_none_match),
+		    dupin_record_get_last_revision (record))))
+    {
+      /* Check If-Modified-Since due doc may have changed */
+      if (client->input_if_modified_since) {
+        gsize modified = 0;
+	dupin_date_string_to_timestamp (client->input_if_modified_since, &modified);
+
+	/* NOTE - See assumptions and recommentations about client if-modified-since date value
+		  at http://tools.ietf.org/html/rfc2616#section-14.25 */
+
+	if (dupin_date_timestamp_cmp (modified, dupin_record_get_created (record)) < 0)
+          goto request_global_get_record_changed;
+      }
+
+      dupin_attachment_db_unref (attachment_db);
+      dupin_database_unref (db);
+      g_free (doc_id);
+
+      /* Last-Modified */
+      client->output_last_modified = dupin_record_get_created (record);
+
+      /* ETag */
+      gchar * etag = dupin_record_get_last_revision (record);
+      memcpy (client->output_etag, etag, strlen(etag));
+
+      request_set_error (client, "Document unchanged");
+      return HTTP_STATUS_304;
+    }
+
+request_global_get_record_changed:
+
   if ((dupin_record_is_deleted (record, NULL) == TRUE) && (allrevs == FALSE))
     {
       dupin_record_close (record);
@@ -2141,6 +2176,13 @@ request_global_get_record (DSHttpdClient * client, GList * path,
       client->output_type = DS_HTTPD_OUTPUT_BLOB;
       client->output_mime = g_strdup (dupin_attachment_record_get_type (client->output.blob.record));
       client->output_size = dupin_attachment_record_get_length (client->output.blob.record);
+
+      /* Last-Modified */
+      client->output_last_modified = dupin_record_get_created (record);
+
+      /* ETag */
+      gchar * mvcc = dupin_record_get_last_revision (record);
+      memcpy (client->output_etag, mvcc, strlen(mvcc));
 
       dupin_record_close (record);
       g_free (title);
@@ -2392,9 +2434,14 @@ request_global_get_record (DSHttpdClient * client, GList * path,
   if (client->output.string.string == NULL)
     goto request_global_get_record_error;
 
-  /* Etag */
-  gchar * etag = dupin_record_get_last_revision (record);
-  memcpy (client->output_etag, etag, strlen(etag));
+  if (allrevs == FALSE)
+    {
+      /* Last-Modified */
+      client->output_last_modified = dupin_record_get_created (record);
+
+      /* ETag */
+      memcpy (client->output_etag, mvcc, strlen(mvcc));
+    }
 
   client->output_mime = g_strdup (HTTP_MIME_JSON);
   client->output_type = DS_HTTPD_OUTPUT_STRING;
@@ -2960,7 +3007,7 @@ request_global_get_all_links_linkbase (DSHttpdClient * client, GList * path,
       if (tag != NULL)
         json_object_set_string_member (value_obj, RESPONSE_LINK_OBJ_TAG, tag);
 
-      gchar * created = dupin_util_timestamp_to_iso8601 (dupin_link_record_get_created (record));
+      gchar * created = dupin_date_timestamp_to_http_date (dupin_link_record_get_created (record));
       json_object_set_string_member (value_obj, RESPONSE_OBJ_CREATED, created);
       g_free (created);
 
@@ -3558,6 +3605,40 @@ request_global_get_record_linkbase (DSHttpdClient * client, GList * path,
       return HTTP_STATUS_404;
     }
 
+  /* Has the document changed ? */
+  if (client->input_if_none_match &&
+     (g_strstr_len (client->input_if_none_match, strlen (client->input_if_none_match), "*") ||
+      g_strstr_len (client->input_if_none_match, strlen (client->input_if_none_match),
+                    dupin_link_record_get_last_revision (record))))
+    {
+      /* Check If-Modified-Since due doc may have changed */
+      if (client->input_if_modified_since) {
+        gsize modified = 0;
+        dupin_date_string_to_timestamp (client->input_if_modified_since, &modified);
+
+        /* NOTE - See assumptions and recommentations about client if-modified-since date value
+                  at http://tools.ietf.org/html/rfc2616#section-14.25 */
+
+        if (dupin_date_timestamp_cmp (modified, dupin_link_record_get_created (record)) < 0)
+          goto request_global_get_record_linkbase_changed;
+      }
+
+      dupin_linkbase_unref (linkb);
+      g_free (link_id);
+
+      /* Last-Modified */
+      client->output_last_modified = dupin_link_record_get_created (record);
+
+      /* ETag */
+      gchar * etag = dupin_link_record_get_last_revision (record);
+      memcpy (client->output_etag, etag, strlen(etag));
+
+      request_set_error (client, "Link unchanged");
+      return HTTP_STATUS_304;
+    }
+
+request_global_get_record_linkbase_changed:
+
   if ((dupin_link_record_is_deleted (record, NULL) == TRUE) && (allrevs == FALSE))
 
     {   
@@ -3730,9 +3811,14 @@ request_global_get_record_linkbase (DSHttpdClient * client, GList * path,
   if (client->output.string.string == NULL)
     goto request_global_get_record_linkbase_error;
 
-  /* Etag */
-  gchar * etag = dupin_link_record_get_last_revision (record);
-  memcpy (client->output_etag, etag, strlen(etag));
+  if (allrevs == FALSE)
+    {
+      /* Last-Modified */
+      client->output_last_modified = dupin_link_record_get_created (record);
+
+      /* ETag */
+      memcpy (client->output_etag, mvcc, strlen(mvcc));
+    }
 
   client->output_mime = g_strdup (HTTP_MIME_JSON);
   client->output_type = DS_HTTPD_OUTPUT_STRING;
@@ -6900,6 +6986,10 @@ request_global_delete_record (DSHttpdClient * client, GList * path,
   json_object_set_string_member (record_response_obj, RESPONSE_OBJ_ID, (gchar *) dupin_record_get_id (record));
   json_object_set_string_member (record_response_obj, RESPONSE_OBJ_REV, dupin_record_get_last_revision (record));
 
+  gchar * created = dupin_date_timestamp_to_http_date (dupin_record_get_created (record));
+  json_object_set_string_member (record_response_obj, RESPONSE_OBJ_CREATED, created);
+  g_free (created);
+
   GList * response_list = NULL;
   response_list = g_list_prepend (response_list, record_response_node);
 
@@ -7090,6 +7180,10 @@ request_global_delete_link_record (DSHttpdClient * client, GList * path,
   json_object_set_string_member (record_response_obj, RESPONSE_OBJ_ID, (gchar *) dupin_link_record_get_id (record));
   json_object_set_string_member (record_response_obj, RESPONSE_OBJ_REV, dupin_link_record_get_last_revision (record));
 
+  gchar * created = dupin_date_timestamp_to_http_date (dupin_link_record_get_created (record));
+  json_object_set_string_member (record_response_obj, RESPONSE_OBJ_CREATED, created);
+  g_free (created);
+
   GList * response_list = NULL;
   response_list = g_list_prepend (response_list, record_response_node);
 
@@ -7161,7 +7255,16 @@ request_record_response (DSHttpdClient * client,
       if (json_object_has_member (json_node_get_object (response_node), RESPONSE_STATUS_ERROR) == FALSE)
         json_object_set_boolean_member (json_node_get_object (response_node), "ok", TRUE);
 
-      /* Etag */
+      if (json_object_has_member (json_node_get_object (response_node), RESPONSE_OBJ_CREATED) == TRUE)
+        {
+	  client->output_last_modified = 0;
+
+	  /* Last-Modified */
+	  dupin_date_string_to_timestamp ((gchar *) json_object_get_string_member (json_node_get_object (response_node), RESPONSE_OBJ_CREATED),
+					  &(client->output_last_modified));
+	}
+
+      /* ETag */
       if (json_object_has_member (json_node_get_object (response_node), RESPONSE_OBJ_REV) == TRUE)
         {
           gchar * etag = (gchar *) json_object_get_string_member (json_node_get_object (response_node), RESPONSE_OBJ_REV);
@@ -8874,7 +8977,7 @@ request_global_get_portable_listings (DSHttpdClient * client, GList * path,
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_PORTABLE_LISTINGS_UPDATED_SINCE))
         {
-	  if (dupin_util_iso8601_to_timestamp (kv->value, &created) == FALSE)
+	  if (dupin_date_iso8601_to_timestamp (kv->value, &created) == FALSE)
 	    {
               request_set_error (client, "Bad " REQUEST_GET_PORTABLE_LISTINGS_UPDATED_SINCE " parameter. It must be a valie ISO8601 date expressed in UTC E.g. '2011-06-12T14:10:49.090864Z'.");
               return HTTP_STATUS_400;
@@ -8887,7 +8990,7 @@ request_global_get_portable_listings (DSHttpdClient * client, GList * path,
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_PORTABLE_LISTINGS_UPDATED_UNTIL))
         {
-	  if (dupin_util_iso8601_to_timestamp (kv->value, &created) == FALSE)
+	  if (dupin_date_iso8601_to_timestamp (kv->value, &created) == FALSE)
 	    {
               request_set_error (client, "Bad " REQUEST_GET_PORTABLE_LISTINGS_UPDATED_UNTIL " parameter. It must be a valie ISO8601 date expressed in UTC E.g. '2011-06-12T14:10:49.090864Z'.");
               return HTTP_STATUS_400;
@@ -9101,7 +9204,7 @@ request_global_get_portable_listings (DSHttpdClient * client, GList * path,
 
       if (json_object_has_member (on_obj, "updated") == FALSE)
         {
-          gchar * created = dupin_util_timestamp_to_iso8601 (dupin_record_get_created (record));
+          gchar * created = dupin_date_timestamp_to_iso8601 (dupin_record_get_created (record));
           json_object_set_string_member (on_obj, "updated", created);
           g_free (created);
         }
@@ -9493,7 +9596,7 @@ request_global_get_portable_listings_record (DSHttpdClient * client, GList * pat
 
   if (json_object_has_member (on_obj, "updated") == FALSE)
     {
-      gchar * created = dupin_util_timestamp_to_iso8601 (dupin_record_get_created (record));
+      gchar * created = dupin_date_timestamp_to_iso8601 (dupin_record_get_created (record));
       json_object_set_string_member (on_obj, "updated", created);
       g_free (created);
     }

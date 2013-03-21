@@ -8,6 +8,8 @@
 #include "map.h"
 #include "request.h"
 #include "dupin_server_common.h"
+#include "../lib/dupin_utils.h"
+#include "../lib/dupin_date.h"
 
 /* HTTPD: */
 #ifdef G_OS_UNIX
@@ -27,6 +29,9 @@ DSHttpStatus DSHttpStatusList[] = {
   ,
   {HTTP_STATUS_201, "HTTP/1.1 201 Created", "{\"ok\": true}", 12,
    HTTP_MIME_JSON, FALSE}
+  ,
+  {HTTP_STATUS_304, "HTTP/1.1 304 Not Modified",
+   "Not Modified", 12, HTTP_MIME_TEXTHTML, TRUE}
   ,
   {HTTP_STATUS_400, "HTTP/1.1 400 Bad Request",
    "Your client sent a request that this server could not understand.", 65,
@@ -760,6 +765,78 @@ httpd_client_header (DSHttpdClient * client, DSHttpStatusCode * error)
 
           client->input_mime = g_strdup (line);
 	}
+
+      if (!strncasecmp (line, HTTP_IF_MATCH, HTTP_IF_MATCH_LEN))
+	{
+	  line += HTTP_IF_MATCH_LEN;
+
+	  while (line[0] != 0 && (line[0] == ' ' || line[0] == '\t'))
+	    line++;
+
+	  if (line[0] != ':')
+	    continue;
+
+	  line++;
+
+	  while (line[0] != 0 && (line[0] == ' ' || line[0] == '\t'))
+	    line++;
+
+          client->input_if_match = g_strdup (line);
+	}
+
+      if (!strncasecmp (line, HTTP_IF_NONE_MATCH, HTTP_IF_NONE_MATCH_LEN))
+	{
+	  line += HTTP_IF_NONE_MATCH_LEN;
+
+	  while (line[0] != 0 && (line[0] == ' ' || line[0] == '\t'))
+	    line++;
+
+	  if (line[0] != ':')
+	    continue;
+
+	  line++;
+
+	  while (line[0] != 0 && (line[0] == ' ' || line[0] == '\t'))
+	    line++;
+
+          client->input_if_none_match = g_strdup (line);
+	}
+
+      if (!strncasecmp (line, HTTP_IF_MODIFIED_SINCE, HTTP_IF_MODIFIED_SINCE_LEN))
+	{
+	  line += HTTP_IF_MODIFIED_SINCE_LEN;
+
+	  while (line[0] != 0 && (line[0] == ' ' || line[0] == '\t'))
+	    line++;
+
+	  if (line[0] != ':')
+	    continue;
+
+	  line++;
+
+	  while (line[0] != 0 && (line[0] == ' ' || line[0] == '\t'))
+	    line++;
+
+          client->input_if_modified_since = g_strdup (line);
+	}
+
+      if (!strncasecmp (line, HTTP_IF_UNMODIFIED_SINCE, HTTP_IF_UNMODIFIED_SINCE_LEN))
+	{
+	  line += HTTP_IF_UNMODIFIED_SINCE_LEN;
+
+	  while (line[0] != 0 && (line[0] == ' ' || line[0] == '\t'))
+	    line++;
+
+	  if (line[0] != ':')
+	    continue;
+
+	  line++;
+
+	  while (line[0] != 0 && (line[0] == ' ' || line[0] == '\t'))
+	    line++;
+
+          client->input_if_unmodified_since = g_strdup (line);
+	}
     }
 
   log_write (client->thread->data, LOG_VERBOSE_INFO, LOG_HTTPD_CLIENT_CONNECT,
@@ -767,6 +844,8 @@ httpd_client_header (DSHttpdClient * client, DSHttpStatusCode * error)
 	     "request", LOG_VERBOSE_INFO, LOG_TYPE_STRING, client->headers->data,
 	     "Content-Length", LOG_VERBOSE_INFO, LOG_TYPE_INTEGER, (gint) csize,
 	     "Content-Type", LOG_VERBOSE_INFO, LOG_TYPE_STRING, client->input_mime,
+	     "If-Match", LOG_VERBOSE_INFO, LOG_TYPE_STRING, client->input_if_match,
+	     "If-None-Match", LOG_VERBOSE_INFO, LOG_TYPE_STRING, client->input_if_none_match,
 	     NULL);
 
   if (csize != 0)
@@ -1616,10 +1695,8 @@ Reason: KERN_INVALID_ADDRESS at address: 0x0000000000000000
 static void
 httpd_client_send (DSHttpdClient * client, DSHttpStatusCode code)
 {
-  gchar buf[26];
   GString *str;
-  guint i, j;
-  time_t t;
+  guint i;
 
   for (i = 0; DSHttpStatusList[i].code != HTTP_STATUS_END; i++)
     if (DSHttpStatusList[i].code == code)
@@ -1670,46 +1747,56 @@ httpd_client_send (DSHttpdClient * client, DSHttpStatusCode code)
   /* End of the string: */
   str = g_string_append (str, "\r\n");
 
-  /* Chunky transfer: */
+  /* Chunky transfer */
   if (client->output_type == DS_HTTPD_OUTPUT_CHANGES_COMET)
     {
-      g_string_append (str, "Transfer-Encoding: chunked\r\n");
+      g_string_append_printf (str, "%s: chunked\r\n", HTTP_TRANSFER_ENCODING);
     }
 
-  /* the server: */
-  str = g_string_append (str, "Server: " PACKAGE " " VERSION "\r\n");
+  /* Server */
+  g_string_append_printf (str, "%s: " PACKAGE " " VERSION "\r\n", HTTP_SERVER);
 
-  /* the date: */
-  t = time (NULL);
-  asctime_r (localtime (&t), buf);
-  for (j = sizeof (buf) - 1; j >= 0; j--)
-    if (buf[j] == '\n')
-      {
-	buf[j] = 0;
-	break;
-      }
+  /* Date */
+  gchar * server_date = dupin_date_timestamp_to_http_date (dupin_date_timestamp_now (0));
+  g_string_append_printf (str, "%s: %s\r\n", HTTP_DATE, server_date);
+  g_free (server_date);
 
-  g_string_append_printf (str, "Date: %s\r\n", buf);
+  /* Cache control headers */
+  if (g_strcmp0 (client->output_etag, "") ||
+      client->output_last_modified)
+    {
+      g_string_append_printf (str, "%s: must-revalidate\r\n", HTTP_CACHE_CONTROL);
+    }
 
-  /* Etag */
+  /* ETag */
   if (g_strcmp0 (client->output_etag, ""))
-    g_string_append_printf (str, "ETag: \"%s\"\r\n", client->output_etag);
+    {
+      g_string_append_printf (str, "%s: \"%s\"\r\n", HTTP_ETAG, client->output_etag);
+    }
+
+  /* Last-Modified */
+  if (client->output_last_modified)
+    {
+      gchar * last_modified_date = dupin_date_timestamp_to_http_date (client->output_last_modified);
+      g_string_append_printf (str, "%s: %s\r\n", HTTP_LAST_MODIFIED, last_modified_date);
+      g_free (last_modified_date);
+    }
 
   /* Body length: */
   if (client->output_type != DS_HTTPD_OUTPUT_CHANGES_COMET)
     {
-      g_string_append_printf (str, "Content-Length: %" G_GSIZE_FORMAT "\r\n",
+      g_string_append_printf (str, "%s: %" G_GSIZE_FORMAT "\r\n", HTTP_CONTENT_LENGTH,
 			  client->output_size);
     }
 
   /* Body type: */
-  g_string_append_printf (str, "Content-Type: %s\r\n",
+  g_string_append_printf (str, "%s: %s\r\n", HTTP_CONTENT_TYPE,
 			  client->output_mime ? client->output_mime :
 			  DSHttpStatusList[i].mime);
 
   /* Connection Close: */
   if (client->output_type != DS_HTTPD_OUTPUT_CHANGES_COMET)
-    g_string_append (str, "Connection: close\r\n");
+    g_string_append_printf (str, "%s: close\r\n", HTTP_CONNECTION);
 
   /* Empty line: */
   str = g_string_append (str, "\r\n");
@@ -1814,6 +1901,18 @@ httpd_client_free (DSHttpdClient * client)
 
   if (client->output_header)
     g_free (client->output_header);
+
+  if (client->input_if_match)
+    g_free (client->input_if_match);
+
+  if (client->input_if_none_match)
+    g_free (client->input_if_none_match);
+
+  if (client->input_if_modified_since)
+    g_free (client->input_if_modified_since);
+
+  if (client->input_if_unmodified_since)
+    g_free (client->input_if_unmodified_since);
 
   if (client->input_mime)
     g_free (client->input_mime);

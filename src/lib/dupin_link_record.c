@@ -5,6 +5,7 @@
 #include "dupin_internal.h"
 #include "dupin_link_record.h"
 #include "dupin_utils.h"
+#include "dupin_date.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -367,7 +368,7 @@ dupin_link_record_create_with_id_real (DupinLinkB * linkb, JsonNode * obj_node,
 
   record = dupin_link_record_new (linkb, id);
 
-  gsize created = dupin_util_timestamp_now ();
+  gsize created = dupin_date_timestamp_now (0);
 
   dupin_link_record_add_revision_obj (record, 1, &md5, obj_node,
 				      context_id, label, href, rel, tag,
@@ -1715,7 +1716,7 @@ dupin_link_record_update (DupinLinkRecord * record, JsonNode * obj_node,
 
   rev = record->last->revision + 1;
 
-  gsize created = dupin_util_timestamp_now ();
+  gsize created = dupin_date_timestamp_now (0);
 
   dupin_link_record_add_revision_obj (record, rev, &md5, obj_node,
 				      (gchar *)dupin_link_record_get_context_id (record),
@@ -1941,7 +1942,7 @@ dupin_link_record_delete (DupinLinkRecord * record, GError ** error)
 
   rev = record->last->revision + 1;
 
-  gsize created = dupin_util_timestamp_now ();
+  gsize created = dupin_date_timestamp_now (0);
 
   dupin_link_record_add_revision_obj (record, rev, &md5, NULL,
 				      (gchar *)dupin_link_record_get_context_id (record),
@@ -3143,6 +3144,10 @@ dupin_link_record_insert (DupinLinkB * linkb,
 
   json_object_set_string_member (record_response_obj, RESPONSE_OBJ_ID, (gchar *) dupin_link_record_get_id (record));
   json_object_set_string_member (record_response_obj, RESPONSE_OBJ_REV, dupin_link_record_get_last_revision (record));
+
+  gchar * created = dupin_date_timestamp_to_http_date (dupin_link_record_get_created (record));
+  json_object_set_string_member (record_response_obj, RESPONSE_OBJ_CREATED, created);
+  g_free (created);
 
   dupin_link_record_close (record);
   

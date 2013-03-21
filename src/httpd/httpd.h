@@ -7,11 +7,44 @@
 
 #define HTTP_MAX_LINE			2048	/* byte */
 
+#define HTTP_DATE			"Date"
+#define HTTP_DATE_LEN			4
+
+#define HTTP_CONNECTION			"Connection"
+#define HTTP_CONNECTION_LEN		10
+
+#define HTTP_TRANSFER_ENCODING		"Transfer-Encoding"
+#define HTTP_TRANSFER_ENCODING_LEN	17
+
+#define HTTP_ETAG			"ETag"
+#define HTTP_ETAG_LEN			4
+
+#define HTTP_SERVER			"Server"
+#define HTTP_SERVER_LEN			6
+
 #define HTTP_CONTENT_LENGTH		"Content-Length"
 #define HTTP_CONTENT_LENGTH_LEN		14
 
 #define HTTP_CONTENT_TYPE		"Content-Type"
 #define HTTP_CONTENT_TYPE_LEN		12
+
+#define HTTP_IF_MATCH			"If-Match"
+#define HTTP_IF_MATCH_LEN		8
+
+#define HTTP_IF_NONE_MATCH		"If-None-Match"
+#define HTTP_IF_NONE_MATCH_LEN		13
+
+#define HTTP_IF_MODIFIED_SINCE		"If-Modified-Since"
+#define HTTP_IF_MODIFIED_SINCE_LEN	17
+
+#define HTTP_IF_UNMODIFIED_SINCE	"If-Unmodified-Since"
+#define HTTP_IF_UNMODIFIED_SINCE_LEN	19
+
+#define HTTP_CACHE_CONTROL		"Cache-Control"
+#define HTTP_CACHE_CONTROL_LEN		13
+
+#define HTTP_LAST_MODIFIED		"Last-Modified"
+#define HTTP_LAST_MODIFIED_LEN		13
 
 #define HTTP_WWW_REDIRECT \
 "<?xml version=\"1.1\"?>\n" \
@@ -42,6 +75,7 @@ typedef enum
 {
   HTTP_STATUS_200 = 0,
   HTTP_STATUS_201,
+  HTTP_STATUS_304,
   HTTP_STATUS_400,
   HTTP_STATUS_403,
   HTTP_STATUS_404,

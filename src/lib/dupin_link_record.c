@@ -2288,6 +2288,45 @@ dupin_link_record_is_deleted (DupinLinkRecord * record, gchar * mvcc)
   return r->deleted;
 }
 
+gboolean
+dupin_link_record_is_changed (DupinLinkRecord * record,
+                              gchar *           if_modified_since,
+                              gchar *           if_unmodified_since,
+                              gchar *           if_match,
+                              gchar *           if_none_match)
+{
+  g_return_val_if_fail (record != NULL, FALSE);
+  g_return_val_if_fail ((if_modified_since != NULL ||
+                         if_unmodified_since != NULL ||
+                         if_match != NULL ||
+                         if_none_match != NULL), FALSE);
+
+  gboolean changed = TRUE;
+
+  /* Check If-None-Martch */
+  if (if_none_match != NULL)
+    {
+      if (g_strstr_len (if_none_match, strlen (if_none_match), "*") ||
+          g_strstr_len (if_none_match, strlen (if_none_match), dupin_link_record_get_last_revision (record)))
+        changed = FALSE;
+    }
+
+  /* Check If-Modified-Since */
+  if (if_modified_since != NULL)
+    {
+      gsize modified = 0;
+      dupin_date_string_to_timestamp (if_modified_since, &modified);
+
+      /* NOTE - See assumptions and recommentations about client if-modified-since date value
+                at http://tools.ietf.org/html/rfc2616#section-14.25 */
+
+      if (dupin_date_timestamp_cmp (modified, dupin_link_record_get_created (record)) >= 0)
+        changed = FALSE;
+    }
+
+  return changed;
+}
+
 /* Internal: */
 static DupinLinkRecord *
 dupin_link_record_new (DupinLinkB * linkb, gchar * id)

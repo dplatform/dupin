@@ -296,8 +296,15 @@ void		dupin_link_record_get_revisions_list_close
 					(GList *		list);
 
 gboolean	dupin_link_record_is_deleted
-					(DupinLinkRecord *		record,
+					(DupinLinkRecord *	record,
 					 gchar *		mvcc);
+
+gboolean	dupin_link_record_is_changed
+					(DupinLinkRecord *      record, 
+					 gchar *                if_modified_since,
+                                         gchar *                if_unmodified_since,
+                                         gchar *                if_match,
+                                         gchar *                if_none_match);
 
 /* insert = create or update */
 

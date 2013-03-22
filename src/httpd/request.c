@@ -2194,23 +2194,13 @@ request_global_get_record (DSHttpdClient * client,
     }
 
   /* Has the document changed ? */
-  if (client->input_if_none_match &&
-     (g_strstr_len (client->input_if_none_match, strlen (client->input_if_none_match), "*") ||
-      g_strstr_len (client->input_if_none_match, strlen (client->input_if_none_match),
-		    dupin_record_get_last_revision (record))))
+  gboolean record_is_changed = dupin_record_is_changed (record, client->input_if_modified_since,
+								client->input_if_unmodified_since,
+							        client->input_if_match,
+								client->input_if_none_match);
+  if (title_parts == NULL &&
+      record_is_changed == FALSE)
     {
-      /* Check If-Modified-Since due doc may have changed */
-      if (client->input_if_modified_since) {
-        gsize modified = 0;
-	dupin_date_string_to_timestamp (client->input_if_modified_since, &modified);
-
-	/* NOTE - See assumptions and recommentations about client if-modified-since date value
-		  at http://tools.ietf.org/html/rfc2616#section-14.25 */
-
-	if (dupin_date_timestamp_cmp (modified, dupin_record_get_created (record)) < 0)
-          goto request_global_get_record_changed;
-      }
-
       dupin_attachment_db_unref (attachment_db);
       dupin_database_unref (db);
       g_free (doc_id);
@@ -2222,11 +2212,8 @@ request_global_get_record (DSHttpdClient * client,
       gchar * etag = dupin_record_get_last_revision (record);
       memcpy (client->output_etag, etag, strlen(etag));
 
-      request_set_error (client, "Document unchanged");
       return HTTP_STATUS_304;
     }
-
-request_global_get_record_changed:
 
   if ((dupin_record_is_deleted (record, NULL) == TRUE) && (allrevs == FALSE))
     {
@@ -2276,9 +2263,9 @@ request_global_get_record_changed:
         }
 
       if ( (!(client->output.blob.record = dupin_attachment_record_read (attachment_db,
-							       doc_id, title,
-							       NULL)))
-	  || (dupin_attachment_record_blob_open (client->output.blob.record) == FALSE))
+                                                               doc_id, title,
+                                                               NULL)))
+          || (dupin_attachment_record_blob_open (client->output.blob.record) == FALSE))
         {
           dupin_record_close (record);
           g_free (title);
@@ -2288,7 +2275,7 @@ request_global_get_record_changed:
           request_set_error (client, "Cannot read attachment from database");
           return HTTP_STATUS_500;
         }
-      
+
       client->output_type = DS_HTTPD_OUTPUT_BLOB;
       client->output_mime = g_strdup (dupin_attachment_record_get_type (client->output.blob.record));
       client->output_size = dupin_attachment_record_get_length (client->output.blob.record);
@@ -2307,7 +2294,10 @@ request_global_get_record_changed:
 
       g_free (doc_id);
 
-      return HTTP_STATUS_200;
+      if (record_is_changed == TRUE)
+        return HTTP_STATUS_200;
+      else
+        return HTTP_STATUS_304;
     }
 
   /* Show all revisions: */
@@ -3811,23 +3801,11 @@ request_global_get_record_linkbase (DSHttpdClient * client,
     }
 
   /* Has the document changed ? */
-  if (client->input_if_none_match &&
-     (g_strstr_len (client->input_if_none_match, strlen (client->input_if_none_match), "*") ||
-      g_strstr_len (client->input_if_none_match, strlen (client->input_if_none_match),
-                    dupin_link_record_get_last_revision (record))))
+  if (dupin_link_record_is_changed (record, client->input_if_modified_since,
+					    client->input_if_unmodified_since,
+					    client->input_if_match,
+                                            client->input_if_none_match) == FALSE)
     {
-      /* Check If-Modified-Since due doc may have changed */
-      if (client->input_if_modified_since) {
-        gsize modified = 0;
-        dupin_date_string_to_timestamp (client->input_if_modified_since, &modified);
-
-        /* NOTE - See assumptions and recommentations about client if-modified-since date value
-                  at http://tools.ietf.org/html/rfc2616#section-14.25 */
-
-        if (dupin_date_timestamp_cmp (modified, dupin_link_record_get_created (record)) < 0)
-          goto request_global_get_record_linkbase_changed;
-      }
-
       dupin_linkbase_unref (linkb);
       g_free (link_id);
 
@@ -3838,11 +3816,8 @@ request_global_get_record_linkbase (DSHttpdClient * client,
       gchar * etag = dupin_link_record_get_last_revision (record);
       memcpy (client->output_etag, etag, strlen(etag));
 
-      request_set_error (client, "Link unchanged");
       return HTTP_STATUS_304;
     }
-
-request_global_get_record_linkbase_changed:
 
   if ((dupin_link_record_is_deleted (record, NULL) == TRUE) && (allrevs == FALSE))
 

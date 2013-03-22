@@ -166,6 +166,12 @@ void		dupin_record_get_revisions_list_close
 gboolean	dupin_record_is_deleted	(DupinRecord *		record,
 					 gchar *		mvcc);
 
+gboolean	dupin_record_is_changed	(DupinRecord *		record,
+					 gchar *		if_modified_since,
+					 gchar *		if_unmodified_since,
+					 gchar *		if_match,
+					 gchar *		if_none_match);
+
 /* insert = create or update */
 
 gboolean	dupin_record_insert	(DupinDB * db,

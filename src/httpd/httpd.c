@@ -689,6 +689,9 @@ httpd_client_header (DSHttpdClient * client, DSHttpStatusCode * error)
   if (!g_strcmp0 (parts[0], "GET"))
     client->request = DS_HTTPD_REQUEST_GET;
 
+  else if (!g_strcmp0 (parts[0], "HEAD"))
+    client->request = DS_HTTPD_REQUEST_HEAD;
+
   else if (!g_strcmp0 (parts[0], "POST"))
     client->request = DS_HTTPD_REQUEST_POST;
 
@@ -1224,6 +1227,14 @@ httpd_client_write_body_string (GIOChannel * source, GIOCondition cond,
 {
   gsize done;
   GIOStatus status;
+
+  if (client->request == DS_HTTPD_REQUEST_HEAD)
+    {
+      status = g_io_channel_flush (client->channel, NULL);
+
+      httpd_client_close (client);
+      return FALSE;
+    }
 
   if ((status =
        g_io_channel_write_chars (source,

@@ -48,7 +48,9 @@ static gboolean request_record_response (DSHttpdClient * client,
 
 /* WWW FUNCTION *************************************************************/
 static DSHttpStatusCode
-request_www (DSHttpdClient * client, GList * paths, GList * arguments)
+request_www (DSHttpdClient * client,
+	     GList * paths,
+	     GList * arguments)
 {
   gchar *path = NULL;
   struct stat st;
@@ -163,7 +165,9 @@ request_www (DSHttpdClient * client, GList * paths, GList * arguments)
 
 /* QUIT FUNCTION ***********************************************************/
 static DSHttpStatusCode
-request_quit (DSHttpdClient * client, GList * paths, GList * arguments)
+request_quit (DSHttpdClient * client,
+	      GList * paths,
+	      GList * arguments)
 {
   if (g_strcmp0 (client->ip, "127.0.0.1")
       && g_strcmp0 (client->ip, "localhost"))
@@ -181,7 +185,9 @@ request_quit (DSHttpdClient * client, GList * paths, GList * arguments)
 
 /* STATUS FUNCTION *********************************************************/
 static DSHttpStatusCode
-request_status (DSHttpdClient * client, GList * paths, GList * arguments)
+request_status (DSHttpdClient * client,
+		GList * paths,
+		GList * arguments)
 {
   JsonObject *obj;
   JsonObject *nobj;
@@ -348,11 +354,16 @@ static DSHttpStatusCode request_global_delete (DSHttpdClient * client,
 					       GList * arguments);
 
 DSHttpStatusCode
-request_global (DSHttpdClient * client, GList * path, GList * arguments)
+request_global (DSHttpdClient * client,
+		GList * path,
+		GList * arguments)
 {
   switch (client->request)
     {
     case DS_HTTPD_REQUEST_GET:
+      return request_global_get (client, path, arguments);
+
+    case DS_HTTPD_REQUEST_HEAD:
       return request_global_get (client, path, arguments);
 
     case DS_HTTPD_REQUEST_POST:
@@ -461,7 +472,9 @@ static DSHttpStatusCode request_global_get_portable_listings_record_relationship
 						     	      	     		  GList * arguments);
 
 static DSHttpStatusCode
-request_global_get (DSHttpdClient * client, GList * path, GList * arguments)
+request_global_get (DSHttpdClient * client,
+		    GList * path,
+	 	    GList * arguments)
 {
   if (!path)
     return request_global_get_server_info (client, path, arguments);
@@ -576,8 +589,9 @@ request_global_get (DSHttpdClient * client, GList * path, GList * arguments)
 }
 
 static DSHttpStatusCode
-request_global_get_uuids (DSHttpdClient * client, GList * path,
-			   GList * arguments)
+request_global_get_uuids (DSHttpdClient * client,
+			  GList * path,
+			  GList * arguments)
 {
   GList *list;
 
@@ -664,7 +678,8 @@ request_global_get_uuids_error:
 }
 
 static DSHttpStatusCode
-request_global_get_all_dbs (DSHttpdClient * client, GList * paths,
+request_global_get_all_dbs (DSHttpdClient * client,
+			    GList * paths,
 			    GList * arguments)
 {
   guint i;
@@ -736,8 +751,9 @@ request_global_get_all_dbs:
 }
 
 static DSHttpStatusCode
-request_global_get_all_linkbs (DSHttpdClient * client, GList * paths,
-			    GList * arguments)
+request_global_get_all_linkbs (DSHttpdClient * client,
+			       GList * paths,
+			       GList * arguments)
 {
   guint i;
   gchar **linkbs;
@@ -808,8 +824,9 @@ request_global_get_all_linkbs:
 }
 
 static DSHttpStatusCode
-request_global_get_all_attachment_dbs (DSHttpdClient * client, GList * paths,
-			    GList * arguments)
+request_global_get_all_attachment_dbs (DSHttpdClient * client,
+				       GList * paths,
+			    	       GList * arguments)
 {
   guint i;
   gchar **attachment_dbs;
@@ -880,7 +897,8 @@ request_global_get_all_attachment_dbs:
 }
 
 static DSHttpStatusCode
-request_global_get_all_views (DSHttpdClient * client, GList * paths,
+request_global_get_all_views (DSHttpdClient * client,
+			      GList * paths,
 			      GList * arguments)
 {
   guint i;
@@ -952,8 +970,9 @@ request_global_get_all_views:
 }
 
 static DSHttpStatusCode
-request_global_get_changes_database (DSHttpdClient * client, GList * path,
-			    GList * arguments)
+request_global_get_changes_database (DSHttpdClient * client,
+				     GList * path,
+			    	     GList * arguments)
 {
   DupinDB *db;
 
@@ -1304,7 +1323,8 @@ request_global_get_changes_database_error:
 }
 
 static DSHttpStatusCode
-request_global_get_all_docs (DSHttpdClient * client, GList * path,
+request_global_get_all_docs (DSHttpdClient * client,
+			     GList * path,
 			     GList * arguments)
 {
   DupinDB *db;
@@ -1799,8 +1819,9 @@ request_global_get_all_docs_error:
 }
 
 static DSHttpStatusCode
-request_global_get_server_info (DSHttpdClient * client, GList * path,
-			     GList * arguments)
+request_global_get_server_info (DSHttpdClient * client,
+				GList * path,
+			     	GList * arguments)
 {
   JsonObject *obj;
   JsonNode *node=NULL;
@@ -1859,7 +1880,8 @@ request_global_get_server_info_error:
 }
 
 static DSHttpStatusCode
-request_global_get_database (DSHttpdClient * client, GList * path,
+request_global_get_database (DSHttpdClient * client,
+			     GList * path,
 			     GList * arguments)
 {
   DupinDB *db;
@@ -1965,7 +1987,8 @@ request_global_get_database_error:
 }
 
 static DSHttpStatusCode
-request_global_get_record (DSHttpdClient * client, GList * path,
+request_global_get_record (DSHttpdClient * client,
+			   GList * path,
 			   GList * arguments)
 {
   gchar * mvcc = NULL;
@@ -2569,7 +2592,8 @@ request_global_get_record_error:
 /* GET link bases */
 
 static DSHttpStatusCode
-request_global_get_linkbase (DSHttpdClient * client, GList * path,
+request_global_get_linkbase (DSHttpdClient * client,
+			     GList * path,
 			     GList * arguments)
 {
   DupinLinkB *linkb;
@@ -2675,7 +2699,8 @@ request_global_get_linkbase_error:
 }
 
 static DSHttpStatusCode
-request_global_get_all_links_linkbase (DSHttpdClient * client, GList * path,
+request_global_get_all_links_linkbase (DSHttpdClient * client,
+				       GList * path,
 			     	       GList * arguments)
 {
   DupinLinkB *linkb;
@@ -3301,7 +3326,8 @@ request_global_get_all_links_linkbase_error:
 }
 
 static DSHttpStatusCode
-request_global_get_changes_linkbase (DSHttpdClient * client, GList * path,
+request_global_get_changes_linkbase (DSHttpdClient * client,
+				     GList * path,
 			    	     GList * arguments)
 {
   DupinLinkB *linkb;
@@ -3661,8 +3687,9 @@ request_global_get_changes_linkbase_error:
 }
 
 static DSHttpStatusCode
-request_global_get_record_linkbase (DSHttpdClient * client, GList * path,
-			   	    GList * arguments)
+request_global_get_record_linkbase (DSHttpdClient * client,
+				    GList * path,
+				    GList * arguments)
 {
   gchar * mvcc = NULL;
   gboolean allrevs = FALSE;
@@ -4027,7 +4054,8 @@ request_global_get_record_linkbase_error:
 }
 
 static DSHttpStatusCode
-request_global_get_view (DSHttpdClient * client, GList * path,
+request_global_get_view (DSHttpdClient * client,
+			 GList * path,
 			 GList * arguments)
 {
   GList *list;
@@ -4170,7 +4198,8 @@ request_global_get_view_error:
 /* TODO - probably useless to ask sync on demand */
 
 static DSHttpStatusCode
-request_global_view_sync (DSHttpdClient * client, GList * path,
+request_global_view_sync (DSHttpdClient * client,
+			  GList * path,
 			  GList * arguments)
 {
   DupinView *view;
@@ -4200,7 +4229,8 @@ request_global_view_sync (DSHttpdClient * client, GList * path,
 }
 
 static DSHttpStatusCode
-request_global_get_all_docs_view (DSHttpdClient * client, GList * path,
+request_global_get_all_docs_view (DSHttpdClient * client,
+				  GList * path,
 				  GList * arguments)
 {
   DupinView *view=NULL;
@@ -4931,7 +4961,8 @@ request_global_get_all_docs_view_error:
 }
 
 static DSHttpStatusCode
-request_global_get_record_view (DSHttpdClient * client, GList * path,
+request_global_get_record_view (DSHttpdClient * client,
+				GList * path,
 				GList * arguments)
 {
   DupinView *view;
@@ -5010,7 +5041,8 @@ request_global_get_view_record_error:
 #define QUERY_BLOCK	100
 
 static DSHttpStatusCode
-request_global_get_database_query (DSHttpdClient * client, GList * path,
+request_global_get_database_query (DSHttpdClient * client,
+				   GList * path,
 				   gchar * query)
 {
   DupinDB *db;
@@ -5106,7 +5138,8 @@ request_global_get_database_query_error:
 }
 
 static DSHttpStatusCode
-request_global_get_linkbase_query (DSHttpdClient * client, GList * path,
+request_global_get_linkbase_query (DSHttpdClient * client,
+				   GList * path,
 				   gchar * query)
 {
   DupinLinkB *linkb;
@@ -5203,7 +5236,8 @@ request_global_get_linkbase_query_error:
 }
 
 static DSHttpStatusCode
-request_global_get_view_query (DSHttpdClient * client, GList * path,
+request_global_get_view_query (DSHttpdClient * client,
+			       GList * path,
 			       gchar * query)
 {
   DupinView *view;
@@ -5307,8 +5341,8 @@ static DSHttpStatusCode request_global_post_bulk_docs (DSHttpdClient * client,
 						       GList * path,
 						       GList * arguments);
 static DSHttpStatusCode request_global_post_all_docs (DSHttpdClient * client,
-						       GList * path,
-						       GList * arguments);
+						      GList * path,
+						      GList * arguments);
 static DSHttpStatusCode request_global_post_doc_link (DSHttpdClient * client,
 						      GList * path,
 						      GList * arguments,
@@ -5335,7 +5369,9 @@ static DSHttpStatusCode request_global_post_check_linkbase (DSHttpdClient * clie
 						     	    GList * arguments);
 
 static DSHttpStatusCode
-request_global_post (DSHttpdClient * client, GList * path, GList * arguments)
+request_global_post (DSHttpdClient * client,
+		     GList * path,
+		     GList * arguments)
 {
   if (!path)
     {
@@ -5410,7 +5446,8 @@ request_global_post (DSHttpdClient * client, GList * path, GList * arguments)
 }
 
 static DSHttpStatusCode
-request_global_post_record (DSHttpdClient * client, GList * path,
+request_global_post_record (DSHttpdClient * client,
+			    GList * path,
 			    GList * arguments)
 {
   DupinDB * db=NULL;
@@ -5506,7 +5543,8 @@ request_global_post_record_end:
 }
 
 static DSHttpStatusCode
-request_global_post_doc_link (DSHttpdClient * client, GList * path,
+request_global_post_doc_link (DSHttpdClient * client,
+			      GList * path,
 			      GList * arguments,
 			      DupinLinksType link_type)
 {
@@ -5631,7 +5669,8 @@ request_global_post_doc_link_end:
 }
 
 static DSHttpStatusCode
-request_global_post_bulk_docs (DSHttpdClient * client, GList * path,
+request_global_post_bulk_docs (DSHttpdClient * client,
+			       GList * path,
 			       GList * arguments)
 {
   JsonNode *node;
@@ -5731,7 +5770,8 @@ request_global_post_bulk_docs_end:
 }
 
 static DSHttpStatusCode
-request_global_post_bulk_doc_links (DSHttpdClient * client, GList * path,
+request_global_post_bulk_doc_links (DSHttpdClient * client,
+				    GList * path,
 			            GList * arguments)
 {
   JsonNode *node;
@@ -5858,7 +5898,8 @@ request_global_post_bulk_doc_links_end:
 }
 
 static DSHttpStatusCode
-request_global_post_all_docs (DSHttpdClient * client, GList * path,
+request_global_post_all_docs (DSHttpdClient * client,
+			      GList * path,
 			      GList * arguments)
 {
   DSHttpStatusCode code;
@@ -5952,7 +5993,8 @@ request_global_post_all_docs_end:
 }
 
 static DSHttpStatusCode
-request_global_post_compact_database (DSHttpdClient * client, GList * path,
+request_global_post_compact_database (DSHttpdClient * client,
+				      GList * path,
 				      GList * arguments)
 {
   DupinDB *db;
@@ -5978,7 +6020,8 @@ request_global_post_compact_database (DSHttpdClient * client, GList * path,
 }
 
 static DSHttpStatusCode
-request_global_post_all_links (DSHttpdClient * client, GList * path,
+request_global_post_all_links (DSHttpdClient * client,
+			       GList * path,
 			       GList * arguments)
 {
   DSHttpStatusCode code;
@@ -6072,7 +6115,8 @@ request_global_post_all_links_end:
 }
 
 static DSHttpStatusCode
-request_global_post_compact_linkbase (DSHttpdClient * client, GList * path,
+request_global_post_compact_linkbase (DSHttpdClient * client,
+				      GList * path,
 				      GList * arguments)
 {
   DupinLinkB *linkb;
@@ -6098,7 +6142,8 @@ request_global_post_compact_linkbase (DSHttpdClient * client, GList * path,
 }
 
 static DSHttpStatusCode
-request_global_post_check_linkbase (DSHttpdClient * client, GList * path,
+request_global_post_check_linkbase (DSHttpdClient * client,
+				    GList * path,
 				    GList * arguments)
 {
   DupinLinkB *linkb;
@@ -6143,7 +6188,9 @@ static DSHttpStatusCode request_global_put_record_attachment (DSHttpdClient * cl
 						              GList * arguments);
 
 static DSHttpStatusCode
-request_global_put (DSHttpdClient * client, GList * path, GList * arguments)
+request_global_put (DSHttpdClient * client,
+		    GList * path,
+		    GList * arguments)
 {
   if (!path)
     {
@@ -6186,7 +6233,8 @@ request_global_put (DSHttpdClient * client, GList * path, GList * arguments)
 }
 
 static DSHttpStatusCode
-request_global_put_database (DSHttpdClient * client, GList * path,
+request_global_put_database (DSHttpdClient * client,
+			     GList * path,
 			     GList * arguments)
 {
   DupinDB *db;
@@ -6205,7 +6253,8 @@ request_global_put_database (DSHttpdClient * client, GList * path,
 }
 
 static DSHttpStatusCode
-request_global_put_view (DSHttpdClient * client, GList * path,
+request_global_put_view (DSHttpdClient * client,
+		         GList * path,
 			 GList * arguments)
 {
   JsonParser *parser;
@@ -6422,7 +6471,8 @@ request_global_put_view_error:
 }
 
 static DSHttpStatusCode
-request_global_put_record (DSHttpdClient * client, GList * path,
+request_global_put_record (DSHttpdClient * client,
+			   GList * path,
 			   GList * arguments)
 {
   JsonNode *node=NULL;
@@ -6638,7 +6688,8 @@ request_global_put_record_end:
 }
 
 static DSHttpStatusCode
-request_global_put_link_record (DSHttpdClient * client, GList * path,
+request_global_put_link_record (DSHttpdClient * client,
+				GList * path,
 			   	GList * arguments)
 {
   JsonNode *node=NULL;
@@ -6865,7 +6916,8 @@ request_global_put_link_record_end:
 }
 
 static DSHttpStatusCode
-request_global_put_record_attachment (DSHttpdClient * client, GList * path,
+request_global_put_record_attachment (DSHttpdClient * client,
+				      GList * path,
 				      GList * arguments)
 {
   DSHttpStatusCode code;
@@ -7004,7 +7056,8 @@ static DSHttpStatusCode request_global_delete_link_record (DSHttpdClient * clien
 						           GList * arguments);
 
 static DSHttpStatusCode
-request_global_delete (DSHttpdClient * client, GList * path,
+request_global_delete (DSHttpdClient * client,
+		       GList * path,
 		       GList * arguments)
 {
   if (!path)
@@ -7044,7 +7097,8 @@ request_global_delete (DSHttpdClient * client, GList * path,
 }
 
 static DSHttpStatusCode
-request_global_delete_database (DSHttpdClient * client, GList * path,
+request_global_delete_database (DSHttpdClient * client,
+				GList * path,
 				GList * arguments)
 {
   DupinDB *db;
@@ -7070,7 +7124,8 @@ request_global_delete_database (DSHttpdClient * client, GList * path,
 }
 
 static DSHttpStatusCode
-request_global_delete_view (DSHttpdClient * client, GList * path,
+request_global_delete_view (DSHttpdClient * client,
+			    GList * path,
 			    GList * arguments)
 {
   DupinView *view;
@@ -7095,7 +7150,8 @@ request_global_delete_view (DSHttpdClient * client, GList * path,
 }
 
 static DSHttpStatusCode
-request_global_delete_record (DSHttpdClient * client, GList * path,
+request_global_delete_record (DSHttpdClient * client,
+		 	      GList * path,
 			      GList * arguments)
 {
   DupinDB *db;
@@ -7403,7 +7459,8 @@ request_global_delete_record (DSHttpdClient * client, GList * path,
 }
 
 static DSHttpStatusCode
-request_global_delete_link_record (DSHttpdClient * client, GList * path,
+request_global_delete_link_record (DSHttpdClient * client,
+				   GList * path,
 			           GList * arguments)
 {
   DupinLinkB *linkb;
@@ -8309,7 +8366,8 @@ request_record_revision_obj_end:
 }
 
 static JsonNode *
-request_link_record_revision_obj (DSHttpdClient * client, GList * arguments,
+request_link_record_revision_obj (DSHttpdClient * client,
+			          GList * arguments,
 				  DupinLinkRecord * record,
 				  gchar * id, gchar * mvcc,
 			          gboolean visit_docs)
@@ -8796,11 +8854,11 @@ request_view_record_obj (DSHttpdClient * client,
 
 gboolean
 request_get_changes_comet_database (DSHttpdClient * client,
-			   gchar *buf,
-			   gsize count,
-                           gsize offset,
-                           gsize *bytes_read, 
-			   GError **       error)
+				    gchar *buf,
+			   	    gsize count,
+                           	    gsize offset,
+                           	    gsize *bytes_read, 
+			   	    GError **       error)
 {
   g_return_val_if_fail (client->output.changes_comet.db != NULL, FALSE);
   g_return_val_if_fail (client != NULL, FALSE);
@@ -9001,11 +9059,11 @@ request_get_changes_comet_database_error:
 
 gboolean
 request_get_changes_comet_linkbase (DSHttpdClient * client,
-			   gchar *buf,
-			   gsize count,
-                           gsize offset,
-                           gsize *bytes_read, 
-			   GError **       error)
+			   	    gchar *buf,
+			   	    gsize count,
+                           	    gsize offset,
+                           	    gsize *bytes_read, 
+			   	    GError **       error)
 {
   g_return_val_if_fail (client->output.changes_comet.linkb != NULL, FALSE);
   g_return_val_if_fail (client != NULL, FALSE);
@@ -9240,7 +9298,7 @@ request_get_error (DSHttpdClient * client)
 }
 
 void request_set_warning (DSHttpdClient * client,
-			gchar * msg)
+			  gchar * msg)
 {
   g_return_if_fail (client != NULL);
   g_return_if_fail (msg != NULL);
@@ -9275,7 +9333,8 @@ request_get_warning (DSHttpdClient * client)
 /* PORTABLE LISTINGS */
 
 static DSHttpStatusCode
-request_global_get_portable_listings (DSHttpdClient * client, GList * path,
+request_global_get_portable_listings (DSHttpdClient * client,
+				      GList * path,
 			     	      GList * arguments)
 {
   DupinDB *db;
@@ -9788,8 +9847,9 @@ request_global_get_portable_listings_error:
 }
 
 static DSHttpStatusCode
-request_global_get_portable_listings_record (DSHttpdClient * client, GList * path,
-			   		     GList * arguments)
+request_global_get_portable_listings_record (DSHttpdClient * client,
+					     GList * path,
+					     GList * arguments)
 {
   gchar * mvcc = NULL;
 

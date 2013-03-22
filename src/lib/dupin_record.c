@@ -1583,10 +1583,6 @@ dupin_record_is_changed (DupinRecord * record,
 			 gchar *       if_none_match)
 {
   g_return_val_if_fail (record != NULL, FALSE);
-  g_return_val_if_fail ((if_modified_since != NULL ||
-			 if_unmodified_since != NULL ||
-			 if_match != NULL ||
-			 if_none_match != NULL), FALSE);
 
   gboolean changed = TRUE;
 

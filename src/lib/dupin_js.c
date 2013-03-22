@@ -972,6 +972,7 @@ dupin_js_dupin_class_links (JSContextRef ctx,
 	  "rowid_start": number,
 	  "rowid_end": number,
 	  "link_type": type,
+	  "keys": [ string, ..., string ],
 	  "key": string,
 	  "start_key": string,
 	  "end_key": string,
@@ -1052,6 +1053,7 @@ dupin_js_dupin_class_links (JSContextRef ctx,
   gboolean descending = FALSE;
   guint count = DUPIN_LINKB_MAX_LINKS_COUNT;
   guint offset = 0;
+  GList * keys = NULL;
   gchar * startkey = NULL;
   gchar * endkey = NULL;
   gboolean inclusive_end = TRUE;
@@ -1260,6 +1262,40 @@ dupin_js_dupin_class_links (JSContextRef ctx,
             }
         }
 
+      else if (!g_strcmp0 (member_name, REQUEST_GET_ALL_DOCS_KEYS))
+        {
+	  if (json_node_get_node_type (member) == JSON_NODE_ARRAY)
+            {
+	      keys = json_array_get_elements (json_node_get_array (member));
+
+              if (keys == NULL)
+                {
+                  if (link_rels)
+                    g_strfreev (link_rels);
+
+                  if (link_labels)
+                    g_strfreev (link_labels);
+
+                  if (link_hrefs)
+                    g_strfreev (link_hrefs);
+
+                  if (link_tags)
+                    g_strfreev (link_tags);
+
+                  if (endkey != NULL)
+                    g_free (endkey);
+
+                  if (doc_node != NULL)
+                    json_node_free (doc_node);
+
+                  if (params_node != NULL)
+                    json_node_free (params_node);
+
+                  return JSValueMakeNull(ctx);
+                }
+            }
+        }
+
       else if (!g_strcmp0 (member_name, REQUEST_GET_ALL_DOCS_KEY))
         {
           if (json_node_get_node_type (member) == JSON_NODE_VALUE
@@ -1291,6 +1327,9 @@ dupin_js_dupin_class_links (JSContextRef ctx,
 
                   if (params_node != NULL) 
                     json_node_free (params_node);
+
+		  if (keys != NULL)
+		    g_list_free (keys);
 
                   return JSValueMakeNull(ctx);
                 }
@@ -1331,6 +1370,9 @@ dupin_js_dupin_class_links (JSContextRef ctx,
                   if (params_node != NULL) 
                     json_node_free (params_node);
 
+		  if (keys != NULL)
+                    g_list_free (keys);
+
                   return JSValueMakeNull(ctx);
                 }
 	    }
@@ -1367,6 +1409,9 @@ dupin_js_dupin_class_links (JSContextRef ctx,
 
                   if (params_node != NULL) 
                     json_node_free (params_node);
+
+		  if (keys != NULL)
+                    g_list_free (keys);
 
                   return JSValueMakeNull(ctx);
                 }
@@ -1458,8 +1503,12 @@ dupin_js_dupin_class_links (JSContextRef ctx,
 
       if (doc_node != NULL) 
         json_node_free (doc_node);
+
       if (params_node != NULL) 
         json_node_free (params_node);
+
+      if (keys != NULL)
+        g_list_free (keys);
 
       return JSValueMakeNull(ctx);
     }
@@ -1467,7 +1516,7 @@ dupin_js_dupin_class_links (JSContextRef ctx,
   GList *list;
   GList *results;
 
-  if (dupin_link_record_get_list (linkb, count, offset, 0, 0, link_type, startkey, endkey, inclusive_end, DP_COUNT_EXIST, DP_ORDERBY_ID, descending,
+  if (dupin_link_record_get_list (linkb, count, offset, 0, 0, link_type, keys, startkey, endkey, inclusive_end, DP_COUNT_EXIST, DP_ORDERBY_ID, descending,
                                   context_id, link_rels, link_rels_op, link_labels, link_labels_op,
                                   link_hrefs, link_hrefs_op, link_tags, link_tags_op,
                                   filter_by, filter_by_format, filter_op, filter_values, &results, NULL) == FALSE)
@@ -1492,8 +1541,12 @@ dupin_js_dupin_class_links (JSContextRef ctx,
 
       if (doc_node != NULL) 
         json_node_free (doc_node);
+
       if (params_node != NULL) 
         json_node_free (params_node);
+
+      if (keys != NULL)
+        g_list_free (keys);
 
       dupin_linkbase_unref (linkb);
 
@@ -1567,8 +1620,12 @@ dupin_js_dupin_class_links (JSContextRef ctx,
 
       		  if (doc_node != NULL) 
          	    json_node_free (doc_node);
+
       		  if (params_node != NULL) 
         	    json_node_free (params_node);
+
+		  if (keys != NULL)
+		    g_list_free (keys);
 
       		  if (obj_node != NULL) 
         	    json_node_free (obj_node);
@@ -1649,8 +1706,12 @@ dupin_js_dupin_class_links (JSContextRef ctx,
 
       		if (doc_node != NULL) 
          	  json_node_free (doc_node);
+
       		if (params_node != NULL) 
         	  json_node_free (params_node);
+
+		if (keys != NULL)
+		  g_list_free (keys);
 
       		if (obj_node != NULL) 
         	  json_node_free (obj_node);
@@ -1813,8 +1874,12 @@ dupin_js_dupin_class_links (JSContextRef ctx,
 
   if (doc_node != NULL)
     json_node_free (doc_node);
+
   if (params_node != NULL)
     json_node_free (params_node);
+
+  if (keys != NULL)
+    g_list_free (keys);
  
   json_node_free (links);
 

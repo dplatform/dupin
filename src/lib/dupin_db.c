@@ -1282,7 +1282,7 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
 
   gsize start_rowid = (compact_id != NULL) ? (gsize) g_ascii_strtoll (compact_id, NULL, 10)+1 : 1;
 
-  if (dupin_record_get_list (db, count, 0, start_rowid, 0, NULL, NULL, TRUE, DP_COUNT_ALL, DP_ORDERBY_ROWID, FALSE, NULL, DP_FILTERBY_EQUALS,
+  if (dupin_record_get_list (db, count, 0, start_rowid, 0, NULL, NULL, NULL, TRUE, DP_COUNT_ALL, DP_ORDERBY_ROWID, FALSE, NULL, DP_FILTERBY_EQUALS,
 				NULL, DP_FIELDS_FORMAT_DOTTED, DP_FILTERBY_EQUALS, NULL, &results, NULL) == FALSE || !results)
     {
       if (compact_id != NULL)

@@ -692,7 +692,7 @@ command_getListRecord (GList * list)
   if (!g_strcmp0 (list->next->next->data, "true"))
     descending = TRUE;
 
-  if (dupin_record_get_list (db, count, offset, 0, 0, NULL, NULL, TRUE, DP_COUNT_EXIST, DP_ORDERBY_ROWID, descending, NULL, DP_FILTERBY_EQUALS,
+  if (dupin_record_get_list (db, count, offset, 0, 0, NULL, NULL, NULL, TRUE, DP_COUNT_EXIST, DP_ORDERBY_ROWID, descending, NULL, DP_FILTERBY_EQUALS,
 					NULL, DP_FIELDS_FORMAT_DOTTED, DP_FILTERBY_EQUALS, NULL, &results, &error)
       == FALSE)
     {

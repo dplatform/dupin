@@ -282,6 +282,7 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 #define RESPONSE_OBJ_ATTACHMENTS_PAGING		RESPONSE_OBJ_LINKS_PAGING
 
 #define REQUEST_GET_ALL_DOCS_KEY                  "key"
+#define REQUEST_GET_ALL_DOCS_KEYS                 "keys"
 #define REQUEST_GET_ALL_DOCS_STARTKEY             "startkey"
 #define REQUEST_GET_ALL_DOCS_ENDKEY               "endkey"
 #define REQUEST_GET_ALL_DOCS_INCLUSIVEEND         "inclusive_end"
@@ -325,6 +326,7 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 #define REQUEST_GET_ALL_LINKS_LIMIT             REQUEST_GET_ALL_DOCS_LIMIT
 #define REQUEST_GET_ALL_LINKS_OFFSET            REQUEST_GET_ALL_DOCS_OFFSET
 #define REQUEST_GET_ALL_LINKS_KEY               REQUEST_GET_ALL_DOCS_KEY
+#define REQUEST_GET_ALL_LINKS_KEYS              REQUEST_GET_ALL_DOCS_KEYS
 
 #define REQUEST_GET_ALL_LINKS_INCLUDE_LINKED_DOCS	"include_linked_docs"
 #define REQUEST_GET_ALL_LINKS_INCLUDE_LINKED_DOCS_IN	"in"
@@ -387,6 +389,8 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 
 /* POST */
 #define REQUEST_POST_BULK_DOCS          	    "_bulk_docs"
+#define REQUEST_POST_ALL_DOCS          	    	    REQUEST_ALL_DOCS
+#define REQUEST_POST_ALL_DOCS_KEYS                  "keys"
 #define REQUEST_POST_BULK_DOCS_DOCS     	    "docs"
 #define REQUEST_POST_BULK_DOCS_USE_LATEST_REVISION  "use_latest_revision"
 #define REQUEST_POST_COMPACT_DATABASE		    "_compact"

@@ -2175,129 +2175,12 @@ request_global_get_record (DSHttpdClient * client,
       return HTTP_STATUS_404;
     }
 
-  if (!  (attachment_db =
-                dupin_attachment_db_open (client->thread->data->dupin, dbname, NULL)))
-    {
-      dupin_database_unref (db);
-      g_free (doc_id);
-      request_set_error (client, "Cannot connect to attachments database");
-      return HTTP_STATUS_404;
-    }
-
   if (!(record = dupin_record_read (db, doc_id, NULL)))
     {
-      dupin_attachment_db_unref (attachment_db);
       dupin_database_unref (db);
       g_free (doc_id);
       request_set_error (client, "Cannot read record from database");
       return HTTP_STATUS_404;
-    }
-
-  /* Has the document changed ? */
-  gboolean record_is_changed = dupin_record_is_changed (record, client->input_if_modified_since,
-								client->input_if_unmodified_since,
-							        client->input_if_match,
-								client->input_if_none_match);
-  if (title_parts == NULL &&
-      record_is_changed == FALSE)
-    {
-      dupin_attachment_db_unref (attachment_db);
-      dupin_database_unref (db);
-      g_free (doc_id);
-
-      /* Last-Modified */
-      client->output_last_modified = dupin_record_get_created (record);
-
-      /* ETag */
-      gchar * etag = dupin_record_get_last_revision (record);
-      memcpy (client->output_etag, etag, strlen(etag));
-
-      return HTTP_STATUS_304;
-    }
-
-  if ((dupin_record_is_deleted (record, NULL) == TRUE) && (allrevs == FALSE))
-    {
-      dupin_record_close (record);
-      dupin_attachment_db_unref (attachment_db);
-      dupin_database_unref (db);
-      g_free (doc_id);
-      request_set_error (client, "Record is deleted");
-      return HTTP_STATUS_404;
-    }
-
-  /* process input attachment name parameter */
-  if (title_parts != NULL)
-    {
-      gchar * title = NULL;
-      GString *str = g_string_new (title_parts->data);
-      GList * l=NULL;
-
-      for (l=title_parts->next ; l != NULL ; l=l->next)
-        {
-          g_string_append_printf (str, "/%s", (gchar *)l->data);
-        }
-
-      title = g_string_free (str, FALSE);
-
-      if (title == NULL)
-        {
-          dupin_record_close (record);
-          dupin_database_unref (db);
-          dupin_attachment_db_unref (attachment_db);
-          g_free (doc_id);
-          request_set_error (client, "Cannot get valid attachment title");
-          return HTTP_STATUS_400;
-        }
-
-//g_message("request_global_get_record: title=%s\n", title);
-
-      if ( dupin_attachment_record_exists (attachment_db, doc_id, title) == FALSE)
-        {
-          dupin_record_close (record);
-          g_free (title);
-          dupin_database_unref (db);
-          dupin_attachment_db_unref (attachment_db);
-          g_free (doc_id);
-          request_set_error (client, "Attachment does not exist");
-          return HTTP_STATUS_404;
-        }
-
-      if ( (!(client->output.blob.record = dupin_attachment_record_read (attachment_db,
-                                                               doc_id, title,
-                                                               NULL)))
-          || (dupin_attachment_record_blob_open (client->output.blob.record) == FALSE))
-        {
-          dupin_record_close (record);
-          g_free (title);
-          dupin_database_unref (db);
-          dupin_attachment_db_unref (attachment_db);
-          g_free (doc_id);
-          request_set_error (client, "Cannot read attachment from database");
-          return HTTP_STATUS_500;
-        }
-
-      client->output_type = DS_HTTPD_OUTPUT_BLOB;
-      client->output_mime = g_strdup (dupin_attachment_record_get_type (client->output.blob.record));
-      client->output_size = dupin_attachment_record_get_length (client->output.blob.record);
-
-      /* Last-Modified */
-      client->output_last_modified = dupin_record_get_created (record);
-
-      /* ETag */
-      gchar * mvcc = dupin_record_get_last_revision (record);
-      memcpy (client->output_etag, mvcc, strlen(mvcc));
-
-      dupin_record_close (record);
-      g_free (title);
-      dupin_database_unref (db);
-      dupin_attachment_db_unref (attachment_db);
-
-      g_free (doc_id);
-
-      if (record_is_changed == TRUE)
-        return HTTP_STATUS_200;
-      else
-        return HTTP_STATUS_304;
     }
 
   /* Show all revisions: */
@@ -2315,7 +2198,6 @@ request_global_get_record (DSHttpdClient * client,
 	{
 	  dupin_record_close (record);
 	  dupin_database_unref (db);
-          dupin_attachment_db_unref (attachment_db);
           g_free (doc_id);
           request_set_error (client, "Cannot get list of record revisions");
 	  return HTTP_STATUS_500;
@@ -2347,7 +2229,6 @@ request_global_get_record (DSHttpdClient * client,
 	  json_array_unref (array);
 	  dupin_record_close (record);
 	  dupin_database_unref (db);
-          dupin_attachment_db_unref (attachment_db);
           g_free (doc_id);
           request_set_error (client, "Cannot get list of record revisions");
 	  return HTTP_STATUS_500;
@@ -2404,6 +2285,123 @@ request_global_get_record (DSHttpdClient * client,
   /* Show a single revision: */
   else
     {
+      /* Has the document changed ? */
+      gboolean record_is_changed = dupin_record_is_changed (record, client->input_if_modified_since,
+	    							    client->input_if_unmodified_since,
+							            client->input_if_match,
+								    client->input_if_none_match);
+      if (title_parts == NULL &&
+          record_is_changed == FALSE)
+        {
+          /* Last-Modified */
+          client->output_last_modified = dupin_record_get_created (record);
+
+          /* ETag */
+          gchar * etag = dupin_record_get_last_revision (record);
+          memcpy (client->output_etag, etag, strlen(etag));
+
+          dupin_record_close (record);
+          dupin_database_unref (db);
+          g_free (doc_id);
+
+          return HTTP_STATUS_304;
+        }
+
+      if (!  (attachment_db =
+                dupin_attachment_db_open (client->thread->data->dupin, dbname, NULL)))
+        {
+          dupin_record_close (record);
+          dupin_database_unref (db);
+          g_free (doc_id);
+          request_set_error (client, "Cannot connect to attachments database");
+          return HTTP_STATUS_404;
+        }
+
+      if (dupin_record_is_deleted (record, NULL) == TRUE)
+        {
+          dupin_record_close (record);
+          dupin_attachment_db_unref (attachment_db);
+          dupin_database_unref (db);
+          g_free (doc_id);
+          request_set_error (client, "Record is deleted");
+          return HTTP_STATUS_404;
+        }
+
+      /* process input attachment name parameter */
+      if (title_parts != NULL)
+        {
+          gchar * title = NULL;
+          GString *str = g_string_new (title_parts->data);
+          GList * l=NULL;
+
+          for (l=title_parts->next ; l != NULL ; l=l->next)
+            {
+              g_string_append_printf (str, "/%s", (gchar *)l->data);
+            }
+
+          title = g_string_free (str, FALSE);
+
+          if (title == NULL)
+            {
+              dupin_record_close (record);
+              dupin_database_unref (db);
+              dupin_attachment_db_unref (attachment_db);
+              g_free (doc_id);
+              request_set_error (client, "Cannot get valid attachment title");
+              return HTTP_STATUS_400;
+            }
+
+//g_message("request_global_get_record: title=%s\n", title);
+
+          if ( dupin_attachment_record_exists (attachment_db, doc_id, title) == FALSE)
+            {
+              dupin_record_close (record);
+              g_free (title);
+              dupin_database_unref (db);
+              dupin_attachment_db_unref (attachment_db);
+              g_free (doc_id);
+              request_set_error (client, "Attachment does not exist");
+              return HTTP_STATUS_404;
+            }
+
+          if ( (!(client->output.blob.record = dupin_attachment_record_read (attachment_db,
+                                                               doc_id, title,
+                                                               NULL)))
+              || (dupin_attachment_record_blob_open (client->output.blob.record) == FALSE))
+            {
+              dupin_record_close (record);
+              g_free (title);
+              dupin_database_unref (db);
+              dupin_attachment_db_unref (attachment_db);
+              g_free (doc_id);
+              request_set_error (client, "Cannot read attachment from database");
+              return HTTP_STATUS_500;
+            }
+
+          client->output_type = DS_HTTPD_OUTPUT_BLOB;
+          client->output_mime = g_strdup (dupin_attachment_record_get_type (client->output.blob.record));
+          client->output_size = dupin_attachment_record_get_length (client->output.blob.record);
+
+          /* Last-Modified */
+          client->output_last_modified = dupin_record_get_created (record);
+
+          /* ETag */
+          gchar * mvcc = dupin_record_get_last_revision (record);
+          memcpy (client->output_etag, mvcc, strlen(mvcc));
+
+          dupin_record_close (record);
+          g_free (title);
+          dupin_database_unref (db);
+          dupin_attachment_db_unref (attachment_db);
+
+          g_free (doc_id);
+
+          if (record_is_changed == TRUE)
+            return HTTP_STATUS_200;
+          else
+            return HTTP_STATUS_304;
+        }
+
       JsonNode *node_temp=NULL;
 
       if (mvcc == NULL)
@@ -2458,78 +2456,81 @@ request_global_get_record (DSHttpdClient * client,
         }
 
       json_node_free (node_temp);
-    }
 
-  if (request_fields == NULL)
-    {
-      JsonObject * attachments_obj = json_object_new ();
+      /* attachments list */
 
-      gsize total_attachments = dupin_attachment_record_get_list_total (attachment_db, 1, 0,
+      if (request_fields == NULL)
+        {
+          JsonObject * attachments_obj = json_object_new ();
+
+          gsize total_attachments = dupin_attachment_record_get_list_total (attachment_db, 1, 0,
 									(gchar *) dupin_record_get_id (record), NULL, NULL, TRUE, NULL);
 
-      if (dupin_attachment_record_get_list (attachment_db, attachments_count,
+          if (dupin_attachment_record_get_list (attachment_db, attachments_count,
 					    attachments_offset, 1, 0, DP_ORDERBY_TITLE, attachments_descending,
 					    (gchar *) dupin_record_get_id (record), NULL, NULL, TRUE,
 					    &results, NULL) == FALSE)
-        {
-          if (node != NULL)
-            json_node_free (node);
-          json_object_unref (attachments_obj);
-          dupin_record_close (record);
-          dupin_database_unref (db);
-          dupin_attachment_db_unref (attachment_db);
-          g_free (doc_id);
-          request_set_error (client, "Cannot get record list of attachments");
-          return HTTP_STATUS_500;
-        }
-
-//g_message("request_global_get_record: g_list_length (results) = %d \n", (gint) g_list_length (results));
-
-      for (list = results; list; list = list->next)
-        {
-          JsonNode * attachment_node = NULL;
-          if (! (attachment_node = dupin_attachment_record_get (list->data)))
             {
               if (node != NULL)
                 json_node_free (node);
               json_object_unref (attachments_obj);
-	      dupin_record_close (record);
-	      dupin_database_unref (db);
+              dupin_record_close (record);
+              dupin_database_unref (db);
               dupin_attachment_db_unref (attachment_db);
               g_free (doc_id);
-              request_set_error (client, "Cannot get record attachment");
-	      return HTTP_STATUS_500;
-	    }
+              request_set_error (client, "Cannot get record list of attachments");
+              return HTTP_STATUS_500;
+            }
 
-          json_object_set_member (attachments_obj, dupin_attachment_record_get_title (list->data), attachment_node);
-       }
+//g_message("request_global_get_record: g_list_length (results) = %d \n", (gint) g_list_length (results));
 
-     if (json_object_get_size (attachments_obj) > 0
-         && json_object_has_member (attachments_obj, RESPONSE_OBJ_ATTACHMENTS_PAGING) == FALSE)
-       {
-         JsonNode * paging_info_node = json_node_new (JSON_NODE_OBJECT);
-         JsonObject * paging_info = json_object_new ();
-	 json_node_take_object (paging_info_node, paging_info);
-         json_object_set_int_member (paging_info, "total_attachments", total_attachments);
-	 json_object_set_int_member (paging_info, "offset", attachments_offset);
-	 json_object_set_int_member (paging_info, "attachments_per_document", attachments_count);
-	 json_object_set_member (attachments_obj, RESPONSE_OBJ_ATTACHMENTS_PAGING, paging_info_node);
-       }
-     dupin_attachment_record_get_list_close (results);
+          for (list = results; list; list = list->next)
+            {
+              JsonNode * attachment_node = NULL;
+              if (! (attachment_node = dupin_attachment_record_get (list->data)))
+                {
+                  if (node != NULL)
+                    json_node_free (node);
+                  json_object_unref (attachments_obj);
+	          dupin_record_close (record);
+	          dupin_database_unref (db);
+                  dupin_attachment_db_unref (attachment_db);
+                  g_free (doc_id);
+                  request_set_error (client, "Cannot get record attachment");
+	          return HTTP_STATUS_500;
+	        }
 
-     if (results)
-       {
-         if (allrevs == TRUE
-             || (allrevs == FALSE && (!dupin_util_mvcc_revision_cmp (mvcc, dupin_record_get_last_revision (record)))))
-           {
-             json_object_remove_member (json_node_get_object (node), RESPONSE_OBJ_ATTACHMENTS);
-             json_object_set_object_member (json_node_get_object (node), RESPONSE_OBJ_ATTACHMENTS, attachments_obj);
+              json_object_set_member (attachments_obj, dupin_attachment_record_get_title (list->data), attachment_node);
            }
-       }
-     else
-       {
-         json_object_unref (attachments_obj);
-       }
+
+         if (json_object_get_size (attachments_obj) > 0
+             && json_object_has_member (attachments_obj, RESPONSE_OBJ_ATTACHMENTS_PAGING) == FALSE)
+           {
+             JsonNode * paging_info_node = json_node_new (JSON_NODE_OBJECT);
+             JsonObject * paging_info = json_object_new ();
+	     json_node_take_object (paging_info_node, paging_info);
+             json_object_set_int_member (paging_info, "total_attachments", total_attachments);
+	     json_object_set_int_member (paging_info, "offset", attachments_offset);
+	     json_object_set_int_member (paging_info, "attachments_per_document", attachments_count);
+	     json_object_set_member (attachments_obj, RESPONSE_OBJ_ATTACHMENTS_PAGING, paging_info_node);
+           }
+         dupin_attachment_record_get_list_close (results);
+
+         if (results)
+           {
+             if (!dupin_util_mvcc_revision_cmp (mvcc, dupin_record_get_last_revision (record)))
+               {
+                 json_object_remove_member (json_node_get_object (node), RESPONSE_OBJ_ATTACHMENTS);
+                 json_object_set_object_member (json_node_get_object (node), RESPONSE_OBJ_ATTACHMENTS, attachments_obj);
+               }
+           }
+         else
+           {
+             json_object_unref (attachments_obj);
+           }
+        }
+
+      dupin_attachment_db_unref (attachment_db);
     }
 
   /* Writing: */
@@ -2557,7 +2558,6 @@ request_global_get_record (DSHttpdClient * client,
 
   dupin_record_close (record);
   dupin_database_unref (db);
-  dupin_attachment_db_unref (attachment_db);
 
   g_free (doc_id);
 
@@ -2570,7 +2570,6 @@ request_global_get_record_error:
 
   dupin_record_close (record);
   dupin_database_unref (db);
-  dupin_attachment_db_unref (attachment_db);
 
   g_free (doc_id);
 
@@ -3800,35 +3799,6 @@ request_global_get_record_linkbase (DSHttpdClient * client,
       return HTTP_STATUS_404;
     }
 
-  /* Has the document changed ? */
-  if (dupin_link_record_is_changed (record, client->input_if_modified_since,
-					    client->input_if_unmodified_since,
-					    client->input_if_match,
-                                            client->input_if_none_match) == FALSE)
-    {
-      dupin_linkbase_unref (linkb);
-      g_free (link_id);
-
-      /* Last-Modified */
-      client->output_last_modified = dupin_link_record_get_created (record);
-
-      /* ETag */
-      gchar * etag = dupin_link_record_get_last_revision (record);
-      memcpy (client->output_etag, etag, strlen(etag));
-
-      return HTTP_STATUS_304;
-    }
-
-  if ((dupin_link_record_is_deleted (record, NULL) == TRUE) && (allrevs == FALSE))
-
-    {   
-      dupin_link_record_close (record);
-      dupin_linkbase_unref (linkb);
-      g_free (link_id);
-      request_set_error (client, "Link record is deleted");
-      return HTTP_STATUS_404;
-    } 
-
   /* Show all revisions: */
   if (allrevs == TRUE)
     {
@@ -3928,6 +3898,36 @@ request_global_get_record_linkbase (DSHttpdClient * client,
   /* Show a single revision: */
   else
     {
+      /* Has the document changed ? */
+      if (dupin_link_record_is_changed (record, client->input_if_modified_since,
+					        client->input_if_unmodified_since,
+					        client->input_if_match,
+                                                client->input_if_none_match) == FALSE)
+        {
+          /* Last-Modified */
+          client->output_last_modified = dupin_link_record_get_created (record);
+
+          /* ETag */
+          gchar * etag = dupin_link_record_get_last_revision (record);
+          memcpy (client->output_etag, etag, strlen(etag));
+
+	  dupin_link_record_close (record);
+          dupin_linkbase_unref (linkb);
+          g_free (link_id);
+
+          return HTTP_STATUS_304;
+        }
+
+      if ((dupin_link_record_is_deleted (record, NULL) == TRUE) && (allrevs == FALSE))
+
+        {       
+          dupin_link_record_close (record);
+          dupin_linkbase_unref (linkb);
+          g_free (link_id);
+          request_set_error (client, "Link record is deleted");
+          return HTTP_STATUS_404;
+        } 
+
       JsonNode *node_temp=NULL;
 
       if (mvcc == NULL)

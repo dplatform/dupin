@@ -7139,6 +7139,7 @@ request_global_delete_record (DSHttpdClient * client,
   GString *str;
   gchar * doc_id=NULL;
   gchar * request_fields=NULL;
+  gchar * if_match_rev=NULL;
 
   if (!path->next->data)
     {
@@ -7236,9 +7237,25 @@ request_global_delete_record (DSHttpdClient * client,
         }
     }
 
+  if (client->input_if_match != NULL)
+    {
+      if_match_rev = dupin_util_json_string_normalize_rev (client->input_if_match);
+
+      if (dupin_util_is_valid_mvcc (if_match_rev) == FALSE)
+        {
+	  request_set_error (client, "Invalid record MVCC revision");
+          g_free (if_match_rev);
+          g_free (doc_id);
+          return HTTP_STATUS_400;
+        }
+      mvcc = if_match_rev;
+    }
+
   if (mvcc == NULL)
     {
       request_set_error (client, "Record MVCC revision is missing");
+      if (if_match_rev != NULL)
+        g_free (if_match_rev);
       g_free (doc_id);
       return HTTP_STATUS_400;
     }
@@ -7249,6 +7266,8 @@ request_global_delete_record (DSHttpdClient * client,
     {
       if (title != NULL)
         g_free (title);
+      if (if_match_rev != NULL)
+        g_free (if_match_rev);
       g_free (doc_id);
       request_set_error (client, "Cannot connect to database");
       return HTTP_STATUS_404;
@@ -7259,6 +7278,8 @@ request_global_delete_record (DSHttpdClient * client,
       if (title != NULL)
         g_free (title);
       dupin_database_unref (db);
+      if (if_match_rev != NULL)
+        g_free (if_match_rev);
       g_free (doc_id);
       request_set_error (client, "Cannot read record");
       return HTTP_STATUS_404;
@@ -7270,6 +7291,8 @@ request_global_delete_record (DSHttpdClient * client,
         g_free (title);
       dupin_record_close (record);
       dupin_database_unref (db);
+      if (if_match_rev != NULL)
+        g_free (if_match_rev);
       g_free (doc_id);
       request_set_error (client, "Record MVCC revision missing or not matching latest revision");
       return HTTP_STATUS_404;
@@ -7286,6 +7309,8 @@ request_global_delete_record (DSHttpdClient * client,
             g_free (title);
           dupin_record_close (record);
           dupin_database_unref (db);
+	  if (if_match_rev != NULL)
+            g_free (if_match_rev);
           g_free (doc_id);
 	  request_set_error (client, "Cannot open attachments database");
           return HTTP_STATUS_404;
@@ -7300,6 +7325,8 @@ request_global_delete_record (DSHttpdClient * client,
             dupin_attachment_db_unref (attachment_db);
           dupin_record_close (record);
           dupin_database_unref (db);
+	  if (if_match_rev != NULL)
+            g_free (if_match_rev);
           g_free (doc_id);
 	  request_set_error (client, "Cannot get record JSON object");
           return HTTP_STATUS_404;
@@ -7319,6 +7346,8 @@ request_global_delete_record (DSHttpdClient * client,
           if (title_parts != NULL)
             dupin_attachment_db_unref (attachment_db);
           dupin_database_unref (db);
+	  if (if_match_rev != NULL)
+	    g_free (if_match_rev);
           g_free (doc_id);
 	  request_set_error (client, "Cannot find record attachment or cannot delete attachment");
           return HTTP_STATUS_404;
@@ -7334,6 +7363,8 @@ request_global_delete_record (DSHttpdClient * client,
           if (title_parts != NULL)
             dupin_attachment_db_unref (attachment_db);
           dupin_database_unref (db);
+	  if (if_match_rev != NULL)
+	    g_free (if_match_rev);
           g_free (doc_id);
 	  request_set_error (client, "Cannot update record");
           return HTTP_STATUS_404;
@@ -7369,6 +7400,8 @@ request_global_delete_record (DSHttpdClient * client,
           if (title_parts != NULL)
             dupin_attachment_db_unref (attachment_db);
           dupin_database_unref (db);
+	  if (if_match_rev != NULL)
+	    g_free (if_match_rev);
           g_free (doc_id);
 	  request_set_error (client, "Cannot patch record");
           return HTTP_STATUS_400;
@@ -7383,6 +7416,8 @@ request_global_delete_record (DSHttpdClient * client,
         {
           dupin_record_close (record);
           dupin_database_unref (db);
+	  if (if_match_rev != NULL)
+	    g_free (if_match_rev);
           g_free (doc_id);
 	  request_set_error (client, "Cannot delete record");
           return HTTP_STATUS_400;
@@ -7414,6 +7449,8 @@ request_global_delete_record (DSHttpdClient * client,
         }
       dupin_record_close (record);
       dupin_database_unref (db);
+      if (if_match_rev != NULL)
+        g_free (if_match_rev);
       g_free (doc_id);
       request_set_error (client, "Cannot generate JSON output response");
       return HTTP_STATUS_500;
@@ -7427,6 +7464,9 @@ request_global_delete_record (DSHttpdClient * client,
 
   dupin_record_close (record);
   dupin_database_unref (db);
+
+  if (if_match_rev != NULL)
+    g_free (if_match_rev);
 
   g_free (doc_id);
 
@@ -7444,6 +7484,7 @@ request_global_delete_link_record (DSHttpdClient * client,
   GList * l=NULL;
   gchar * link_id=NULL;
   gchar * request_fields=NULL;
+  gchar * if_match_rev=NULL;
 
   if (!path->next->data)
     {
@@ -7514,9 +7555,25 @@ request_global_delete_link_record (DSHttpdClient * client,
         }
     }
 
+  if (client->input_if_match != NULL)
+    {
+      if_match_rev = dupin_util_json_string_normalize_rev (client->input_if_match);
+
+      if (dupin_util_is_valid_mvcc (if_match_rev) == FALSE)
+        {
+          request_set_error (client, "Invalid link record MVCC revision");
+          g_free (if_match_rev);
+          g_free (link_id);
+          return HTTP_STATUS_400;
+        }
+      mvcc = if_match_rev;
+    }
+
   if (mvcc == NULL)
     {
       request_set_error (client, "Link record MVCC revision is missing");
+      if (if_match_rev != NULL)
+        g_free (if_match_rev);
       g_free (link_id);
       return HTTP_STATUS_400;
     }
@@ -7525,6 +7582,8 @@ request_global_delete_link_record (DSHttpdClient * client,
       (linkb =
        dupin_linkbase_open (client->thread->data->dupin, path->data, NULL)))
     {
+      if (if_match_rev != NULL)
+        g_free (if_match_rev);
       g_free (link_id);
       request_set_error (client, "Cannot connect to linkbase");
       return HTTP_STATUS_404;
@@ -7533,6 +7592,8 @@ request_global_delete_link_record (DSHttpdClient * client,
   if (!(record = dupin_link_record_read (linkb, link_id, NULL)))
     {
       dupin_linkbase_unref (linkb);
+      if (if_match_rev != NULL)
+        g_free (if_match_rev);
       g_free (link_id);
       request_set_error (client, "Cannot read link record");
       return HTTP_STATUS_404;
@@ -7542,6 +7603,8 @@ request_global_delete_link_record (DSHttpdClient * client,
     {
       dupin_link_record_close (record);
       dupin_linkbase_unref (linkb);
+      if (if_match_rev != NULL)
+        g_free (if_match_rev);
       g_free (link_id);
       request_set_error (client, "Link record MVCC revision missing or not matching latest revision");
       return HTTP_STATUS_404;
@@ -7567,6 +7630,8 @@ request_global_delete_link_record (DSHttpdClient * client,
           json_node_free (patch);
           dupin_link_record_close (record);
           dupin_linkbase_unref (linkb);
+          if (if_match_rev != NULL)
+            g_free (if_match_rev);
           g_free (link_id);
 	  request_set_error (client, "Cannot patch link record");
           return HTTP_STATUS_404;
@@ -7580,6 +7645,8 @@ request_global_delete_link_record (DSHttpdClient * client,
         {
           dupin_link_record_close (record);
           dupin_linkbase_unref (linkb);
+          if (if_match_rev != NULL)
+            g_free (if_match_rev);
           g_free (link_id);
 	  request_set_error (client, "Cannot delete link record");
           return HTTP_STATUS_400;
@@ -7609,6 +7676,8 @@ request_global_delete_link_record (DSHttpdClient * client,
         }
       dupin_link_record_close (record);
       dupin_linkbase_unref (linkb);
+      if (if_match_rev != NULL)
+        g_free (if_match_rev);
       g_free (link_id);
       request_set_error (client, "Cannot generate JSON output response");
       return HTTP_STATUS_500;
@@ -7622,6 +7691,9 @@ request_global_delete_link_record (DSHttpdClient * client,
 
   dupin_link_record_close (record);
   dupin_linkbase_unref (linkb);
+
+  if (if_match_rev != NULL)
+    g_free (if_match_rev);
 
   g_free (link_id);
 

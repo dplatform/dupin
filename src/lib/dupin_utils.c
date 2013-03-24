@@ -2085,6 +2085,33 @@ dupin_util_json_string_normalize_docid (gchar * input_string_docid)
   return output_string; 
 }
 
+gchar *
+dupin_util_json_string_normalize_rev (gchar * input_string_rev)
+{
+  g_return_val_if_fail (input_string_rev != NULL, NULL);
+
+  JsonParser *parser = json_parser_new ();
+  GError *error = NULL;
+  gchar * output_string = NULL;
+
+  if (!json_parser_load_from_data (parser, input_string_rev, -1, &error)
+      || (json_node_get_node_type (json_parser_get_root (parser)) != JSON_NODE_VALUE)
+      || (json_node_get_value_type (json_parser_get_root (parser)) != G_TYPE_STRING)
+      || (!(output_string = g_strdup (json_node_get_string (json_parser_get_root (parser))))))
+    {
+      if (error != NULL)
+        g_error_free (error);
+
+      g_object_unref (parser);
+
+      return NULL;
+    }
+
+  g_object_unref (parser);
+
+  return output_string; 
+}
+
 /*
    partial update request
 

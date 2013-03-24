@@ -154,6 +154,9 @@ gchar *        dupin_util_json_string_normalize	(gchar * input_string);
 gchar *        dupin_util_json_string_normalize_docid
 						(gchar * input_string_docid);
 
+gchar *        dupin_util_json_string_normalize_rev
+						(gchar * input_string_rev);
+
 /* k/v pairs for argument lists */
 
 typedef struct dupin_keyvalue_t    dupin_keyvalue_t;

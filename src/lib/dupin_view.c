@@ -3643,6 +3643,121 @@ dupin_view_is_sync (DupinView * view)
   return view->tosync ? FALSE : TRUE;
 }
 
+/* View compaction - basically just SQLite VACUUM and ANALYSE for the moment */
+
+void
+dupin_view_compact_func (gpointer data, gpointer user_data)
+{
+  DupinView * view = (DupinView*) data;
+  gchar * errmsg;
+
+  if (view->todelete == TRUE)
+    {
+g_message("dupin_view_compact_func(%p) view scheduled for deletion, skipping compaction\n",g_thread_self ());
+
+      return;
+    }
+
+  dupin_view_ref (view);
+
+  /* claim disk space back */
+
+//g_message("dupin_view_compact_func(%p) started\n",g_thread_self ());
+
+  g_mutex_lock (view->mutex);
+
+  view->compact_thread = g_thread_self ();
+  view->compact_processed_count = 0;
+
+  /* NOTE - make sure last transaction is commited */
+
+  if (dupin_view_commit_transaction (view, NULL) < 0)
+    {
+      dupin_view_rollback_transaction (view, NULL);
+    }
+
+  /*
+    IMPORTANT: rowids may change after a VACUUM, so the cursor of views is reset as well
+               see http://www.sqlite.org/lang_vacuum.html
+   */
+
+//g_message("dupin_view_compact_func: VACUUM and ANALYZE\n");
+
+  if (sqlite3_exec (view->db, "VACUUM", NULL, NULL, &errmsg) != SQLITE_OK
+      || sqlite3_exec (view->db, "ANALYZE Dupin", NULL, NULL, &errmsg) != SQLITE_OK
+      || sqlite3_exec (view->db, "ANALYZE DupinPid2Id", NULL, NULL, &errmsg) != SQLITE_OK)
+    {
+      g_error ("dupin_view_compact_func: %s while vacuum and analyze view", errmsg);
+      sqlite3_free (errmsg);
+    }
+  else
+    {
+//g_message("dupin_view_compact_func(%p) finished and view is compacted\n",g_thread_self ());
+    }
+
+  view->tocompact = FALSE;
+  view->compact_thread = NULL;
+
+  g_mutex_unlock (view->mutex);
+
+  dupin_view_unref (view);
+}
+
+void
+dupin_view_compact (DupinView * view)
+{
+  g_return_if_fail (view != NULL);
+
+  if (dupin_view_is_compacting (view))
+    {
+      g_mutex_lock (view->mutex);
+      view->tocompact = TRUE;
+      g_mutex_unlock (view->mutex);
+
+//g_message("dupin_view_compact(%p): view is still compacting view->compact_thread=%p\n", g_thread_self (), view->compact_thread);
+    }
+  else
+    {
+//g_message("dupin_view_compact(%p): push to thread pools view->compact_thread=%p\n", g_thread_self (), view->compact_thread);
+
+      GError * error=NULL;
+
+      if (!view->compact_thread)
+        {
+          g_thread_pool_push(view->d->view_compact_workers_pool, view, &error);
+
+          if (error)
+            {
+              g_error("dupin_view_compact: view %s compact thread creation error: %s", view->name, error->message);
+              dupin_view_set_error (view, error->message);
+              g_error_free (error);
+            }
+        }
+    }
+}
+
+gboolean
+dupin_view_is_compacting (DupinView * view)
+{
+  g_return_val_if_fail (view != NULL, FALSE);
+
+  if (view->compact_thread)
+    return TRUE;
+
+  return FALSE;
+}
+
+gboolean
+dupin_view_is_compacted (DupinView * view)
+{
+  g_return_val_if_fail (view != NULL, FALSE);
+
+  if (dupin_view_is_compacting (view))
+    return FALSE;
+
+  return view->tocompact ? FALSE : TRUE;
+}
+
 void
 dupin_view_set_error (DupinView * view,
                       gchar * msg)

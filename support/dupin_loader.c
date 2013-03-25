@@ -839,6 +839,12 @@ dupin_loader_init (DSGlobal *data, GError ** error)
 						FALSE,
 						NULL);
 
+  d->view_compact_workers_pool = g_thread_pool_new (dupin_view_compact_func,
+					        NULL,
+						(d->conf != NULL) ? d->conf->limit_compact_max_threads : DS_LIMIT_COMPACT_MAXTHREADS_DEFAULT,
+						FALSE,
+						NULL);
+
   d->linkb_check_workers_pool = g_thread_pool_new (dupin_linkbase_check_func,
 					        NULL,
 						(d->conf != NULL) ? d->conf->limit_checklinks_max_threads : DS_LIMIT_CHECKLINKS_MAXTHREADS_DEFAULT,
@@ -959,6 +965,7 @@ dupin_loader_shutdown (Dupin * d)
 
   g_thread_pool_free (d->db_compact_workers_pool, TRUE, TRUE);
   g_thread_pool_free (d->linkb_compact_workers_pool, TRUE, TRUE);
+  g_thread_pool_free (d->view_compact_workers_pool, TRUE, TRUE);
   g_thread_pool_free (d->linkb_check_workers_pool, TRUE, TRUE);
 
 g_message("dupin_loader_shutdown: worker pools freed\n");

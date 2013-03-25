@@ -4126,6 +4126,8 @@ request_global_get_view (DSHttpdClient * client,
   json_object_set_boolean_member (obj, "sync_map_running", (view->sync_map_thread) ? TRUE : FALSE);
   json_object_set_boolean_member (obj, "sync_reduce_running", (view->sync_reduce_thread) ? TRUE : FALSE);
 
+  json_object_set_boolean_member (obj, "compact_running", dupin_view_is_compacting (view));
+
   /* Writing: */
   node = json_node_new (JSON_NODE_OBJECT);
 
@@ -5339,6 +5341,10 @@ static DSHttpStatusCode request_global_post_compact_linkbase (DSHttpdClient * cl
 						     	      GList * path,
 						     	      GList * arguments);
 
+static DSHttpStatusCode request_global_post_compact_view (DSHttpdClient * client,
+						     	  GList * path,
+						     	  GList * arguments);
+
 static DSHttpStatusCode request_global_post_check_linkbase (DSHttpdClient * client,
 						     	    GList * path,
 						     	    GList * arguments);
@@ -5372,6 +5378,20 @@ request_global_post (DSHttpdClient * client,
         }
 
       request_set_error (client, "POST /_linkbs allowed commands are: /_linkbs/linkbase/_all_links, /_linkbs/linkbase/_compact and /_linkbs/linkbase/_check");
+
+      return HTTP_STATUS_400;
+    }
+
+  if (!g_strcmp0 (path->data, REQUEST_VIEWS))
+    {
+      if (path->next && path->next->next)
+        {
+          /* POST /_views/view/_compact */
+	  if (!g_strcmp0 (path->next->next->data, REQUEST_POST_COMPACT_VIEW))
+            return request_global_post_compact_view (client, path->next, arguments);
+        }
+
+      request_set_error (client, "POST /_views allowed commands are: /_views/view/_compact");
 
       return HTTP_STATUS_400;
     }
@@ -6139,6 +6159,33 @@ request_global_post_check_linkbase (DSHttpdClient * client,
     }
 
   dupin_linkbase_unref (linkb);
+
+  return HTTP_STATUS_200;
+}
+
+static DSHttpStatusCode
+request_global_post_compact_view (DSHttpdClient * client,
+				  GList * path,
+				  GList * arguments)
+{
+  DupinView *view;
+
+  if (!
+      (view =
+       dupin_view_open (client->thread->data->dupin, path->data, NULL)))
+    {
+      request_set_error (client, "Cannot connect to view");
+      return HTTP_STATUS_404;
+    }
+
+  dupin_view_compact (view);
+
+  if (dupin_view_get_error (view))
+    {
+      request_set_warning (client, dupin_view_get_error (view));
+    }
+
+  dupin_view_unref (view);
 
   return HTTP_STATUS_200;
 }

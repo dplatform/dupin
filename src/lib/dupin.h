@@ -403,6 +403,8 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 #define REQUEST_POST_COMPACT_LINKBASE   	    REQUEST_POST_COMPACT_DATABASE
 #define REQUEST_POST_CHECK_LINKBASE     	    "_check"
 
+#define REQUEST_POST_COMPACT_VIEW		    REQUEST_POST_COMPACT_DATABASE
+
 /* DATA STRUCT */
 #define REQUEST_WWW             "_www"
 #define REQUEST_QUIT            "_quit"

@@ -103,6 +103,18 @@ int		dupin_view_collation	(void        * ref,
 					 int         right_len,
 					 const void  *right_void);
 
+void            dupin_view_compact_func
+                                        (gpointer data,
+                                        gpointer user_data);
+
+void            dupin_view_compact      (DupinView * view);
+
+gboolean        dupin_view_is_compacting
+                                        (DupinView * view);
+
+gboolean        dupin_view_is_compacted
+                                        (DupinView * view);
+
 void            dupin_view_set_error
                                         (DupinView * view,
                                          gchar * msg);

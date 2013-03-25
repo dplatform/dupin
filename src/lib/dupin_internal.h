@@ -58,6 +58,8 @@ struct dupin_t
 
   GThreadPool * db_compact_workers_pool;
   GThreadPool * linkb_compact_workers_pool;
+  GThreadPool * view_compact_workers_pool;
+
   GThreadPool * linkb_check_workers_pool;
   GThreadPool * sync_map_workers_pool;
   GThreadPool * sync_reduce_workers_pool;
@@ -177,6 +179,11 @@ struct dupin_view_t
   gchar *	output;
   gboolean	output_is_db;
   gboolean	output_is_linkb;
+
+  gboolean	tocompact;
+  gboolean	compact_toquit;
+  GThread *	compact_thread;
+  gsize		compact_processed_count; /* incremental counter of compacted records - NOTE: Not used at the momemnt for views */
 
   guint		ref;
 

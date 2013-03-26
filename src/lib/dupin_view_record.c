@@ -57,12 +57,12 @@ dupin_view_record_exists_real (DupinView * view, gchar * id, gboolean lock)
   tmp = sqlite3_mprintf (DUPIN_VIEW_SQL_EXISTS, id);
 
   if (lock == TRUE)
-    g_mutex_lock (view->mutex);
+    g_rw_lock_reader_lock (view->rwlock);
 
   if (sqlite3_exec (view->db, tmp, dupin_view_record_exists_real_cb, &numb, &errmsg) != SQLITE_OK)
     {
       if (lock == TRUE)
-        g_mutex_unlock (view->mutex);
+        g_rw_lock_reader_unlock (view->rwlock);
 
       sqlite3_free (tmp);
 
@@ -74,7 +74,7 @@ dupin_view_record_exists_real (DupinView * view, gchar * id, gboolean lock)
     }
 
   if (lock == TRUE)
-    g_mutex_unlock (view->mutex);
+    g_rw_lock_reader_unlock (view->rwlock);
 
   sqlite3_free (tmp);
 
@@ -248,11 +248,11 @@ dupin_view_record_get_list_total (DupinView * view,
   if (value_range!=NULL)
     sqlite3_free (value_range);
 
-  g_mutex_lock (view->mutex);
+  g_rw_lock_reader_lock (view->rwlock);
 
   if (sqlite3_exec (view->db, tmp, dupin_view_record_get_total_records_cb, total, &errmsg) != SQLITE_OK)
     {
-      g_mutex_unlock (view->mutex);
+      g_rw_lock_reader_unlock (view->rwlock);
 
       g_free (tmp);
 
@@ -264,7 +264,7 @@ dupin_view_record_get_list_total (DupinView * view,
       return FALSE;
     }
 
-  g_mutex_unlock (view->mutex);
+  g_rw_lock_reader_unlock (view->rwlock);
 
   g_free (tmp);
 
@@ -328,13 +328,13 @@ dupin_view_record_read_real (DupinView * view, gchar * id, GError ** error,
   tmp = sqlite3_mprintf (DUPIN_VIEW_SQL_READ, id);
 
   if (lock == TRUE)
-    g_mutex_lock (view->mutex);
+    g_rw_lock_reader_lock (view->rwlock);
 
   if (sqlite3_exec (view->db, tmp, dupin_view_record_read_cb, record, &errmsg)
       != SQLITE_OK)
     {
       if (lock == TRUE)
-	g_mutex_unlock (view->mutex);
+	g_rw_lock_reader_unlock (view->rwlock);
 
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
 		   errmsg);
@@ -345,7 +345,7 @@ dupin_view_record_read_real (DupinView * view, gchar * id, GError ** error,
     }
 
   if (lock == TRUE)
-    g_mutex_unlock (view->mutex);
+    g_rw_lock_reader_unlock (view->rwlock);
 
   sqlite3_free (tmp);
 
@@ -609,12 +609,12 @@ dupin_view_record_get_list (DupinView * view, guint count, guint offset,
 
 //g_message("dupin_view_record_get_list() query=%s\n",tmp);
 
-  g_mutex_lock (view->mutex);
+  g_rw_lock_reader_lock (view->rwlock);
 
   if (sqlite3_exec (view->db, tmp, dupin_view_record_get_list_cb, &s, &errmsg)
       != SQLITE_OK)
     {
-      g_mutex_unlock (view->mutex);
+      g_rw_lock_reader_unlock (view->rwlock);
 
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
 		   errmsg);
@@ -624,7 +624,7 @@ dupin_view_record_get_list (DupinView * view, guint count, guint offset,
       return FALSE;
     }
 
-  g_mutex_unlock (view->mutex);
+  g_rw_lock_reader_unlock (view->rwlock);
 
   g_free (tmp);
 
@@ -848,12 +848,12 @@ dupin_view_record_get_max_rowid (DupinView * view, gsize * max_rowid, gboolean l
   query = "SELECT max(ROWID) as max_rowid FROM Dupin";
 
   if (lock == TRUE)
-    g_mutex_lock (view->mutex);
+    g_rw_lock_reader_lock (view->rwlock);
 
   if (sqlite3_exec (view->db, query, dupin_view_record_get_max_rowid_cb, max_rowid, &errmsg) != SQLITE_OK)
     {
       if (lock == TRUE)
-        g_mutex_unlock (view->mutex);
+        g_rw_lock_reader_unlock (view->rwlock);
 
       g_error("dupin_view_record_get_max_rowid: %s", errmsg);
       sqlite3_free (errmsg);
@@ -862,7 +862,7 @@ dupin_view_record_get_max_rowid (DupinView * view, gsize * max_rowid, gboolean l
     }
 
   if (lock == TRUE)
-    g_mutex_unlock (view->mutex);
+    g_rw_lock_reader_unlock (view->rwlock);
 
   return TRUE;
 }

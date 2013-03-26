@@ -10,12 +10,8 @@
 gboolean
 log_open (DSGlobal * data, GError ** error)
 {
-#if GLIB_CHECK_VERSION (2,31,3)
   data->logmutex = g_new0 (GMutex, 1);
   g_mutex_init (data->logmutex);
-#else
-  data->logmutex = g_mutex_new ();
-#endif
 
   if (!(data->logio = g_io_channel_new_file (data->logfile, "a", error)))
     return FALSE;
@@ -32,12 +28,8 @@ log_close (DSGlobal * data)
   g_io_channel_shutdown (data->logio, TRUE, NULL);
   g_io_channel_unref (data->logio);
 
-#if GLIB_CHECK_VERSION (2,31,3)
   g_mutex_clear (data->logmutex);
   g_free (data->logmutex);
-#else
-  g_mutex_free (data->logmutex);
-#endif
 }
 
 /* WRITE SYSTEM *************************************************************/
@@ -102,8 +94,8 @@ log_write_before (DSGlobal * data)
 #if GLIB_CHECK_VERSION (2, 27, 3)
     gint64 timestamp;
     timestamp = g_source_get_time (data->httpd_socket_source);
-    tv.tv_sec = timestamp / 1000000;
-    tv.tv_usec = timestamp % 1000000;
+    tv.tv_sec = timestamp / G_USEC_PER_SEC;
+    tv.tv_usec = timestamp % G_USEC_PER_SEC;
 #else
     g_source_get_current_time (data->httpd_socket_source, &tv);
 #endif

@@ -59,11 +59,11 @@ dupin_get_databases (Dupin * d)
 
   g_return_val_if_fail (d != NULL, NULL);
 
-  g_mutex_lock (d->mutex);
+  g_rw_lock_reader_lock (d->rwlock);
 
   if (!(size = g_hash_table_size (d->dbs)))
     {
-      g_mutex_unlock (d->mutex);
+      g_rw_lock_reader_unlock (d->rwlock);
       return NULL;
     }
 
@@ -76,7 +76,7 @@ dupin_get_databases (Dupin * d)
 
   ret[i] = NULL;
 
-  g_mutex_unlock (d->mutex);
+  g_rw_lock_reader_unlock (d->rwlock);
 
   return ret;
 }
@@ -86,9 +86,9 @@ dupin_database_exists (Dupin * d, gchar * db)
 {
   gboolean ret;
 
-  g_mutex_lock (d->mutex);
+  g_rw_lock_reader_lock (d->rwlock);
   ret = g_hash_table_lookup (d->dbs, db) != NULL ? TRUE : FALSE;
-  g_mutex_unlock (d->mutex);
+  g_rw_lock_reader_unlock (d->rwlock);
 
   return ret;
 }
@@ -101,7 +101,7 @@ dupin_database_open (Dupin * d, gchar * db, GError ** error)
   g_return_val_if_fail (d != NULL, NULL);
   g_return_val_if_fail (db != NULL, NULL);
 
-  g_mutex_lock (d->mutex);
+  g_rw_lock_reader_lock (d->rwlock);
 
   if (!(ret = g_hash_table_lookup (d->dbs, db)) || ret->todelete == TRUE)
     g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
@@ -116,7 +116,7 @@ dupin_database_open (Dupin * d, gchar * db, GError ** error)
 #endif
     }
 
-  g_mutex_unlock (d->mutex);
+  g_rw_lock_reader_unlock (d->rwlock);
 
   return ret;
 }
@@ -137,13 +137,13 @@ dupin_database_new (Dupin * d, gchar * db, GError ** error)
   g_return_val_if_fail (db != NULL, NULL);
   g_return_val_if_fail (dupin_util_is_valid_db_name (db) == TRUE, NULL);
 
-  g_mutex_lock (d->mutex);
+  g_rw_lock_writer_lock (d->rwlock);
 
   if ((ret = g_hash_table_lookup (d->dbs, db)))
     {
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
 		   "Database '%s' already exist.", db);
-      g_mutex_unlock (d->mutex);
+      g_rw_lock_writer_unlock (d->rwlock);
       return NULL;
     }
 
@@ -153,7 +153,7 @@ dupin_database_new (Dupin * d, gchar * db, GError ** error)
 
   if (!(ret = dupin_db_connect (d, db, path, DP_SQLITE_OPEN_CREATE, error)))
     {
-      g_mutex_unlock (d->mutex);
+      g_rw_lock_writer_unlock (d->rwlock);
       g_free (path);
       return NULL;
     }
@@ -170,7 +170,7 @@ dupin_database_new (Dupin * d, gchar * db, GError ** error)
 
   if (dupin_database_begin_transaction (ret, error) < 0)
     {
-      g_mutex_unlock (d->mutex);
+      g_rw_lock_writer_unlock (d->rwlock);
       dupin_db_disconnect (ret);
       return NULL;
     }
@@ -183,7 +183,7 @@ dupin_database_new (Dupin * d, gchar * db, GError ** error)
 
   if (sqlite3_exec (ret->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
     {
-      g_mutex_unlock (d->mutex);
+      g_rw_lock_writer_unlock (d->rwlock);
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
                        errmsg);
 
@@ -196,7 +196,7 @@ dupin_database_new (Dupin * d, gchar * db, GError ** error)
 
   if (dupin_database_commit_transaction (ret, error) < 0)
     {
-      g_mutex_unlock (d->mutex);
+      g_rw_lock_writer_unlock (d->rwlock);
       dupin_db_disconnect (ret);
       return NULL;
     }
@@ -204,7 +204,7 @@ dupin_database_new (Dupin * d, gchar * db, GError ** error)
   /* NOTE - the respective map and reduce threads will add +1 top the these values */
   sqlite3_free (str);
 
-  g_mutex_unlock (d->mutex);
+  g_rw_lock_writer_unlock (d->rwlock);
 
   /* NOTE - create one default link base and attachment database named after the main database */
 
@@ -231,7 +231,7 @@ dupin_database_ref (DupinDB * db)
 
   d = db->d;
 
-  g_mutex_lock (d->mutex);
+  g_rw_lock_writer_lock (d->rwlock);
 
   db->ref++;
 
@@ -239,7 +239,7 @@ dupin_database_ref (DupinDB * db)
   fprintf(stderr,"dupin_database_ref: (%p) name=%s \t ref++=%d\n", g_thread_self (), db->name, (gint) db->ref);
 #endif
 
-  g_mutex_unlock (d->mutex);
+  g_rw_lock_writer_unlock (d->rwlock);
 }
 
 void
@@ -250,7 +250,8 @@ dupin_database_unref (DupinDB * db)
   g_return_if_fail (db != NULL);
 
   d = db->d;
-  g_mutex_lock (d->mutex);
+
+  g_rw_lock_writer_lock (d->rwlock);
 
   if (db->ref > 0)
     {
@@ -267,7 +268,7 @@ dupin_database_unref (DupinDB * db)
   if (db->ref == 0 && db->todelete == TRUE)
     g_hash_table_remove (d->dbs, db->name);
 
-  g_mutex_unlock (d->mutex);
+  g_rw_lock_writer_unlock (d->rwlock);
 }
 
 gboolean
@@ -325,9 +326,9 @@ dupin_database_delete (DupinDB * db, GError ** error)
 
   dupin_attachment_db_unref (attachment_db);
 
-  g_mutex_lock (d->mutex);
+  g_rw_lock_writer_lock (d->rwlock);
   db->todelete = TRUE;
-  g_mutex_unlock (d->mutex);
+  g_rw_lock_writer_unlock (d->rwlock);
 
   return TRUE;
 }
@@ -375,11 +376,12 @@ dupin_database_get_creation_time (DupinDB * db, gsize * creation_time)
 
   /* get creation time out of database */
   query = "SELECT creation_time as creation_time FROM DupinDB";
-  g_mutex_lock (db->mutex);
+
+  g_rw_lock_reader_lock (db->rwlock);
 
   if (sqlite3_exec (db->db, query, dupin_database_get_creation_time_cb, creation_time, &errmsg) != SQLITE_OK)
     {
-      g_mutex_unlock (db->mutex);
+      g_rw_lock_reader_unlock (db->rwlock);
 
       g_error("dupin_database_get_creation_time: %s", errmsg);
       sqlite3_free (errmsg);
@@ -387,7 +389,7 @@ dupin_database_get_creation_time (DupinDB * db, gsize * creation_time)
       return FALSE;
     }
 
-  g_mutex_unlock (db->mutex);
+  g_rw_lock_reader_unlock (db->rwlock);
 
   return TRUE;
 }
@@ -408,12 +410,12 @@ dupin_database_generate_id_real (DupinDB * db, GError ** error, gboolean lock)
   gchar id[DUPIN_ID_MAX_LEN];
 
   if (lock == TRUE)
-    g_mutex_lock (db->mutex);
+    g_rw_lock_writer_lock (db->rwlock);
 
   dupin_database_generate_id_create (db, id);
 
   if (lock == TRUE)
-    g_mutex_unlock (db->mutex);
+    g_rw_lock_writer_unlock (db->rwlock);
 
   return g_strdup (id);
 }
@@ -452,14 +454,10 @@ dupin_db_disconnect (DupinDB * db)
   if (db->path)
     g_free (db->path);
 
-  if (db->mutex)
+  if (db->rwlock)
     {
-#if GLIB_CHECK_VERSION (2,31,3)
-      g_mutex_clear (db->mutex);
-      g_free (db->mutex);
-#else
-      g_mutex_free (db->mutex);
-#endif
+      g_rw_lock_clear (db->rwlock);
+      g_free (db->rwlock);
     }
 
   if (db->views.views)
@@ -625,12 +623,8 @@ dupin_db_connect (Dupin * d, gchar * name, gchar * path,
 
   sqlite3_create_function(db->db, "filterBy", 5, SQLITE_ANY, d, dupin_sqlite_json_filterby, NULL, NULL);
 
-#if GLIB_CHECK_VERSION (2,31,3)
-  db->mutex = g_new0 (GMutex, 1);
-  g_mutex_init (db->mutex);
-#else
-  db->mutex = g_mutex_new ();
-#endif
+  db->rwlock = g_new0 (GRWLock, 1);
+  g_rw_lock_init (db->rwlock);
 
   return db;
 }
@@ -749,16 +743,16 @@ dupin_database_count (DupinDB * db, DupinCountType type)
   struct dupin_record_select_total_t count;
   memset (&count, 0, sizeof (count));
 
-  g_mutex_lock (db->mutex);
+  g_rw_lock_reader_lock (db->rwlock);
 
   if (sqlite3_exec (db->db, DUPIN_DB_SQL_GET_TOTALS, dupin_record_select_total_cb, &count, NULL) !=
       SQLITE_OK)
     {
-      g_mutex_unlock (db->mutex);
+      g_rw_lock_reader_unlock (db->rwlock);
       return 0;
     }
 
-  g_mutex_unlock (db->mutex);
+  g_rw_lock_reader_unlock (db->rwlock);
 
   if (type == DP_COUNT_EXIST)
     {
@@ -802,12 +796,12 @@ dupin_database_get_max_rowid (DupinDB * db, gsize * max_rowid)
 
   query = "SELECT max(ROWID) as max_rowid FROM Dupin";
 
-  g_mutex_lock (db->mutex);
+  g_rw_lock_reader_lock (db->rwlock);
 
   if (sqlite3_exec (db->db, query, dupin_database_get_max_rowid_cb, max_rowid, &errmsg) !=
       SQLITE_OK)
     {
-      g_mutex_unlock (db->mutex);
+      g_rw_lock_reader_unlock (db->rwlock);
 
       g_error("dupin_database_get_max_rowid: %s", errmsg);
       sqlite3_free (errmsg);
@@ -815,7 +809,7 @@ dupin_database_get_max_rowid (DupinDB * db, gsize * max_rowid)
       return FALSE;
     }
 
-  g_mutex_unlock (db->mutex);
+  g_rw_lock_reader_unlock (db->rwlock);
 
   return TRUE;
 }
@@ -1048,12 +1042,12 @@ dupin_database_get_changes_list (DupinDB *              db,
 
 //g_message("dupin_database_get_changes_list() query=%s\n",tmp);
 
-  g_mutex_lock (db->mutex);
+  g_rw_lock_reader_lock (db->rwlock);
 
   if (sqlite3_exec (db->db, tmp, dupin_database_get_changes_list_cb, &s, &errmsg) !=
       SQLITE_OK)
     {
-      g_mutex_unlock (db->mutex);
+      g_rw_lock_reader_unlock (db->rwlock);
 
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
                    errmsg);
@@ -1063,7 +1057,7 @@ dupin_database_get_changes_list (DupinDB *              db,
       return FALSE;
     }
 
-  g_mutex_unlock (db->mutex);
+  g_rw_lock_reader_unlock (db->rwlock);
 
   g_free (tmp);
 
@@ -1203,14 +1197,14 @@ dupin_database_get_total_changes
 
 //g_message("dupin_database_get_total_changes() query=%s\n",tmp);
 
-  g_mutex_lock (db->mutex);
+  g_rw_lock_reader_lock (db->rwlock);
 
   *total = 0;
 
   if (sqlite3_exec (db->db, tmp, dupin_database_get_total_changes_cb, total, &errmsg) !=
       SQLITE_OK)
     {
-      g_mutex_unlock (db->mutex);
+      g_rw_lock_reader_unlock (db->rwlock);
 
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
                    errmsg);
@@ -1220,7 +1214,7 @@ dupin_database_get_total_changes
       return FALSE;
     }
 
-  g_mutex_unlock (db->mutex);
+  g_rw_lock_reader_unlock (db->rwlock);
 
   g_free (tmp);
 
@@ -1264,11 +1258,12 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
 
   /* get last position we reduced and get anything up to count after that */
   gchar * query = "SELECT compact_id as c FROM DupinDB";
-  g_mutex_lock (db->mutex);
+
+  g_rw_lock_reader_lock (db->rwlock);
 
   if (sqlite3_exec (db->db, query, dupin_database_compact_cb, &compact_id, &errmsg) != SQLITE_OK)
     {
-      g_mutex_unlock (db->mutex);
+      g_rw_lock_reader_unlock (db->rwlock);
 
       g_error("dupin_database_thread_compact: %s", errmsg);
       sqlite3_free (errmsg);
@@ -1278,7 +1273,7 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
       return FALSE;
     }
 
-  g_mutex_unlock (db->mutex);
+  g_rw_lock_reader_unlock (db->rwlock);
 
   gsize start_rowid = (compact_id != NULL) ? (gsize) g_ascii_strtoll (compact_id, NULL, 10)+1 : 1;
 
@@ -1331,14 +1326,14 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
 
 	  /* NOTE - need to decrese deleted counter */
 
-	  g_mutex_lock (db->mutex);
+	  g_rw_lock_reader_lock (db->rwlock);
 
           struct dupin_record_select_total_t t;
           memset (&t, 0, sizeof (t));
 
           if (sqlite3_exec (db->db, DUPIN_DB_SQL_GET_TOTALS, dupin_record_select_total_cb, &t, &errmsg) != SQLITE_OK)
             {
-              g_mutex_unlock (db->mutex);
+              g_rw_lock_reader_unlock (db->rwlock);
 
               g_error ("dupin_database_thread_compact: %s", errmsg);
               sqlite3_free (errmsg);
@@ -1349,13 +1344,17 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
             }
           else
             {
+              g_rw_lock_reader_unlock (db->rwlock);
+
+              g_rw_lock_writer_lock (db->rwlock);
+
               t.total_doc_del--;
 
               tmp = sqlite3_mprintf (DUPIN_DB_SQL_SET_TOTALS, (gint)t.total_doc_ins, (gint)t.total_doc_del);
 
               if (sqlite3_exec (db->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
                 {
-                  g_mutex_unlock (db->mutex);
+                  g_rw_lock_writer_unlock (db->rwlock);
 
                   g_error ("dupin_database_thread_compact: %s", errmsg);
                   sqlite3_free (errmsg);
@@ -1366,9 +1365,9 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
 
                   return FALSE;
                 }
-            }
 
-          g_mutex_unlock (db->mutex);
+              g_rw_lock_writer_unlock (db->rwlock);
+            }
 
           if (tmp != NULL)
             sqlite3_free (tmp);
@@ -1384,11 +1383,11 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
 
 //g_message("dupin_database_thread_compact: query=%s\n", tmp);
 
-      g_mutex_lock (db->mutex);
+      g_rw_lock_writer_lock (db->rwlock);
 
       if (sqlite3_exec (db->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
         {
-          g_mutex_unlock (db->mutex);
+          g_rw_lock_writer_unlock (db->rwlock);
 
           sqlite3_free (tmp);
 
@@ -1403,7 +1402,7 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
 
       db->compact_processed_count++;
 
-      g_mutex_unlock (db->mutex);
+      g_rw_lock_writer_unlock (db->rwlock);
 
       sqlite3_free (tmp);
 
@@ -1431,11 +1430,11 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
   if (compact_id != NULL)
     g_free (compact_id);
 
-  g_mutex_lock (db->mutex);
+  g_rw_lock_writer_lock (db->rwlock);
 
   if (sqlite3_exec (db->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
     {
-      g_mutex_unlock (db->mutex);
+      g_rw_lock_writer_unlock (db->rwlock);
       sqlite3_free (str);
 
       g_error("dupin_database_thread_compact: %s", errmsg);
@@ -1446,7 +1445,7 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
       return FALSE;
     }
 
-  g_mutex_unlock (db->mutex);
+  g_rw_lock_writer_unlock (db->rwlock);
 
   sqlite3_free (str);
 
@@ -1465,10 +1464,11 @@ dupin_database_compact_func (gpointer data, gpointer user_data)
 
 //g_message("dupin_database_compact_func(%p) started\n",g_thread_self ());
 
-  g_mutex_lock (db->mutex);
+  g_rw_lock_writer_lock (db->rwlock);
+  db->tocompact = TRUE;
   db->compact_thread = g_thread_self ();
   db->compact_processed_count = 0;
-  g_mutex_unlock (db->mutex);
+  g_rw_lock_writer_unlock (db->rwlock);
 
   while (db->todelete == FALSE)
     {
@@ -1491,7 +1491,7 @@ dupin_database_compact_func (gpointer data, gpointer user_data)
 
 	  /* NOTE - make sure last transaction is commited */
 
-          g_mutex_lock (db->mutex);
+          g_rw_lock_writer_lock (db->rwlock);
 
 	  if (dupin_database_commit_transaction (db, NULL) < 0)
 	    {
@@ -1508,13 +1508,13 @@ dupin_database_compact_func (gpointer data, gpointer user_data)
           if (sqlite3_exec (db->db, "VACUUM", NULL, NULL, &errmsg) != SQLITE_OK
              || sqlite3_exec (db->db, "ANALYZE Dupin", NULL, NULL, &errmsg) != SQLITE_OK)
             {
-              g_mutex_unlock (db->mutex);
+              g_rw_lock_writer_unlock (db->rwlock);
               g_error ("dupin_database_compact_func: %s while vacuum and analyze db", errmsg);
               sqlite3_free (errmsg);
               break;
             }
 
-          g_mutex_unlock (db->mutex);
+          g_rw_lock_writer_unlock (db->rwlock);
 
           DupinAttachmentDB *attachment_db;
 
@@ -1526,7 +1526,7 @@ dupin_database_compact_func (gpointer data, gpointer user_data)
 
           /* NOTE - make sure last transaction is commited */
 
-          g_mutex_lock (attachment_db->mutex);
+          g_rw_lock_writer_lock (attachment_db->rwlock);
 
           if (dupin_attachment_db_commit_transaction (attachment_db, NULL) < 0)
             {
@@ -1538,14 +1538,14 @@ dupin_database_compact_func (gpointer data, gpointer user_data)
           if (sqlite3_exec (attachment_db->db, "VACUUM", NULL, NULL, &errmsg) != SQLITE_OK
              || sqlite3_exec (attachment_db->db, "ANALYZE Dupin", NULL, NULL, &errmsg) != SQLITE_OK)
             {
-              g_mutex_unlock (attachment_db->mutex);
+              g_rw_lock_writer_unlock (attachment_db->rwlock);
               dupin_attachment_db_unref (attachment_db);
               g_error("dupin_database_compact_func: %s while vacuum and analyze attachemtns db", errmsg);
               sqlite3_free (errmsg);
 	      break;
             }
 
-          g_mutex_unlock (attachment_db->mutex);
+          g_rw_lock_writer_unlock (attachment_db->rwlock);
 
           dupin_attachment_db_unref (attachment_db);
 
@@ -1555,10 +1555,10 @@ dupin_database_compact_func (gpointer data, gpointer user_data)
 
 //g_message("dupin_database_compact_func(%p) finished and database is compacted\n",g_thread_self ());
 
-  g_mutex_lock (db->mutex);
+  g_rw_lock_writer_lock (db->rwlock);
   db->tocompact = FALSE;
   db->compact_thread = NULL;
-  g_mutex_unlock (db->mutex);
+  g_rw_lock_writer_unlock (db->rwlock);
 
   dupin_database_unref (db);
 }
@@ -1570,10 +1570,6 @@ dupin_database_compact (DupinDB * db)
 
   if (dupin_database_is_compacting (db))
     {
-      g_mutex_lock (db->mutex);
-      db->tocompact = TRUE;
-      g_mutex_unlock (db->mutex);
-
 //g_message("dupin_database_compact(%p): database is still compacting db->compact_thread=%p\n", g_thread_self (), db->compact_thread);
     }
   else

@@ -30,12 +30,8 @@ dupin_init (DSGlobal *data, GError ** error)
 
   d->conf = data; /* we just copy point from caller */
 
-#if GLIB_CHECK_VERSION (2,31,3)
-  d->mutex = g_new0 (GMutex, 1);
-  g_mutex_init (d->mutex);
-#else
-  d->mutex = g_mutex_new ();
-#endif
+  d->rwlock = g_new0 (GRWLock, 1);
+  g_rw_lock_init (d->rwlock);
 
   d->path = g_strdup (d->conf->sqlite_path);
 
@@ -355,14 +351,10 @@ dupin_shutdown (Dupin * d)
   g_message("dupin_shutdown: worker pools freed\n");
 #endif
 
-  if (d->mutex)
+  if (d->rwlock)
     {
-#if GLIB_CHECK_VERSION (2,31,3)
-      g_mutex_clear (d->mutex);
-      g_free (d->mutex);
-#else
-      g_mutex_free (d->mutex);
-#endif
+      g_rw_lock_clear (d->rwlock);
+      g_free (d->rwlock);
     }
 
   if (d->views)

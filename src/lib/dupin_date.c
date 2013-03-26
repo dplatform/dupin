@@ -14,7 +14,7 @@ dupin_date_timestamp_now (gint offset_seconds)
   GTimeVal tnow;
 
   g_get_current_time(&tnow); 
-  ttime= (tnow.tv_sec +offset_seconds) * 1000000 + tnow.tv_usec;
+  ttime= (tnow.tv_sec +offset_seconds) * G_USEC_PER_SEC + tnow.tv_usec;
 
   return ttime;
 }
@@ -24,8 +24,8 @@ dupin_date_timestamp_to_iso8601 (gsize timestamp)
 {
   GTimeVal tv;
 
-  tv.tv_sec = timestamp / 1000000;
-  tv.tv_usec = timestamp % 1000000;
+  tv.tv_sec = timestamp / G_USEC_PER_SEC;
+  tv.tv_usec = timestamp % G_USEC_PER_SEC;
 
 //g_message ("dupin_util_timestamp_to_iso8601: timestamp=%" G_GSIZE_FORMAT "\n", (long unsigned int)timestamp);
   
@@ -47,7 +47,7 @@ dupin_date_iso8601_to_timestamp (gchar * iso8601_date, gsize * timestamp)
       return FALSE;
     }
 
-  *timestamp = (date.tv_sec*1000000) + date.tv_usec;
+  *timestamp = (date.tv_sec*G_USEC_PER_SEC) + date.tv_usec;
 
 //g_message ("dupin_util_iso8601_to_timestamp: timestamp=%" G_GSIZE_FORMAT "\n", (long unsigned int)timestamp);
   
@@ -64,7 +64,7 @@ dupin_date_timestamp_to_http_date (gsize timestamp)
   time_t t;
   gchar * http_date = NULL;
 
-  t = (time_t) timestamp / 1000000;
+  t = (time_t) timestamp / G_USEC_PER_SEC;
 
   SoupDate * d = soup_date_new_from_time_t (t);
 
@@ -93,7 +93,7 @@ dupin_date_string_to_timestamp (gchar * date_string, gsize * timestamp)
 
   soup_date_to_timeval (date, &t);
 
-  *timestamp = (t.tv_sec*1000000) + t.tv_usec; // soup-date looses precision anyway
+  *timestamp = (t.tv_sec*G_USEC_PER_SEC) + t.tv_usec; // soup-date looses precision anyway
 
   soup_date_free (date);
 
@@ -103,8 +103,8 @@ dupin_date_string_to_timestamp (gchar * date_string, gsize * timestamp)
 gint
 dupin_date_timestamp_cmp (gsize timestamp1, gsize timestamp2)
 {
-  gint t1 = timestamp1 / 1000000;
-  gint t2 = timestamp2 / 1000000;
+  gint t1 = timestamp1 / G_USEC_PER_SEC;
+  gint t2 = timestamp2 / G_USEC_PER_SEC;
 
   //g_message ("dupin_date_timestamp_cmp: %d <=> %d\n", t1, t2);
 

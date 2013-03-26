@@ -46,11 +46,11 @@ dupin_get_attachment_dbs (Dupin * d)
 
   g_return_val_if_fail (d != NULL, NULL);
 
-  g_mutex_lock (d->mutex);
+  g_rw_lock_reader_lock (d->rwlock);
 
   if (!(size = g_hash_table_size (d->attachment_dbs)))
     {
-      g_mutex_unlock (d->mutex);
+      g_rw_lock_reader_unlock (d->rwlock);
       return NULL;
     }
 
@@ -63,7 +63,7 @@ dupin_get_attachment_dbs (Dupin * d)
 
   ret[i] = NULL;
 
-  g_mutex_unlock (d->mutex);
+  g_rw_lock_reader_unlock (d->rwlock);
 
   return ret;
 }
@@ -73,9 +73,9 @@ dupin_attachment_db_exists (Dupin * d, gchar * attachment_db)
 {
   gboolean ret;
 
-  g_mutex_lock (d->mutex);
+  g_rw_lock_reader_lock (d->rwlock);
   ret = g_hash_table_lookup (d->attachment_dbs, attachment_db) != NULL ? TRUE : FALSE;
-  g_mutex_unlock (d->mutex);
+  g_rw_lock_reader_unlock (d->rwlock);
 
   return ret;
 }
@@ -88,14 +88,14 @@ dupin_attachment_db_open (Dupin * d, gchar * attachment_db, GError ** error)
   g_return_val_if_fail (d != NULL, NULL);
   g_return_val_if_fail (attachment_db != NULL, NULL);
 
-  g_mutex_lock (d->mutex);
+  g_rw_lock_reader_lock (d->rwlock);
 
   if (!(ret = g_hash_table_lookup (d->attachment_dbs, attachment_db)) || ret->todelete == TRUE)
     {
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
 		 "Attachment DB '%s' doesn't exist.", attachment_db);
 
-      g_mutex_unlock (d->mutex);
+      g_rw_lock_reader_unlock (d->rwlock);
       return NULL;
     }
   else
@@ -107,7 +107,7 @@ dupin_attachment_db_open (Dupin * d, gchar * attachment_db, GError ** error)
 #endif
     }
 
-  g_mutex_unlock (d->mutex);
+  g_rw_lock_reader_unlock (d->rwlock);
 
   return ret;
 }
@@ -131,13 +131,13 @@ dupin_attachment_db_new (Dupin * d, gchar * attachment_db,
 
   g_return_val_if_fail (dupin_database_exists (d, parent) == TRUE, NULL);
 
-  g_mutex_lock (d->mutex);
+  g_rw_lock_writer_lock (d->rwlock);
 
   if ((ret = g_hash_table_lookup (d->attachment_dbs, attachment_db)))
     {
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
 		   "Attachment DB '%s' already exist.", attachment_db);
-      g_mutex_unlock (d->mutex);
+      g_rw_lock_writer_unlock (d->rwlock);
       return NULL;
     }
 
@@ -147,7 +147,7 @@ dupin_attachment_db_new (Dupin * d, gchar * attachment_db,
 
   if (!(ret = dupin_attachment_db_connect (d, attachment_db, path, DP_SQLITE_OPEN_CREATE, error)))
     {
-      g_mutex_unlock (d->mutex);
+      g_rw_lock_writer_unlock (d->rwlock);
       g_free (path);
       return NULL;
     }
@@ -164,7 +164,7 @@ dupin_attachment_db_new (Dupin * d, gchar * attachment_db,
 
   if (dupin_attachment_db_begin_transaction (ret, error) < 0)
     {
-      g_mutex_unlock (d->mutex);
+      g_rw_lock_writer_unlock (d->rwlock);
       dupin_attachment_db_disconnect (ret);
       return NULL;
     }
@@ -180,7 +180,7 @@ dupin_attachment_db_new (Dupin * d, gchar * attachment_db,
 
   if (sqlite3_exec (ret->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
     {
-      g_mutex_unlock (d->mutex);
+      g_rw_lock_writer_unlock (d->rwlock);
 
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
 		   errmsg);
@@ -194,14 +194,14 @@ dupin_attachment_db_new (Dupin * d, gchar * attachment_db,
 
   if (dupin_attachment_db_commit_transaction (ret, error) < 0)
     {
-      g_mutex_unlock (d->mutex);
+      g_rw_lock_writer_unlock (d->rwlock);
       dupin_attachment_db_disconnect (ret);
       return NULL;
     }
 
   sqlite3_free (str);
 
-  g_mutex_unlock (d->mutex);
+  g_rw_lock_writer_unlock (d->rwlock);
 
   if (dupin_attachment_db_p_update (ret, error) == FALSE)
     {
@@ -209,9 +209,9 @@ dupin_attachment_db_new (Dupin * d, gchar * attachment_db,
       return NULL;
     }
 
-  g_mutex_lock (d->mutex);
+  g_rw_lock_writer_lock (d->rwlock);
   g_hash_table_insert (d->attachment_dbs, g_strdup (attachment_db), ret);
-  g_mutex_unlock (d->mutex);
+  g_rw_lock_writer_unlock (d->rwlock);
 
   return ret;
 }
@@ -289,12 +289,12 @@ dupin_attachment_db_p_update (DupinAttachmentDB * attachment_db, GError ** error
 
   memset (&update, 0, sizeof (struct dupin_attachment_db_p_update_t));
 
-  g_mutex_lock (attachment_db->d->mutex);
+  g_rw_lock_writer_lock (attachment_db->d->rwlock);
 
   if (sqlite3_exec (attachment_db->db, query, dupin_attachment_db_p_update_cb, &update, &errmsg)
       != SQLITE_OK)
     {
-      g_mutex_unlock (attachment_db->d->mutex);
+      g_rw_lock_writer_unlock (attachment_db->d->rwlock);
 
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
 		   errmsg);
@@ -302,7 +302,7 @@ dupin_attachment_db_p_update (DupinAttachmentDB * attachment_db, GError ** error
       return FALSE;
     }
 
-  g_mutex_unlock (attachment_db->d->mutex);
+  g_rw_lock_writer_unlock (attachment_db->d->rwlock);
 
   if (!update.parent)
     {
@@ -319,9 +319,9 @@ dupin_attachment_db_p_update (DupinAttachmentDB * attachment_db, GError ** error
       return FALSE;
     }
 
-  g_mutex_lock (db->mutex);
+  g_rw_lock_writer_lock (db->rwlock);
   dupin_attachment_db_p_update_real (&db->attachment_dbs, attachment_db);
-  g_mutex_unlock (db->mutex);
+  g_rw_lock_writer_unlock (db->rwlock);
 
   dupin_database_unref (db);
 
@@ -394,7 +394,7 @@ dupin_attachment_db_ref (DupinAttachmentDB * attachment_db)
 
   d = attachment_db->d;
 
-  g_mutex_lock (d->mutex);
+  g_rw_lock_writer_lock (d->rwlock);
 
   attachment_db->ref++;
 
@@ -402,7 +402,7 @@ dupin_attachment_db_ref (DupinAttachmentDB * attachment_db)
   fprintf(stderr,"dupin_attachment_db_ref: (%p) name=%s \t ref++=%d\n", g_thread_self (), attachment_db->name, (gint) attachment_db->ref);
 #endif
 
-  g_mutex_unlock (d->mutex);
+  g_rw_lock_writer_unlock (d->rwlock);
 }
 
 void
@@ -413,7 +413,8 @@ dupin_attachment_db_unref (DupinAttachmentDB * attachment_db)
   g_return_if_fail (attachment_db != NULL);
 
   d = attachment_db->d;
-  g_mutex_lock (d->mutex);
+
+  g_rw_lock_writer_lock (d->rwlock);
 
   if (attachment_db->ref > 0)
     {
@@ -430,7 +431,7 @@ dupin_attachment_db_unref (DupinAttachmentDB * attachment_db)
   if (attachment_db->ref == 0 && attachment_db->todelete == TRUE)
     g_hash_table_remove (d->attachment_dbs, attachment_db->name);
 
-  g_mutex_unlock (d->mutex);
+  g_rw_lock_writer_unlock (d->rwlock);
 }
 
 gboolean
@@ -442,9 +443,9 @@ dupin_attachment_db_delete (DupinAttachmentDB * attachment_db, GError ** error)
 
   d = attachment_db->d;
 
-  g_mutex_lock (d->mutex);
+  g_rw_lock_writer_lock (d->rwlock);
   attachment_db->todelete = TRUE;
-  g_mutex_unlock (d->mutex);
+  g_rw_lock_writer_unlock (d->rwlock);
 
   if (dupin_attachment_db_p_update (attachment_db, error) == FALSE)
     {
@@ -506,11 +507,11 @@ dupin_attachment_db_get_creation_time (DupinAttachmentDB * attachment_db, gsize 
 
   /* get creation time out of attachment db */
   query = "SELECT creation_time as creation_time FROM DupinAttachmentDB";
-  g_mutex_lock (attachment_db->mutex);
+  g_rw_lock_reader_lock (attachment_db->rwlock);
 
   if (sqlite3_exec (attachment_db->db, query, dupin_attachment_db_get_creation_time_cb, creation_time, &errmsg) != SQLITE_OK)
     {
-      g_mutex_unlock (attachment_db->mutex);
+      g_rw_lock_reader_unlock (attachment_db->rwlock);
 
       g_error("dupin_attachment_db_get_creation_time: %s", errmsg);
       sqlite3_free (errmsg);
@@ -518,7 +519,7 @@ dupin_attachment_db_get_creation_time (DupinAttachmentDB * attachment_db, gsize 
       return FALSE;
     }
 
-  g_mutex_unlock (attachment_db->mutex);
+  g_rw_lock_reader_unlock (attachment_db->rwlock);
 
   return TRUE;
 }
@@ -546,14 +547,10 @@ dupin_attachment_db_disconnect (DupinAttachmentDB * attachment_db)
   if (attachment_db->parent)
     g_free (attachment_db->parent);
 
-  if (attachment_db->mutex)
+  if (attachment_db->rwlock)
     {
-#if GLIB_CHECK_VERSION (2,31,3)
-      g_mutex_clear (attachment_db->mutex);
-      g_free (attachment_db->mutex);
-#else
-      g_mutex_free (attachment_db->mutex);
-#endif
+      g_rw_lock_clear (attachment_db->rwlock);
+      g_free (attachment_db->rwlock);
     }
 
   if (attachment_db->error_msg)
@@ -725,12 +722,8 @@ dupin_attachment_db_connect (Dupin * d, gchar * name, gchar * path,
       dupin_attachment_db_disconnect (attachment_db);
     }
 
-#if GLIB_CHECK_VERSION (2,31,3)
-  attachment_db->mutex = g_new0 (GMutex, 1);
-  g_mutex_init (attachment_db->mutex);
-#else
-  attachment_db->mutex = g_mutex_new ();
-#endif
+  attachment_db->rwlock = g_new0 (GRWLock, 1);
+  g_rw_lock_init (attachment_db->rwlock);
 
   return attachment_db;
 }
@@ -862,16 +855,16 @@ dupin_attachment_db_count (DupinAttachmentDB * attachment_db)
 
   query = "SELECT count(*) as c FROM Dupin";
 
-  g_mutex_lock (attachment_db->mutex);
+  g_rw_lock_reader_lock (attachment_db->rwlock);
 
   if (sqlite3_exec (attachment_db->db, query, dupin_attachment_db_count_cb, &size, NULL) !=
       SQLITE_OK)
     {
-      g_mutex_unlock (attachment_db->mutex);
+      g_rw_lock_reader_unlock (attachment_db->rwlock);
       return 0;
     }
 
-  g_mutex_unlock (attachment_db->mutex);
+  g_rw_lock_reader_unlock (attachment_db->rwlock);
   return size;
 }
 

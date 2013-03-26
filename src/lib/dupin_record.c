@@ -82,12 +82,12 @@ dupin_record_exists_real (DupinDB * db, gchar * id, gboolean lock)
   tmp = sqlite3_mprintf (DUPIN_DB_SQL_EXISTS, id);
 
   if (lock == TRUE)
-    g_mutex_lock (db->mutex);
+    g_rw_lock_reader_lock (db->rwlock);
 
   if (sqlite3_exec (db->db, tmp, dupin_record_exists_real_cb, &numb, &errmsg) != SQLITE_OK)
     {
       if (lock == TRUE)
-        g_mutex_unlock (db->mutex);
+        g_rw_lock_reader_unlock (db->rwlock);
 
       sqlite3_free (tmp);
 
@@ -99,7 +99,7 @@ dupin_record_exists_real (DupinDB * db, gchar * id, gboolean lock)
     }
 
   if (lock == TRUE)
-    g_mutex_unlock (db->mutex);
+    g_rw_lock_reader_unlock (db->rwlock);
 
   sqlite3_free (tmp);
 
@@ -116,17 +116,17 @@ dupin_record_create (DupinDB * db, JsonNode * obj_node, GError ** error)
   g_return_val_if_fail (obj_node != NULL, NULL);
   g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, NULL);
 
-  g_mutex_lock (db->mutex);
+  g_rw_lock_writer_lock (db->rwlock);
 
   if (!(id = dupin_database_generate_id_real (db, error, FALSE)))
     {
-      g_mutex_unlock (db->mutex);
+      g_rw_lock_writer_unlock (db->rwlock);
       return NULL;
     }
 
   record = dupin_record_create_with_id_real (db, obj_node, id, error, FALSE);
 
-  g_mutex_unlock (db->mutex);
+  g_rw_lock_writer_unlock (db->rwlock);
   g_free (id);
 
   return record;
@@ -160,7 +160,7 @@ dupin_record_create_with_id_real (DupinDB * db, JsonNode * obj_node,
   dupin_database_ref (db);
 
   if (lock == TRUE)
-    g_mutex_lock (db->mutex);
+    g_rw_lock_writer_lock (db->rwlock);
 
   record = dupin_record_new (db, id);
 
@@ -177,7 +177,7 @@ dupin_record_create_with_id_real (DupinDB * db, JsonNode * obj_node,
   if (dupin_database_begin_transaction (db, error) < 0)
     {
       if (lock == TRUE)
-	g_mutex_unlock (db->mutex);
+	g_rw_lock_writer_unlock (db->rwlock);
 
       dupin_record_close (record);
       sqlite3_free (tmp);
@@ -187,7 +187,7 @@ dupin_record_create_with_id_real (DupinDB * db, JsonNode * obj_node,
   if (sqlite3_exec (db->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
     {
       if (lock == TRUE)
-	g_mutex_unlock (db->mutex);
+	g_rw_lock_writer_unlock (db->rwlock);
 
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
 		   errmsg);
@@ -206,7 +206,7 @@ dupin_record_create_with_id_real (DupinDB * db, JsonNode * obj_node,
   if (sqlite3_exec (db->db, DUPIN_DB_SQL_GET_TOTALS, dupin_record_select_total_cb, &t, NULL) != SQLITE_OK)
     {
       if (lock == TRUE)
-	g_mutex_unlock (db->mutex);
+	g_rw_lock_writer_unlock (db->rwlock);
 
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
 		   errmsg);
@@ -224,7 +224,7 @@ dupin_record_create_with_id_real (DupinDB * db, JsonNode * obj_node,
   if (sqlite3_exec (db->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
     {
       if (lock == TRUE)
-	g_mutex_unlock (db->mutex);
+	g_rw_lock_writer_unlock (db->rwlock);
 
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
 		   errmsg);
@@ -239,7 +239,7 @@ dupin_record_create_with_id_real (DupinDB * db, JsonNode * obj_node,
   if (dupin_database_commit_transaction (db, error) < 0)
     {
       if (lock == TRUE)
-        g_mutex_unlock (db->mutex);
+        g_rw_lock_writer_unlock (db->rwlock);
 
       dupin_record_close (record);
       sqlite3_free (tmp);
@@ -247,7 +247,7 @@ dupin_record_create_with_id_real (DupinDB * db, JsonNode * obj_node,
     }
 
   if (lock == TRUE)
-    g_mutex_unlock (db->mutex);
+    g_rw_lock_writer_unlock (db->rwlock);
 
   sqlite3_free (tmp);
 
@@ -330,13 +330,13 @@ dupin_record_read_real (DupinDB * db, gchar * id, GError ** error,
   tmp = sqlite3_mprintf (DUPIN_DB_SQL_READ, id);
 
   if (lock == TRUE)
-    g_mutex_lock (db->mutex);
+    g_rw_lock_reader_lock (db->rwlock);
 
   if (sqlite3_exec (db->db, tmp, dupin_record_read_cb, record, &errmsg) !=
       SQLITE_OK)
     {
       if (lock == TRUE)
-	g_mutex_unlock (db->mutex);
+	g_rw_lock_reader_unlock (db->rwlock);
 
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
 		   errmsg);
@@ -347,7 +347,7 @@ dupin_record_read_real (DupinDB * db, gchar * id, GError ** error,
     }
 
   if (lock == TRUE)
-    g_mutex_unlock (db->mutex);
+    g_rw_lock_reader_unlock (db->rwlock);
 
   sqlite3_free (tmp);
 
@@ -582,12 +582,12 @@ dupin_record_get_list_total (DupinDB *         db,
 
 //g_message("dupin_record_get_list_total: query=%s\n", query);
 
-  g_mutex_lock (db->mutex);
+  g_rw_lock_reader_lock (db->rwlock);
 
   if (sqlite3_exec (db->db, query, dupin_record_get_list_total_cb, &count, &errmsg) !=
       SQLITE_OK)
     {
-      g_mutex_unlock (db->mutex);
+      g_rw_lock_reader_unlock (db->rwlock);
 
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
                    errmsg);
@@ -598,7 +598,7 @@ dupin_record_get_list_total (DupinDB *         db,
       return 0;
     }
 
-  g_mutex_unlock (db->mutex);
+  g_rw_lock_reader_unlock (db->rwlock);
 
   g_free (query);
 
@@ -910,12 +910,12 @@ dupin_record_get_list (DupinDB * db,
 
 //g_message("dupin_record_get_list() query=%s\n",tmp);
 
-  g_mutex_lock (db->mutex);
+  g_rw_lock_reader_lock (db->rwlock);
 
   if (sqlite3_exec (db->db, tmp, dupin_record_get_list_cb, &s, &errmsg) !=
       SQLITE_OK)
     {
-      g_mutex_unlock (db->mutex);
+      g_rw_lock_reader_unlock (db->rwlock);
 
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
 		   errmsg);
@@ -925,7 +925,7 @@ dupin_record_get_list (DupinDB * db,
       return FALSE;
     }
 
-  g_mutex_unlock (db->mutex);
+  g_rw_lock_reader_unlock (db->rwlock);
 
   g_free (tmp);
 
@@ -1037,12 +1037,12 @@ dupin_record_get_revisions_list (DupinRecord * record,
 
 //g_message("dupin_record_get_revisions_list() query=%s\n",tmp);
 
-  g_mutex_lock (record->db->mutex);
+  g_rw_lock_reader_lock (record->db->rwlock);
 
   if (sqlite3_exec (record->db->db, tmp, dupin_record_get_revisions_list_cb, &s, &errmsg) !=
       SQLITE_OK)
     {
-      g_mutex_unlock (record->db->mutex);
+      g_rw_lock_reader_unlock (record->db->rwlock);
 
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
 		   errmsg);
@@ -1052,7 +1052,7 @@ dupin_record_get_revisions_list (DupinRecord * record,
       return FALSE;
     }
 
-  g_mutex_unlock (record->db->mutex);
+  g_rw_lock_reader_unlock (record->db->rwlock);
 
   g_free (tmp);
 
@@ -1097,12 +1097,12 @@ dupin_record_get_total_revisions (DupinRecord * record,
 
 //g_message("dupin_record_get_total_revisions() query=%s\n",tmp);
 
-  g_mutex_lock (record->db->mutex);
+  g_rw_lock_reader_lock (record->db->rwlock);
 
   if (sqlite3_exec (record->db->db, tmp, dupin_record_get_total_revisions_cb, &total_revisions, &errmsg) !=
       SQLITE_OK)
     {
-      g_mutex_unlock (record->db->mutex);
+      g_rw_lock_reader_unlock (record->db->rwlock);
 
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
 		   errmsg);
@@ -1112,7 +1112,7 @@ dupin_record_get_total_revisions (DupinRecord * record,
       return FALSE;
     }
 
-  g_mutex_unlock (record->db->mutex);
+  g_rw_lock_reader_unlock (record->db->rwlock);
 
   g_free (tmp);
 
@@ -1145,7 +1145,7 @@ dupin_record_update (DupinRecord * record, JsonNode * obj_node,
   g_return_val_if_fail (obj_node != NULL, FALSE);
   g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, FALSE);
 
-  g_mutex_lock (record->db->mutex);
+  g_rw_lock_writer_lock (record->db->rwlock);
 
   /* NOTE - flag any previous revision as non head - we need this to optimise searches
 	    and avoid slowness of max(rev) as rev or even nested select like
@@ -1155,7 +1155,7 @@ dupin_record_update (DupinRecord * record, JsonNode * obj_node,
 
   if (dupin_database_begin_transaction (record->db, error) < 0)
     {
-      g_mutex_unlock (record->db->mutex);
+      g_rw_lock_writer_unlock (record->db->rwlock);
 
       sqlite3_free (tmp);
       return FALSE;
@@ -1163,7 +1163,7 @@ dupin_record_update (DupinRecord * record, JsonNode * obj_node,
 
   if (sqlite3_exec (record->db->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
     {
-      g_mutex_unlock (record->db->mutex);
+      g_rw_lock_writer_unlock (record->db->rwlock);
 
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
 		   errmsg);
@@ -1193,7 +1193,7 @@ dupin_record_update (DupinRecord * record, JsonNode * obj_node,
 
   if (sqlite3_exec (record->db->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
     {
-      g_mutex_unlock (record->db->mutex);
+      g_rw_lock_writer_unlock (record->db->rwlock);
 
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
 		   errmsg);
@@ -1214,7 +1214,7 @@ dupin_record_update (DupinRecord * record, JsonNode * obj_node,
 
           if (sqlite3_exec (record->db->db, DUPIN_DB_SQL_GET_TOTALS, dupin_record_select_total_cb, &t, NULL) != SQLITE_OK)
             {
-              g_mutex_unlock (record->db->mutex);
+              g_rw_lock_writer_unlock (record->db->rwlock);
 
               g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
                    errmsg);
@@ -1235,7 +1235,7 @@ dupin_record_update (DupinRecord * record, JsonNode * obj_node,
 
               if (sqlite3_exec (record->db->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
                 {
-                  g_mutex_unlock (record->db->mutex);
+                  g_rw_lock_writer_unlock (record->db->rwlock);
 
                   g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
                    errmsg);
@@ -1251,13 +1251,13 @@ dupin_record_update (DupinRecord * record, JsonNode * obj_node,
 
   if (dupin_database_commit_transaction (record->db, error) < 0)
     {
-      g_mutex_unlock (record->db->mutex);
+      g_rw_lock_writer_unlock (record->db->rwlock);
 
       sqlite3_free (tmp);
       return FALSE;
     }
 
-  g_mutex_unlock (record->db->mutex);
+  g_rw_lock_writer_unlock (record->db->rwlock);
 
   sqlite3_free (tmp);
 
@@ -1326,7 +1326,7 @@ dupin_record_delete (DupinRecord * record, GError ** error)
       return FALSE;
     }
 
-  g_mutex_lock (record->db->mutex);
+  g_rw_lock_writer_lock (record->db->rwlock);
 
   /* NOTE - flag any previous revision as non head - we need this to optimise searches
             and avoid slowness of max(rev) as rev or even nested select like
@@ -1336,7 +1336,7 @@ dupin_record_delete (DupinRecord * record, GError ** error)
 
   if (dupin_database_begin_transaction (record->db, error) < 0)
     {
-      g_mutex_unlock (record->db->mutex);
+      g_rw_lock_writer_unlock (record->db->rwlock);
 
       sqlite3_free (tmp);
       return FALSE;
@@ -1344,7 +1344,7 @@ dupin_record_delete (DupinRecord * record, GError ** error)
 
   if (sqlite3_exec (record->db->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
     {
-      g_mutex_unlock (record->db->mutex);
+      g_rw_lock_writer_unlock (record->db->rwlock);
 
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
                    errmsg);
@@ -1417,13 +1417,13 @@ dupin_record_delete (DupinRecord * record, GError ** error)
   if (ret != FALSE
       && dupin_database_commit_transaction (record->db, error) < 0)
     {
-      g_mutex_unlock (record->db->mutex);
+      g_rw_lock_writer_unlock (record->db->rwlock);
 
       sqlite3_free (tmp);
       return FALSE;
     }
 
-  g_mutex_unlock (record->db->mutex);
+  g_rw_lock_writer_unlock (record->db->rwlock);
 
   sqlite3_free (tmp);
 
@@ -2735,10 +2735,10 @@ dupin_record_insert_bulk (DupinDB * db,
       return FALSE;
     }
 
-  g_mutex_lock (db->mutex);
+  g_rw_lock_writer_lock (db->rwlock);
   if (dupin_database_begin_transaction (db, NULL) < 0)
     {
-      g_mutex_unlock (db->mutex);
+      g_rw_lock_writer_unlock (db->rwlock);
 
       dupin_attachment_db_unref (attachment_db);
       dupin_linkbase_unref (linkb);
@@ -2747,16 +2747,16 @@ dupin_record_insert_bulk (DupinDB * db,
 
       return FALSE;
     }
-  g_mutex_unlock (db->mutex);
+  g_rw_lock_writer_unlock (db->rwlock);
 
-  g_mutex_lock (attachment_db->mutex);
+  g_rw_lock_writer_lock (attachment_db->rwlock);
   if (dupin_attachment_db_begin_transaction (attachment_db, NULL) < 0)
     {
-      g_mutex_lock (db->mutex);
+      g_rw_lock_writer_lock (db->rwlock);
       dupin_database_rollback_transaction (db, NULL);
-      g_mutex_unlock (db->mutex);
+      g_rw_lock_writer_unlock (db->rwlock);
 
-      g_mutex_unlock (attachment_db->mutex);
+      g_rw_lock_writer_unlock (attachment_db->rwlock);
 
       dupin_attachment_db_unref (attachment_db);
       dupin_linkbase_unref (linkb);
@@ -2765,20 +2765,20 @@ dupin_record_insert_bulk (DupinDB * db,
 
       return FALSE;
     }
-  g_mutex_unlock (attachment_db->mutex);
+  g_rw_lock_writer_unlock (attachment_db->rwlock);
 
-  g_mutex_lock (linkb->mutex);
+  g_rw_lock_writer_lock (linkb->rwlock);
   if (dupin_linkbase_begin_transaction (linkb, NULL) < 0)
     {
-      g_mutex_lock (db->mutex);
+      g_rw_lock_writer_lock (db->rwlock);
       dupin_database_rollback_transaction (db, NULL);
-      g_mutex_unlock (db->mutex);
+      g_rw_lock_writer_unlock (db->rwlock);
 
-      g_mutex_lock (attachment_db->mutex);
+      g_rw_lock_writer_lock (attachment_db->rwlock);
       dupin_attachment_db_rollback_transaction (attachment_db, NULL);
-      g_mutex_unlock (attachment_db->mutex);
+      g_rw_lock_writer_unlock (attachment_db->rwlock);
 
-      g_mutex_unlock (linkb->mutex);
+      g_rw_lock_writer_unlock (linkb->rwlock);
 
       dupin_attachment_db_unref (attachment_db);
       dupin_linkbase_unref (linkb);
@@ -2787,11 +2787,11 @@ dupin_record_insert_bulk (DupinDB * db,
 
       return FALSE;
     }
-  g_mutex_unlock (linkb->mutex);
+  g_rw_lock_writer_unlock (linkb->rwlock);
 
-  g_mutex_lock (db->d->mutex);
+  g_rw_lock_writer_lock (db->d->rwlock);
   db->d->bulk_transaction = TRUE;
-  g_mutex_unlock (db->d->mutex);
+  g_rw_lock_writer_unlock (db->d->rwlock);
  
   for (n = nodes; n != NULL; n = n->next)
     {
@@ -2804,21 +2804,21 @@ dupin_record_insert_bulk (DupinDB * db,
           dupin_database_set_error (db, "Bulk body " REQUEST_POST_BULK_DOCS_DOCS " array memebr is not a valid JSON object");
           g_list_free (nodes);
 
-          g_mutex_lock (linkb->mutex);
+          g_rw_lock_writer_lock (linkb->rwlock);
           dupin_linkbase_rollback_transaction (linkb, NULL);
-          g_mutex_unlock (linkb->mutex);
+          g_rw_lock_writer_unlock (linkb->rwlock);
 
-          g_mutex_lock (attachment_db->mutex);
+          g_rw_lock_writer_lock (attachment_db->rwlock);
           dupin_attachment_db_rollback_transaction (attachment_db, NULL);
-          g_mutex_unlock (attachment_db->mutex);
+          g_rw_lock_writer_unlock (attachment_db->rwlock);
 
-          g_mutex_lock (db->mutex);
+          g_rw_lock_writer_lock (db->rwlock);
           dupin_database_rollback_transaction (db, NULL);
-          g_mutex_unlock (db->mutex);
+          g_rw_lock_writer_unlock (db->rwlock);
 
-          g_mutex_lock (db->d->mutex);
+          g_rw_lock_writer_lock (db->d->rwlock);
           db->d->bulk_transaction = FALSE;
-          g_mutex_unlock (db->d->mutex);
+          g_rw_lock_writer_unlock (db->d->rwlock);
 
           dupin_attachment_db_unref (attachment_db);
           dupin_linkbase_unref (linkb);
@@ -2868,24 +2868,24 @@ dupin_record_insert_bulk (DupinDB * db,
 
   if (db->d->super_bulk_transaction == FALSE)
     {
-      g_mutex_lock (db->d->mutex);
+      g_rw_lock_writer_lock (db->d->rwlock);
       db->d->bulk_transaction = FALSE;
-      g_mutex_unlock (db->d->mutex);
+      g_rw_lock_writer_unlock (db->d->rwlock);
     }
 
-  g_mutex_lock (linkb->mutex);
+  g_rw_lock_writer_lock (linkb->rwlock);
   if (dupin_linkbase_commit_transaction (linkb, NULL) < 0)
     {
       dupin_linkbase_rollback_transaction (linkb, NULL);
-      g_mutex_unlock (linkb->mutex);
+      g_rw_lock_writer_unlock (linkb->rwlock);
 
-      g_mutex_lock (attachment_db->mutex);
+      g_rw_lock_writer_lock (attachment_db->rwlock);
       dupin_attachment_db_rollback_transaction (attachment_db, NULL);
-      g_mutex_unlock (attachment_db->mutex);
+      g_rw_lock_writer_unlock (attachment_db->rwlock);
 
-      g_mutex_lock (db->mutex);
+      g_rw_lock_writer_lock (db->rwlock);
       dupin_database_rollback_transaction (db, NULL);
-      g_mutex_unlock (db->mutex);
+      g_rw_lock_writer_unlock (db->rwlock);
 
       dupin_attachment_db_unref (attachment_db);
       dupin_linkbase_unref (linkb);
@@ -2895,17 +2895,17 @@ dupin_record_insert_bulk (DupinDB * db,
 
       return FALSE;
     }
-  g_mutex_unlock (linkb->mutex);
+  g_rw_lock_writer_unlock (linkb->rwlock);
 
-  g_mutex_lock (attachment_db->mutex);
+  g_rw_lock_writer_lock (attachment_db->rwlock);
   if (dupin_attachment_db_commit_transaction (attachment_db, NULL) < 0)
     {
       dupin_attachment_db_rollback_transaction (attachment_db, NULL);
-      g_mutex_unlock (attachment_db->mutex);
+      g_rw_lock_writer_unlock (attachment_db->rwlock);
 
-      g_mutex_lock (db->mutex);
+      g_rw_lock_writer_lock (db->rwlock);
       dupin_database_rollback_transaction (db, NULL);
-      g_mutex_unlock (db->mutex);
+      g_rw_lock_writer_unlock (db->rwlock);
 
       dupin_attachment_db_unref (attachment_db);
       dupin_linkbase_unref (linkb);
@@ -2915,13 +2915,13 @@ dupin_record_insert_bulk (DupinDB * db,
 
       return FALSE;
     }
-  g_mutex_unlock (attachment_db->mutex);
+  g_rw_lock_writer_unlock (attachment_db->rwlock);
 
-  g_mutex_lock (db->mutex);
+  g_rw_lock_writer_lock (db->rwlock);
   if (dupin_database_commit_transaction (db, NULL) < 0)
     {
       dupin_database_rollback_transaction (db, NULL);
-      g_mutex_unlock (db->mutex);
+      g_rw_lock_writer_unlock (db->rwlock);
 
       dupin_attachment_db_unref (attachment_db);
       dupin_linkbase_unref (linkb);
@@ -2931,7 +2931,7 @@ dupin_record_insert_bulk (DupinDB * db,
 
       return FALSE;
     }
-  g_mutex_unlock (db->mutex);
+  g_rw_lock_writer_unlock (db->rwlock);
 
 //g_message("dupin_record_insert_bulk: inserted %d records into database %s\n", (gint)g_list_length (nodes), db->name);
 

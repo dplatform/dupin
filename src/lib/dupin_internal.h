@@ -46,7 +46,7 @@
 
 struct dupin_t
 {
-  GMutex *	mutex;
+  GRWLock *     rwlock;
 
   gchar *	path;
   GHashTable *	dbs;
@@ -98,7 +98,7 @@ struct dupin_view_p_t
 struct dupin_db_t
 {
   Dupin *	d;
-  GMutex *	mutex;
+  GRWLock *     rwlock;
 
   gchar *	name;
   gchar *	path;
@@ -130,7 +130,7 @@ struct dupin_db_t
 struct dupin_linkb_t
 {
   Dupin *	d;
-  GMutex *	mutex;
+  GRWLock *     rwlock;
 
   gchar *	name;
   gchar *	path;
@@ -167,7 +167,7 @@ struct dupin_linkb_t
 struct dupin_view_t
 {
   Dupin *	d;
-  GMutex *	mutex;
+  GRWLock *     rwlock;
 
   gchar *	name;
   gchar *	path;
@@ -197,7 +197,10 @@ struct dupin_view_t
   gsize		sync_reduce_total_records; /* total records to reduce from view table */
   gsize		sync_reduce_processed_count; /* incremental counter of reduced records */
   gboolean	sync_toquit;
-  GCond *	sync_map_has_new_work; /* for communication between map to reduce threads */
+
+  /* NOTE - The following are used for communication between map and reduce threads */
+  GCond *	sync_map_has_new_work;
+  GMutex *      mutex;
 
   sqlite3 *	db;
 
@@ -223,7 +226,7 @@ struct dupin_view_t
 struct dupin_attachment_db_t
 {
   Dupin *	d;
-  GMutex *	mutex;
+  GRWLock *     rwlock;
 
   gchar *	name;
   gchar *	path;

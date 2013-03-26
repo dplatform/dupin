@@ -96,11 +96,11 @@ dupin_get_views (Dupin * d)
 
   g_return_val_if_fail (d != NULL, NULL);
 
-  g_mutex_lock (d->mutex);
+  g_rw_lock_reader_lock (d->rwlock);
 
   if (!(size = g_hash_table_size (d->views)))
     {
-      g_mutex_unlock (d->mutex);
+      g_rw_lock_reader_unlock (d->rwlock);
       return NULL;
     }
 
@@ -113,7 +113,7 @@ dupin_get_views (Dupin * d)
 
   ret[i] = NULL;
 
-  g_mutex_unlock (d->mutex);
+  g_rw_lock_reader_unlock (d->rwlock);
 
   return ret;
 }
@@ -123,9 +123,9 @@ dupin_view_exists (Dupin * d, gchar * view)
 {
   gboolean ret;
 
-  g_mutex_lock (d->mutex);
+  g_rw_lock_reader_lock (d->rwlock);
   ret = g_hash_table_lookup (d->views, view) != NULL ? TRUE : FALSE;
-  g_mutex_unlock (d->mutex);
+  g_rw_lock_reader_unlock (d->rwlock);
 
   return ret;
 }
@@ -138,14 +138,14 @@ dupin_view_open (Dupin * d, gchar * view, GError ** error)
   g_return_val_if_fail (d != NULL, NULL);
   g_return_val_if_fail (view != NULL, NULL);
 
-  g_mutex_lock (d->mutex);
+  g_rw_lock_reader_lock (d->rwlock);
 
   if (!(ret = g_hash_table_lookup (d->views, view)) || ret->todelete == TRUE)
     {
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
 		 "View '%s' doesn't exist.", view);
 
-      g_mutex_unlock (d->mutex);
+      g_rw_lock_reader_unlock (d->rwlock);
       return NULL;
     }
   else
@@ -157,7 +157,7 @@ dupin_view_open (Dupin * d, gchar * view, GError ** error)
 #endif
     }
 
-  g_mutex_unlock (d->mutex);
+  g_rw_lock_reader_unlock (d->rwlock);
 
   return ret;
 }
@@ -227,13 +227,13 @@ dupin_view_new (Dupin * d, gchar * view, gchar * parent, gboolean is_db, gboolea
         }
     }
 
-  g_mutex_lock (d->mutex);
+  g_rw_lock_writer_lock (d->rwlock);
 
   if ((ret = g_hash_table_lookup (d->views, view)))
     {
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
 		   "View '%s' already exist.", view);
-      g_mutex_unlock (d->mutex);
+      g_rw_lock_writer_unlock (d->rwlock);
       return NULL;
     }
 
@@ -243,7 +243,7 @@ dupin_view_new (Dupin * d, gchar * view, gchar * parent, gboolean is_db, gboolea
 
   if (!(ret = dupin_view_connect (d, view, path, DP_SQLITE_OPEN_CREATE, error)))
     {
-      g_mutex_unlock (d->mutex);
+      g_rw_lock_writer_unlock (d->rwlock);
       g_free (path);
       return NULL;
     }
@@ -278,7 +278,7 @@ dupin_view_new (Dupin * d, gchar * view, gchar * parent, gboolean is_db, gboolea
 
   if (dupin_view_begin_transaction (ret, error) < 0)
     {
-      g_mutex_unlock (d->mutex);
+      g_rw_lock_writer_unlock (d->rwlock);
       dupin_view_disconnect (ret);
       return NULL;
     }
@@ -303,7 +303,7 @@ dupin_view_new (Dupin * d, gchar * view, gchar * parent, gboolean is_db, gboolea
 
   if (sqlite3_exec (ret->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
     {
-      g_mutex_unlock (d->mutex);
+      g_rw_lock_writer_unlock (d->rwlock);
 
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
 		   errmsg);
@@ -321,7 +321,7 @@ dupin_view_new (Dupin * d, gchar * view, gchar * parent, gboolean is_db, gboolea
 
   if (sqlite3_exec (ret->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
     {
-      g_mutex_unlock (d->mutex);
+      g_rw_lock_writer_unlock (d->rwlock);
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
 		       errmsg);
 
@@ -336,12 +336,12 @@ dupin_view_new (Dupin * d, gchar * view, gchar * parent, gboolean is_db, gboolea
 
   if (dupin_view_commit_transaction (ret, error) < 0)
     {
-      g_mutex_unlock (d->mutex);
+      g_rw_lock_writer_unlock (d->rwlock);
       dupin_view_disconnect (ret);
       return NULL;
     }
 
-  g_mutex_unlock (d->mutex);
+  g_rw_lock_writer_unlock (d->rwlock);
 
   if (dupin_view_p_update (ret, error) == FALSE)
     {
@@ -349,9 +349,9 @@ dupin_view_new (Dupin * d, gchar * view, gchar * parent, gboolean is_db, gboolea
       return NULL;
     }
 
-  g_mutex_lock (d->mutex);
+  g_rw_lock_writer_lock (d->rwlock);
   g_hash_table_insert (d->views, g_strdup (view), ret);
-  g_mutex_unlock (d->mutex);
+  g_rw_lock_writer_unlock (d->rwlock);
 
   dupin_view_sync (ret);
   return ret;
@@ -474,12 +474,12 @@ dupin_view_p_update (DupinView * view, GError ** error)
 
   memset (&update, 0, sizeof (struct dupin_view_p_update_t));
 
-  g_mutex_lock (view->d->mutex);
+  g_rw_lock_writer_lock (view->d->rwlock);
 
   if (sqlite3_exec (view->db, query, dupin_view_p_update_cb, &update, &errmsg)
       != SQLITE_OK)
     {
-      g_mutex_unlock (view->d->mutex);
+      g_rw_lock_writer_unlock (view->d->rwlock);
 
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
 		   errmsg);
@@ -487,7 +487,7 @@ dupin_view_p_update (DupinView * view, GError ** error)
       return FALSE;
     }
 
-  g_mutex_unlock (view->d->mutex);
+  g_rw_lock_writer_unlock (view->d->rwlock);
 
   if (!update.parent)
     {
@@ -525,9 +525,9 @@ dupin_view_p_update (DupinView * view, GError ** error)
 	  return FALSE;
 	}
 
-      g_mutex_lock (db->mutex);
+      g_rw_lock_writer_lock (db->rwlock);
       dupin_view_p_update_real (&db->views, view);
-      g_mutex_unlock (db->mutex);
+      g_rw_lock_writer_unlock (db->rwlock);
 
       dupin_database_unref (db);
     }
@@ -551,9 +551,9 @@ dupin_view_p_update (DupinView * view, GError ** error)
 	  return FALSE;
 	}
 
-      g_mutex_lock (linkb->mutex);
+      g_rw_lock_writer_lock (linkb->rwlock);
       dupin_view_p_update_real (&linkb->views, view);
-      g_mutex_unlock (linkb->mutex);
+      g_rw_lock_writer_unlock (linkb->rwlock);
 
       dupin_linkbase_unref (linkb);
     }
@@ -577,9 +577,9 @@ dupin_view_p_update (DupinView * view, GError ** error)
 	  return FALSE;
 	}
 
-      g_mutex_lock (v->mutex);
+      g_rw_lock_writer_lock (v->rwlock);
       dupin_view_p_update_real (&v->views, view);
-      g_mutex_unlock (v->mutex);
+      g_rw_lock_writer_unlock (v->rwlock);
 
       dupin_view_unref (v);
     }
@@ -699,7 +699,7 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
 //DUPIN_UTIL_DUMP_JSON ("dupin_view_record_save_map: PID", pid_node);
 //DUPIN_UTIL_DUMP_JSON ("dupin_view_record_save_map: OBJ", node);
 
-  g_mutex_lock (view->mutex);
+  g_rw_lock_writer_lock (view->rwlock);
 
   /* serialize the node */
 
@@ -707,7 +707,7 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
 
   if (node_serialized == NULL)
     {
-      g_mutex_unlock (view->mutex);
+      g_rw_lock_writer_unlock (view->rwlock);
       g_free ((gchar *)id);
       return;
     }
@@ -720,7 +720,7 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
 
       if (key_serialized == NULL)
         {
-          g_mutex_unlock (view->mutex);
+          g_rw_lock_writer_unlock (view->rwlock);
           g_free ((gchar *)id);
           g_free (node_serialized);
           return;
@@ -733,7 +733,7 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
 
       if (pid_serialized == NULL)
         {
-          g_mutex_unlock (view->mutex);
+          g_rw_lock_writer_unlock (view->rwlock);
           g_free ((gchar *)id);
           g_free (node_serialized);
           if (key_serialized)
@@ -748,7 +748,7 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
 
   if (dupin_view_begin_transaction (view, NULL) < 0)
     {
-      g_mutex_unlock (view->mutex);
+      g_rw_lock_writer_unlock (view->rwlock);
       g_free ((gchar *)id);
       g_free (node_serialized);
       if (key_serialized)
@@ -763,7 +763,7 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
 
   if (sqlite3_exec (view->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
     {
-      g_mutex_unlock (view->mutex);
+      g_rw_lock_writer_unlock (view->rwlock);
 
       g_error("dupin_view_record_save_map: %s", errmsg);
       sqlite3_free (errmsg);
@@ -810,7 +810,7 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
 
           if (sqlite3_exec (view->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
             {
-              g_mutex_unlock (view->mutex);
+              g_rw_lock_writer_unlock (view->rwlock);
 
               g_error("dupin_view_record_save_map: %s", errmsg);
               sqlite3_free (errmsg);
@@ -842,7 +842,7 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
   gchar * last_to_delete_id = NULL;
   if (sqlite3_exec (view->db, query, dupin_view_p_record_delete_cb, &last_to_delete_id, &errmsg) != SQLITE_OK)
     {
-      g_mutex_unlock (view->mutex);
+      g_rw_lock_writer_unlock (view->rwlock);
 
       g_error("dupin_view_record_save_map: %s", errmsg);
       sqlite3_free (errmsg);
@@ -868,7 +868,7 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
 
       if (sqlite3_exec (view->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
         {
-          g_mutex_unlock (view->mutex);
+          g_rw_lock_writer_unlock (view->rwlock);
 
           g_error("dupin_view_record_save_map: %s", errmsg);
           sqlite3_free (errmsg);
@@ -894,7 +894,7 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
 
       if (sqlite3_exec (view->db, query, NULL, NULL, &errmsg) != SQLITE_OK)
         {
-          g_mutex_unlock (view->mutex);
+          g_rw_lock_writer_unlock (view->rwlock);
 
           g_error("dupin_view_record_save_map: %s", errmsg);
           sqlite3_free (errmsg);
@@ -919,7 +919,7 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
 
   if (dupin_view_commit_transaction (view, NULL) < 0)
     {
-      g_mutex_unlock (view->mutex);
+      g_rw_lock_writer_unlock (view->rwlock);
       g_free ((gchar *)id);
       g_free (node_serialized);
       if (key_serialized)
@@ -930,7 +930,7 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
       return;
     }
 
-  g_mutex_unlock (view->mutex);
+  g_rw_lock_writer_unlock (view->rwlock);
 
   g_free (node_serialized);
   if (key_serialized)
@@ -981,18 +981,18 @@ dupin_view_record_delete (DupinView * view)
   /* NOTE - we get max_rowid in a separate transaction, in worse case it will be incremented
 	    since last fetch, pretty safe */
 
-  g_mutex_lock (view->mutex);
+  g_rw_lock_writer_lock (view->rwlock);
 
   if (dupin_view_begin_transaction (view, NULL) < 0)
     {
-      g_mutex_unlock (view->mutex);
+      g_rw_lock_writer_unlock (view->rwlock);
 
       return;
     }
 
   if (dupin_view_record_get_max_rowid (view, &max_rowid, FALSE) == FALSE)
     {
-      g_mutex_unlock (view->mutex);
+      g_rw_lock_writer_unlock (view->rwlock);
 
       dupin_view_rollback_transaction (view, NULL);
 
@@ -1014,7 +1014,7 @@ dupin_view_record_delete (DupinView * view)
 
       if (sqlite3_exec (view->db, query, NULL, NULL, &errmsg) != SQLITE_OK)
         {
-          g_mutex_unlock (view->mutex);
+          g_rw_lock_writer_unlock (view->rwlock);
 
           g_error("dupin_view_record_delete: %s for pid %s", errmsg, pid);
           sqlite3_free (errmsg);
@@ -1042,7 +1042,7 @@ dupin_view_record_delete (DupinView * view)
 
       if (sqlite3_exec (view->db, query, dupin_view_record_delete_cb, &count, &errmsg) != SQLITE_OK)
         {
-          g_mutex_unlock (view->mutex);
+          g_rw_lock_writer_unlock (view->rwlock);
 
           g_error("dupin_view_record_delete: %s for pid %s", errmsg, pid);
           sqlite3_free (errmsg);
@@ -1068,7 +1068,7 @@ dupin_view_record_delete (DupinView * view)
 
           if (sqlite3_exec (view->db, query, NULL, NULL, &errmsg) != SQLITE_OK)
             {
-              g_mutex_unlock (view->mutex);
+              g_rw_lock_writer_unlock (view->rwlock);
 
               g_error("dupin_view_record_delete: %s for pid %s", errmsg, pid);
               sqlite3_free (errmsg);
@@ -1095,7 +1095,7 @@ dupin_view_record_delete (DupinView * view)
 
       if (sqlite3_exec (view->db, query, NULL, NULL, &errmsg) != SQLITE_OK)
         {
-          g_mutex_unlock (view->mutex);
+          g_rw_lock_writer_unlock (view->rwlock);
 
           g_error("dupin_view_record_delete: %s for pid %s", errmsg, pid);
           sqlite3_free (errmsg);
@@ -1125,12 +1125,12 @@ dupin_view_record_delete (DupinView * view)
 
   if (dupin_view_commit_transaction (view, NULL) < 0)
     {
-      g_mutex_unlock (view->mutex);
+      g_rw_lock_writer_unlock (view->rwlock);
 
       return;
     }
 
-  g_mutex_unlock (view->mutex);
+  g_rw_lock_writer_unlock (view->rwlock);
 
   /* NOTE - delete operations do not need re-index and call map/reduce due we use PIDs of DB
             or views to delete record in view which where accefted by record delete */
@@ -1145,7 +1145,7 @@ dupin_view_ref (DupinView * view)
 
   d = view->d;
 
-  g_mutex_lock (d->mutex);
+  g_rw_lock_writer_lock (d->rwlock);
 
   view->ref++;
 
@@ -1153,7 +1153,7 @@ dupin_view_ref (DupinView * view)
   fprintf(stderr,"dupin_view_ref: (%p) name=%s \t ref++=%d\n", g_thread_self (), view->name, (gint) view->ref);
 #endif
 
-  g_mutex_unlock (d->mutex);
+  g_rw_lock_writer_unlock (d->rwlock);
 }
 
 void
@@ -1164,7 +1164,8 @@ dupin_view_unref (DupinView * view)
   g_return_if_fail (view != NULL);
 
   d = view->d;
-  g_mutex_lock (d->mutex);
+
+  g_rw_lock_writer_lock (d->rwlock);
 
   if (view->ref > 0)
     {
@@ -1181,7 +1182,7 @@ dupin_view_unref (DupinView * view)
   if (view->ref == 0 && view->todelete == TRUE)
     g_hash_table_remove (d->views, view->name);
 
-  g_mutex_unlock (d->mutex);
+  g_rw_lock_writer_unlock (d->rwlock);
 }
 
 gboolean
@@ -1193,9 +1194,9 @@ dupin_view_delete (DupinView * view, GError ** error)
 
   d = view->d;
 
-  g_mutex_lock (d->mutex);
+  g_rw_lock_writer_lock (d->rwlock);
   view->todelete = TRUE;
-  g_mutex_unlock (d->mutex);
+  g_rw_lock_writer_unlock (d->rwlock);
 
   if (dupin_view_p_update (view, error) == FALSE)
     {
@@ -1215,9 +1216,9 @@ dupin_view_force_quit (DupinView * view, GError ** error)
 
   d = view->d;
 
-  g_mutex_lock (d->mutex);
+  g_rw_lock_writer_lock (d->rwlock);
   view->sync_toquit = TRUE;
-  g_mutex_unlock (d->mutex);
+  g_rw_lock_writer_unlock (d->rwlock);
 
   return TRUE;
 }
@@ -1345,11 +1346,11 @@ dupin_view_get_creation_time (DupinView * view, gsize * creation_time)
 
   /* get creation time out of view */
   query = "SELECT creation_time as creation_time FROM DupinView";
-  g_mutex_lock (view->mutex);
+  g_rw_lock_reader_lock (view->rwlock);
 
   if (sqlite3_exec (view->db, query, dupin_view_get_creation_time_cb, creation_time, &errmsg) != SQLITE_OK)
     {
-      g_mutex_unlock (view->mutex);
+      g_rw_lock_reader_unlock (view->rwlock);
 
       g_error("dupin_view_get_creation_time: %s", errmsg);
       sqlite3_free (errmsg);
@@ -1357,7 +1358,7 @@ dupin_view_get_creation_time (DupinView * view, gsize * creation_time)
       return FALSE;
     }
 
-  g_mutex_unlock (view->mutex);
+  g_rw_lock_reader_unlock (view->rwlock);
 
   return TRUE;
 }
@@ -1391,12 +1392,8 @@ dupin_view_disconnect (DupinView * view)
   if (view->todelete == TRUE)
     g_unlink (view->path);
 
-#if GLIB_CHECK_VERSION (2,31,3)
   g_cond_clear (view->sync_map_has_new_work);
   g_free (view->sync_map_has_new_work);
-#else
-  g_cond_free(view->sync_map_has_new_work);
-#endif
 
   if (view->name)
     g_free (view->name);
@@ -1412,12 +1409,14 @@ dupin_view_disconnect (DupinView * view)
 
   if (view->mutex)
     {
-#if GLIB_CHECK_VERSION (2,31,3)
       g_mutex_clear (view->mutex);
       g_free (view->mutex);
-#else
-      g_mutex_free (view->mutex);
-#endif
+    }
+
+  if (view->rwlock)
+    {
+      g_rw_lock_clear (view->rwlock);
+      g_free (view->rwlock);
     }
 
   if (view->views.views)
@@ -1501,12 +1500,8 @@ dupin_view_connect (Dupin * d, gchar * name, gchar * path,
   view->sync_reduce_total_records = 0;
   view->sync_reduce_processed_count = 0;
 
-#if GLIB_CHECK_VERSION (2,31,3)
   view->sync_map_has_new_work = g_new0 (GCond, 1);
   g_cond_init (view->sync_map_has_new_work);
-#else
-  view->sync_map_has_new_work = g_cond_new();
-#endif
 
   view->d = d;
 
@@ -1651,12 +1646,11 @@ dupin_view_connect (Dupin * d, gchar * name, gchar * path,
       dupin_view_disconnect (view);
     }
 
-#if GLIB_CHECK_VERSION (2,31,3)
   view->mutex = g_new0 (GMutex, 1);
   g_mutex_init (view->mutex);
-#else
-  view->mutex = g_mutex_new ();
-#endif
+
+  view->rwlock = g_new0 (GRWLock, 1);
+  g_rw_lock_init (view->rwlock);
 
   return view;
 }
@@ -1773,16 +1767,16 @@ dupin_view_count (DupinView * view)
 
   g_return_val_if_fail (view != NULL, 0);
 
-  g_mutex_lock (view->mutex);
+  g_rw_lock_reader_lock (view->rwlock);
 
   if (sqlite3_exec (view->db, DUPIN_VIEW_SQL_COUNT, dupin_view_count_cb, &size, NULL) !=
       SQLITE_OK)
     {
-      g_mutex_unlock (view->mutex);
+      g_rw_lock_reader_unlock (view->rwlock);
       return 0;
     }
 
-  g_mutex_unlock (view->mutex);
+  g_rw_lock_reader_unlock (view->rwlock);
   return size;
 }
 
@@ -1930,9 +1924,9 @@ dupin_view_sync_thread_real_map (DupinView * view, GList * list)
 	      if (response_node != NULL)
 	        json_node_free (response_node);
 
-              g_mutex_lock (view->mutex);
+              g_rw_lock_writer_lock (view->rwlock);
               view->sync_map_processed_count++;
-              g_mutex_unlock (view->mutex);
+              g_rw_lock_writer_unlock (view->rwlock);
 
 	      dupin_view_p_record_insert (&view->views, id, nobj);
             }
@@ -1966,11 +1960,12 @@ dupin_view_sync_thread_map_db (DupinView * view, gsize count)
 
   /* get last position we reduced and get anything up to count after that */
   gchar * query = "SELECT sync_map_id as c FROM DupinView LIMIT 1";
-  g_mutex_lock (view->mutex);
+
+  g_rw_lock_reader_lock (view->rwlock);
 
   if (sqlite3_exec (view->db, query, dupin_view_sync_cb, &sync_map_id, &errmsg) != SQLITE_OK)
     {
-      g_mutex_unlock (view->mutex);
+      g_rw_lock_reader_unlock (view->rwlock);
 
       g_error("dupin_view_sync_thread_map_db: %s", errmsg);
       sqlite3_free (errmsg);
@@ -1979,7 +1974,7 @@ dupin_view_sync_thread_map_db (DupinView * view, gsize count)
       return FALSE;
     }
 
-  g_mutex_unlock (view->mutex);
+  g_rw_lock_reader_unlock (view->rwlock);
 
   gsize start_rowid = (sync_map_id != NULL) ? (gsize) g_ascii_strtoll (sync_map_id, NULL, 10)+1 : 1;
 
@@ -2074,11 +2069,11 @@ dupin_view_sync_thread_map_db (DupinView * view, gsize count)
   if (sync_map_id != NULL)
     g_free (sync_map_id);
 
-  g_mutex_lock (view->mutex);
+  g_rw_lock_writer_lock (view->rwlock);
 
   if (dupin_view_begin_transaction (view, NULL) < 0)
     {
-      g_mutex_unlock (view->mutex);
+      g_rw_lock_writer_unlock (view->rwlock);
       sqlite3_free (str);
 
       dupin_database_unref (db);
@@ -2088,7 +2083,7 @@ dupin_view_sync_thread_map_db (DupinView * view, gsize count)
 
   if (sqlite3_exec (view->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
     {
-      g_mutex_unlock (view->mutex);
+      g_rw_lock_writer_unlock (view->rwlock);
       sqlite3_free (str);
 
       dupin_database_unref (db);
@@ -2103,7 +2098,7 @@ dupin_view_sync_thread_map_db (DupinView * view, gsize count)
 
   if (dupin_view_commit_transaction (view, NULL) < 0)
     {
-      g_mutex_unlock (view->mutex);
+      g_rw_lock_writer_unlock (view->rwlock);
       sqlite3_free (str);
 
       dupin_database_unref (db);
@@ -2111,7 +2106,7 @@ dupin_view_sync_thread_map_db (DupinView * view, gsize count)
       return FALSE;
     }
 
-  g_mutex_unlock (view->mutex);
+  g_rw_lock_writer_unlock (view->rwlock);
 
   sqlite3_free (str);
 
@@ -2138,11 +2133,11 @@ dupin_view_sync_thread_map_linkb (DupinView * view, gsize count)
 
   /* get last position we reduced and get anything up to count after that */
   gchar * query = "SELECT sync_map_id as c FROM DupinView LIMIT 1";
-  g_mutex_lock (view->mutex);
+  g_rw_lock_reader_lock (view->rwlock);
 
   if (sqlite3_exec (view->db, query, dupin_view_sync_cb, &sync_map_id, &errmsg) != SQLITE_OK)
     {
-      g_mutex_unlock (view->mutex);
+      g_rw_lock_reader_unlock (view->rwlock);
 
       g_error("dupin_view_sync_thread_map_linkb: %s", errmsg);
       sqlite3_free (errmsg);
@@ -2151,7 +2146,7 @@ dupin_view_sync_thread_map_linkb (DupinView * view, gsize count)
       return FALSE;
     }
 
-  g_mutex_unlock (view->mutex);
+  g_rw_lock_reader_unlock (view->rwlock);
 
   gsize start_rowid = (sync_map_id != NULL) ? (gsize) g_ascii_strtoll (sync_map_id, NULL, 10)+1 : 1;
 
@@ -2262,11 +2257,11 @@ dupin_view_sync_thread_map_linkb (DupinView * view, gsize count)
   if (sync_map_id != NULL)
     g_free (sync_map_id);
 
-  g_mutex_lock (view->mutex);
+  g_rw_lock_writer_lock (view->rwlock);
 
   if (dupin_view_begin_transaction (view, NULL) < 0)
     {
-      g_mutex_unlock (view->mutex);
+      g_rw_lock_writer_unlock (view->rwlock);
       sqlite3_free (str);
 
       dupin_linkbase_unref (linkb);
@@ -2276,7 +2271,7 @@ dupin_view_sync_thread_map_linkb (DupinView * view, gsize count)
 
   if (sqlite3_exec (view->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
     {
-      g_mutex_unlock (view->mutex);
+      g_rw_lock_writer_unlock (view->rwlock);
       sqlite3_free (str);
 
       dupin_linkbase_unref (linkb);
@@ -2291,7 +2286,7 @@ dupin_view_sync_thread_map_linkb (DupinView * view, gsize count)
 
   if (dupin_view_commit_transaction (view, NULL) < 0)
     {
-      g_mutex_unlock (view->mutex);
+      g_rw_lock_writer_unlock (view->rwlock);
       sqlite3_free (str);
 
       dupin_linkbase_unref (linkb);
@@ -2299,7 +2294,7 @@ dupin_view_sync_thread_map_linkb (DupinView * view, gsize count)
       return FALSE;
     }
 
-  g_mutex_unlock (view->mutex);
+  g_rw_lock_writer_unlock (view->rwlock);
 
   sqlite3_free (str);
 
@@ -2326,11 +2321,11 @@ dupin_view_sync_thread_map_view (DupinView * view, gsize count)
 
   /* get last position we reduced and get anything up to count after that */
   gchar * query = "SELECT sync_map_id as c FROM DupinView LIMIT 1";
-  g_mutex_lock (view->mutex);
+  g_rw_lock_reader_lock (view->rwlock);
 
   if (sqlite3_exec (view->db, query, dupin_view_sync_cb, &sync_map_id, &errmsg) != SQLITE_OK)
     {
-      g_mutex_unlock (view->mutex);
+      g_rw_lock_reader_unlock (view->rwlock);
 
       g_error("dupin_view_sync_thread_map_view: %s", errmsg);
       sqlite3_free (errmsg);
@@ -2339,7 +2334,7 @@ dupin_view_sync_thread_map_view (DupinView * view, gsize count)
       return FALSE;
     }
 
-  g_mutex_unlock (view->mutex);
+  g_rw_lock_reader_unlock (view->rwlock);
 
   gsize start_rowid = (sync_map_id != NULL) ? (gsize) g_ascii_strtoll (sync_map_id, NULL, 10)+1 : 1;
 
@@ -2426,11 +2421,11 @@ dupin_view_sync_thread_map_view (DupinView * view, gsize count)
 
 //g_message("dupin_view_sync_thread_map_view() view %s query=%s\n",view->name, str);
 
-  g_mutex_lock (view->mutex);
+  g_rw_lock_writer_lock (view->rwlock);
 
   if (dupin_view_begin_transaction (view, NULL) < 0)
     {
-      g_mutex_unlock (view->mutex);
+      g_rw_lock_writer_unlock (view->rwlock);
       sqlite3_free (str);
 
       dupin_view_unref (v);
@@ -2440,7 +2435,7 @@ dupin_view_sync_thread_map_view (DupinView * view, gsize count)
 
   if (sqlite3_exec (view->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
     {
-      g_mutex_unlock (view->mutex);
+      g_rw_lock_writer_unlock (view->rwlock);
       sqlite3_free (str);
 
       dupin_view_unref (v);
@@ -2455,7 +2450,7 @@ dupin_view_sync_thread_map_view (DupinView * view, gsize count)
 
   if (dupin_view_commit_transaction (view, NULL) < 0)
     {
-      g_mutex_unlock (view->mutex);
+      g_rw_lock_writer_unlock (view->rwlock);
       sqlite3_free (str);
 
       dupin_view_unref (v);
@@ -2463,7 +2458,7 @@ dupin_view_sync_thread_map_view (DupinView * view, gsize count)
       return FALSE;
     }
 
-  g_mutex_unlock (view->mutex);
+  g_rw_lock_writer_unlock (view->rwlock);
 
   sqlite3_free (str);
 
@@ -2521,11 +2516,11 @@ dupin_view_sync_record_update (DupinView * view, gchar * previous_rowid, gint re
 
   replace_rowid_str = g_strdup_printf ("%d", (gint)replace_rowid);
 
-  g_mutex_lock (view->mutex);
+  g_rw_lock_writer_lock (view->rwlock);
 
   if (dupin_view_begin_transaction (view, NULL) < 0)
     {
-      g_mutex_unlock (view->mutex);
+      g_rw_lock_writer_unlock (view->rwlock);
       g_free (replace_rowid_str);
       if (pid_serialized)
         g_free (pid_serialized);
@@ -2544,7 +2539,7 @@ dupin_view_sync_record_update (DupinView * view, gchar * previous_rowid, gint re
 
   if (sqlite3_exec (view->db, query, NULL, NULL, &errmsg) != SQLITE_OK)
     {
-      g_mutex_unlock (view->mutex);
+      g_rw_lock_writer_unlock (view->rwlock);
       sqlite3_free (query);
       g_free (replace_rowid_str);
       if (pid_serialized)
@@ -2573,7 +2568,7 @@ dupin_view_sync_record_update (DupinView * view, gchar * previous_rowid, gint re
 
   if (sqlite3_exec (view->db, query, NULL, NULL, &errmsg) != SQLITE_OK)
     {
-      g_mutex_unlock (view->mutex);
+      g_rw_lock_writer_unlock (view->rwlock);
       sqlite3_free (query);
       g_free (replace_rowid_str);
       if (pid_serialized)
@@ -2599,7 +2594,7 @@ dupin_view_sync_record_update (DupinView * view, gchar * previous_rowid, gint re
 
   if (sqlite3_exec (view->db, query, NULL, NULL, &errmsg) != SQLITE_OK)
     {
-      g_mutex_unlock (view->mutex);
+      g_rw_lock_writer_unlock (view->rwlock);
       sqlite3_free (query);
       g_free (replace_rowid_str);
       if (pid_serialized)
@@ -2621,7 +2616,7 @@ dupin_view_sync_record_update (DupinView * view, gchar * previous_rowid, gint re
 
   if (sqlite3_exec (view->db, query, dupin_view_sync_record_update_cb, &id, &errmsg) != SQLITE_OK)
     {
-      g_mutex_unlock (view->mutex);
+      g_rw_lock_writer_unlock (view->rwlock);
       sqlite3_free (query);
       g_free (replace_rowid_str);
       if (pid_serialized)
@@ -2666,7 +2661,7 @@ dupin_view_sync_record_update (DupinView * view, gchar * previous_rowid, gint re
 
           if (sqlite3_exec (view->db, query, NULL, NULL, &errmsg) != SQLITE_OK)
             {
-              g_mutex_unlock (view->mutex);
+              g_rw_lock_writer_unlock (view->rwlock);
 
               g_error("dupin_view_sync_record_update: %s", errmsg);
               sqlite3_free (errmsg);
@@ -2690,7 +2685,7 @@ dupin_view_sync_record_update (DupinView * view, gchar * previous_rowid, gint re
 
   if (dupin_view_commit_transaction (view, NULL) < 0)
     {
-      g_mutex_unlock (view->mutex);
+      g_rw_lock_writer_unlock (view->rwlock);
 
       g_free (id);
       if (pid_serialized)
@@ -2699,7 +2694,7 @@ dupin_view_sync_record_update (DupinView * view, gchar * previous_rowid, gint re
       return;
     }
 
-  g_mutex_unlock (view->mutex);
+  g_rw_lock_writer_unlock (view->rwlock);
 
   g_free (id);
   if (pid_serialized)
@@ -2738,11 +2733,11 @@ dupin_view_sync_thread_reduce (DupinView * view, gsize count, gboolean rereduce,
 
   /* get last position we reduced and get anything up to count after that */
   query = "SELECT sync_reduce_id as c FROM DupinView LIMIT 1";
-  g_mutex_lock (view->mutex);
+  g_rw_lock_reader_lock (view->rwlock);
 
   if (sqlite3_exec (view->db, query, dupin_view_sync_cb, &sync_reduce_id, &errmsg) != SQLITE_OK)
     {
-      g_mutex_unlock (view->mutex);
+      g_rw_lock_reader_unlock (view->rwlock);
 
       g_error("dupin_view_sync_thread_reduce: %s", errmsg);
       sqlite3_free (errmsg);
@@ -2752,7 +2747,7 @@ dupin_view_sync_thread_reduce (DupinView * view, gsize count, gboolean rereduce,
 
   previous_sync_reduce_id = g_strdup (sync_reduce_id);
 
-  g_mutex_unlock (view->mutex);
+  g_rw_lock_reader_unlock (view->rwlock);
 
   gsize start_rowid = (sync_reduce_id != NULL) ? (gsize) g_ascii_strtoll (sync_reduce_id, NULL, 10)+1 : 1;
 
@@ -2959,9 +2954,9 @@ dupin_view_sync_thread_reduce (DupinView * view, gsize count, gboolean rereduce,
           g_free (value_string);
           json_node_free (pid_node);
 
-          g_mutex_lock (view->mutex);
+          g_rw_lock_writer_lock (view->rwlock);
           view->sync_reduce_processed_count++;
-          g_mutex_unlock (view->mutex);
+          g_rw_lock_writer_unlock (view->rwlock);
         }
 
       /* just append to the end for the moment - DEBUG */
@@ -2984,11 +2979,11 @@ dupin_view_sync_thread_reduce (DupinView * view, gsize count, gboolean rereduce,
 
 //g_message("dupin_view_sync_thread_reduce() view %s query=%s\n",view->name, str);
 
-  g_mutex_lock (view->mutex);
+  g_rw_lock_writer_lock (view->rwlock);
 
   if (dupin_view_begin_transaction (view, NULL) < 0)
     {
-      g_mutex_unlock (view->mutex);
+      g_rw_lock_writer_unlock (view->rwlock);
       sqlite3_free (str);
 
       return FALSE;
@@ -2996,7 +2991,7 @@ dupin_view_sync_thread_reduce (DupinView * view, gsize count, gboolean rereduce,
 
   if (sqlite3_exec (view->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
     {
-      g_mutex_unlock (view->mutex);
+      g_rw_lock_writer_unlock (view->rwlock);
       sqlite3_free (str);
 
       g_error("dupin_view_sync_thread_reduce: %s", errmsg);
@@ -3009,13 +3004,13 @@ dupin_view_sync_thread_reduce (DupinView * view, gsize count, gboolean rereduce,
 
   if (dupin_view_commit_transaction (view, NULL) < 0)
     {
-      g_mutex_unlock (view->mutex);
+      g_rw_lock_writer_unlock (view->rwlock);
       sqlite3_free (str);
 
       return FALSE;
     }
 
-  g_mutex_unlock (view->mutex);
+  g_rw_lock_writer_unlock (view->rwlock);
 
   sqlite3_free (str);
 
@@ -3071,11 +3066,11 @@ dupin_view_sync_total_rereduce (DupinView * view, struct dupin_view_sync_total_r
 
   tmp = sqlite3_mprintf (DUPIN_VIEW_SQL_TOTAL_REREDUCE);
 
-  g_mutex_lock (view->mutex);
+  g_rw_lock_reader_lock (view->rwlock);
 
   if (sqlite3_exec (view->db, tmp, dupin_view_sync_total_rereduce_cb, rere, &errmsg) != SQLITE_OK)
     {
-      g_mutex_unlock (view->mutex);
+      g_rw_lock_reader_unlock (view->rwlock);
       sqlite3_free (tmp);
 
       g_error("dupin_view_sync_total_rereduce: %s", errmsg);
@@ -3084,7 +3079,7 @@ dupin_view_sync_total_rereduce (DupinView * view, struct dupin_view_sync_total_r
       return FALSE;
     }
 
-  g_mutex_unlock (view->mutex);
+  g_rw_lock_reader_unlock (view->rwlock);
 
   sqlite3_free (tmp);
 
@@ -3099,15 +3094,15 @@ dupin_view_sync_map_func (gpointer data, gpointer user_data)
 
   dupin_view_ref (view);
 
-  g_mutex_lock (view->mutex);
+  g_rw_lock_writer_lock (view->rwlock);
   view->sync_map_thread = g_thread_self ();
-  g_mutex_unlock (view->mutex);
+  g_rw_lock_writer_unlock (view->rwlock);
 
 //g_message("dupin_view_sync_map_func(%p/%s) started\n",g_thread_self (), view->name);
 
-  g_mutex_lock (view->mutex);
+  g_rw_lock_writer_lock (view->rwlock);
   view->sync_map_processed_count = 0;
-  g_mutex_unlock (view->mutex);
+  g_rw_lock_writer_unlock (view->rwlock);
 
   while (view->sync_toquit == FALSE || view->todelete == FALSE)
     {
@@ -3120,9 +3115,9 @@ dupin_view_sync_map_func (gpointer data, gpointer user_data)
         {
 //g_message("dupin_view_sync_map_func(%p/%s) Mapped %d records - sending signal to reduce thread (%p)\n", g_thread_self (), view->name, (gint)view->sync_map_processed_count, view->sync_reduce_thread);
 
-          g_mutex_lock (view->mutex);
+	  g_mutex_lock (view->mutex);
 	  g_cond_signal(view->sync_map_has_new_work);
-          g_mutex_unlock (view->mutex);
+	  g_mutex_unlock (view->mutex);
         }
 
       if (map_operation == FALSE)
@@ -3131,9 +3126,9 @@ dupin_view_sync_map_func (gpointer data, gpointer user_data)
 
 	  if (view->tosync)
 	    {
-              g_mutex_lock (view->mutex);
+              g_rw_lock_writer_lock (view->rwlock);
               view->tosync = FALSE;
-              g_mutex_unlock (view->mutex);
+              g_rw_lock_writer_unlock (view->rwlock);
             }
           else
             {
@@ -3157,23 +3152,20 @@ dupin_view_sync_map_func (gpointer data, gpointer user_data)
     {
 //g_message("dupin_view_sync_map_func(%p/%s): ANALYZE\n", g_thread_self (), view->name);
 
-      g_mutex_lock (view->mutex);
+      g_rw_lock_writer_lock (view->rwlock);
       if (sqlite3_exec (view->db, "ANALYZE Dupin", NULL, NULL, &errmsg) != SQLITE_OK)
         {
-          g_mutex_unlock (view->mutex);
+          g_rw_lock_writer_unlock (view->rwlock);
           g_error ("dupin_view_sync_reduce_func: %s", errmsg);
           sqlite3_free (errmsg);
         }
-      g_mutex_unlock (view->mutex);
+      g_rw_lock_writer_unlock (view->rwlock);
     }
 
-  g_mutex_lock (view->mutex);
+  g_rw_lock_writer_lock (view->rwlock);
   view->tosync = FALSE;
-  g_mutex_unlock (view->mutex);
-
-  g_mutex_lock (view->mutex);
   view->sync_map_thread = NULL;
-  g_mutex_unlock (view->mutex);
+  g_rw_lock_writer_unlock (view->rwlock);
 
   dupin_view_unref (view);
 }
@@ -3186,23 +3178,19 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
   struct dupin_view_sync_total_rereduce_t rere_matching;
 
   GTimeVal endtime = {0,0};
-#if GLIB_CHECK_VERSION (2,31,3)
   gint64 endtime_usec;
-#endif
   gboolean reduce_wait_timed_out;
 
   DupinView * view = (DupinView*) data;
 
   dupin_view_ref (view);
 
-  g_mutex_lock (view->mutex);
+  g_rw_lock_writer_lock (view->rwlock);
+  view->tosync = TRUE;
   view->sync_reduce_thread = g_thread_self ();
-  g_mutex_unlock (view->mutex);
-
-  g_mutex_lock (view->mutex);
   view->sync_reduce_processed_count = 0;
   view->sync_reduce_total_records = 0;
-  g_mutex_unlock (view->mutex);
+  g_rw_lock_writer_unlock (view->rwlock);
 
   gboolean rereduce = FALSE;
   gchar * rereduce_previous_matching_key = NULL;
@@ -3218,11 +3206,12 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
             and when done, wait for another bunch ... */
 
   query = "SELECT sync_rereduce as c FROM DupinView LIMIT 1";
-  g_mutex_lock (view->mutex);
+
+  g_rw_lock_reader_lock (view->rwlock);
 
   if (sqlite3_exec (view->db, query, dupin_view_rereduce_cb, &rereduce, &errmsg) != SQLITE_OK)
     {
-      g_mutex_unlock (view->mutex);
+      g_rw_lock_reader_unlock (view->rwlock);
 
       g_error("dupin_view_sync_reduce_func: %s", errmsg);
       sqlite3_free (errmsg);
@@ -3232,7 +3221,7 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
       return;
     }
 
-  g_mutex_unlock (view->mutex);
+  g_rw_lock_reader_unlock (view->rwlock);
 
   while (view->sync_toquit == FALSE || view->todelete == FALSE)
     {
@@ -3248,12 +3237,11 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
 	  /* TODO - check if FreeBSD, Apple and Win32 platforms need special care
 		    see for example http://skype4pidgin.googlecode.com/svn/trunk/skype_messaging.c */
 
-          g_mutex_lock (view->mutex);
+	  g_mutex_lock (view->mutex);
 
 	  g_get_current_time(&endtime);
 	  g_time_val_add(&endtime, view->d->conf->limit_reduce_timeoutforthread * G_USEC_PER_SEC);
 
-#if GLIB_CHECK_VERSION (2,31,3)
           /* see https://gitorious.org/ghelp/glib/blobs/99f0eaa4c5a86f6fa721044bb6841f6bda4c689b/glib/deprecated/gthread-deprecated.c */
 
           endtime_usec = endtime.tv_sec;
@@ -3267,9 +3255,6 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
           /* if CLOCK_MONOTONIC is not defined then g_get_montonic_time() and g_get_real_time() are returning the same clock, so don't bother... */
 #endif
           reduce_wait_timed_out = g_cond_wait_until (view->sync_map_has_new_work, view->mutex, endtime_usec);
-#else
-          reduce_wait_timed_out = g_cond_timed_wait (view->sync_map_has_new_work, view->mutex, &endtime);
-#endif
 
 	  if (reduce_wait_timed_out == FALSE)
 	    {
@@ -3278,15 +3263,15 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
 
 //g_message("dupin_view_sync_reduce_func(%p/%s) CONTINUE after wait\n", g_thread_self (), view->name);
 
-          g_mutex_unlock (view->mutex);
+	  g_mutex_unlock (view->mutex);
         }
 
       if (view->sync_map_processed_count > view->sync_reduce_total_records /* got a new bunch to work on */
 	  || rereduce)
         {
-          g_mutex_lock (view->mutex);
+          g_rw_lock_writer_lock (view->rwlock);
           view->sync_reduce_total_records = (rereduce) ? rere_matching.total : view->sync_map_processed_count;
-          g_mutex_unlock (view->mutex);
+          g_rw_lock_writer_unlock (view->rwlock);
 
 //g_message("dupin_view_sync_reduce_func(%p/%s) got %d records to REDUCE (rereduce=%d)\n",g_thread_self (), view->name, (gint)view->sync_reduce_total_records,(gint)rereduce);
 
@@ -3329,18 +3314,18 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
 
 		  gsize max_rowid;
 
-                  g_mutex_lock (view->mutex);
+                  g_rw_lock_writer_lock (view->rwlock);
 
 		  if (dupin_view_begin_transaction (view, NULL) < 0)
 		    {
-		      g_mutex_unlock (view->mutex);
+		      g_rw_lock_writer_unlock (view->rwlock);
 
       		      break;
 		    }
 
   		  if (dupin_view_record_get_max_rowid (view, &max_rowid, FALSE) == FALSE)
                     {
-                      g_mutex_unlock (view->mutex);
+                      g_rw_lock_writer_unlock (view->rwlock);
 
                       dupin_view_rollback_transaction (view, NULL);
 
@@ -3357,7 +3342,7 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
 
                   if (sqlite3_exec (view->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
                     {
-                      g_mutex_unlock (view->mutex);
+                      g_rw_lock_writer_unlock (view->rwlock);
 
                       g_error("dupin_view_sync_reduce_func: %s", errmsg);
                       sqlite3_free (errmsg);
@@ -3377,7 +3362,7 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
 
                   if (sqlite3_exec (view->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
                     {
-                      g_mutex_unlock (view->mutex);
+                      g_rw_lock_writer_unlock (view->rwlock);
 
                       g_error("dupin_view_sync_reduce_func: %s", errmsg);
                       sqlite3_free (errmsg);
@@ -3398,7 +3383,7 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
 
   		  if (sqlite3_exec (view->db, str, dupin_view_record_delete_cb, &count, &errmsg) != SQLITE_OK)
     		    {
-                      g_mutex_unlock (view->mutex);
+                      g_rw_lock_writer_unlock (view->rwlock);
 
                       g_error("dupin_view_sync_reduce_func: %s", errmsg);
                       sqlite3_free (errmsg);
@@ -3418,7 +3403,7 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
 
       		      if (sqlite3_exec (view->db, query, NULL, NULL, &errmsg) != SQLITE_OK)
 		        {
-                          g_mutex_unlock (view->mutex);
+                          g_rw_lock_writer_unlock (view->rwlock);
 
                           g_error("dupin_view_sync_reduce_func: %s", errmsg);
                           sqlite3_free (errmsg);
@@ -3437,12 +3422,12 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
 
 		  if (dupin_view_commit_transaction (view, NULL) < 0)
 		    {
-		      g_mutex_unlock (view->mutex);
+		      g_rw_lock_writer_unlock (view->rwlock);
 
       		      break;
 		    }
 
-                  g_mutex_unlock (view->mutex);
+                  g_rw_lock_writer_unlock (view->rwlock);
 
 		  /* flag to carry on (for any future request to sync) */
 
@@ -3451,18 +3436,18 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
 		  continue;
                 }
 
-              g_mutex_lock (view->mutex);
+              g_rw_lock_writer_lock (view->rwlock);
 
 	      if (dupin_view_begin_transaction (view, NULL) < 0)
                 {
-                  g_mutex_unlock (view->mutex);
+                  g_rw_lock_writer_unlock (view->rwlock);
 
                   break;
                 }
 
               if (sqlite3_exec (view->db, query, NULL, NULL, &errmsg) != SQLITE_OK)
                 {
-                  g_mutex_unlock (view->mutex);
+                  g_rw_lock_writer_unlock (view->rwlock);
 
                   g_error("dupin_view_sync_reduce_func: %s", errmsg);
                   sqlite3_free (errmsg);
@@ -3474,12 +3459,12 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
 
 	      if (dupin_view_commit_transaction (view, NULL) < 0)
                 {
-                  g_mutex_unlock (view->mutex);
+                  g_rw_lock_writer_unlock (view->rwlock);
 
                   break;
                 }
 
-              g_mutex_unlock (view->mutex);
+              g_rw_lock_writer_unlock (view->rwlock);
 
               if (rereduce_previous_matching_key != NULL)
                 g_free (rereduce_previous_matching_key);
@@ -3493,18 +3478,18 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
 
               query = "UPDATE DupinView SET sync_rereduce = 'FALSE'";
 
-              g_mutex_lock (view->mutex);
+              g_rw_lock_writer_lock (view->rwlock);
 
 	      if (dupin_view_begin_transaction (view, NULL) < 0)
                 {
-                  g_mutex_unlock (view->mutex);
+                  g_rw_lock_writer_unlock (view->rwlock);
 
                   break;
                 }
 
               if (sqlite3_exec (view->db, query, NULL, NULL, &errmsg) != SQLITE_OK)
                 {
-                  g_mutex_unlock (view->mutex);
+                  g_rw_lock_writer_unlock (view->rwlock);
 
                   g_error("dupin_view_sync_reduce_func: %s", errmsg);
                   sqlite3_free (errmsg);
@@ -3516,12 +3501,12 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
 
 	      if (dupin_view_commit_transaction (view, NULL) < 0)
                 {
-                  g_mutex_unlock (view->mutex);
+                  g_rw_lock_writer_unlock (view->rwlock);
 
                   break;
                 }
 
-              g_mutex_unlock (view->mutex);
+              g_rw_lock_writer_unlock (view->rwlock);
 
 	      break; /* both terminated, amen */
             }
@@ -3541,23 +3526,20 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
 
 //g_message("dupin_view_sync_reduce_func: view %s VACUUM and ANALYZE\n", view->name);
 
-  g_mutex_lock (view->mutex);
+  g_rw_lock_writer_lock (view->rwlock);
   if (sqlite3_exec (view->db, "VACUUM", NULL, NULL, &errmsg) != SQLITE_OK
       || sqlite3_exec (view->db, "ANALYZE Dupin", NULL, NULL, &errmsg) != SQLITE_OK)
     {
-      g_mutex_unlock (view->mutex);
+      g_rw_lock_writer_unlock (view->rwlock);
       g_error ("dupin_view_sync_reduce_func: %s", errmsg);
       sqlite3_free (errmsg);
     }
-  g_mutex_unlock (view->mutex);
+  g_rw_lock_writer_unlock (view->rwlock);
 
-  g_mutex_lock (view->mutex);
+  g_rw_lock_writer_lock (view->rwlock);
   view->tosync = FALSE;
-  g_mutex_unlock (view->mutex);
-
-  g_mutex_lock (view->mutex);
   view->sync_reduce_thread = NULL;
-  g_mutex_unlock (view->mutex);
+  g_rw_lock_writer_unlock (view->rwlock);
 
   dupin_view_unref (view);
 }
@@ -3571,10 +3553,6 @@ dupin_view_sync (DupinView * view)
 {
   if (dupin_view_is_syncing (view))
     {
-      g_mutex_lock (view->mutex);
-      view->tosync = TRUE;
-      g_mutex_unlock (view->mutex);
-
 //g_message("dupin_view_sync(%p/%s): view is still syncing view->sync_map_thread=%p view->sync_reduce_thread=%p \n", g_thread_self (), view->name, view->sync_map_thread, view->sync_reduce_thread);
     }
   else
@@ -3620,13 +3598,13 @@ dupin_view_is_syncing (DupinView * view)
 
   gboolean ret = FALSE;
 
-  g_mutex_lock (view->mutex);
+  g_rw_lock_reader_lock (view->rwlock);
 
   if (view->sync_map_thread
       || view->sync_reduce_thread)
     ret = TRUE;
 
-  g_mutex_unlock (view->mutex);
+  g_rw_lock_reader_unlock (view->rwlock);
 
   return ret;
 }
@@ -3653,7 +3631,7 @@ dupin_view_compact_func (gpointer data, gpointer user_data)
 
   if (view->todelete == TRUE)
     {
-g_message("dupin_view_compact_func(%p) view scheduled for deletion, skipping compaction\n",g_thread_self ());
+//g_message("dupin_view_compact_func(%p) view scheduled for deletion, skipping compaction\n",g_thread_self ());
 
       return;
     }
@@ -3664,8 +3642,9 @@ g_message("dupin_view_compact_func(%p) view scheduled for deletion, skipping com
 
 //g_message("dupin_view_compact_func(%p) started\n",g_thread_self ());
 
-  g_mutex_lock (view->mutex);
+  g_rw_lock_writer_lock (view->rwlock);
 
+  view->tocompact = TRUE;
   view->compact_thread = g_thread_self ();
   view->compact_processed_count = 0;
 
@@ -3698,7 +3677,7 @@ g_message("dupin_view_compact_func(%p) view scheduled for deletion, skipping com
   view->tocompact = FALSE;
   view->compact_thread = NULL;
 
-  g_mutex_unlock (view->mutex);
+  g_rw_lock_writer_unlock (view->rwlock);
 
   dupin_view_unref (view);
 }
@@ -3710,10 +3689,6 @@ dupin_view_compact (DupinView * view)
 
   if (dupin_view_is_compacting (view))
     {
-      g_mutex_lock (view->mutex);
-      view->tocompact = TRUE;
-      g_mutex_unlock (view->mutex);
-
 //g_message("dupin_view_compact(%p): view is still compacting view->compact_thread=%p\n", g_thread_self (), view->compact_thread);
     }
   else

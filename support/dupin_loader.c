@@ -442,9 +442,9 @@ main (int argc, char *argv[])
         }
     }
 
-  g_mutex_lock (d->mutex);
+  g_rw_lock_writer_lock (d->rwlock);
   d->super_bulk_transaction = TRUE;
-  g_mutex_unlock (d->mutex);
+  g_rw_lock_writer_unlock (d->rwlock);
 
   gint bulk_tx_num_count=1;
 
@@ -480,9 +480,9 @@ main (int argc, char *argv[])
 
 	  if (bulk_tx_num_count == options.bulk_tx_num)
 	    {
-              g_mutex_lock (d->mutex);
+              g_rw_lock_writer_lock (d->rwlock);
               d->super_bulk_transaction = FALSE;
-              g_mutex_unlock (d->mutex);
+              g_rw_lock_writer_unlock (d->rwlock);
 
 //g_message ("dupin_loader: super_bulk_transaction FALSE bulk_tx_num_count=%d\n", bulk_tx_num_count);
 	    }
@@ -514,9 +514,9 @@ main (int argc, char *argv[])
 
 	  if (bulk_tx_num_count == options.bulk_tx_num)
 	    {
-              g_mutex_lock (d->mutex);
+              g_rw_lock_writer_lock (d->rwlock);
               d->super_bulk_transaction = TRUE;
-              g_mutex_unlock (d->mutex);
+              g_rw_lock_writer_unlock (d->rwlock);
 
 	      bulk_tx_num_count = 1;
 
@@ -593,9 +593,9 @@ main (int argc, char *argv[])
         {
           dupin_loader_set_error ("Cannot connect to attachment database");
 
-          g_mutex_lock (db->mutex);
+          g_rw_lock_writer_lock (db->rwlock);
           dupin_database_rollback_transaction (db, NULL);
-          g_mutex_unlock (db->mutex);
+          g_rw_lock_writer_unlock (db->rwlock);
 
           goto dupin_loader_end;
         }
@@ -605,65 +605,65 @@ main (int argc, char *argv[])
         { 
           dupin_loader_set_error ("Cannot connect to linkbase");
 
-          g_mutex_lock (attachment_db->mutex);
+          g_rw_lock_writer_lock (attachment_db->rwlock);
           dupin_attachment_db_rollback_transaction (attachment_db, NULL);
-          g_mutex_unlock (attachment_db->mutex);
+          g_rw_lock_writer_unlock (attachment_db->rwlock);
 
-          g_mutex_lock (db->mutex);
+          g_rw_lock_writer_lock (db->rwlock);
           dupin_database_rollback_transaction (db, NULL);
-          g_mutex_unlock (db->mutex);
+          g_rw_lock_writer_unlock (db->rwlock);
 
           goto dupin_loader_end;
         }
 
-      g_mutex_lock (d->mutex);
+      g_rw_lock_writer_lock (d->rwlock);
       d->bulk_transaction = FALSE;
-      g_mutex_unlock (d->mutex);
+      g_rw_lock_writer_unlock (d->rwlock);
 
-      g_mutex_lock (linkb->mutex);
+      g_rw_lock_writer_lock (linkb->rwlock);
       if (dupin_linkbase_commit_transaction (linkb, NULL) < 0)
         {
-          g_mutex_lock (db->mutex);
+          g_rw_lock_writer_lock (db->rwlock);
           dupin_database_rollback_transaction (db, NULL);
-          g_mutex_unlock (db->mutex);
+          g_rw_lock_writer_unlock (db->rwlock);
 
-          g_mutex_lock (attachment_db->mutex);
+          g_rw_lock_writer_lock (attachment_db->rwlock);
           dupin_attachment_db_rollback_transaction (attachment_db, NULL);
-          g_mutex_unlock (attachment_db->mutex);
+          g_rw_lock_writer_unlock (attachment_db->rwlock);
 
           dupin_linkbase_rollback_transaction (linkb, NULL);
-          g_mutex_unlock (linkb->mutex);
+          g_rw_lock_writer_unlock (linkb->rwlock);
 
           dupin_loader_set_error ("Cannot commit linkbase transaction");
           goto dupin_loader_end;
         }
-      g_mutex_unlock (linkb->mutex);
+      g_rw_lock_writer_unlock (linkb->rwlock);
 
-      g_mutex_lock (attachment_db->mutex);
+      g_rw_lock_writer_lock (attachment_db->rwlock);
       if (dupin_attachment_db_commit_transaction (attachment_db, NULL) < 0)
         {
-          g_mutex_lock (db->mutex);
+          g_rw_lock_writer_lock (db->rwlock);
           dupin_database_rollback_transaction (db, NULL);
-          g_mutex_unlock (db->mutex);
+          g_rw_lock_writer_unlock (db->rwlock);
 
           dupin_attachment_db_rollback_transaction (attachment_db, NULL);
-          g_mutex_unlock (attachment_db->mutex);
+          g_rw_lock_writer_unlock (attachment_db->rwlock);
 
           dupin_loader_set_error ("Cannot commit attachment database transaction");
           goto dupin_loader_end;
         }
-      g_mutex_unlock (attachment_db->mutex);
+      g_rw_lock_writer_unlock (attachment_db->rwlock);
 
-      g_mutex_lock (db->mutex);
+      g_rw_lock_writer_lock (db->rwlock);
       if (dupin_database_commit_transaction (db, NULL) < 0)
         {
           dupin_database_rollback_transaction (db, NULL);
-          g_mutex_unlock (db->mutex);
+          g_rw_lock_writer_unlock (db->rwlock);
 
           dupin_loader_set_error ("Cannot commit database transaction");
           goto dupin_loader_end;
         }
-      g_mutex_unlock (db->mutex);
+      g_rw_lock_writer_unlock (db->rwlock);
     }
 
 dupin_loader_end:
@@ -806,12 +806,8 @@ dupin_loader_init (DSGlobal *data, GError ** error)
 
   d->conf = data; /* we just copy point from caller */
 
-#if GLIB_CHECK_VERSION (2,31,3)
-  d->mutex = g_new0 (GMutex, 1);
-  g_mutex_init (d->mutex);
-#else
-  d->mutex = g_mutex_new ();
-#endif
+  d->rwlock = g_new0 (GRWLock, 1);
+  g_rw_lock_init (d->rwlock);
 
   d->path = g_strdup (d->conf->sqlite_path);
 
@@ -970,14 +966,10 @@ dupin_loader_shutdown (Dupin * d)
 
 g_message("dupin_loader_shutdown: worker pools freed\n");
 
-  if (d->mutex)
+  if (d->rwlock)
     {
-#if GLIB_CHECK_VERSION (2,31,3)
-      g_mutex_clear (d->mutex);
-      g_free (d->mutex);
-#else
-      g_mutex_free (d->mutex);
-#endif
+      g_rw_lock_clear (d->rwlock);
+      g_free (d->rwlock);
     }
 
   if (d->attachment_dbs)

@@ -106,12 +106,8 @@ configure_init (int argc, char **argv, GError ** error)
 
   xmlFreeDoc (xml);
 
-#if GLIB_CHECK_VERSION (2,31,3)
   data->httpd_mutex = g_new0 (GMutex, 1);
   g_mutex_init (data->httpd_mutex);
-#else
-  data->httpd_mutex = g_mutex_new ();
-#endif
 
   return data;
 }
@@ -897,12 +893,8 @@ configure_free (DSGlobal * data)
 
   if (data->httpd_mutex)
     {
-#if GLIB_CHECK_VERSION (2,31,3)
       g_mutex_clear (data->httpd_mutex);
       g_free (data->httpd_mutex);
-#else
-      g_mutex_free (data->httpd_mutex);
-#endif
     }
 
   if (data->sqlite_path)

@@ -229,8 +229,8 @@ request_status (DSHttpdClient * client,
 #if GLIB_CHECK_VERSION (2, 27, 3)
   gint64 timestamp;
   timestamp = g_source_get_time (client->channel_source);
-  tv.tv_sec = timestamp / 1000000;
-  tv.tv_usec = timestamp % 1000000;
+  tv.tv_sec = timestamp / G_USEC_PER_SEC;
+  tv.tv_usec = timestamp % G_USEC_PER_SEC;
 #else
   g_source_get_current_time (client->channel_source, &tv);
 #endif
@@ -2367,7 +2367,7 @@ request_global_get_record (DSHttpdClient * client,
           if ( (!(client->output.blob.record = dupin_attachment_record_read (attachment_db,
                                                                doc_id, title,
                                                                NULL)))
-              || (dupin_attachment_record_blob_open (client->output.blob.record) == FALSE))
+              || (dupin_attachment_record_blob_open (client->output.blob.record, FALSE) == FALSE))
             {
               dupin_record_close (record);
               g_free (title);

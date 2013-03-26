@@ -15,12 +15,8 @@ void map_free (DSMap * map);
 gboolean
 map_init (DSGlobal * data, GError ** error)
 {
-#if GLIB_CHECK_VERSION (2,31,3)
   data->map_mutex = g_new0 (GMutex, 1);
   g_mutex_init (data->map_mutex);
-#else
-  data->map_mutex = g_mutex_new ();
-#endif
 
   data->map_table =
     g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
@@ -35,12 +31,8 @@ map_close (DSGlobal * data)
 {
   if (data->map_mutex)
     {
-#if GLIB_CHECK_VERSION (2,31,3)
       g_mutex_clear (data->map_mutex);
       g_free (data->map_mutex);
-#else
-      g_mutex_free (data->map_mutex);
-#endif
     }
 
   if (data->map_table)

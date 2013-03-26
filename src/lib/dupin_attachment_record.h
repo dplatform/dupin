@@ -99,7 +99,8 @@ JsonNode *
 					(DupinAttachmentRecord *	record);
 
 gboolean	dupin_attachment_record_blob_open
-					(DupinAttachmentRecord * record);
+					(DupinAttachmentRecord * record,
+					 gboolean read_write);
 
 gboolean	dupin_attachment_record_blob_close
 					(DupinAttachmentRecord * record);

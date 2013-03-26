@@ -6,6 +6,12 @@
 
 G_BEGIN_DECLS
 
+struct dupin_database_get_changes_list_t
+{
+  DupinChangesType style;
+  GList *list;
+};
+
 gchar **	dupin_get_databases	(Dupin *	d);
 
 gboolean	dupin_database_exists	(Dupin *	d,

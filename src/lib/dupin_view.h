@@ -8,6 +8,34 @@
 
 G_BEGIN_DECLS
 
+struct dupin_view_p_update_t
+{
+  gchar *parent;
+  gchar *map;
+  DupinMRLang map_lang;
+  gchar *reduce;
+  DupinMRLang reduce_lang;
+  gboolean isdb;
+  gboolean islinkb;
+  gchar *output;
+  gboolean output_isdb;
+  gboolean output_islinkb;
+};
+
+struct dupin_view_sync_t
+{
+  JsonNode *obj;
+  gchar *id;
+  JsonNode *pid; /* array or null */
+  JsonNode *key; /* array or null */
+};
+
+struct dupin_view_sync_total_rereduce_t
+{
+  gsize total;
+  gchar * first_matching_key;
+};
+
 gchar **	dupin_get_views		(Dupin *	d);
 
 gboolean	dupin_view_exists	(Dupin *	d,

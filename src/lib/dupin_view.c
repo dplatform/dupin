@@ -357,20 +357,6 @@ dupin_view_new (Dupin * d, gchar * view, gchar * parent, gboolean is_db, gboolea
   return ret;
 }
 
-struct dupin_view_p_update_t
-{
-  gchar *parent;
-  gchar *map;
-  DupinMRLang map_lang;
-  gchar *reduce;
-  DupinMRLang reduce_lang;
-  gboolean isdb;
-  gboolean islinkb;
-  gchar *output;
-  gboolean output_isdb;
-  gboolean output_islinkb;
-};
-
 static int
 dupin_view_p_update_cb (void *data, int argc, char **argv, char **col)
 {
@@ -1846,14 +1832,6 @@ dupin_view_sync_cb (void *data, int argc, char **argv, char **col)
   return 0;
 }
 
-struct dupin_view_sync_t
-{
-  JsonNode *obj;
-  gchar *id;
-  JsonNode *pid; /* array or null */
-  JsonNode *key; /* array or null */
-};
-
 static void
 dupin_view_sync_thread_real_map (DupinView * view, GList * list)
 {
@@ -3027,12 +3005,6 @@ dupin_view_rereduce_cb (void *data, int argc, char **argv, char **col)
 
   return 0;
 }
-
-struct dupin_view_sync_total_rereduce_t
-{
-  gsize total;
-  gchar * first_matching_key;
-};
 
 static int
 dupin_view_sync_total_rereduce_cb (void *data, int argc, char **argv,

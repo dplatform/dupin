@@ -216,11 +216,6 @@ dupin_attachment_db_new (Dupin * d, gchar * attachment_db,
   return ret;
 }
 
-struct dupin_attachment_db_p_update_t
-{
-  gchar *parent;
-};
-
 static int
 dupin_attachment_db_p_update_cb (void *data, int argc, char **argv, char **col)
 {

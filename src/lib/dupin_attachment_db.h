@@ -6,6 +6,11 @@
 
 G_BEGIN_DECLS
 
+struct dupin_attachment_db_p_update_t
+{
+  gchar *parent;
+};
+
 gchar **	dupin_get_attachment_dbs		(Dupin *	d);
 
 gboolean	dupin_attachment_db_exists		(Dupin *	d,

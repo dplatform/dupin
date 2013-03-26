@@ -814,12 +814,6 @@ dupin_database_get_max_rowid (DupinDB * db, gsize * max_rowid)
   return TRUE;
 }
 
-struct dupin_database_get_changes_list_t
-{
-  DupinChangesType style;
-  GList *list;
-};
-
 static int
 dupin_database_get_changes_list_cb (void *data, int argc, char **argv, char **col)
 {

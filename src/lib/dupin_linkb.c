@@ -240,12 +240,6 @@ dupin_linkbase_new (Dupin * d, gchar * linkb,
   return ret;
 }
 
-struct dupin_linkbase_p_update_t
-{
-  gchar *parent;
-  gboolean isdb;
-};
-
 static int
 dupin_linkbase_p_update_cb (void *data, int argc, char **argv, char **col)
 {
@@ -988,12 +982,6 @@ dupin_linkbase_get_max_rowid (DupinLinkB * linkb, gsize * max_rowid)
 
   return TRUE;
 }
-
-struct dupin_linkbase_get_changes_list_t
-{
-  DupinChangesType style;
-  GList *list;
-};
 
 static int
 dupin_linkbase_get_changes_list_cb (void *data, int argc, char **argv, char **col)

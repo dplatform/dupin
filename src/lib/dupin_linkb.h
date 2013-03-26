@@ -6,6 +6,18 @@
 
 G_BEGIN_DECLS
 
+struct dupin_linkbase_p_update_t
+{
+  gchar *parent;
+  gboolean isdb;
+};
+
+struct dupin_linkbase_get_changes_list_t
+{
+  DupinChangesType style;
+  GList *list;
+};
+
 gchar **	dupin_get_linkbases	(Dupin *	d);
 
 gboolean	dupin_linkbase_exists	(Dupin *	d,

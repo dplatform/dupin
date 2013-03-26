@@ -259,28 +259,31 @@ dupin_linkbase_p_update_cb (void *data, int argc, char **argv, char **col)
 static void
 dupin_linkbase_p_update_real (DupinLinkBP * p, DupinLinkB * linkb)
 {
-  /* NOTE - need to remove pointer from parent if linkbase is "hot deleted" */
+  g_rw_lock_reader_lock (linkb->rwlock);
+  gboolean todelete = linkb->todelete;
+  g_rw_lock_reader_unlock (linkb->rwlock);
 
-  if (linkb->todelete == TRUE)
+  if (todelete == TRUE)
     {
       if (p->linkbs != NULL)
         {
-          DupinLinkB ** linkbs = p->linkbs;
-          p->linkbs = g_malloc (sizeof (DupinLinkB *) * p->size);
+	  /* NOTE - need to remove pointer from parent if linkb is "hot deleted" */
 
-          gint i;
-          gint current_numb = p->numb;
+	  DupinLinkB ** linkbs = g_malloc (sizeof (DupinLinkB *) * p->size);
+
+	  gint i;
+	  gint current_numb = p->numb;
           p->numb = 0;
           for (i=0; i < current_numb ; i++)
-            {
-              if (linkbs[i] != linkb)
-                {
-                  p->linkbs[p->numb] = linkbs[i];
+            { 
+              if (p->linkbs[i] != linkb)
+                { 
+                  linkbs[p->numb] = p->linkbs[i];
                   p->numb++;
-                }
-            }
-
-          g_free (linkbs);
+                } 
+            } 
+          g_free (p->linkbs);
+          p->linkbs = linkbs;
         }
 
       return;
@@ -468,12 +471,6 @@ dupin_linkbase_delete (DupinLinkB * linkb, GError ** error)
   linkb->todelete = TRUE;
   g_rw_lock_writer_unlock (d->rwlock);
 
-  if (dupin_linkbase_p_update (linkb, error) == FALSE)
-    {
-      dupin_linkb_disconnect (linkb);
-      return FALSE;
-    }
-
   return TRUE;
 }
 
@@ -592,9 +589,16 @@ dupin_linkbase_get_parent_is_db (DupinLinkB * linkb)
 void
 dupin_linkb_disconnect (DupinLinkB * linkb)
 {
+  GError * error = NULL;
+
 #if DEBUG
   g_message("dupin_linkb_disconnect: total number of changes for '%s' linkbase: %d\n", linkb->name, (gint)sqlite3_total_changes (linkb->db));
 #endif
+
+  if (dupin_linkbase_p_update (linkb, &error) == FALSE)
+    {
+      g_warning("dupin_linkb_disconnect: could not remove reference from parent for linkbase '%s'\n", linkb->name);
+    }
 
   if (linkb->db)
     sqlite3_close (linkb->db);

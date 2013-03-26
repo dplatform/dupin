@@ -408,28 +408,31 @@ dupin_view_p_update_cb (void *data, int argc, char **argv, char **col)
 static void
 dupin_view_p_update_real (DupinViewP * p, DupinView * view)
 {
-  /* NOTE - need to remove pointer from parent if view is "hot deleted" */
+  g_rw_lock_reader_lock (view->rwlock);
+  gboolean todelete = view->todelete;
+  g_rw_lock_reader_unlock (view->rwlock);
 
-  if (view->todelete == TRUE)
+  if (todelete == TRUE)
     {
       if (p->views != NULL)
         {
-	  DupinView ** views = p->views;
-          p->views = g_malloc (sizeof (DupinView *) * p->size);
+	  /* NOTE - need to remove pointer from parent if view is "hot deleted" */
+
+	  DupinView ** views = g_malloc (sizeof (DupinView *) * p->size);
 
 	  gint i;
-	  gint current_numb = p->numb;
-	  p->numb = 0;
-	  for (i=0; i < current_numb ; i++)
-	    {
-	      if (views[i] != view)
-	        {
-                  p->views[p->numb] = views[i];
+          gint current_numb = p->numb;
+          p->numb = 0;
+          for (i=0; i < current_numb ; i++)
+            {
+	      if (p->views[i] != view)
+                {
+                  views[p->numb] = p->views[i];
                   p->numb++;
-		}
-	    }
-
-	  g_free (views);
+                }
+            }
+          g_free (p->views);
+          p->views = views;
         }
 
       return;
@@ -1184,12 +1187,6 @@ dupin_view_delete (DupinView * view, GError ** error)
   view->todelete = TRUE;
   g_rw_lock_writer_unlock (d->rwlock);
 
-  if (dupin_view_p_update (view, error) == FALSE)
-    {
-      dupin_view_disconnect (view);
-      return FALSE;
-    }
-
   return TRUE;
 }
 
@@ -1353,9 +1350,16 @@ dupin_view_get_creation_time (DupinView * view, gsize * creation_time)
 void
 dupin_view_disconnect (DupinView * view)
 {
+  GError * error = NULL;
+
 #if DEBUG
   g_message("dupin_view_disconnect: total number of changes for '%s' view database: %d\n", view->name, (gint)sqlite3_total_changes (view->db));
 #endif
+
+  if (dupin_view_p_update (view, &error) == FALSE)
+    {
+      g_warning("dupin_view_disconnect: could not remove reference from parent for view '%s'\n", view->name);
+    }
 
   /* NOTE - empty deletes queue before quitting */
 

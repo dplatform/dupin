@@ -1165,11 +1165,18 @@ dupin_view_unref (DupinView * view)
 #endif
     }
 
-  if (view->ref != 0 && view->todelete == TRUE)
-    g_warning ("dupin_view_unref: (thread=%p) view %s flagged for deletion but can't free it due ref is %d\n", g_thread_self (), view->name, (gint) view->ref);
-
-  if (view->ref == 0 && view->todelete == TRUE)
-    g_hash_table_remove (d->views, view->name);
+  if (view->todelete == TRUE &&
+      dupin_view_is_syncing (view) == FALSE)
+    {
+      if (view->ref > 0)
+        {
+          g_warning ("dupin_view_unref: (thread=%p) view %s flagged for deletion but can't free it due ref is %d\n", g_thread_self (), view->name, (gint) view->ref);
+	}
+      else
+        {
+          g_hash_table_remove (d->views, view->name);
+	}
+    }
 
   g_rw_lock_writer_unlock (d->rwlock);
 }
@@ -3080,7 +3087,7 @@ dupin_view_sync_map_func (gpointer data, gpointer user_data)
   view->sync_map_processed_count = 0;
   g_rw_lock_writer_unlock (view->rwlock);
 
-  while (view->sync_toquit == FALSE || view->todelete == FALSE)
+  while (view->sync_toquit == FALSE && view->todelete == FALSE)
     {
       gboolean map_operation = dupin_view_sync_thread_map (view, VIEW_SYNC_COUNT);
 
@@ -3199,7 +3206,7 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
 
   g_rw_lock_reader_unlock (view->rwlock);
 
-  while (view->sync_toquit == FALSE || view->todelete == FALSE)
+  while (view->sync_toquit == FALSE && view->todelete == FALSE)
     {
 //g_message("view %s rereduce=%d\n", view->name, rereduce);
 

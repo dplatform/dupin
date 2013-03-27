@@ -262,11 +262,18 @@ dupin_database_unref (DupinDB * db)
 #endif
     }
 
-  if (db->ref != 0 && db->todelete == TRUE)
-    g_warning ("dupin_database_unref: (thread=%p) database %s flagged for deletion but can't free it due ref is %d\n", g_thread_self (), db->name, (gint) db->ref);
-
-  if (db->ref == 0 && db->todelete == TRUE)
-    g_hash_table_remove (d->dbs, db->name);
+  if (db->todelete == TRUE &&
+      dupin_database_is_compacting (db) == FALSE)
+    {
+      if (db->ref > 0)
+        {
+          g_warning ("dupin_database_unref: (thread=%p) database %s flagged for deletion but can't free it due ref is %d\n", g_thread_self (), db->name, (gint) db->ref);
+        }
+      else
+        {
+          g_hash_table_remove (d->dbs, db->name);
+        }
+    }
 
   g_rw_lock_writer_unlock (d->rwlock);
 }

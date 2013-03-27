@@ -438,6 +438,7 @@ dupin_linkbase_unref (DupinLinkB * linkb)
   g_return_if_fail (linkb != NULL);
 
   d = linkb->d;
+
   g_rw_lock_writer_lock (d->rwlock);
 
   if (linkb->ref > 0)
@@ -449,11 +450,19 @@ dupin_linkbase_unref (DupinLinkB * linkb)
 #endif
     }
 
-  if (linkb->ref != 0 && linkb->todelete == TRUE)
-    g_warning ("dupin_linkbase_unref: (thread=%p) linkbase %s flagged for deletion but can't free it due ref is %d\n", g_thread_self (), linkb->name, (gint) linkb->ref);
-
-  if (linkb->ref == 0 && linkb->todelete == TRUE)
-    g_hash_table_remove (d->linkbs, linkb->name);
+  if (linkb->todelete == TRUE &&
+      dupin_linkbase_is_compacting (linkb) == FALSE &&
+      dupin_linkbase_is_checking (linkb) == FALSE)
+    {
+      if (linkb->ref > 0)
+        {
+          g_warning ("dupin_linkbase_unref: (thread=%p) linkbase %s flagged for deletion but can't free it due ref is %d\n", g_thread_self (), linkb->name, (gint) linkb->ref);
+        }
+      else
+        {
+          g_hash_table_remove (d->linkbs, linkb->name);
+        }
+    }
 
   g_rw_lock_writer_unlock (d->rwlock);
 }

@@ -420,11 +420,17 @@ dupin_attachment_db_unref (DupinAttachmentDB * attachment_db)
 #endif
     }
 
-  if (attachment_db->ref != 0 && attachment_db->todelete == TRUE)
-    g_warning ("dupin_attachment_db_unref: (thread=%p) attachment database %s flagged for deletion but can't free it due ref is %d\n", g_thread_self (), attachment_db->name, (gint) attachment_db->ref);
-
-  if (attachment_db->ref == 0 && attachment_db->todelete == TRUE)
-    g_hash_table_remove (d->attachment_dbs, attachment_db->name);
+  if (attachment_db->todelete == TRUE)
+    {
+      if (attachment_db->ref > 0)
+        {
+          g_warning ("dupin_attachment_db_unref: (thread=%p) attachment database %s flagged for deletion but can't free it due ref is %d\n", g_thread_self (), attachment_db->name, (gint) attachment_db->ref);
+        }
+      else
+        {
+          g_hash_table_remove (d->attachment_dbs, attachment_db->name);
+        }
+    }
 
   g_rw_lock_writer_unlock (d->rwlock);
 }

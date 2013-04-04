@@ -1784,6 +1784,9 @@ dupin_record_generate_hash (DupinRecord * record,
   /* delete flag */
   g_string_append_printf (str, "%d", (gint)delete);
 
+  /* type */
+  g_string_append_printf (str, "%s", (gchar *)dupin_record_get_type (record));
+
   /* attachment hashes for any connected attachment DB */
   DupinAttachmentDBP * p = &record->db->attachment_dbs;
 

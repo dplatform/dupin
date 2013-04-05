@@ -2243,6 +2243,8 @@ dupin_record_insert (DupinDB * db,
       if (!  (attachment_db =
                dupin_attachment_db_open (db->d, dupin_database_get_default_attachment_db_name (db), error)))
         {
+          dupin_record_close (record);
+
           if (attachments_node != NULL)
             json_node_free (attachments_node);
           if (links_node != NULL)
@@ -2281,9 +2283,9 @@ dupin_record_insert (DupinDB * db,
 
           JsonObject *inline_attachment_obj = json_node_get_object (inline_attachment_node);
 
-          gboolean to_delete = FALSE;
+          gboolean attachment_to_delete = FALSE;
           if (json_object_has_member (inline_attachment_obj, REQUEST_OBJ_DELETED) == TRUE)
-            to_delete = json_object_get_boolean_member (inline_attachment_obj, REQUEST_OBJ_DELETED);
+            attachment_to_delete = json_object_get_boolean_member (inline_attachment_obj, REQUEST_OBJ_DELETED);
 
           gboolean stub = FALSE;
           if (json_object_has_member (inline_attachment_obj, REQUEST_OBJ_INLINE_ATTACHMENTS_STUB) == TRUE)
@@ -2291,7 +2293,7 @@ dupin_record_insert (DupinDB * db,
 
           if (stub == TRUE)
             {
-              if (to_delete == TRUE)
+              if (attachment_to_delete == TRUE)
                 {
                   // TODO - warning we used _deleted: true while we meant to ingnore attachment ? */
                   continue;
@@ -2308,7 +2310,7 @@ dupin_record_insert (DupinDB * db,
           const void * buff_ref = NULL;
 
           gsize buff_size;
-          if (to_delete == FALSE)
+          if (attachment_to_delete == FALSE)
             {
               content_type = (gchar *) json_object_get_string_member (inline_attachment_obj, REQUEST_OBJ_INLINE_ATTACHMENTS_TYPE);
               gchar * data = (gchar *) json_object_get_string_member (inline_attachment_obj, REQUEST_OBJ_INLINE_ATTACHMENTS_DATA);
@@ -2331,11 +2333,12 @@ dupin_record_insert (DupinDB * db,
               buff_ref = (const void *) buff;
             }
 
-          /* NOTE - store inline attachment as normal one - correct? */
-          if ( (to_delete == TRUE
+          /* NOTE - store inline attachment as normal one */
+
+          if ( (attachment_to_delete == TRUE
                 && dupin_attachment_record_exists (attachment_db, (gchar *) dupin_record_get_id (record), member_name) == FALSE)
               || dupin_attachment_record_delete (attachment_db, (gchar *) dupin_record_get_id (record), member_name) == FALSE
-              || (to_delete == FALSE
+              || (attachment_to_delete == FALSE
                   && dupin_attachment_record_create (attachment_db, (gchar *) dupin_record_get_id (record),
 						     member_name, buff_size, content_type,
                                           	     &buff_ref) == FALSE))

@@ -331,56 +331,6 @@ dupin_attachment_db_p_update (DupinAttachmentDB * attachment_db, GError ** error
 }
 
 void
-dupin_attachment_db_p_record_insert (DupinAttachmentDBP * p,
-				     gchar *       id,
-				     gchar *       title,
-  				     gsize         length,
-  				     gchar *       type,
-			    	     const void ** content)
-{
-  g_return_if_fail (p != NULL);
-  g_return_if_fail (id != NULL);
-  g_return_if_fail (title != NULL);
-  g_return_if_fail (length >= 0);
-  g_return_if_fail (type != NULL);
-  g_return_if_fail (content != NULL);
-
-  gsize i;
-
-  for (i = 0; i < p->numb; i++)
-    {
-      DupinAttachmentDB *attachment_db = p->attachment_dbs[i];
-
-      if (dupin_attachment_record_create (attachment_db, id, title, length, type, content) == FALSE)
-        {
-	  return;
-        }
-    }
-}
-
-void
-dupin_attachment_db_p_record_delete (DupinAttachmentDBP * p,
-				     gchar *       id,
-				     gchar *       title)
-{
-  g_return_if_fail (p != NULL);
-  g_return_if_fail (id != NULL);
-  g_return_if_fail (title != NULL);
-
-  gsize i;
-
-  for (i = 0; i < p->numb; i++)
-    {
-      DupinAttachmentDB *attachment_db = p->attachment_dbs[i];
-
-      if (dupin_attachment_record_delete (attachment_db, id, title) == FALSE)
-        {
-          return;
-        }
-    }
-}
-
-void
 dupin_attachment_db_ref (DupinAttachmentDB * attachment_db)
 {
   Dupin *d;

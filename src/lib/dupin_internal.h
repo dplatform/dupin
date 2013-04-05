@@ -468,19 +468,6 @@ gboolean	dupin_attachment_db_p_update
 				(DupinAttachmentDB *	attachment_db,
 				 GError **	error);
 
-void		dupin_attachment_db_p_record_insert
-			 	(DupinAttachmentDBP * p,
-                                     gchar *       id,
-                                     gchar *       title,
-                                     gsize         length,
-                                     gchar *       type,
-                                     const void ** content);	
-
-void		dupin_attachment_db_p_record_delete
-				(DupinAttachmentDBP * p,
-                                     gchar *       id,
-                                     gchar *       title);
-
 #endif
 
 /* EOF */

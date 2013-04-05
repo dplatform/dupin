@@ -98,7 +98,7 @@ dupin_attachment_record_create (DupinAttachmentDB * attachment_db,
   if (sqlite3_step (insertstmt) != SQLITE_DONE)
     {
       g_rw_lock_writer_unlock (attachment_db->rwlock);
-      g_error("dupin_attachment_db_p_record_insert: %s", sqlite3_errmsg (attachment_db->db));
+      g_error("dupin_attachment_record_create: %s", sqlite3_errmsg (attachment_db->db));
       sqlite3_free (query);
       g_free (md5);
       return FALSE;

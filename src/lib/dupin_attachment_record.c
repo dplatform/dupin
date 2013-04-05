@@ -1103,7 +1103,7 @@ dupin_attachment_record_insert (DupinAttachmentDB * attachment_db,
                                              attachment_body_size,
                                              attachment_input_mime,
                                              attachment_body) == FALSE
-          || dupin_record_update (record, obj_node, error) == FALSE)
+          || dupin_record_update (record, obj_node, FALSE, error) == FALSE)
         {
           g_free (title);
           dupin_record_close (record);

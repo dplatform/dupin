@@ -59,6 +59,7 @@ typedef struct _dupin_loader_options {
 	gboolean silent;
 	gboolean strict_links;
 	gboolean use_latest_revision;
+	gboolean ignore_updates_if_unmodified;
 	gchar * context_id;
 } dupin_loader_options;
 
@@ -89,17 +90,18 @@ dupin_loader_usage (char *argv[])
 	 , argv[0]);
   puts("\n"
        "options:\n"
-       "   --help                 this usage statement\n"
-       "   --bulk                 read one bulk per line\n"
-       "   --bulk_tx_num NUM      how many bulks SQLite transaction should span. Default is 1 transaction per bulk (line).\n"
-       "   --links                input is only about links (weblinks or relationships) no documents\n"
-       "   --strict_links         check that the context_id document is valid and not deleted\n"
-       "   --use-latest-revision  allows to force update of records always using (implicitly) the latest revision. On new insertions is ignored.\n"
-       "   --create-db            force (re)creation of database if it doesn't exist\n"
-       "   --verbose              verbose logging, more than normal logging\n"
-       "   --silent               silent, prints only errors\n"
-       "   --version              prints version information\n"
-       "   --context_id ID        the context_id to use to create the links if --links is used\n"
+       "   --help                           this usage statement\n"
+       "   --bulk                           read one bulk per line\n"
+       "   --bulk_tx_num NUM                how many bulks SQLite transaction should span. Default is 1 transaction per bulk (line).\n"
+       "   --links                          input is only about links (weblinks or relationships) no documents\n"
+       "   --strict_links                   check that the context_id document is valid and not deleted\n"
+       "   --use-latest-revision            allows to force update of records always using (implicitly) the latest revision. On new record insertions is ignored.\n"
+       "   --ignore-updates-if-unmodified   update records only if they contain a change respect to current record (i.e. no duplicate revisions are created). On new record insertions and deletions is ignored.\n"
+       "   --create-db                      force (re)creation of database if it doesn't exist\n"
+       "   --verbose                        verbose logging, more than normal logging\n"
+       "   --silent                         silent, prints only errors\n"
+       "   --version                        prints version information\n"
+       "   --context_id ID                  the context_id to use to create the links if --links is used\n"
        "   \n"
        "   When the --links option is specified without --context_id each input JSON object must have a 'context_id' field, including bulks.\n"
 );
@@ -130,6 +132,7 @@ dupin_loader_parse_options (int argc, char **argv,
   options->context_id = NULL;
   options->strict_links = FALSE;
   options->use_latest_revision = FALSE;
+  options->ignore_updates_if_unmodified = FALSE;
 
   if (argc > 1)
     {
@@ -179,6 +182,11 @@ dupin_loader_parse_options (int argc, char **argv,
                else if (!g_strcmp0 (argv[i], "--use-latest-revision"))
                  {
 		   options->use_latest_revision = TRUE;
+		   argc_left--;
+                 }
+               else if (!g_strcmp0 (argv[i], "--ignore-updates-if-unmodified"))
+                 {
+		   options->ignore_updates_if_unmodified = TRUE;
 		   argc_left--;
                  }
                else if (!g_strcmp0 (argv[i], "--context_id"))
@@ -505,12 +513,12 @@ main (int argc, char *argv[])
 //g_message("context_id = %s\n", context_id);
 
 	      res =  dupin_link_record_insert_bulk (linkb, json_object_node, context_id, &response_list,
-						    options.strict_links, options.use_latest_revision, &error);
+						    options.strict_links, options.use_latest_revision, options.ignore_updates_if_unmodified, &error);
 
 	      g_free (context_id); 
             }
           else
-            res = dupin_record_insert_bulk (db, json_object_node, &response_list, options.use_latest_revision, &error);
+            res = dupin_record_insert_bulk (db, json_object_node, &response_list, options.use_latest_revision, options.ignore_updates_if_unmodified, &error);
 
 	  if (bulk_tx_num_count == options.bulk_tx_num)
 	    {
@@ -545,12 +553,12 @@ main (int argc, char *argv[])
                 }
 
 	      res = dupin_link_record_insert (linkb, json_object_node, NULL, NULL, context_id,
-					      DP_LINK_TYPE_ANY, &response_list, options.strict_links, options.use_latest_revision, &error);
+					      DP_LINK_TYPE_ANY, &response_list, options.strict_links, options.use_latest_revision, options.ignore_updates_if_unmodified, &error);
 
 	      g_free (context_id); 
             }
           else
-            res = dupin_record_insert (db, json_object_node, NULL, NULL, &response_list, options.use_latest_revision, &error);
+            res = dupin_record_insert (db, json_object_node, NULL, NULL, &response_list, options.use_latest_revision, options.ignore_updates_if_unmodified, &error);
        }
 
       if (res == TRUE)

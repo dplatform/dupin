@@ -733,7 +733,7 @@ command_updateRecord (GList * list)
       return;
     }
 
-  if (dupin_record_update (record, obj_node, &error) == FALSE)
+  if (dupin_record_update (record, obj_node, FALSE, &error) == FALSE)
     {
       fprintf (stderr, "Error: %s\n", error->message);
       g_error_free (error);

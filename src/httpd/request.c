@@ -5497,7 +5497,7 @@ request_global_post_record (DSHttpdClient * client,
       goto request_global_post_record_end;
     }
 
-  if (dupin_record_insert (db, node, NULL, NULL, &response_list, FALSE, &error) == TRUE)
+  if (dupin_record_insert (db, node, NULL, NULL, &response_list, FALSE, FALSE, &error) == TRUE)
     {
       if (request_record_response (client, response_list, FALSE) == FALSE)
         {
@@ -5623,7 +5623,7 @@ request_global_post_doc_link (DSHttpdClient * client,
 
   dupin_database_unref (db);
 
-  if (dupin_link_record_insert (linkb, node, NULL, NULL, context_id, link_type, &response_list, strict_links, FALSE, &error) == TRUE)
+  if (dupin_link_record_insert (linkb, node, NULL, NULL, context_id, link_type, &response_list, strict_links, FALSE, FALSE, &error) == TRUE)
     {
       if (request_record_response (client, response_list, FALSE) == FALSE)
         {
@@ -5669,10 +5669,12 @@ request_global_post_bulk_docs (DSHttpdClient * client,
 			       GList * arguments)
 {
   JsonNode *node;
+  JsonNode * sub_node = NULL;
   GError *error = NULL;
   GList *response_list=NULL;
   DupinDB * db=NULL;
-  gboolean user_latest_revision = FALSE;
+  gboolean use_latest_revision = FALSE;
+  gboolean ignore_updates_if_unmodified = FALSE;
   GList * l=NULL;
 
   DSHttpStatusCode code;
@@ -5683,7 +5685,11 @@ request_global_post_bulk_docs (DSHttpdClient * client,
 
       if (!g_strcmp0 (kv->key, REQUEST_POST_BULK_DOCS_USE_LATEST_REVISION)
 	  && !g_strcmp0 (kv->value, "true"))
-	user_latest_revision = TRUE;
+	use_latest_revision = TRUE;
+
+      else if (!g_strcmp0 (kv->key, REQUEST_POST_BULK_DOCS_IGNORE_IF_UNMODIFIED)
+	       && !g_strcmp0 (kv->value, "true"))
+	ignore_updates_if_unmodified = TRUE;
     }
 
   JsonParser *parser = json_parser_new ();
@@ -5716,10 +5722,27 @@ request_global_post_bulk_docs (DSHttpdClient * client,
       goto request_global_post_bulk_docs_end;
     }
 
-  /* NOTE - posted docu override URL parameter eventually */
+  /* NOTE - posted document override URL parameters eventually */
+
   if ((json_node_get_node_type (node) == JSON_NODE_OBJECT) &&
-      (json_object_has_member (json_node_get_object (node), REQUEST_POST_BULK_DOCS_USE_LATEST_REVISION) == TRUE))
-    user_latest_revision = json_node_get_boolean (node);
+      (json_object_has_member (json_node_get_object (node), REQUEST_POST_BULK_DOCS_USE_LATEST_REVISION) == TRUE) &&
+      (sub_node = json_object_get_member (json_node_get_object (node), REQUEST_POST_BULK_DOCS_USE_LATEST_REVISION)) &&
+      (json_node_get_node_type (sub_node) == JSON_NODE_VALUE) &&
+      json_node_get_value_type (sub_node) == G_TYPE_BOOLEAN)
+    {
+      use_latest_revision = json_node_get_boolean (sub_node);
+    }
+
+  sub_node = NULL;
+
+  if ((json_node_get_node_type (node) == JSON_NODE_OBJECT) &&
+      (json_object_has_member (json_node_get_object (node), REQUEST_POST_BULK_DOCS_IGNORE_IF_UNMODIFIED) == TRUE) &&
+      (sub_node = json_object_get_member (json_node_get_object (node), REQUEST_POST_BULK_DOCS_IGNORE_IF_UNMODIFIED)) &&
+      (json_node_get_node_type (sub_node) == JSON_NODE_VALUE) &&
+      json_node_get_value_type (sub_node) == G_TYPE_BOOLEAN)
+    {
+      ignore_updates_if_unmodified = json_node_get_boolean (sub_node);
+    }
 
   if (!
       (db =
@@ -5730,7 +5753,7 @@ request_global_post_bulk_docs (DSHttpdClient * client,
       goto request_global_post_bulk_docs_end;
     }
 
-  if (dupin_record_insert_bulk (db, node, &response_list, user_latest_revision, &error) == TRUE)
+  if (dupin_record_insert_bulk (db, node, &response_list, use_latest_revision, ignore_updates_if_unmodified, &error) == TRUE)
     {
       if (request_record_response (client, response_list, TRUE) == FALSE)
         {
@@ -5770,13 +5793,15 @@ request_global_post_bulk_doc_links (DSHttpdClient * client,
 			            GList * arguments)
 {
   JsonNode *node;
+  JsonNode * sub_node = NULL;
   GError *error = NULL;
   GList *response_list=NULL;
   DupinDB * db=NULL; 
   DupinLinkB * linkb = NULL;
   gboolean strict_links = FALSE;
   GList * l=NULL;
-  gboolean user_latest_revision = FALSE;
+  gboolean use_latest_revision = FALSE;
+  gboolean ignore_updates_if_unmodified = FALSE;
 
   DSHttpStatusCode code;
 
@@ -5798,9 +5823,14 @@ request_global_post_bulk_doc_links (DSHttpdClient * client,
               strict_links = true;
             }
         }
+
       else if (!g_strcmp0 (kv->key, REQUEST_POST_BULK_LINKS_USE_LATEST_REVISION)
 	       && !g_strcmp0 (kv->value, "true"))
-	user_latest_revision = TRUE;
+	use_latest_revision = TRUE;
+
+      else if (!g_strcmp0 (kv->key, REQUEST_POST_BULK_LINKS_IGNORE_IF_UNMODIFIED)
+	       && !g_strcmp0 (kv->value, "true"))
+	ignore_updates_if_unmodified = TRUE;
     }
 
   gchar * context_id = path->next->data;
@@ -5835,10 +5865,27 @@ request_global_post_bulk_doc_links (DSHttpdClient * client,
       goto request_global_post_bulk_doc_links_end;
     }
 
-  /* NOTE - posted docu override URL parameter eventually */
+  /* NOTE - posted doc override URL parameters eventually */
+
   if ((json_node_get_node_type (node) == JSON_NODE_OBJECT) &&
-      (json_object_has_member (json_node_get_object (node), REQUEST_POST_BULK_LINKS_USE_LATEST_REVISION) == TRUE))
-    user_latest_revision = json_node_get_boolean (node);
+      (json_object_has_member (json_node_get_object (node), REQUEST_POST_BULK_LINKS_USE_LATEST_REVISION) == TRUE) &&
+      (sub_node = json_object_get_member (json_node_get_object (node), REQUEST_POST_BULK_LINKS_USE_LATEST_REVISION)) &&
+      (json_node_get_node_type (sub_node) == JSON_NODE_VALUE) &&
+      json_node_get_value_type (sub_node) == G_TYPE_BOOLEAN)
+    {
+      use_latest_revision = json_node_get_boolean (sub_node);
+    }
+
+  sub_node = NULL;
+
+  if ((json_node_get_node_type (node) == JSON_NODE_OBJECT) &&
+      (json_object_has_member (json_node_get_object (node), REQUEST_POST_BULK_LINKS_IGNORE_IF_UNMODIFIED) == TRUE) &&
+      (sub_node = json_object_get_member (json_node_get_object (node), REQUEST_POST_BULK_LINKS_IGNORE_IF_UNMODIFIED)) &&
+      (json_node_get_node_type (sub_node) == JSON_NODE_VALUE) &&
+      json_node_get_value_type (sub_node) == G_TYPE_BOOLEAN)
+    {
+      ignore_updates_if_unmodified = json_node_get_boolean (sub_node);
+    }
 
   /* NOTE - need to get the right linkbase to post to */
   if (!  (db = dupin_database_open (client->thread->data->dupin, path->data, NULL)))
@@ -5858,7 +5905,7 @@ request_global_post_bulk_doc_links (DSHttpdClient * client,
 
   dupin_database_unref (db);
 
-  if (dupin_link_record_insert_bulk (linkb, node, context_id, &response_list, strict_links, user_latest_revision, &error) == TRUE)
+  if (dupin_link_record_insert_bulk (linkb, node, context_id, &response_list, strict_links, use_latest_revision, ignore_updates_if_unmodified, &error) == TRUE)
     {
       if (request_record_response (client, response_list, TRUE) == FALSE)
         {
@@ -6658,13 +6705,13 @@ request_global_put_record (DSHttpdClient * client,
       json_object_set_member (patch_obj, (const gchar *)request_fields, json_node_copy (node));
       json_object_set_boolean_member (patch_obj, REQUEST_OBJ_PATCHED, TRUE);
 
-      res = dupin_record_insert (db, patch, doc_id, mvcc, &response_list, FALSE, &error);
+      res = dupin_record_insert (db, patch, doc_id, mvcc, &response_list, FALSE, FALSE, &error);
 
       json_node_free (patch);
     }
   else
     {
-      res = dupin_record_insert (db, node, doc_id, mvcc, &response_list, FALSE, &error);
+      res = dupin_record_insert (db, node, doc_id, mvcc, &response_list, FALSE, FALSE, &error);
     }
 
   if (res == TRUE)
@@ -6886,13 +6933,13 @@ request_global_put_link_record (DSHttpdClient * client,
       json_object_set_member (patch_obj, (const gchar *)request_fields, json_node_copy (node));
       json_object_set_boolean_member (patch_obj, REQUEST_OBJ_PATCHED, TRUE);
 
-      res = dupin_link_record_insert (linkb, patch, link_id, mvcc, NULL, DP_LINK_TYPE_ANY, &response_list, strict_links, FALSE, &error);
+      res = dupin_link_record_insert (linkb, patch, link_id, mvcc, NULL, DP_LINK_TYPE_ANY, &response_list, strict_links, FALSE, FALSE, &error);
 
       json_node_free (patch);
     }
   else
     {
-      res = dupin_link_record_insert (linkb, node, link_id, mvcc, NULL, DP_LINK_TYPE_ANY, &response_list, strict_links, FALSE, &error);
+      res = dupin_link_record_insert (linkb, node, link_id, mvcc, NULL, DP_LINK_TYPE_ANY, &response_list, strict_links, FALSE, FALSE, &error);
     }
 
   if (res == TRUE)
@@ -7400,7 +7447,7 @@ request_global_delete_record (DSHttpdClient * client,
           return HTTP_STATUS_404;
         }
 
-      if (dupin_record_update (record, obj_node, NULL) == FALSE)
+      if (dupin_record_update (record, obj_node, FALSE, NULL) == FALSE)
         {
           if (title != NULL)
             g_free (title);
@@ -7438,7 +7485,7 @@ request_global_delete_record (DSHttpdClient * client,
       json_object_set_boolean_member (to_delete_obj, REQUEST_OBJ_DELETED, TRUE);
       json_object_set_object_member (patch_obj, (const gchar *)request_fields, to_delete_obj);
 
-      if (dupin_record_patch (record, patch, NULL) == FALSE)
+      if (dupin_record_patch (record, patch, FALSE, NULL) == FALSE)
         {
           json_node_free (patch);
           if (title != NULL)
@@ -7672,7 +7719,7 @@ request_global_delete_link_record (DSHttpdClient * client,
       				    (gchar *)dupin_link_record_get_label (record),
       				    (gchar *)dupin_link_record_get_href (record),
       				    (gchar *)dupin_link_record_get_rel (record),
-      				    (gchar *)dupin_link_record_get_tag (record), NULL) == FALSE)
+      				    (gchar *)dupin_link_record_get_tag (record), FALSE, NULL) == FALSE)
         {
           json_node_free (patch);
           dupin_link_record_close (record);

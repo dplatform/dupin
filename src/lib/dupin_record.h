@@ -38,8 +38,8 @@ int		dupin_record_select_total_cb
         "SELECT rev, hash, type, obj, deleted, tm, ROWID AS rowid FROM Dupin WHERE id='%q'"
 
 #define DUPIN_DB_SQL_DELETE \
-        "INSERT OR REPLACE INTO Dupin (id, rev, deleted, hash, type, tm) " \
-        "VALUES('%q', '%" G_GSIZE_FORMAT "', 'TRUE', '%q', %Q, '%" G_GSIZE_FORMAT "')"
+        "INSERT OR REPLACE INTO Dupin (id, rev, deleted, hash, type, obj, tm) " \
+        "VALUES('%q', '%" G_GSIZE_FORMAT "', 'TRUE', '%q', %Q, '{}', '%" G_GSIZE_FORMAT "')"
 
 #define DUPIN_DB_SQL_UPDATE_REV_HEAD \
         "UPDATE Dupin SET rev_head = 'FALSE' WHERE id = '%q' "
@@ -113,10 +113,12 @@ void		dupin_record_get_list_close
 
 gboolean	dupin_record_update	(DupinRecord *		record,
 					 JsonNode *		obj_node,
+					 gboolean 		ignore_updates_if_unmodified,
 					 GError **		error);
 
 gboolean	dupin_record_patch	(DupinRecord *		record,
 					 JsonNode *		obj_node,
+					 gboolean 		ignore_updates_if_unmodified,
 					 GError **		error);
 
 gboolean	dupin_record_delete	(DupinRecord *		record,
@@ -179,6 +181,7 @@ gboolean	dupin_record_insert	(DupinDB * db,
                                          gchar * id, gchar * caller_mvcc,
                                          GList ** response_list,
 					 gboolean use_latest_revision,
+					 gboolean ignore_updates_if_unmodified,
 					 GError ** error);
 
 gboolean	dupin_record_insert_bulk
@@ -186,6 +189,7 @@ gboolean	dupin_record_insert_bulk
 					 JsonNode * bulk_node,
                                          GList ** response_list,
 					 gboolean use_latest_revision,
+					 gboolean ignore_updates_if_unmodified,
 					 GError ** error);
 
 G_END_DECLS

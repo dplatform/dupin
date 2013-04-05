@@ -165,42 +165,42 @@ static void dupin_link_record_rev_close (DupinLinkRecordRev * rev);
 
 static DupinLinkRecord *dupin_link_record_new (DupinLinkB * linkb, gchar * id);
 
-static void dupin_link_record_add_revision_obj (DupinLinkRecord * record, guint rev,
-					   gchar ** hash,
-					   JsonNode * obj_node,
-					   gchar * context_id,
-					   gchar * label,
-                                           gchar * href,
-                                           gchar * rel,
-                                           gchar * tag,
-					   gboolean delete,
-					   gsize created,
-					   gboolean is_weblink);
+static gboolean dupin_link_record_add_revision_obj (DupinLinkRecord * record, guint rev,
+					            gchar ** hash,
+					            JsonNode * obj_node,
+					            gchar * context_id,
+					            gchar * label,
+                                                    gchar * href,
+                                                    gchar * rel,
+                                                    gchar * tag,
+					            gboolean delete,
+					            gsize created,
+					            gboolean is_weblink,
+					            gboolean ignore_updates_if_unmodified);
 
 static void dupin_link_record_add_revision_str (DupinLinkRecord * record, guint rev,
-					   gchar * hash, gssize hash_size,
-					   gchar * obj, gssize size,
-					   gchar * context_id,
-					   gchar * label,
-                                           gchar * href,
-                                           gchar * rel,
-                                           gchar * tag,
-					   gboolean delete,
-					   gsize created,
-					   gsize rowid,
-					   gboolean is_weblink);
+					        gchar * hash, gssize hash_size,
+					        gchar * obj, gssize size,
+					        gchar * context_id,
+					        gchar * label,
+                                                gchar * href,
+                                                gchar * rel,
+                                                gchar * tag,
+					        gboolean delete,
+					        gsize created,
+					        gsize rowid,
+					        gboolean is_weblink);
 
-static gboolean
-	   dupin_link_record_generate_hash	(DupinLinkRecord * record,
-                            		 gchar * obj_serialized, gssize obj_serialized_len,
-					 gchar * context_id,
-					 gchar * label,
-                                         gchar * href,
-                                         gchar * rel,
-                                         gchar * tag,
-			    		 gboolean delete,
-					 gboolean is_weblink,
-			    		 gchar ** hash, gsize * hash_len);
+static gboolean dupin_link_record_generate_hash	(DupinLinkRecord * record,
+                            		         gchar * obj_serialized, gssize obj_serialized_len,
+					         gchar * context_id,
+					         gchar * label,
+                                                 gchar * href,
+                                                 gchar * rel,
+                                                 gchar * tag,
+			    		         gboolean delete,
+					         gboolean is_weblink,
+			    		         gchar ** hash, gsize * hash_len);
 
 gboolean
 dupin_link_record_exists (DupinLinkB * linkb, gchar * id)
@@ -373,7 +373,8 @@ dupin_link_record_create_with_id_real (DupinLinkB * linkb, JsonNode * obj_node,
   dupin_link_record_add_revision_obj (record, 1, &md5, obj_node,
 				      context_id, label, href, rel, tag,
 				      FALSE, created,
-				      dupin_util_is_valid_absolute_uri (href));
+				      dupin_util_is_valid_absolute_uri (href),
+				      FALSE);
 
   tmp =
     sqlite3_mprintf (DUPIN_LINKB_SQL_INSERT, id, 1, md5,
@@ -1705,6 +1706,7 @@ dupin_link_record_update (DupinLinkRecord * record, JsonNode * obj_node,
                           gchar * href,
                           gchar * rel,
                           gchar * tag,
+			  gboolean ignore_updates_if_unmodified,
 			  GError ** error)
 {
   guint rev;
@@ -1740,6 +1742,22 @@ dupin_link_record_update (DupinLinkRecord * record, JsonNode * obj_node,
 
   g_rw_lock_writer_lock (record->linkb->rwlock);
 
+  rev = record->last->revision + 1;
+
+  gsize created = dupin_date_timestamp_now (0);
+
+  if (dupin_link_record_add_revision_obj (record, rev, &md5, obj_node,
+				          (gchar *)dupin_link_record_get_context_id (record),
+				          label, href, rel, tag,
+				          FALSE, created,
+				          dupin_util_is_valid_absolute_uri (href),
+			  	          ignore_updates_if_unmodified) == FALSE)
+    {
+      g_rw_lock_writer_unlock (record->linkb->rwlock);
+
+      return TRUE; // or return FALSE with error like "unchanged" ?
+    }
+
   /* NOTE - flag any previous revision as non head - we need this to optimise searches
             and avoid slowness of max(rev) as rev or even nested select like
             rev = (select max(rev) as rev FROM Dupin WHERE id=d.id) ... */
@@ -1771,16 +1789,6 @@ dupin_link_record_update (DupinLinkRecord * record, JsonNode * obj_node,
 
   record_was_deleted = record->last->deleted;
   record_was_weblink = record->last->is_weblink;
-
-  rev = record->last->revision + 1;
-
-  gsize created = dupin_date_timestamp_now (0);
-
-  dupin_link_record_add_revision_obj (record, rev, &md5, obj_node,
-				      (gchar *)dupin_link_record_get_context_id (record),
-				      label, href, rel, tag,
-				      FALSE, created,
-				      dupin_util_is_valid_absolute_uri (href));
 
   tmp =
     sqlite3_mprintf (DUPIN_LINKB_SQL_INSERT, record->id, rev, md5,
@@ -1918,6 +1926,7 @@ dupin_link_record_patch (DupinLinkRecord * record, JsonNode * obj_node,
                          gchar * href,
                          gchar * rel,
                          gchar * tag,
+			 gboolean ignore_updates_if_unmodified,
 			 GError ** error)
 {
   g_return_val_if_fail (record != NULL, FALSE);
@@ -1932,7 +1941,7 @@ dupin_link_record_patch (DupinLinkRecord * record, JsonNode * obj_node,
   if (patched_revision == NULL)
     return FALSE;
 
-  if (dupin_link_record_update (record, patched_revision, label, href, rel, tag, error) == FALSE)
+  if (dupin_link_record_update (record, patched_revision, label, href, rel, tag, ignore_updates_if_unmodified, error) == FALSE)
     {
       if (patched_revision != NULL)
         json_node_free (patched_revision);
@@ -2009,7 +2018,8 @@ dupin_link_record_delete (DupinLinkRecord * record, GError ** error)
 				      (gchar *)dupin_link_record_get_rel (record),
 				      (gchar *)dupin_link_record_get_tag (record),
  				      TRUE, created,
-				      dupin_link_record_is_weblink (record));
+				      dupin_link_record_is_weblink (record),
+				      FALSE);
 
   tmp = sqlite3_mprintf (DUPIN_LINKB_SQL_DELETE, record->id, rev, md5, created,	
 				      (gchar *)dupin_link_record_get_context_id (record),
@@ -2373,52 +2383,74 @@ dupin_link_record_rev_close (DupinLinkRecordRev * rev)
   g_free (rev);
 }
 
-static void
-dupin_link_record_add_revision_obj (DupinLinkRecord * record, guint rev,
-			       gchar ** hash,
-			       JsonNode * obj_node,
-			       gchar * context_id,
-			       gchar * label,
-                               gchar * href,
-                               gchar * rel,
-                               gchar * tag,
-			       gboolean delete,
-			       gsize created,
-			       gboolean is_weblink)
+static gboolean
+dupin_link_record_add_revision_obj (DupinLinkRecord * record,
+				    guint rev,
+			            gchar ** hash,
+			            JsonNode * obj_node,
+			            gchar * context_id,
+			            gchar * label,
+                                    gchar * href,
+                                    gchar * rel,
+                                    gchar * tag,
+			            gboolean delete,
+			            gsize created,
+			            gboolean is_weblink,
+			            gboolean ignore_updates_if_unmodified)
 {
   DupinLinkRecordRev *r;
   gchar mvcc[DUPIN_ID_MAX_LEN];
-
-  r = g_malloc0 (sizeof (DupinLinkRecordRev));
-  r->revision = rev;
+  JsonNode * obj_node_copy = NULL;
+  gchar * obj_serialized = NULL;
+  gsize obj_serialized_len = 0;
+  gchar * obj_hash;
+  gsize obj_hash_len = 0;
 
   if (obj_node)
     {
+      obj_node_copy = json_node_copy (obj_node);
+
       JsonGenerator * gen = json_generator_new();
 
-      r->obj = json_node_copy (obj_node);
+      json_generator_set_root (gen, obj_node_copy);
 
-      json_generator_set_root (gen, r->obj );
-
-      r->obj_serialized = json_generator_to_data (gen,&r->obj_serialized_len);
+      obj_serialized = json_generator_to_data (gen, &obj_serialized_len);
 
       g_object_unref (gen);
     }
 
-  r->deleted = delete;
-  r->created = created;
-  r->is_weblink = is_weblink;
-
   dupin_link_record_generate_hash (record,
-			      r->obj_serialized, r->obj_serialized_len,
-			      context_id,
-			      label,
-                              href,
-                              rel,
-			      tag,
-			      delete,
-			      is_weblink,
-			      &r->hash, &r->hash_len);
+			           obj_serialized, obj_serialized_len,
+			           context_id,
+			           label,
+                                   href,
+                                   rel,
+			           tag,
+			           delete,
+			           is_weblink,
+			           &obj_hash, &obj_hash_len);
+
+  /* NOTE - ignore updates if they are containing exactly the same object data */
+
+  if (ignore_updates_if_unmodified == TRUE &&
+      record->last &&
+      !g_strcmp0 (obj_hash, record->last->hash))
+    {
+      json_node_free (obj_node_copy);
+      g_free (obj_serialized);
+      g_free (obj_hash);
+
+      return FALSE;
+    }
+
+  r = g_malloc0 (sizeof (DupinLinkRecordRev));
+  r->revision = rev;
+
+  r->obj = obj_node_copy;
+  r->obj_serialized = obj_serialized;
+  r->obj_serialized_len = obj_serialized_len;
+  r->hash = obj_hash;
+  r->hash_len = obj_hash_len;
 
   *hash = r->hash; // no need to copy - see caller logic
 
@@ -2428,6 +2460,10 @@ dupin_link_record_add_revision_obj (DupinLinkRecord * record, guint rev,
 
   r->mvcc = g_strdup (mvcc);
   r->mvcc_len = strlen (mvcc);
+
+  r->deleted = delete;
+  r->created = created;
+  r->is_weblink = is_weblink;
 
   r->context_id = g_strdup (context_id);
   r->label = g_strdup (label);
@@ -2441,6 +2477,8 @@ dupin_link_record_add_revision_obj (DupinLinkRecord * record, guint rev,
 
   if (!record->last || (dupin_util_mvcc_revision_cmp (dupin_link_record_get_last_revision (record), mvcc) < 0 ))
     record->last = r;
+
+  return TRUE;
 }
 
 static void
@@ -2930,6 +2968,7 @@ dupin_link_record_insert (DupinLinkB * linkb,
 			  GList ** response_list,
 			  gboolean strict_links,
 			  gboolean use_latest_revision,
+		  	  gboolean ignore_updates_if_unmodified,
   			  GError ** error)
 {
   g_return_val_if_fail (linkb != NULL, FALSE);
@@ -3091,7 +3130,7 @@ dupin_link_record_insert (DupinLinkB * linkb,
         {
           if (!record || dupin_util_mvcc_revision_cmp (mvcc, dupin_link_record_get_last_revision (record))
               || dupin_link_record_patch (record, obj_node, json_record_label, json_record_href,
-						json_record_rel, json_record_tag, error) == FALSE)
+						json_record_rel, json_record_tag, ignore_updates_if_unmodified, error) == FALSE)
             {
               if (record)
                 dupin_link_record_close (record);
@@ -3103,7 +3142,7 @@ dupin_link_record_insert (DupinLinkB * linkb,
           if (!record || dupin_util_mvcc_revision_cmp (mvcc, dupin_link_record_get_last_revision (record))
               || dupin_link_record_update (record, obj_node, 
                                        json_record_label, json_record_href, json_record_rel, json_record_tag,
-                                        error) == FALSE)
+				       ignore_updates_if_unmodified, error) == FALSE)
             {
               if (record)
                 dupin_link_record_close (record);
@@ -3260,6 +3299,7 @@ dupin_link_record_insert_bulk (DupinLinkB * linkb,
                                GList ** response_list,
 			       gboolean strict_links,
 			       gboolean use_latest_revision,
+		  	       gboolean ignore_updates_if_unmodified,
   			       GError ** error)
 {
   g_return_val_if_fail (linkb != NULL, FALSE);
@@ -3363,7 +3403,7 @@ dupin_link_record_insert_bulk (DupinLinkB * linkb,
       if (json_object_has_member (json_node_get_object (element_node), REQUEST_OBJ_REV) == TRUE)
         rev = g_strdup ((gchar *)json_object_get_string_member (json_node_get_object (element_node), REQUEST_OBJ_REV));
 
-      if (dupin_link_record_insert (linkb, element_node, NULL, NULL, context_id, DP_LINK_TYPE_ANY, response_list, FALSE, use_latest_revision, error) == FALSE)
+      if (dupin_link_record_insert (linkb, element_node, NULL, NULL, context_id, DP_LINK_TYPE_ANY, response_list, FALSE, use_latest_revision, ignore_updates_if_unmodified, error) == FALSE)
         {
           /* NOTE - we report errors inline in the JSON response */
 

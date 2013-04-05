@@ -1777,7 +1777,7 @@ dupin_view_count (DupinView * view)
   return size;
 }
 
-/* NOTE - we always bulk insert using the latest revision */
+/* NOTE - we always bulk insert using the latest revision and update the records only if modified (so we reduce revisions too) */
 
 JsonNode *
 dupin_view_output_insert_bulk (DupinView * view, JsonNode * bulk_node)
@@ -1800,7 +1800,7 @@ dupin_view_output_insert_bulk (DupinView * view, JsonNode * bulk_node)
                     
       GError * error = NULL;
 
-      if (dupin_record_insert_bulk (db, bulk_node, &response_list, TRUE, &error) == TRUE)
+      if (dupin_record_insert_bulk (db, bulk_node, &response_list, TRUE, TRUE, &error) == TRUE)
         {
           response_node = json_node_new (JSON_NODE_ARRAY);
           JsonArray * response_array = json_array_new ();

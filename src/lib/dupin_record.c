@@ -23,11 +23,12 @@ static DupinRecord *dupin_record_read_real (DupinDB * db, gchar * id,
 
 static void dupin_record_rev_close (DupinRecordRev * rev);
 static DupinRecord *dupin_record_new (DupinDB * db, gchar * id);
-static void dupin_record_add_revision_obj (DupinRecord * record, guint rev,
-					   gchar ** hash,
-					   JsonNode * obj_node,
-					   gboolean delete,
-					   gsize created);
+static gboolean dupin_record_add_revision_obj (DupinRecord * record, guint rev,
+					       gchar ** hash,
+					       JsonNode * obj_node,
+					       gboolean delete,
+					       gsize created,
+			       		       gboolean ignore_updates_if_unmodified);
 static void dupin_record_add_revision_str (DupinRecord * record, guint rev,
 					   gchar * hash, gchar * type, gssize hash_size,
 					   gchar * obj, gssize size,
@@ -36,6 +37,7 @@ static gboolean
 	   dupin_record_generate_hash	(DupinRecord * record,
                             		 gchar * obj_serialized, gssize obj_serialized_len,
 			    		 gboolean delete,
+			    		 gchar * type,
 			    		 gchar ** hash, gsize * hash_len);
 
 int
@@ -166,7 +168,7 @@ dupin_record_create_with_id_real (DupinDB * db, JsonNode * obj_node,
 
   gsize created = dupin_date_timestamp_now (0);
 
-  dupin_record_add_revision_obj (record, 1, &md5, obj_node, FALSE, created);
+  dupin_record_add_revision_obj (record, 1, &md5, obj_node, FALSE, created, FALSE);
 
   tmp =
     sqlite3_mprintf (DUPIN_DB_SQL_INSERT, id, 1, md5,
@@ -1133,6 +1135,7 @@ dupin_record_get_revisions_list_close (GList * list)
 
 gboolean
 dupin_record_update (DupinRecord * record, JsonNode * obj_node,
+		     gboolean ignore_updates_if_unmodified,
 		     GError ** error)
 {
   guint rev;
@@ -1146,6 +1149,17 @@ dupin_record_update (DupinRecord * record, JsonNode * obj_node,
   g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, FALSE);
 
   g_rw_lock_writer_lock (record->db->rwlock);
+
+  rev = record->last->revision + 1;
+
+  gsize created = dupin_date_timestamp_now (0);
+
+  if (dupin_record_add_revision_obj (record, rev, &md5, obj_node, FALSE, created, ignore_updates_if_unmodified) == FALSE)
+    {
+      g_rw_lock_writer_unlock (record->db->rwlock);
+
+      return TRUE; // or return FALSE with error like "unchanged" ?
+    }
 
   /* NOTE - flag any previous revision as non head - we need this to optimise searches
 	    and avoid slowness of max(rev) as rev or even nested select like
@@ -1177,12 +1191,6 @@ dupin_record_update (DupinRecord * record, JsonNode * obj_node,
   sqlite3_free (tmp);
 
   record_was_deleted = record->last->deleted;
-
-  rev = record->last->revision + 1;
-
-  gsize created = dupin_date_timestamp_now (0);
-
-  dupin_record_add_revision_obj (record, rev, &md5, obj_node, FALSE, created);
 
   tmp =
     sqlite3_mprintf (DUPIN_DB_SQL_INSERT, record->id, rev, md5,
@@ -1278,12 +1286,13 @@ dupin_record_update (DupinRecord * record, JsonNode * obj_node,
 
 gboolean
 dupin_record_patch (DupinRecord * record, JsonNode * obj_node,
+		    gboolean ignore_updates_if_unmodified,
 		    GError ** error)
 {
   g_return_val_if_fail (record != NULL, FALSE);
   g_return_val_if_fail (obj_node != NULL, FALSE);
   g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, FALSE);
-  g_return_val_if_fail (dupin_record_is_deleted (record, dupin_record_get_last_revision (record)) == FALSE, FALSE);
+  /*g_return_val_if_fail (dupin_record_is_deleted (record, dupin_record_get_last_revision (record)) == FALSE, FALSE);*/
 
   /* MERGE the current revision with the one passed */
 
@@ -1294,7 +1303,7 @@ dupin_record_patch (DupinRecord * record, JsonNode * obj_node,
   if (patched_revision == NULL)
     return FALSE;
 
-  if (dupin_record_update (record, patched_revision, error) == FALSE)
+  if (dupin_record_update (record, patched_revision, ignore_updates_if_unmodified, error) == FALSE)
     {
       if (patched_revision != NULL)
         json_node_free (patched_revision);
@@ -1328,6 +1337,12 @@ dupin_record_delete (DupinRecord * record, GError ** error)
 
   g_rw_lock_writer_lock (record->db->rwlock);
 
+  rev = record->last->revision + 1;
+
+  gsize created = dupin_date_timestamp_now (0);
+
+  dupin_record_add_revision_obj (record, rev, &md5, NULL, TRUE, created, FALSE);
+
   /* NOTE - flag any previous revision as non head - we need this to optimise searches
             and avoid slowness of max(rev) as rev or even nested select like
             rev = (select max(rev) as rev FROM Dupin WHERE id=d.id) ... */
@@ -1356,12 +1371,6 @@ dupin_record_delete (DupinRecord * record, GError ** error)
     }
 
   sqlite3_free (tmp);
-
-  rev = record->last->revision + 1;
-
-  gsize created = dupin_date_timestamp_now (0);
-
-  dupin_record_add_revision_obj (record, rev, &md5, NULL, TRUE, created);
 
   tmp = sqlite3_mprintf (DUPIN_DB_SQL_DELETE, record->id, rev, md5, record->last->type, created);
 
@@ -1648,58 +1657,86 @@ dupin_record_rev_close (DupinRecordRev * rev)
   g_free (rev);
 }
 
-static void
+static gboolean
 dupin_record_add_revision_obj (DupinRecord * record, guint rev,
 			       gchar ** hash,
 			       JsonNode * obj_node, gboolean delete,
-			       gsize created)
+			       gsize created,
+			       gboolean ignore_updates_if_unmodified)
 {
   DupinRecordRev *r;
   gchar mvcc[DUPIN_ID_MAX_LEN];
-
-  r = g_malloc0 (sizeof (DupinRecordRev));
-  r->revision = rev;
+  JsonNode * obj_node_copy = NULL;
+  JsonObject * obj = NULL;
+  JsonNode * type_node = NULL;
+  gchar * type = NULL;
+  gchar * obj_serialized = NULL;
+  gsize obj_serialized_len = 0;
+  gchar * obj_hash;
+  gsize obj_hash_len = 0;
 
   if (obj_node)
     {
-      JsonNode * obj_node_copy = json_node_copy (obj_node);
+      obj_node_copy = json_node_copy (obj_node);
 
       /* NOTE - check if JSON object has _type and store it separately */
-      JsonObject *obj = json_node_get_object (obj_node_copy);
+      obj = json_node_get_object (obj_node_copy);
 
       if (json_object_has_member (obj, REQUEST_OBJ_TYPE) == TRUE)
         {
-          JsonNode * type = json_object_get_member (obj, REQUEST_OBJ_TYPE);
-	  if (json_node_get_node_type (type) == JSON_NODE_VALUE
-	      && json_node_get_value_type (type) == G_TYPE_STRING)
+          type_node = json_object_get_member (obj, REQUEST_OBJ_TYPE);
+	  if (json_node_get_node_type (type_node) == JSON_NODE_VALUE
+	      && json_node_get_value_type (type_node) == G_TYPE_STRING)
             {
-	      r->type = g_strdup (json_node_get_string (type));
-	      json_object_remove_member (obj, REQUEST_OBJ_TYPE);
+	      type = g_strdup (json_node_get_string (type_node));
             }
+	  json_object_remove_member (obj, REQUEST_OBJ_TYPE);
 	}
-
-      if (r->type == NULL
-	  && record->last)
-        r->type = g_strdup (record->last->type);
 
       JsonGenerator * gen = json_generator_new();
 
-      r->obj = obj_node_copy;
+      json_generator_set_root (gen, obj_node_copy);
 
-      json_generator_set_root (gen, r->obj );
-
-      r->obj_serialized = json_generator_to_data (gen,&r->obj_serialized_len);
+      obj_serialized = json_generator_to_data (gen, &obj_serialized_len);
 
       g_object_unref (gen);
     }
 
-  r->deleted = delete;
-  r->created = created;
-
   dupin_record_generate_hash (record,
-			      r->obj_serialized, r->obj_serialized_len,
+			      obj_serialized, obj_serialized_len,
 			      delete,
-			      &r->hash, &r->hash_len);
+			      type,
+			      &obj_hash, &obj_hash_len);
+
+  /* NOTE - ignore updates if they are containing exactly the same object data */
+
+  if (ignore_updates_if_unmodified == TRUE &&
+      record->last &&
+      !g_strcmp0 (obj_hash, record->last->hash))
+    {
+      json_node_free (obj_node_copy);
+      g_free (obj_serialized);
+      g_free (obj_hash);
+      g_free (type);
+
+      return FALSE;
+    }
+
+  r = g_malloc0 (sizeof (DupinRecordRev));
+  r->revision = rev;
+
+  r->type = type;
+
+  if (r->type == NULL
+      && record->last
+      && record->last->type)
+    r->type = g_strdup (record->last->type);
+
+  r->obj = obj_node_copy;
+  r->obj_serialized = obj_serialized;
+  r->obj_serialized_len = obj_serialized_len;
+  r->hash = obj_hash;
+  r->hash_len = obj_hash_len;
 
   *hash = r->hash; // no need to copy - see caller logic
 
@@ -1709,6 +1746,8 @@ dupin_record_add_revision_obj (DupinRecord * record, guint rev,
 
   r->mvcc = g_strdup (mvcc);
   r->mvcc_len = strlen (mvcc);
+  r->deleted = delete;
+  r->created = created;
 
   /* TODO - double check that the revision record 'r' is freeded properly when hash table disposed */
 
@@ -1716,6 +1755,8 @@ dupin_record_add_revision_obj (DupinRecord * record, guint rev,
 
   if (!record->last || (dupin_util_mvcc_revision_cmp (dupin_record_get_last_revision (record), mvcc) < 0 ))
     record->last = r;
+
+  return TRUE;
 }
 
 static void
@@ -1771,6 +1812,7 @@ static gboolean
 dupin_record_generate_hash (DupinRecord * record,
                             gchar * obj_serialized, gssize obj_serialized_len,
 			    gboolean delete,
+			    gchar * type,
 			    gchar ** hash, gsize * hash_len)
 {
   g_return_val_if_fail (record != NULL, FALSE);
@@ -1785,7 +1827,7 @@ dupin_record_generate_hash (DupinRecord * record,
   g_string_append_printf (str, "%d", (gint)delete);
 
   /* type */
-  g_string_append_printf (str, "%s", (gchar *)dupin_record_get_type (record));
+  g_string_append_printf (str, "%s", type);
 
   /* attachment hashes for any connected attachment DB */
   DupinAttachmentDBP * p = &record->db->attachment_dbs;
@@ -1960,6 +2002,7 @@ dupin_record_insert (DupinDB * db,
 		     gchar * caller_mvcc,
                      GList ** response_list,
 	             gboolean use_latest_revision,
+	             gboolean ignore_updates_if_unmodified,
 		     GError ** error)
 {
   g_return_val_if_fail (db != NULL, FALSE);
@@ -2095,7 +2138,7 @@ dupin_record_insert (DupinDB * db,
       else if (to_patch == TRUE)
         {
           if (!record || dupin_util_mvcc_revision_cmp (mvcc, dupin_record_get_last_revision (record))
-              || dupin_record_patch (record, obj_node, error) == FALSE)
+              || dupin_record_patch (record, obj_node, ignore_updates_if_unmodified, error) == FALSE)
             {
               if (record)
                 dupin_record_close (record);
@@ -2105,7 +2148,7 @@ dupin_record_insert (DupinDB * db,
       else
         {
           if (!record || dupin_util_mvcc_revision_cmp (mvcc, dupin_record_get_last_revision (record))
-              || dupin_record_update (record, obj_node, error) == FALSE)
+              || dupin_record_update (record, obj_node, ignore_updates_if_unmodified, error) == FALSE)
             {
               if (record)
                 dupin_record_close (record);
@@ -2432,7 +2475,8 @@ dupin_record_insert (DupinDB * db,
                           continue;
                         }
 
-                      if (dupin_link_record_insert (linkb, lnode, NULL, NULL, context_id, DP_LINK_TYPE_WEB_LINK, &links_response_list, FALSE, use_latest_revision, error) == FALSE)
+                      if (dupin_link_record_insert (linkb, lnode, NULL, NULL, context_id, DP_LINK_TYPE_WEB_LINK, &links_response_list, FALSE, use_latest_revision,
+						    ignore_updates_if_unmodified, error) == FALSE)
                         {
                           JsonObject * error_obj = json_object_new ();
                           GString * str = g_string_new("");
@@ -2570,7 +2614,8 @@ dupin_record_insert (DupinDB * db,
                           continue;
                         }
 
-                      if (dupin_link_record_insert (linkb, rnode, NULL, NULL, context_id, DP_LINK_TYPE_RELATIONSHIP, &relationships_response_list, FALSE, use_latest_revision, error) == FALSE)
+                      if (dupin_link_record_insert (linkb, rnode, NULL, NULL, context_id, DP_LINK_TYPE_RELATIONSHIP, &relationships_response_list, FALSE, use_latest_revision, 
+						    ignore_updates_if_unmodified, error) == FALSE)
                         {
                           JsonObject * error_obj = json_object_new ();
                           GString * str = g_string_new("");
@@ -2670,6 +2715,7 @@ dupin_record_insert_bulk (DupinDB * db,
 			  JsonNode * bulk_node,
 			  GList ** response_list,
 	                  gboolean use_latest_revision,
+	                  gboolean ignore_updates_if_unmodified,
 			  GError ** error)
 {
   g_return_val_if_fail (db != NULL, FALSE);
@@ -2835,7 +2881,7 @@ dupin_record_insert_bulk (DupinDB * db,
       if (json_object_has_member (json_node_get_object (element_node), REQUEST_OBJ_REV) == TRUE)
         rev = g_strdup ((gchar *)json_object_get_string_member (json_node_get_object (element_node), REQUEST_OBJ_REV));
 
-      if (dupin_record_insert (db, element_node, NULL, NULL, response_list, use_latest_revision, error) == FALSE)
+      if (dupin_record_insert (db, element_node, NULL, NULL, response_list, use_latest_revision, ignore_updates_if_unmodified, error) == FALSE)
         {
           /* NOTE - we report errors inline in the JSON response */
 

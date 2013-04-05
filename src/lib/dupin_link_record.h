@@ -41,8 +41,8 @@ int		dupin_link_record_select_total_cb
         "SELECT rev, hash, obj, deleted, tm, ROWID AS rowid, context_id, label, href, rel, tag, is_weblink FROM Dupin WHERE id='%q'"
 
 #define DUPIN_LINKB_SQL_DELETE \
-        "INSERT OR REPLACE INTO Dupin (id, rev, deleted, hash, tm, context_id, label, href, rel, tag, is_weblink) " \
-        "VALUES('%q', '%" G_GSIZE_FORMAT "', 'TRUE', '%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%q', %Q, %Q, '%q')"
+        "INSERT OR REPLACE INTO Dupin (id, rev, deleted, hash, obj, tm, context_id, label, href, rel, tag, is_weblink) " \
+        "VALUES('%q', '%" G_GSIZE_FORMAT "', 'TRUE', '%q', '{}', '%" G_GSIZE_FORMAT "', '%q', '%q', '%q', %Q, %Q, '%q')"
 
 #define DUPIN_LINKB_SQL_UPDATE_REV_HEAD \
         "UPDATE Dupin SET rev_head = 'FALSE' WHERE id = '%q' "
@@ -218,6 +218,7 @@ gboolean	dupin_link_record_update
                                          gchar *                href,
                                          gchar *                rel,
                                          gchar *                tag,
+					 gboolean		ignore_updates_if_unmodified,
 					 GError **		error);
 
 gboolean	dupin_link_record_patch
@@ -227,6 +228,7 @@ gboolean	dupin_link_record_patch
                                          gchar *                href,
                                          gchar *                rel,
                                          gchar *                tag,
+					 gboolean		ignore_updates_if_unmodified,
 					 GError **		error);
 
 gboolean	dupin_link_record_delete
@@ -317,6 +319,7 @@ gboolean	dupin_link_record_insert
                                          GList ** response_list,
 					 gboolean strict_links,
 					 gboolean use_latest_revision,
+					 gboolean ignore_updates_if_unmodified,
 					 GError ** error);
 
 gboolean	dupin_link_record_insert_bulk
@@ -326,6 +329,7 @@ gboolean	dupin_link_record_insert_bulk
 					 GList ** response_list,
 					 gboolean strict_links,
 					 gboolean use_latest_revision,
+					 gboolean ignore_updates_if_unmodified,
 					 GError ** error);
 
 /* Utility functions - mainly internal */

@@ -2,7 +2,7 @@
 
   <!-- General configuration -->
   <General>
-    <Background>false</Background>
+    <Background>true</Background>
 
     <!-- Log file, User and group -->
     <!--<LogFile>/usr/local/dupin/log/dupin-log.json</LogFile>-->
@@ -13,7 +13,7 @@
     <User>foobar</User>
     <Group>wheel</Group>
 
-    <!--<SQLitePath>/usr/local/dupin/var/dupin/dbs</SQLitePath>-->
+    <!--<SQLitePath>/usr/local/dupin/var/dbs</SQLitePath>-->
     <!--<SQLiteMode>readonly</SQLiteMode>-->
   </General>
 

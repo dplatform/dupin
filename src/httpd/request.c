@@ -1659,45 +1659,39 @@ request_global_get_all_docs (DSHttpdClient * client,
       return HTTP_STATUS_500;
     }
 
-  obj = json_object_new ();
-
-  if (obj == NULL)
-    {
-      if( results )
-        dupin_record_get_list_close (results);
-
-      if (startkey != NULL)
-        g_free (startkey);
-
-      if (endkey != NULL)
-        g_free (endkey);
-
-      dupin_database_unref (db);
-      if (types)
-        g_strfreev (types);
-
-      if (keys != NULL)
-        g_list_free (keys);
-
-      if (parser != NULL)
-        g_object_unref (parser);
-
-      request_set_error (client, "Cannot list documents from database");
-      return HTTP_STATUS_500;
-    }
-
-  json_object_set_int_member (obj, "total_rows", total_rows);
-  json_object_set_int_member (obj, "offset", offset);
-  json_object_set_int_member (obj, "rows_per_page", count);
-
   array = json_array_new ();
 
   if (array == NULL)
     goto request_global_get_all_docs_error;
 
+  gboolean record_is_changed = FALSE;
+
+  client->output_last_modified = 0;
+
   for (list = results; list; list = list->next)
     {
       DupinRecord *record = list->data;
+      gsize modified;
+
+      if (record_is_changed == FALSE)
+        {
+          record_is_changed = dupin_record_is_changed (record, client->input_if_modified_since,
+                                                               client->input_if_unmodified_since,
+                                                               client->input_if_match,
+                                                               client->input_if_none_match);
+        }
+
+      /* Last-Modified */
+      modified = dupin_record_get_created (record);
+      if (modified > client->output_last_modified)
+        {
+          client->output_last_modified = modified;
+
+          /* ETag */
+          gchar * etag = dupin_record_get_last_revision (record);
+          memcpy (client->output_etag, etag, strlen(etag));
+        }
+
       JsonNode *kvd = json_node_new (JSON_NODE_OBJECT);
       JsonObject *kvd_obj = json_object_new ();
       json_node_take_object (kvd, kvd_obj);
@@ -1733,6 +1727,45 @@ request_global_get_all_docs (DSHttpdClient * client,
 
       json_array_add_element( array, kvd);
     }
+
+  if (record_is_changed == FALSE && results)
+    {
+      if( results )
+        dupin_record_get_list_close (results);
+
+      json_array_unref (array);
+
+      if (startkey != NULL)
+        g_free (startkey);
+
+      if (endkey != NULL)
+        g_free (endkey);
+
+      dupin_database_unref (db);
+
+      if (types)
+        g_strfreev (types);
+
+      if (keys != NULL)
+        g_list_free (keys);
+
+      if (parser != NULL)
+        g_object_unref (parser);
+
+      return HTTP_STATUS_304;
+    }
+
+  obj = json_object_new ();
+
+  if (obj == NULL)
+    {
+      json_array_unref (array);
+      goto request_global_get_all_docs_error;
+    }
+
+  json_object_set_int_member (obj, "total_rows", total_rows);
+  json_object_set_int_member (obj, "offset", offset);
+  json_object_set_int_member (obj, "rows_per_page", count);
 
   json_object_set_array_member (obj, "rows", array );
 
@@ -3098,71 +3131,39 @@ request_global_get_all_links_linkbase (DSHttpdClient * client,
       return HTTP_STATUS_500;
     }
 
-  obj = json_object_new ();
-
-  if (obj == NULL)
-    {
-      if( results )
-        dupin_link_record_get_list_close (results);
-
-      if (link_rels)
-        g_strfreev (link_rels);
-
-      if (link_labels)
-        g_strfreev (link_labels);
-
-      if (link_hrefs)
-        g_strfreev (link_hrefs);
-
-      if (link_tags)
-        g_strfreev (link_tags);
-
-      if (startkey != NULL)
-        g_free (startkey);
-
-      if (endkey != NULL)
-        g_free (endkey);
-
-      if (keys != NULL)
-        g_list_free (keys);
-
-      if (parser != NULL)
-        g_object_unref (parser);
-
-      dupin_linkbase_unref (linkb);
-      request_set_error (client, "Cannot get list of links from linkabse");
-      return HTTP_STATUS_500;
-    }
-
-  json_object_set_int_member (obj, "total_rows", total_rows);
-  json_object_set_int_member (obj, "offset", offset);
-  json_object_set_int_member (obj, "rows_per_page", count);
-
-  /* add base */
-  if (link_type == DP_LINK_TYPE_ANY
-      || link_type == DP_LINK_TYPE_RELATIONSHIP)
-    {
-      /* NOTE - we assume that the linkbase is named after the documents database */
-      gchar * escaped_base = g_uri_escape_string (linkb->parent, NULL, TRUE);
-      GString * str = g_string_new (NULL);
-      if (dupin_linkbase_get_parent_is_db (linkb) == TRUE)
-        g_string_append_printf (str, "/%s/", escaped_base);
-      else
-        g_string_append_printf (str, "/_linkbs/%s/", escaped_base);
-      g_free (escaped_base);
-      gchar * tmp = g_string_free (str, FALSE);
-      json_object_set_string_member (obj, "base", tmp);
-      g_free (tmp);
-    }
-
   array = json_array_new ();
 
   if (array == NULL)
     goto request_global_get_all_links_linkbase_error;
 
+  gboolean record_is_changed = FALSE;
+
+  client->output_last_modified = 0;
+
   for (list = results; list; list = list->next)
     {
       DupinLinkRecord *record = list->data;
+      gsize modified;
+
+      if (record_is_changed == FALSE)
+        {
+          record_is_changed = dupin_link_record_is_changed (record, client->input_if_modified_since,
+                                                                    client->input_if_unmodified_since,
+                                                                    client->input_if_match,
+                                                                    client->input_if_none_match);
+        }
+
+      /* Last-Modified */
+      modified = dupin_link_record_get_created (record);
+      if (modified > client->output_last_modified)
+        {
+          client->output_last_modified = modified;
+
+          /* ETag */
+          gchar * etag = dupin_link_record_get_last_revision (record);
+          memcpy (client->output_etag, etag, strlen(etag));
+        }
+
       JsonNode *kvd = json_node_new (JSON_NODE_OBJECT);
       JsonObject *kvd_obj = json_object_new ();
       json_node_take_object (kvd, kvd_obj);
@@ -3210,6 +3211,71 @@ request_global_get_all_links_linkbase (DSHttpdClient * client,
         }
 
       json_array_add_element( array, kvd);
+    }
+
+  if (record_is_changed == FALSE && results)
+    {
+      if( results )
+        dupin_link_record_get_list_close (results);
+
+      json_array_unref (array);
+
+      dupin_linkbase_unref (linkb);
+
+      if (link_rels)
+        g_strfreev (link_rels);
+
+      if (link_labels)
+        g_strfreev (link_labels);
+
+      if (link_hrefs)
+        g_strfreev (link_hrefs);
+
+      if (link_tags)
+        g_strfreev (link_tags);
+
+      if (startkey != NULL)
+        g_free (startkey);
+
+      if (endkey != NULL)
+        g_free (endkey);
+
+      if (keys != NULL)
+        g_list_free (keys);
+
+      if (parser != NULL)
+        g_object_unref (parser);
+
+      return HTTP_STATUS_304;
+    }
+
+  obj = json_object_new ();
+
+  if (obj == NULL)
+    {
+      json_array_unref (array);
+      goto request_global_get_all_links_linkbase_error;
+    }
+
+  json_object_set_int_member (obj, "total_rows", total_rows);
+  json_object_set_int_member (obj, "offset", offset);
+  json_object_set_int_member (obj, "rows_per_page", count);
+
+  /* add base */
+  if (link_type == DP_LINK_TYPE_ANY
+      || link_type == DP_LINK_TYPE_RELATIONSHIP)
+    {
+      /* NOTE - we assume that the linkbase is named after the documents database */
+      gchar * escaped_base = g_uri_escape_string (linkb->parent, NULL, TRUE);
+      GString * str = g_string_new (NULL);
+      if (dupin_linkbase_get_parent_is_db (linkb) == TRUE)
+        g_string_append_printf (str, "/%s/", escaped_base);
+      else
+        g_string_append_printf (str, "/_linkbs/%s/", escaped_base);
+      g_free (escaped_base);
+      gchar * tmp = g_string_free (str, FALSE);
+      json_object_set_string_member (obj, "base", tmp);
+      g_free (tmp);
     }
 
   json_object_set_array_member (obj, "rows", array );
@@ -4671,45 +4737,6 @@ request_global_get_all_docs_view (DSHttpdClient * client,
       return HTTP_STATUS_500;
     }
 
-  obj = json_object_new ();
-
-  if (obj == NULL)
-    {
-      if (docs_db != NULL)
-        dupin_database_unref (docs_db);
-
-      if (docs_linkb != NULL)
-        dupin_linkbase_unref (docs_linkb);
-
-      if (docs_view != NULL)
-        dupin_view_unref (docs_view);
-
-      if( results )
-        dupin_view_record_get_list_close(results);
-
-      dupin_view_unref (view);
-
-      if (startkey != NULL)
-        g_free (startkey);
-
-      if (endkey != NULL)
-        g_free (endkey);
-
-      if (startvalue != NULL)
-        g_free (startvalue);
-      
-      if (endvalue != NULL)
-        g_free (endvalue);
-
-      request_set_error (client, "Cannot get list of records from view");
-
-      return HTTP_STATUS_500;
-    }
-
-  json_object_set_int_member (obj, "total_rows", total_rows);
-  json_object_set_int_member (obj, "offset", offset);
-  json_object_set_int_member (obj, "rows_per_page", count);
-
   array = json_array_new ();
 
   if (array == NULL)
@@ -4839,6 +4866,18 @@ request_global_get_all_docs_view (DSHttpdClient * client,
 
       json_array_add_element( array, result_node);
    }
+
+  obj = json_object_new ();
+
+  if (obj == NULL)
+    {
+      json_array_unref (array);
+      goto request_global_get_all_docs_view_error;
+    }
+
+  json_object_set_int_member (obj, "total_rows", total_rows);
+  json_object_set_int_member (obj, "offset", offset);
+  json_object_set_int_member (obj, "rows_per_page", count);
 
   json_object_set_array_member (obj, "rows", array );
 

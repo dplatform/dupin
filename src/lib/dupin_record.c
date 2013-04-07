@@ -2335,6 +2335,24 @@ dupin_record_insert (DupinDB * db,
               buff_ref = (const void *) buff;
             }
 
+          /* NOTE - ignore unmodified attachment */
+
+	  DupinAttachmentRecord * attachment = NULL;
+ 
+	  if (ignore_updates_if_unmodified == TRUE &&
+              attachment_to_delete == FALSE &&
+              (dupin_attachment_record_exists (attachment_db, (gchar *) dupin_record_get_id (record), member_name) == TRUE) &&
+              (attachment = dupin_attachment_record_read (attachment_db, (gchar *) dupin_record_get_id (record), member_name, NULL)) &&
+              (dupin_attachment_record_is_unmodified (attachment, member_name, buff_size, content_type, &buff_ref) == TRUE))
+            {
+              if (buff != NULL)
+                g_free (buff);
+
+              dupin_attachment_record_close (attachment);
+
+              continue;
+            }
+
           /* NOTE - store inline attachment as normal one */
 
           if ( (attachment_to_delete == TRUE

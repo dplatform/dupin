@@ -1142,4 +1142,41 @@ dupin_attachment_record_insert (DupinAttachmentDB * attachment_db,
   return TRUE;
 }
 
+/* Check wether or not the attachment has be modified */
+
+gboolean
+dupin_attachment_record_is_unmodified (DupinAttachmentRecord * record,
+                                       gchar *       title,
+                                       gsize         length,
+                                       gchar *       type,
+                                       const void ** content)
+{
+  g_return_val_if_fail (record != NULL, FALSE);
+  g_return_val_if_fail (title != NULL, FALSE);
+  g_return_val_if_fail (length >= 0, FALSE);
+  g_return_val_if_fail (type != NULL, FALSE);
+  g_return_val_if_fail (*content != NULL, FALSE);
+
+  gchar * md5=NULL;
+
+  md5 = g_compute_checksum_for_string (DUPIN_ID_HASH_ALGO, *content, length); // inefficient of course
+
+  if (!g_strcmp0 (title, dupin_attachment_record_get_title (record)) &&
+      length == dupin_attachment_record_get_length (record) &&
+      !g_strcmp0 (type, dupin_attachment_record_get_type (record)) &&
+      !g_strcmp0 (md5, dupin_attachment_record_get_hash (record)))
+    {
+      g_free (md5);
+
+      return TRUE;
+    }
+  else
+    {
+      g_free (md5);
+
+      return FALSE;
+    }
+}
+
+
 /* EOF */

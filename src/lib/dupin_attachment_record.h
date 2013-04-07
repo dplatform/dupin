@@ -138,6 +138,13 @@ gboolean	dupin_attachment_record_insert
                                 	 GList ** response_list,
 					 GError ** error);
 
+gboolean	dupin_attachment_record_is_unmodified
+					(DupinAttachmentRecord * record,
+                                	 gchar *       title,
+                                	 gsize         length,
+                                	 gchar *       type,
+                                	 const void ** content);
+
 G_END_DECLS
 
 #endif

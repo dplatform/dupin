@@ -2270,6 +2270,8 @@ dupin_record_insert (DupinDB * db,
       GList *n;
       GList *nodes = json_object_get_members (attachments_obj);
 
+      gboolean found_valid_attachments = FALSE;
+
       for (n = nodes; n != NULL; n = n->next)
         {
           gchar *member_name = (gchar *) n->data;
@@ -2345,6 +2347,7 @@ dupin_record_insert (DupinDB * db,
             {
               if (buff != NULL)
                 g_free (buff);
+
               dupin_attachment_db_unref (attachment_db);
 
               dupin_record_close (record);
@@ -2367,9 +2370,50 @@ dupin_record_insert (DupinDB * db,
             }
 
           g_free (buff);
+
+          found_valid_attachments = TRUE;
         }
 
       g_list_free (nodes);
+
+      /* NOTE - need to "touch" (update) the metadata record anyway due we do not use dupin_attachment_record_insert () */
+
+      if (found_valid_attachments == TRUE)
+        {
+          JsonNode * record_node = NULL;
+          JsonNode * record_node_copy = NULL; 
+	
+	  if ((!(record_node = dupin_record_get_revision_node (record, dupin_record_get_last_revision (record)))) ||
+              (!(record_node_copy = json_node_copy (record_node))) ||
+              dupin_record_update (record, record_node_copy, FALSE, error) == FALSE)
+	    {
+	      if (record_node_copy != NULL)
+	        json_node_free (record_node_copy);
+
+              dupin_attachment_db_unref (attachment_db);
+
+              dupin_record_close (record);
+
+              if (attachments_node != NULL)
+                json_node_free (attachments_node);
+              if (links_node != NULL)
+                json_node_free (links_node);
+              if (relationships_node != NULL)
+                json_node_free (relationships_node);
+              if (mvcc != NULL)
+                g_free (mvcc);
+              
+              dupin_database_set_error (db, "Cannot update attachment document data");
+
+              if (record_response_node != NULL)
+                json_node_free (record_response_node);
+
+              return FALSE;
+	    }
+
+	  if (record_node_copy != NULL)
+	    json_node_free (record_node_copy);
+	}
 
       dupin_attachment_db_unref (attachment_db);
     }

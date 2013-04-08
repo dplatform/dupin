@@ -4886,6 +4886,7 @@ request_global_get_all_docs_view (DSHttpdClient * client,
 
         }
 
+      json_object_set_string_member (result_obj, RESPONSE_VIEW_OBJ_ID, dupin_view_record_get_id (record));
       json_object_set_member (result_obj, RESPONSE_VIEW_OBJ_VALUE, on);
       json_object_set_member (result_obj, RESPONSE_VIEW_OBJ_KEY, json_node_copy (dupin_view_record_get_key (record)));
 
@@ -5060,6 +5061,30 @@ request_global_get_record_view (DSHttpdClient * client,
       return HTTP_STATUS_404;
     }
 
+  /* Has the document changed ? */
+  gboolean record_is_changed = dupin_view_record_is_changed (record, client->input_if_modified_since,
+                                                                     client->input_if_unmodified_since,
+                                                                     client->input_if_match,
+                                                                     client->input_if_none_match);
+
+  if (//title_parts == NULL &&
+      record_is_changed == FALSE)
+    {
+      /* Last-Modified */
+      client->output_last_modified = dupin_view_record_get_modified (record);
+
+      /* ETag */
+      gchar * etag = dupin_view_record_get_etag (record);
+      memcpy (client->output_etag, etag, strlen(etag));
+
+      dupin_view_record_close (record);
+      dupin_view_unref (view);
+
+      return HTTP_STATUS_304;
+    }
+
+
+
   if (!
       (node =
        request_view_record_obj (client, arguments, record,
@@ -5083,6 +5108,13 @@ request_global_get_record_view (DSHttpdClient * client,
 
   if (client->output.string.string == NULL)
     goto request_global_get_view_record_error;
+
+  /* Last-Modified */
+  client->output_last_modified = dupin_view_record_get_modified (record);
+
+  /* ETag */
+  gchar * etag = dupin_view_record_get_etag (record);
+  memcpy (client->output_etag, etag, strlen(etag));
 
   client->output_mime = g_strdup (HTTP_MIME_JSON);
   client->output_type = DS_HTTPD_OUTPUT_STRING;

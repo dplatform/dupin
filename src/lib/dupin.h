@@ -209,6 +209,7 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 #define RESPONSE_LINK_OBJ_DELETED       REQUEST_OBJ_DELETED
 #define RESPONSE_LINK_OBJ_INCLUDED      RESPONSE_OBJ_INCLUDED
 
+#define RESPONSE_VIEW_OBJ_ID            RESPONSE_OBJ_ID
 #define RESPONSE_VIEW_OBJ_DOC           RESPONSE_OBJ_DOC
 #define RESPONSE_VIEW_OBJ_KEY           "key"
 #define RESPONSE_VIEW_OBJ_VALUE         "value"

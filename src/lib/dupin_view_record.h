@@ -69,8 +69,14 @@ const gchar *	dupin_view_record_get_id
 gsize 	        dupin_view_record_get_rowid
 					(DupinViewRecord *	record);
 
+gsize           dupin_view_record_get_modified
+					(DupinViewRecord *      record);
+
 JsonNode *
 		dupin_view_record_get_pid
+					(DupinViewRecord *	record);
+
+gchar *		dupin_view_record_get_etag
 					(DupinViewRecord *	record);
 
 JsonNode *
@@ -78,6 +84,13 @@ JsonNode *
 
 JsonNode *
 		dupin_view_record_get	(DupinViewRecord *	record);
+
+gboolean	dupin_view_record_is_changed
+					(DupinViewRecord * record,
+					 gchar *       	   if_modified_since,
+					 gchar *           if_unmodified_since,
+					 gchar *           if_match,
+					 gchar *           if_none_match);
 
 G_END_DECLS
 

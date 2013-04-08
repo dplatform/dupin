@@ -15,7 +15,7 @@
 	"SELECT count(*) AS c FROM Dupin AS d"
 
 #define DUPIN_VIEW_SQL_READ \
-	"SELECT pid, key, obj, ROWID AS rowid FROM Dupin WHERE id='%q'"
+	"SELECT pid, key, obj, tm, ROWID AS rowid FROM Dupin WHERE id='%q'"
 
 #define DUPIN_VIEW_SQL_EXISTS \
         "SELECT count(id) FROM Dupin WHERE id = '%q' "
@@ -298,6 +298,15 @@ dupin_view_record_read_cb (void *data, int argc, char **argv, char **col)
 	{
 	  record->rowid = (gsize) g_ascii_strtoll (argv[i], NULL, 10);
         }
+      else if (!g_strcmp0 (col[i], "tm"))
+	{
+	  record->modified = (gsize) g_ascii_strtoll (argv[i], NULL, 10);
+
+	  gchar * etag = g_strdup_printf ("%" G_GSIZE_FORMAT, record->modified);
+	  record->etag_len = strlen(etag);
+	  record->etag = g_compute_checksum_for_string (DUPIN_ID_HASH_ALGO, etag, record->etag_len);
+	  g_free (etag);
+        }
     }
 
   return 0;
@@ -378,6 +387,7 @@ dupin_view_record_get_list_cb (void *data, int argc, char **argv, char **col)
   gchar * obj_serialized = NULL;
   gsize rowid = 0;
   gchar * id = NULL;
+  gsize tm = 0;
 
   gint i;
 
@@ -401,6 +411,10 @@ dupin_view_record_get_list_cb (void *data, int argc, char **argv, char **col)
         {
           rowid = (gsize) g_ascii_strtoll (argv[i], NULL, 10);
         }
+      else if (!g_strcmp0 (col[i], "tm"))
+	{
+	  tm = (gsize) g_ascii_strtoll (argv[i], NULL, 10);
+        }
     }
 
   if (id != NULL && rowid)
@@ -416,6 +430,12 @@ dupin_view_record_get_list_cb (void *data, int argc, char **argv, char **col)
       record->obj_serialized = g_strdup (obj_serialized);
       record->obj_serialized_len = strlen (obj_serialized);
       record->rowid = rowid;
+      record->modified = tm;
+
+      gchar * etag = g_strdup_printf ("%" G_GSIZE_FORMAT, record->modified);
+      record->etag_len = strlen(etag);
+      record->etag = g_compute_checksum_for_string (DUPIN_ID_HASH_ALGO, etag, record->etag_len);
+      g_free (etag);
 
       s->list = g_list_append (s->list, record);
     }
@@ -459,7 +479,7 @@ dupin_view_record_get_list (DupinView * view, guint count, guint offset,
 
   /* TODO - double check with http://www.sqlite.org/datatype3.html and http://wiki.apache.org/couchdb/ViewCollation */
 
-  str = g_string_new ("SELECT id, pid, key, obj, ROWID as rowid FROM Dupin as d");
+  str = g_string_new ("SELECT id, pid, key, obj, tm, ROWID as rowid FROM Dupin as d");
 
   if (start_key!=NULL && end_key!=NULL)
     if (!g_utf8_collate (start_key, end_key) && inclusive_end == TRUE)
@@ -683,6 +703,9 @@ dupin_view_record_close (DupinViewRecord * record)
   if (record->obj)
     json_node_free (record->obj);
 
+  if (record->etag)
+    g_free (record->etag);
+
   g_free (record);
 }
 
@@ -701,6 +724,23 @@ dupin_view_record_get_rowid (DupinViewRecord * record)
 
   return record->rowid;
 }
+
+gsize
+dupin_view_record_get_modified (DupinViewRecord * record)
+{
+  g_return_val_if_fail (record != NULL, 0);
+
+  return record->modified;
+}
+
+gchar *
+dupin_view_record_get_etag (DupinViewRecord *      record)
+{
+  g_return_val_if_fail (record != NULL, 0);
+
+  return record->etag;
+}
+
 
 JsonNode *
 dupin_view_record_get_key (DupinViewRecord * record)
@@ -865,6 +905,41 @@ dupin_view_record_get_max_rowid (DupinView * view, gsize * max_rowid, gboolean l
     g_rw_lock_reader_unlock (view->rwlock);
 
   return TRUE;
+}
+
+gboolean
+dupin_view_record_is_changed (DupinViewRecord * record,
+                              gchar *       if_modified_since,
+                              gchar *       if_unmodified_since,
+                              gchar *       if_match,
+                              gchar *       if_none_match)
+{
+  g_return_val_if_fail (record != NULL, FALSE);
+
+  gboolean changed = TRUE;
+
+  /* Check If-None-Martch */
+  if (if_none_match != NULL)
+    {
+      if (g_strstr_len (if_none_match, strlen (if_none_match), "*") ||
+          g_strstr_len (if_none_match, strlen (if_none_match), dupin_view_record_get_etag (record)))
+        changed = FALSE;
+    }
+
+  /* Check If-Modified-Since */
+  if (if_modified_since != NULL)
+    {
+      gsize modified = 0;
+      dupin_date_string_to_timestamp (if_modified_since, &modified);
+
+      /* NOTE - See assumptions and recommentations about client if-modified-since date value
+                at http://tools.ietf.org/html/rfc2616#section-14.25 */
+
+      if (dupin_date_timestamp_cmp (modified, dupin_view_record_get_modified (record)) >= 0)
+        changed = FALSE;
+    }
+
+  return changed;
 }
 
 /* EOF */

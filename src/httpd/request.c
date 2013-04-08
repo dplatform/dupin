@@ -4742,9 +4742,34 @@ request_global_get_all_docs_view (DSHttpdClient * client,
   if (array == NULL)
     goto request_global_get_all_docs_view_error;
 
+  gboolean record_is_changed = FALSE;
+
+  client->output_last_modified = 0;
+
   for (list = results; list; list = list->next)
     {
       DupinViewRecord *record = list->data;
+      gsize modified;
+
+      if (record_is_changed == FALSE)
+        {
+          record_is_changed = dupin_view_record_is_changed (record, client->input_if_modified_since,
+                                                                    client->input_if_unmodified_since,
+                                                                    client->input_if_match,
+                                                                    client->input_if_none_match);
+        }
+
+      /* Last-Modified */
+      modified = dupin_view_record_get_modified (record);
+      if (modified > client->output_last_modified)
+        {
+          client->output_last_modified = modified;
+
+          /* ETag */
+          gchar * etag = dupin_view_record_get_etag (record);
+          memcpy (client->output_etag, etag, strlen(etag));
+        }
+
       JsonNode *on = NULL;
 
       JsonNode *result_node=json_node_new (JSON_NODE_OBJECT);
@@ -4866,6 +4891,39 @@ request_global_get_all_docs_view (DSHttpdClient * client,
 
       json_array_add_element( array, result_node);
    }
+
+  if (record_is_changed == FALSE && results)
+    {
+      if (startkey != NULL)
+        g_free (startkey);
+
+      if (endkey != NULL)
+        g_free (endkey);
+
+      if (startvalue != NULL)
+        g_free (startvalue);
+      
+      if (endvalue != NULL)
+        g_free (endvalue);
+
+      if (docs_db != NULL)
+        dupin_database_unref (docs_db);
+
+      if (docs_linkb != NULL)
+        dupin_linkbase_unref (docs_linkb);
+
+      if (docs_view != NULL)
+        dupin_view_unref (docs_view);
+
+      if( results )
+        dupin_view_record_get_list_close(results);
+
+      dupin_view_unref (view);
+
+      json_array_unref (array);
+
+      return HTTP_STATUS_304;
+    }
 
   obj = json_object_new ();
 

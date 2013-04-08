@@ -343,6 +343,10 @@ struct dupin_view_record_t
   gchar	*	id;
   gsize		rowid;
 
+  gsize		modified;
+  gchar * 	etag;
+  gsize		etag_len;
+
   gchar *	pid_serialized;
   gsize		pid_serialized_len;
   JsonNode *    pid;

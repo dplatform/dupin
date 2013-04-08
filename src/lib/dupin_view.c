@@ -24,6 +24,7 @@ See http://wiki.apache.org/couchdb/Introduction_to_CouchDB_views
   "  pid         TEXT NOT NULL,\n" \
   "  key         TEXT NOT NULL COLLATE dupincmp,\n" \
   "  obj         TEXT COLLATE dupincmp,\n" \
+  "  tm          INTEGER NOT NULL,\n" \
   "  PRIMARY KEY(id)\n" \
   ");\n" \
   "CREATE TABLE IF NOT EXISTS DupinPid2Id (\n" \
@@ -59,15 +60,20 @@ See http://wiki.apache.org/couchdb/Introduction_to_CouchDB_views
   "  last_to_delete_id         CHAR(255) DEFAULT NULL,\n" \
   "  creation_time   	       CHAR(255) NOT NULL DEFAULT '0'\n" \
   ");\n" \
-  "PRAGMA user_version = 2"
+  "PRAGMA user_version = 3"
 
 #define DUPIN_VIEW_SQL_DESC_UPGRADE_FROM_VERSION_1 \
+  "ALTER TABLE Dupin     ADD COLUMN tm INTEGER NOT NULL DEFAULT 0;\n" \
   "ALTER TABLE DupinView ADD COLUMN creation_time CHAR(255) NOT NULL DEFAULT '0';\n" \
-  "PRAGMA user_version = 2"
+  "PRAGMA user_version = 3"
+
+#define DUPIN_VIEW_SQL_DESC_UPGRADE_FROM_VERSION_2 \
+  "ALTER TABLE Dupin ADD COLUMN tm INTEGER NOT NULL DEFAULT 0;\n" \
+  "PRAGMA user_version = 3"
 
 #define DUPIN_VIEW_SQL_INSERT \
-	"INSERT OR REPLACE INTO Dupin (id, pid, key, obj) " \
-        "VALUES('%q', '%q', '%q', '%q')"
+	"INSERT OR REPLACE INTO Dupin (id, pid, key, obj, tm) " \
+        "VALUES('%q', '%q', '%q', '%q', '%" G_GSIZE_FORMAT "')"
 
 #define DUPIN_VIEW_SQL_INSERT_PID2ID \
 	"INSERT OR REPLACE INTO DupinPid2Id (pid, id) " \
@@ -731,7 +737,10 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
         }
     }
 
-  tmp = sqlite3_mprintf (DUPIN_VIEW_SQL_INSERT, id, pid_serialized, key_serialized, node_serialized);
+  gsize modified = dupin_date_timestamp_now (0);
+
+  tmp = sqlite3_mprintf (DUPIN_VIEW_SQL_INSERT, id, pid_serialized, key_serialized, node_serialized,
+						modified);
 
 //g_message("dupin_view_record_save_map: %s query: %s\n",view->name, tmp);
 
@@ -1588,6 +1597,17 @@ dupin_view_connect (Dupin * d, gchar * name, gchar * path,
   if (user_version <= 1)
     {
       if (sqlite3_exec (view->db, DUPIN_VIEW_SQL_DESC_UPGRADE_FROM_VERSION_1, NULL, NULL, &errmsg) != SQLITE_OK)
+        {
+          g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
+                   errmsg);
+          sqlite3_free (errmsg);
+          dupin_view_disconnect (view);
+          return NULL;
+        }
+    }
+  else if (user_version == 2)
+    {
+      if (sqlite3_exec (view->db, DUPIN_VIEW_SQL_DESC_UPGRADE_FROM_VERSION_2, NULL, NULL, &errmsg) != SQLITE_OK)
         {
           g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
                    errmsg);
@@ -2573,11 +2593,14 @@ dupin_view_sync_record_update (DupinView * view, gchar * previous_rowid, gint re
 
   sqlite3_free (query);
 
-  query = sqlite3_mprintf ("UPDATE Dupin SET key='%q', pid='%q', obj='%q' WHERE rowid=%q ;",
+  gsize modified = dupin_date_timestamp_now (0);
+
+  query = sqlite3_mprintf ("UPDATE Dupin SET key='%q', pid='%q', obj='%q', tm='%" G_GSIZE_FORMAT "' WHERE rowid=%q ;",
 				key,
 				pid_serialized,
 				value,
-				replace_rowid_str);
+				replace_rowid_str,
+				modified);
 
 //g_message("dupin_view_sync_record_update() view %s update query=%s\n",view->name, query);
 

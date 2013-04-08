@@ -351,12 +351,6 @@ dupin_shutdown (Dupin * d)
   g_message("dupin_shutdown: worker pools freed\n");
 #endif
 
-  if (d->rwlock)
-    {
-      g_rw_lock_clear (d->rwlock);
-      g_free (d->rwlock);
-    }
-
   if (d->views)
     g_hash_table_destroy (d->views);
 
@@ -371,6 +365,12 @@ dupin_shutdown (Dupin * d)
 
   if (d->path)
     g_free (d->path);
+
+  if (d->rwlock)
+    {
+      g_rw_lock_clear (d->rwlock);
+      g_free (d->rwlock);
+    }
 
   g_free (d);
 }

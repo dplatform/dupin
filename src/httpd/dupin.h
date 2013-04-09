@@ -89,7 +89,8 @@ struct ds_httpd_client_t
 
   DSHttpdOutputType output_type;
 
-  gchar 	output_etag[DUPIN_ID_MAX_LEN];
+  gchar * 	output_etag;
+  gsize 	output_etag_len;
 
   gchar *	output_header;
   gsize		output_header_size;

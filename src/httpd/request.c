@@ -1689,7 +1689,8 @@ request_global_get_all_docs (DSHttpdClient * client,
 
           /* ETag */
           gchar * etag = dupin_record_get_last_revision (record);
-          memcpy (client->output_etag, etag, strlen(etag));
+	  client->output_etag_len = strlen(etag);
+          client->output_etag = g_strndup (etag, client->output_etag_len);
         }
 
       JsonNode *kvd = json_node_new (JSON_NODE_OBJECT);
@@ -2331,7 +2332,8 @@ request_global_get_record (DSHttpdClient * client,
 
           /* ETag */
           gchar * etag = dupin_record_get_last_revision (record);
-          memcpy (client->output_etag, etag, strlen(etag));
+	  client->output_etag_len = strlen(etag);
+          client->output_etag = g_strndup (etag, client->output_etag_len);
 
           dupin_record_close (record);
           dupin_database_unref (db);
@@ -2420,7 +2422,8 @@ request_global_get_record (DSHttpdClient * client,
 
           /* ETag */
           gchar * mvcc = dupin_record_get_last_revision (record);
-          memcpy (client->output_etag, mvcc, strlen(mvcc));
+	  client->output_etag_len = strlen(mvcc);
+          client->output_etag = g_strndup (mvcc, client->output_etag_len);
 
           dupin_record_close (record);
           g_free (title);
@@ -2580,7 +2583,8 @@ request_global_get_record (DSHttpdClient * client,
       client->output_last_modified = dupin_record_get_created (record);
 
       /* ETag */
-      memcpy (client->output_etag, mvcc, strlen(mvcc));
+      client->output_etag_len = strlen(mvcc);
+      client->output_etag = g_strndup (mvcc, client->output_etag_len);
     }
 
   client->output_mime = g_strdup (HTTP_MIME_JSON);
@@ -3161,7 +3165,8 @@ request_global_get_all_links_linkbase (DSHttpdClient * client,
 
           /* ETag */
           gchar * etag = dupin_link_record_get_last_revision (record);
-          memcpy (client->output_etag, etag, strlen(etag));
+	  client->output_etag_len = strlen(etag);
+	  client->output_etag = g_strndup (etag, client->output_etag_len);
         }
 
       JsonNode *kvd = json_node_new (JSON_NODE_OBJECT);
@@ -3975,7 +3980,8 @@ request_global_get_record_linkbase (DSHttpdClient * client,
 
           /* ETag */
           gchar * etag = dupin_link_record_get_last_revision (record);
-          memcpy (client->output_etag, etag, strlen(etag));
+	  client->output_etag_len = strlen(etag);
+	  client->output_etag = g_strndup (etag, client->output_etag_len);
 
 	  dupin_link_record_close (record);
           dupin_linkbase_unref (linkb);
@@ -4063,7 +4069,8 @@ request_global_get_record_linkbase (DSHttpdClient * client,
       client->output_last_modified = dupin_link_record_get_created (record);
 
       /* ETag */
-      memcpy (client->output_etag, mvcc, strlen(mvcc));
+      client->output_etag_len = strlen(mvcc);
+      client->output_etag = g_strndup (mvcc, client->output_etag_len);
     }
 
   client->output_mime = g_strdup (HTTP_MIME_JSON);
@@ -4767,7 +4774,8 @@ request_global_get_all_docs_view (DSHttpdClient * client,
 
           /* ETag */
           gchar * etag = dupin_view_record_get_etag (record);
-          memcpy (client->output_etag, etag, strlen(etag));
+	  client->output_etag_len = strlen(etag);
+	  client->output_etag = g_strndup (etag, client->output_etag_len);
         }
 
       JsonNode *on = NULL;
@@ -5075,7 +5083,8 @@ request_global_get_record_view (DSHttpdClient * client,
 
       /* ETag */
       gchar * etag = dupin_view_record_get_etag (record);
-      memcpy (client->output_etag, etag, strlen(etag));
+      client->output_etag_len = strlen(etag);
+      client->output_etag = g_strndup (etag, client->output_etag_len);
 
       dupin_view_record_close (record);
       dupin_view_unref (view);
@@ -5114,7 +5123,8 @@ request_global_get_record_view (DSHttpdClient * client,
 
   /* ETag */
   gchar * etag = dupin_view_record_get_etag (record);
-  memcpy (client->output_etag, etag, strlen(etag));
+  client->output_etag_len = strlen(etag);
+  client->output_etag = g_strndup (etag, client->output_etag_len);
 
   client->output_mime = g_strdup (HTTP_MIME_JSON);
   client->output_type = DS_HTTPD_OUTPUT_STRING;
@@ -7976,12 +7986,14 @@ request_record_response (DSHttpdClient * client,
       if (json_object_has_member (json_node_get_object (response_node), RESPONSE_OBJ_REV) == TRUE)
         {
           gchar * etag = (gchar *) json_object_get_string_member (json_node_get_object (response_node), RESPONSE_OBJ_REV);
-          memcpy (client->output_etag, etag, strlen(etag));
+          client->output_etag_len = strlen(etag);
+	  client->output_etag = g_strndup (etag, client->output_etag_len);
 	}
       else if (json_object_has_member (json_node_get_object (response_node), REQUEST_OBJ_REV) == TRUE)
         {
           gchar * etag = (gchar *) json_object_get_string_member (json_node_get_object (response_node), REQUEST_OBJ_REV);
-          memcpy (client->output_etag, etag, strlen(etag));
+	  client->output_etag_len = strlen(etag);
+	  client->output_etag = g_strndup (etag, client->output_etag_len);
 	}
     }
   else

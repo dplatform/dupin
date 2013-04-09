@@ -1773,14 +1773,14 @@ httpd_client_send (DSHttpdClient * client, DSHttpStatusCode code)
   g_free (server_date);
 
   /* Cache control headers */
-  if (g_strcmp0 (client->output_etag, "") ||
+  if (client->output_etag != NULL ||
       client->output_last_modified)
     {
       g_string_append_printf (str, "%s: must-revalidate\r\n", HTTP_CACHE_CONTROL);
     }
 
   /* ETag */
-  if (g_strcmp0 (client->output_etag, ""))
+  if (client->output_etag != NULL)
     {
       g_string_append_printf (str, "%s: \"%s\"\r\n", HTTP_ETAG, client->output_etag);
     }
@@ -1936,6 +1936,9 @@ httpd_client_free (DSHttpdClient * client)
 
   if (client->dupin_warning_msg)
     g_free (client->dupin_warning_msg);
+
+  if (client->output_etag != NULL)
+    g_free (client->output_etag);
 
   switch (client->output_type)
     {

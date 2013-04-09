@@ -2312,10 +2312,13 @@ request_global_get_record (DSHttpdClient * client,
   else
     {
       /* Has the document changed ? */
-      gboolean record_is_changed = dupin_record_is_changed (record, client->input_if_modified_since,
-	    							    client->input_if_unmodified_since,
-							            client->input_if_match,
-								    client->input_if_none_match);
+
+      gboolean record_is_changed = TRUE;
+      if (client->input_if_none_match != NULL)
+        record_is_changed = dupin_util_http_if_none_match (client->input_if_none_match, dupin_record_get_last_revision (record));
+      else if (client->input_if_modified_since != NULL)
+        record_is_changed = dupin_util_http_if_modified_since (client->input_if_modified_since, dupin_record_get_created (record));
+
       if (title_parts == NULL &&
           record_is_changed == FALSE)
         {
@@ -3952,10 +3955,14 @@ request_global_get_record_linkbase (DSHttpdClient * client,
   else
     {
       /* Has the document changed ? */
-      if (dupin_link_record_is_changed (record, client->input_if_modified_since,
-					        client->input_if_unmodified_since,
-					        client->input_if_match,
-                                                client->input_if_none_match) == FALSE)
+
+      gboolean record_is_changed = TRUE;
+      if (client->input_if_none_match != NULL)
+        record_is_changed = dupin_util_http_if_none_match (client->input_if_none_match, dupin_link_record_get_last_revision (record));
+      else if (client->input_if_modified_since != NULL)
+        record_is_changed = dupin_util_http_if_modified_since (client->input_if_modified_since, dupin_link_record_get_created (record));
+
+      if (record_is_changed == FALSE)
         {
           /* Last-Modified */
           client->output_last_modified = dupin_link_record_get_created (record);
@@ -5042,13 +5049,14 @@ request_global_get_record_view (DSHttpdClient * client,
     }
 
   /* Has the document changed ? */
-  gboolean record_is_changed = dupin_view_record_is_changed (record, client->input_if_modified_since,
-                                                                     client->input_if_unmodified_since,
-                                                                     client->input_if_match,
-                                                                     client->input_if_none_match);
 
-  if (//title_parts == NULL &&
-      record_is_changed == FALSE)
+  gboolean record_is_changed = TRUE;
+  if (client->input_if_none_match != NULL)
+    record_is_changed = dupin_util_http_if_none_match (client->input_if_none_match, dupin_view_record_get_etag (record));
+  else if (client->input_if_modified_since != NULL)
+    record_is_changed = dupin_util_http_if_modified_since (client->input_if_modified_since, dupin_view_record_get_modified (record));
+
+  if (record_is_changed == FALSE)
     {
       /* Last-Modified */
       client->output_last_modified = dupin_view_record_get_modified (record);

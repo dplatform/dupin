@@ -907,39 +907,4 @@ dupin_view_record_get_max_rowid (DupinView * view, gsize * max_rowid, gboolean l
   return TRUE;
 }
 
-gboolean
-dupin_view_record_is_changed (DupinViewRecord * record,
-                              gchar *       if_modified_since,
-                              gchar *       if_unmodified_since,
-                              gchar *       if_match,
-                              gchar *       if_none_match)
-{
-  g_return_val_if_fail (record != NULL, FALSE);
-
-  gboolean changed = TRUE;
-
-  /* Check If-None-Martch */
-  if (if_none_match != NULL)
-    {
-      if (g_strstr_len (if_none_match, strlen (if_none_match), "*") ||
-          g_strstr_len (if_none_match, strlen (if_none_match), dupin_view_record_get_etag (record)))
-        changed = FALSE;
-    }
-
-  /* Check If-Modified-Since */
-  if (if_modified_since != NULL)
-    {
-      gsize modified = 0;
-      dupin_date_string_to_timestamp (if_modified_since, &modified);
-
-      /* NOTE - See assumptions and recommentations about client if-modified-since date value
-                at http://tools.ietf.org/html/rfc2616#section-14.25 */
-
-      if (dupin_date_timestamp_cmp (modified, dupin_view_record_get_modified (record)) >= 0)
-        changed = FALSE;
-    }
-
-  return changed;
-}
-
 /* EOF */

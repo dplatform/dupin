@@ -100,6 +100,7 @@ gboolean
 dupin_view_record_get_list_total (DupinView * view,
 				  gsize * total,
 			          gsize rowid_start, gsize rowid_end,
+				  GList * keys,
 				  gchar * start_key,
                                   gchar * end_key,
 			    	  gboolean inclusive_end,
@@ -126,7 +127,33 @@ dupin_view_record_get_list_total (DupinView * view,
   //str = g_string_new (DUPIN_VIEW_SQL_TOTAL);
   str = g_string_new ("SELECT id FROM Dupin as d");
 
-  if (start_key!=NULL && end_key!=NULL)
+  if (keys!=NULL)
+    {
+      GList * n;
+      GString *str = g_string_new (NULL);
+
+      for (n = keys; n != NULL; n = n->next)
+        {
+          if (n == keys)
+            str = g_string_append (str, " ( ");
+
+          gchar * json_key = dupin_util_json_serialize ((JsonNode *) n->data);
+
+          gchar * tmp = sqlite3_mprintf (" d.key = '%q' ", json_key);
+          str = g_string_append (str, tmp);
+          sqlite3_free (tmp);
+
+          g_free (json_key);
+
+          if (n->next == NULL)
+            str = g_string_append (str, " ) ");
+          else
+            str = g_string_append (str, " OR ");
+        }
+
+      key_range = g_string_free (str, FALSE);
+    }
+  else if (start_key!=NULL && end_key!=NULL)
     if (!g_utf8_collate (start_key, end_key) && inclusive_end == TRUE)
       key_range = sqlite3_mprintf (" d.key = '%q' ", start_key);
     else if (inclusive_end == TRUE)
@@ -448,6 +475,7 @@ dupin_view_record_get_list (DupinView * view, guint count, guint offset,
 			    gsize rowid_start, gsize rowid_end,
 			    DupinOrderByType orderby_type,
 			    gboolean descending,
+			    GList * keys,
 			    gchar * start_key,
 			    gchar * end_key,
 			    gboolean inclusive_end,
@@ -481,7 +509,33 @@ dupin_view_record_get_list (DupinView * view, guint count, guint offset,
 
   str = g_string_new ("SELECT id, pid, key, obj, tm, ROWID as rowid FROM Dupin as d");
 
-  if (start_key!=NULL && end_key!=NULL)
+  if (keys!=NULL)
+    {
+      GList * n;
+      GString *str = g_string_new (NULL);
+
+      for (n = keys; n != NULL; n = n->next)
+        {
+          if (n == keys)
+            str = g_string_append (str, " ( ");
+
+          gchar * json_key = dupin_util_json_serialize ((JsonNode *) n->data);
+
+          gchar * tmp = sqlite3_mprintf (" d.key = '%q' ", json_key);
+          str = g_string_append (str, tmp);
+          sqlite3_free (tmp);
+
+          g_free (json_key);
+
+          if (n->next == NULL)
+            str = g_string_append (str, " ) ");
+          else
+            str = g_string_append (str, " OR ");
+        }
+
+      key_range = g_string_free (str, FALSE);
+    }
+  else if (start_key!=NULL && end_key!=NULL)
     if (!g_utf8_collate (start_key, end_key) && inclusive_end == TRUE)
       key_range = sqlite3_mprintf (" d.key = '%q' ", start_key);
     else if (inclusive_end == TRUE)

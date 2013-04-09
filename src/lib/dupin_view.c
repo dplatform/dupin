@@ -2347,7 +2347,7 @@ dupin_view_sync_thread_map_view (DupinView * view, gsize count)
 
   gsize start_rowid = (sync_map_id != NULL) ? (gsize) g_ascii_strtoll (sync_map_id, NULL, 10)+1 : 1;
 
-  if (dupin_view_record_get_list (v, count, 0, start_rowid, 0, DP_ORDERBY_ROWID, FALSE, NULL, NULL, TRUE, NULL, NULL, TRUE,
+  if (dupin_view_record_get_list (v, count, 0, start_rowid, 0, DP_ORDERBY_ROWID, FALSE, NULL, NULL, NULL, TRUE, NULL, NULL, TRUE,
 					NULL, DP_FIELDS_FORMAT_DOTTED, DP_FILTERBY_EQUALS, NULL, &results, NULL) ==
       FALSE || !results)
     {
@@ -2764,7 +2764,7 @@ dupin_view_sync_thread_reduce (DupinView * view, gsize count, gboolean rereduce,
   gsize start_rowid = (sync_reduce_id != NULL) ? (gsize) g_ascii_strtoll (sync_reduce_id, NULL, 10)+1 : 1;
 
   if (dupin_view_record_get_list (view, count, 0, start_rowid, 0, (rereduce) ? DP_ORDERBY_KEY : DP_ORDERBY_ROWID, FALSE,
-					matching_key, matching_key, TRUE, NULL, NULL, TRUE,
+					NULL, matching_key, matching_key, TRUE, NULL, NULL, TRUE,
 					NULL, DP_FIELDS_FORMAT_DOTTED, DP_FILTERBY_EQUALS, NULL, &results, NULL) ==
       FALSE || !results)
     {

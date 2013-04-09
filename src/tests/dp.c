@@ -893,7 +893,7 @@ command_getListViewRecord (GList * list)
   if (!g_strcmp0 (list->next->next->data, "true"))
     descending = TRUE;
 
-  if (dupin_view_record_get_list (view, count, offset, 0, 0, DP_ORDERBY_KEY, descending, NULL, NULL, TRUE, NULL, NULL, TRUE,
+  if (dupin_view_record_get_list (view, count, offset, 0, 0, DP_ORDERBY_KEY, descending, NULL, NULL, NULL, TRUE, NULL, NULL, TRUE,
 				     NULL, DP_FIELDS_FORMAT_DOTTED, DP_FILTERBY_EQUALS, NULL, &results, &error) == FALSE)
     {
       fprintf (stderr, "Error: %s\n", error->message);

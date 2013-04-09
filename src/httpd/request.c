@@ -4280,10 +4280,13 @@ request_global_get_all_docs_view (DSHttpdClient * client,
   GList *list;
   GList *results;
 
+  GError *error = NULL;
   gsize total_rows = 0;
   gboolean descending = FALSE;
   guint count = DUPIN_VIEW_MAX_DOCS_COUNT;
   guint offset = 0;
+  GList * keys = NULL;
+  JsonParser *parser = NULL;
   gchar * startkey = NULL;
   gchar * endkey = NULL;
   gboolean inclusive_end = TRUE;
@@ -4347,6 +4350,12 @@ request_global_get_all_docs_view (DSHttpdClient * client,
                 g_free (endvalue);
 
               dupin_view_unref (view);
+
+	      if (keys != NULL)
+                g_list_free (keys);
+
+              if (parser != NULL)
+                g_object_unref (parser);
 	      
       	      if (view->reduce != NULL)
                 request_set_error (client, "The " REQUEST_GET_ALL_DOCS_INCLUDE_DOCS " parameter can only be used on map only views.");
@@ -4381,6 +4390,12 @@ request_global_get_all_docs_view (DSHttpdClient * client,
 
               dupin_view_unref (view);
 
+	      if (keys != NULL)
+                g_list_free (keys);
+
+              if (parser != NULL)
+                g_object_unref (parser);
+	      
               request_set_error (client, "Invalid " REQUEST_GET_ALL_DOCS_INCLUSIVEEND " parameter. Allowed values are: true, false");
 
               return HTTP_STATUS_400;
@@ -4408,6 +4423,12 @@ request_global_get_all_docs_view (DSHttpdClient * client,
 
               dupin_view_unref (view);
 
+	      if (keys != NULL)
+                g_list_free (keys);
+
+              if (parser != NULL)
+                g_object_unref (parser);
+	      
               request_set_error (client, "Invalid " REQUEST_GET_ALL_DOCS_INCLUSIVEEND_VALUE " parameter. Allowed values are: true, false");
 
               return HTTP_STATUS_400;
@@ -4435,12 +4456,51 @@ request_global_get_all_docs_view (DSHttpdClient * client,
 
               dupin_view_unref (view);
 
+	      if (keys != NULL)
+                g_list_free (keys);
+
+              if (parser != NULL)
+                g_object_unref (parser);
+	      
               request_set_error (client, "Invalid " REQUEST_GET_ALL_DOCS_KEY " parameter. It must be a valid JSON node.");
 
               return HTTP_STATUS_400;
             }
 
 	  endkey = g_strdup (startkey);
+        }
+
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_KEYS))
+        {
+          JsonNode * node = NULL;
+
+          if ((!(parser = json_parser_new ())) ||
+              (!json_parser_load_from_data (parser, (gchar *)kv->value, strlen (kv->value), &error)) ||
+              (!(node = json_parser_get_root (parser))) ||
+              (json_node_get_node_type (node) != JSON_NODE_ARRAY) ||
+              (!(keys = json_array_get_elements (json_node_get_array (node)))))
+            {
+	      if (startkey != NULL)
+                g_free (startkey);
+
+	      if (endkey != NULL)
+                g_free (endkey);
+
+              if (startvalue != NULL)
+                g_free (startvalue);
+
+              if (endvalue != NULL)
+                g_free (endvalue);
+
+              dupin_view_unref (view);
+
+              request_set_error (client, "Invalid " REQUEST_GET_ALL_DOCS_KEYS " parameter. Value must be an JSON array of keys.");
+
+              if (parser != NULL)
+                g_object_unref (parser);
+
+              return HTTP_STATUS_400;
+            }
         }
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_STARTKEY))
@@ -4462,6 +4522,12 @@ request_global_get_all_docs_view (DSHttpdClient * client,
 
               dupin_view_unref (view);
 
+	      if (keys != NULL)
+                g_list_free (keys);
+
+              if (parser != NULL)
+                g_object_unref (parser);
+	      
               request_set_error (client, "Invalid " REQUEST_GET_ALL_DOCS_STARTKEY " parameter. It must be a valid JSON node.");
 
               return HTTP_STATUS_400;
@@ -4487,6 +4553,12 @@ request_global_get_all_docs_view (DSHttpdClient * client,
 
               dupin_view_unref (view);
 
+	      if (keys != NULL)
+                g_list_free (keys);
+
+              if (parser != NULL)
+                g_object_unref (parser);
+	      
               request_set_error (client, "Invalid " REQUEST_GET_ALL_DOCS_ENDKEY " parameter. It must be a valid JSON node.");
 
               return HTTP_STATUS_400;
@@ -4512,6 +4584,12 @@ request_global_get_all_docs_view (DSHttpdClient * client,
 
               dupin_view_unref (view);
 
+	      if (keys != NULL)
+                g_list_free (keys);
+
+              if (parser != NULL)
+                g_object_unref (parser);
+	      
               request_set_error (client, "Invalid " REQUEST_GET_ALL_DOCS_VALUE " parameter. It must be a valid JSON node.");
 
               return HTTP_STATUS_400;
@@ -4539,6 +4617,12 @@ request_global_get_all_docs_view (DSHttpdClient * client,
 
               dupin_view_unref (view);
 
+	      if (keys != NULL)
+                g_list_free (keys);
+
+              if (parser != NULL)
+                g_object_unref (parser);
+	      
               request_set_error (client, "Invalid " REQUEST_GET_ALL_DOCS_STARTVALUE " parameter. It must be a valid JSON node.");
 
               return HTTP_STATUS_400;
@@ -4564,6 +4648,12 @@ request_global_get_all_docs_view (DSHttpdClient * client,
 
               dupin_view_unref (view);
 
+	      if (keys != NULL)
+                g_list_free (keys);
+
+              if (parser != NULL)
+                g_object_unref (parser);
+	      
               request_set_error (client, "Invalid " REQUEST_GET_ALL_DOCS_ENDVALUE " parameter. It must be a valid JSON node.");
 
               return HTTP_STATUS_400;
@@ -4619,6 +4709,13 @@ request_global_get_all_docs_view (DSHttpdClient * client,
                 g_free (endvalue);
 
               dupin_view_unref (view);
+
+	      if (keys != NULL)
+                g_list_free (keys);
+
+              if (parser != NULL)
+                g_object_unref (parser);
+	      
               request_set_error (client, "Cannot connect to parent database");
               return HTTP_STATUS_404;
             }
@@ -4640,6 +4737,13 @@ request_global_get_all_docs_view (DSHttpdClient * client,
                 g_free (endvalue);
 
               dupin_view_unref (view);
+
+	      if (keys != NULL)
+                g_list_free (keys);
+
+              if (parser != NULL)
+                g_object_unref (parser);
+	      
               request_set_error (client, "Cannot connect to parent linkbase");
               return HTTP_STATUS_404;
             }
@@ -4661,13 +4765,20 @@ request_global_get_all_docs_view (DSHttpdClient * client,
                 g_free (endvalue);
 
               dupin_view_unref (view);
+
+	      if (keys != NULL)
+                g_list_free (keys);
+
+              if (parser != NULL)
+                g_object_unref (parser);
+	      
               request_set_error (client, "Cannot connect to parent view");
     	      return HTTP_STATUS_404;
             }
         }
     }
 
-  if (dupin_view_record_get_list_total (view, &total_rows, 0, 0, startkey, endkey, inclusive_end, 
+  if (dupin_view_record_get_list_total (view, &total_rows, 0, 0, keys, startkey, endkey, inclusive_end, 
 						startvalue, endvalue, inclusive_end_value,
 						filter_by, filter_by_format, filter_op, filter_values, NULL) == FALSE)
     {
@@ -4694,13 +4805,19 @@ request_global_get_all_docs_view (DSHttpdClient * client,
 
       dupin_view_unref (view);
 
+      if (keys != NULL)
+        g_list_free (keys);
+
+      if (parser != NULL)
+        g_object_unref (parser);
+	      
       request_set_error (client, "Cannot get total of records from view");
 
       return HTTP_STATUS_500;
     }
 
   if (dupin_view_record_get_list (view, count, offset, 0, 0, DP_ORDERBY_KEY, descending,
-				  startkey, endkey, inclusive_end,
+				  keys, startkey, endkey, inclusive_end,
 				  startvalue, endvalue, inclusive_end_value,
 				  filter_by, filter_by_format, filter_op, filter_values,
 				  &results, NULL) == FALSE)
@@ -4728,6 +4845,12 @@ request_global_get_all_docs_view (DSHttpdClient * client,
 
       dupin_view_unref (view);
 
+      if (keys != NULL)
+        g_list_free (keys);
+
+      if (parser != NULL)
+        g_object_unref (parser);
+	      
       request_set_error (client, "Cannot get list of records from view");
 
       return HTTP_STATUS_500;
@@ -4908,6 +5031,12 @@ request_global_get_all_docs_view (DSHttpdClient * client,
 
       dupin_view_unref (view);
 
+      if (keys != NULL)
+        g_list_free (keys);
+
+      if (parser != NULL)
+        g_object_unref (parser);
+	      
       json_array_unref (array);
 
       return HTTP_STATUS_304;
@@ -4981,6 +5110,12 @@ request_global_get_all_docs_view (DSHttpdClient * client,
 
   dupin_view_unref (view);
 
+  if (keys != NULL)
+    g_list_free (keys);
+
+  if (parser != NULL)
+    g_object_unref (parser);
+	      
   return HTTP_STATUS_200;
 
 request_global_get_all_docs_view_error:
@@ -5017,6 +5152,12 @@ request_global_get_all_docs_view_error:
 
   dupin_view_unref (view);
 
+  if (keys != NULL)
+    g_list_free (keys);
+
+  if (parser != NULL)
+    g_object_unref (parser);
+	      
   request_set_error (client, "Cannot get list of records from view");
 
   return HTTP_STATUS_500;
@@ -5354,7 +5495,7 @@ request_global_get_view_query (DSHttpdClient * client,
 
   array = json_array_new ();
 
-  while (dupin_view_record_get_list (view, QUERY_BLOCK, offset, 0, 0, DP_ORDERBY_KEY, FALSE, NULL, NULL, TRUE, NULL, NULL, TRUE,
+  while (dupin_view_record_get_list (view, QUERY_BLOCK, offset, 0, 0, DP_ORDERBY_KEY, FALSE, NULL, NULL, NULL, TRUE, NULL, NULL, TRUE,
 					NULL, DP_FIELDS_FORMAT_DOTTED, DP_FILTERBY_EQUALS, NULL, &results, NULL) == TRUE
 	 && results)
     {
@@ -5460,6 +5601,10 @@ static DSHttpStatusCode request_global_post_compact_linkbase (DSHttpdClient * cl
 						     	      GList * path,
 						     	      GList * arguments);
 
+static DSHttpStatusCode request_global_post_all_docs_view (DSHttpdClient * client,
+						           GList * path,
+						           GList * arguments);
+
 static DSHttpStatusCode request_global_post_compact_view (DSHttpdClient * client,
 						     	  GList * path,
 						     	  GList * arguments);
@@ -5508,9 +5653,13 @@ request_global_post (DSHttpdClient * client,
           /* POST /_views/view/_compact */
 	  if (!g_strcmp0 (path->next->next->data, REQUEST_POST_COMPACT_VIEW))
             return request_global_post_compact_view (client, path->next, arguments);
+
+          /* POST /_views/view/_all_docs */
+          if (!g_strcmp0 (path->next->next->data, REQUEST_POST_ALL_DOCS))
+            return request_global_post_all_docs_view (client, path, arguments);
         }
 
-      request_set_error (client, "POST /_views allowed commands are: /_views/view/_compact");
+      request_set_error (client, "POST /_views allowed commands are: /_views/view/_all_docs and /_views/view/_compact");
 
       return HTTP_STATUS_400;
     }
@@ -6327,6 +6476,101 @@ request_global_post_check_linkbase (DSHttpdClient * client,
   dupin_linkbase_unref (linkb);
 
   return HTTP_STATUS_200;
+}
+
+static DSHttpStatusCode
+request_global_post_all_docs_view (DSHttpdClient * client,
+			           GList * path,
+			           GList * arguments)
+{
+  DSHttpStatusCode code;
+  GError *error = NULL;
+
+  if (!client->body)
+    {
+      request_set_error (client, "Missing POST body");
+      return HTTP_STATUS_400;
+    }
+
+  JsonParser *parser = json_parser_new ();
+
+  if (parser == NULL)
+    {
+      request_set_error (client, "Cannot parse POST body");
+      code = HTTP_STATUS_500;
+      goto request_global_post_all_docs_end;
+    }
+
+  if (!json_parser_load_from_data (parser, client->body, client->body_size, &error))
+    {
+      if (error)
+        {
+          request_set_error (client, error->message);
+          g_error_free (error);
+        }
+      code = HTTP_STATUS_400;
+      goto request_global_post_all_docs_end;
+    }
+
+  JsonNode * node = json_parser_get_root (parser);
+
+  if (node == NULL)
+    {
+      request_set_error (client, "Cannot parse POST body");
+      code = HTTP_STATUS_500;
+      goto request_global_post_all_docs_end;
+    }
+
+  if (json_node_get_node_type (node) != JSON_NODE_OBJECT)
+    {
+      request_set_error (client, "Body must be a JSON object");
+      code = HTTP_STATUS_500;
+      goto request_global_post_all_docs_end;
+    }
+
+  if (json_object_has_member (json_node_get_object (node), REQUEST_POST_ALL_DOCS_KEYS) == FALSE)
+    {
+      request_set_error (client, "Body does not contain a mandatory " REQUEST_POST_ALL_DOCS_KEYS " object member");
+      code = HTTP_STATUS_500;
+      goto request_global_post_all_docs_end;
+    }
+
+  JsonNode * keys_node = json_object_get_member (json_node_get_object (node), REQUEST_POST_ALL_DOCS_KEYS);
+
+  if (json_node_get_node_type (keys_node) != JSON_NODE_ARRAY)
+    {
+      request_set_error (client, "Body object member " REQUEST_POST_ALL_DOCS_KEYS " is not an array");
+      code = HTTP_STATUS_500;
+      goto request_global_post_all_docs_end;
+    }
+
+  gchar * json_keys = dupin_util_json_serialize (keys_node);
+
+  if (client->request_arguments == NULL)
+    client->request_arguments = NULL;
+
+  client->request_arguments = g_list_prepend (client->request_arguments,
+                                dp_keyvalue_new (REQUEST_GET_ALL_DOCS_KEYS, json_keys));
+
+  g_free (json_keys);
+
+  if (parser != NULL)
+    g_object_unref (parser);
+
+  if (error)
+    g_error_free (error);
+
+  return request_global_get_all_docs_view (client, path, client->request_arguments);
+
+request_global_post_all_docs_end:
+
+  if (parser != NULL)
+    g_object_unref (parser);
+
+  if (error)
+    g_error_free (error);
+
+  return code;
 }
 
 static DSHttpStatusCode

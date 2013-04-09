@@ -157,6 +157,13 @@ gchar *        dupin_util_json_string_normalize_docid
 gchar *        dupin_util_json_string_normalize_rev
 						(gchar * input_string_rev);
 
+gboolean       dupin_util_http_if_none_match 	(gchar * header_if_none_match,
+						 gchar * etag);
+
+gboolean       dupin_util_http_if_modified_since
+						(gchar * header_if_modified_since,
+						 gsize last_modified);
+
 /* k/v pairs for argument lists */
 
 typedef struct dupin_keyvalue_t    dupin_keyvalue_t;

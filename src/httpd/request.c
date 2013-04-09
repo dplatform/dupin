@@ -1664,34 +1664,16 @@ request_global_get_all_docs (DSHttpdClient * client,
   if (array == NULL)
     goto request_global_get_all_docs_error;
 
-  gboolean record_is_changed = FALSE;
-
-  client->output_last_modified = 0;
+  /* ETag */
+  GString *  whole_etag_str = g_string_new (NULL);
+  g_string_append_printf (whole_etag_str, "%" G_GSIZE_FORMAT, total_rows);
 
   for (list = results; list; list = list->next)
     {
       DupinRecord *record = list->data;
-      gsize modified;
 
-      if (record_is_changed == FALSE)
-        {
-          record_is_changed = dupin_record_is_changed (record, client->input_if_modified_since,
-                                                               client->input_if_unmodified_since,
-                                                               client->input_if_match,
-                                                               client->input_if_none_match);
-        }
-
-      /* Last-Modified */
-      modified = dupin_record_get_created (record);
-      if (modified > client->output_last_modified)
-        {
-          client->output_last_modified = modified;
-
-          /* ETag */
-          gchar * etag = dupin_record_get_last_revision (record);
-	  client->output_etag_len = strlen(etag);
-          client->output_etag = g_strndup (etag, client->output_etag_len);
-        }
+      /* ETag */
+      g_string_append_printf (whole_etag_str, "%s", dupin_record_get_last_revision (record));
 
       JsonNode *kvd = json_node_new (JSON_NODE_OBJECT);
       JsonObject *kvd_obj = json_object_new ();
@@ -1720,6 +1702,9 @@ request_global_get_all_docs (DSHttpdClient * client,
             {
 	      json_array_unref (array);
 	      json_node_free (kvd);
+
+              g_string_free (whole_etag_str, TRUE);
+
 	      goto request_global_get_all_docs_error;
             }
 
@@ -1729,7 +1714,14 @@ request_global_get_all_docs (DSHttpdClient * client,
       json_array_add_element( array, kvd);
     }
 
-  if (record_is_changed == FALSE && results)
+  /* ETag */
+  gchar * whole_etag = g_string_free (whole_etag_str, FALSE);
+  client->output_etag = g_compute_checksum_for_string (DUPIN_ID_HASH_ALGO, whole_etag, -1);
+  client->output_etag_len = strlen(client->output_etag);
+  g_free (whole_etag);
+
+  if ((dupin_util_http_if_none_match (client->input_if_none_match, client->output_etag) == FALSE)
+      && results)
     {
       if( results )
         dupin_record_get_list_close (results);
@@ -3140,34 +3132,16 @@ request_global_get_all_links_linkbase (DSHttpdClient * client,
   if (array == NULL)
     goto request_global_get_all_links_linkbase_error;
 
-  gboolean record_is_changed = FALSE;
-
-  client->output_last_modified = 0;
+  /* ETag */
+  GString *  whole_etag_str = g_string_new (NULL);
+  g_string_append_printf (whole_etag_str, "%" G_GSIZE_FORMAT, total_rows);
 
   for (list = results; list; list = list->next)
     {
       DupinLinkRecord *record = list->data;
-      gsize modified;
 
-      if (record_is_changed == FALSE)
-        {
-          record_is_changed = dupin_link_record_is_changed (record, client->input_if_modified_since,
-                                                                    client->input_if_unmodified_since,
-                                                                    client->input_if_match,
-                                                                    client->input_if_none_match);
-        }
-
-      /* Last-Modified */
-      modified = dupin_link_record_get_created (record);
-      if (modified > client->output_last_modified)
-        {
-          client->output_last_modified = modified;
-
-          /* ETag */
-          gchar * etag = dupin_link_record_get_last_revision (record);
-	  client->output_etag_len = strlen(etag);
-	  client->output_etag = g_strndup (etag, client->output_etag_len);
-        }
+      /* ETag */
+      g_string_append_printf (whole_etag_str, "%s", dupin_link_record_get_last_revision (record));
 
       JsonNode *kvd = json_node_new (JSON_NODE_OBJECT);
       JsonObject *kvd_obj = json_object_new ();
@@ -3209,6 +3183,7 @@ request_global_get_all_links_linkbase (DSHttpdClient * client,
             {
 	      json_array_unref (array);
               json_node_free (kvd);
+              g_string_free (whole_etag_str, TRUE);
 	      goto request_global_get_all_links_linkbase_error;
             }
 
@@ -3218,7 +3193,14 @@ request_global_get_all_links_linkbase (DSHttpdClient * client,
       json_array_add_element( array, kvd);
     }
 
-  if (record_is_changed == FALSE && results)
+  /* ETag */
+  gchar * whole_etag = g_string_free (whole_etag_str, FALSE);
+  client->output_etag = g_compute_checksum_for_string (DUPIN_ID_HASH_ALGO, whole_etag, -1);
+  client->output_etag_len = strlen(client->output_etag);
+  g_free (whole_etag);
+
+  if ((dupin_util_http_if_none_match (client->input_if_none_match, client->output_etag) == FALSE)
+      && results)
     {
       if( results )
         dupin_link_record_get_list_close (results);
@@ -4749,34 +4731,16 @@ request_global_get_all_docs_view (DSHttpdClient * client,
   if (array == NULL)
     goto request_global_get_all_docs_view_error;
 
-  gboolean record_is_changed = FALSE;
-
-  client->output_last_modified = 0;
+  /* ETag */
+  GString *  whole_etag_str = g_string_new (NULL);
+  g_string_append_printf (whole_etag_str, "%" G_GSIZE_FORMAT, total_rows);
 
   for (list = results; list; list = list->next)
     {
       DupinViewRecord *record = list->data;
-      gsize modified;
 
-      if (record_is_changed == FALSE)
-        {
-          record_is_changed = dupin_view_record_is_changed (record, client->input_if_modified_since,
-                                                                    client->input_if_unmodified_since,
-                                                                    client->input_if_match,
-                                                                    client->input_if_none_match);
-        }
-
-      /* Last-Modified */
-      modified = dupin_view_record_get_modified (record);
-      if (modified > client->output_last_modified)
-        {
-          client->output_last_modified = modified;
-
-          /* ETag */
-          gchar * etag = dupin_view_record_get_etag (record);
-	  client->output_etag_len = strlen(etag);
-	  client->output_etag = g_strndup (etag, client->output_etag_len);
-        }
+      /* ETag */
+      g_string_append_printf (whole_etag_str, "%s", dupin_view_record_get_etag (record));
 
       JsonNode *on = NULL;
 
@@ -4794,6 +4758,7 @@ request_global_get_all_docs_view (DSHttpdClient * client,
         {
 	  json_node_free (result_node);
           json_array_unref (array);
+          g_string_free (whole_etag_str, TRUE);
 	  goto request_global_get_all_docs_view_error;
         }
 
@@ -4901,7 +4866,14 @@ request_global_get_all_docs_view (DSHttpdClient * client,
       json_array_add_element( array, result_node);
    }
 
-  if (record_is_changed == FALSE && results)
+  /* ETag */
+  gchar * whole_etag = g_string_free (whole_etag_str, FALSE);
+  client->output_etag = g_compute_checksum_for_string (DUPIN_ID_HASH_ALGO, whole_etag, -1);
+  client->output_etag_len = strlen(client->output_etag);
+  g_free (whole_etag);
+
+  if ((dupin_util_http_if_none_match (client->input_if_none_match, client->output_etag) == FALSE)
+      && results)
     {
       if (startkey != NULL)
         g_free (startkey);

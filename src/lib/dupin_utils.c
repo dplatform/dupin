@@ -2401,6 +2401,48 @@ DUPIN_UTIL_DUMP_JSON ("Output", patched_node);
   return patched_node;
 }
 
+gboolean
+dupin_util_http_if_none_match (gchar * header_if_none_match,
+                               gchar * etag)
+{
+  gboolean changed = TRUE;
+
+  /* Check If-None-Match */
+  if (header_if_none_match != NULL)
+    {
+      if (g_strstr_len (header_if_none_match, strlen (header_if_none_match), "*") ||
+          g_strstr_len (header_if_none_match, strlen (header_if_none_match), etag))
+        changed = FALSE;
+    }
+
+  return changed;
+}
+
+gboolean
+dupin_util_http_if_modified_since (gchar * header_if_modified_since,
+                                   gsize last_modified)
+{
+  gboolean changed = TRUE;
+
+  /* Check If-Modified-Since */
+  if (header_if_modified_since != NULL)
+    {
+      gsize modified = 0;
+      dupin_date_string_to_timestamp (header_if_modified_since, &modified);
+
+      /* NOTE - See assumptions and recommentations about client if-modified-since date value
+                at http://tools.ietf.org/html/rfc2616#section-14.25 */
+
+      if (dupin_date_timestamp_cmp (modified, last_modified) >= 0)
+        changed = FALSE;
+    }
+
+  return changed;
+}
+
+
+
+
 
 /* k/v pairs management functions for arguments list */
 

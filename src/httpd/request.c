@@ -1666,7 +1666,7 @@ request_global_get_all_docs (DSHttpdClient * client,
 
   /* ETag */
   GString *  whole_etag_str = g_string_new (NULL);
-  g_string_append_printf (whole_etag_str, "%" G_GSIZE_FORMAT, total_rows);
+  g_string_append_printf (whole_etag_str, "%" G_GSIZE_FORMAT "%d%d", total_rows, count, offset);
 
   for (list = results; list; list = list->next)
     {
@@ -3137,7 +3137,7 @@ request_global_get_all_links_linkbase (DSHttpdClient * client,
 
   /* ETag */
   GString *  whole_etag_str = g_string_new (NULL);
-  g_string_append_printf (whole_etag_str, "%" G_GSIZE_FORMAT, total_rows);
+  g_string_append_printf (whole_etag_str, "%" G_GSIZE_FORMAT "%d%d", total_rows, count, offset);
 
   for (list = results; list; list = list->next)
     {
@@ -4740,7 +4740,7 @@ request_global_get_all_docs_view (DSHttpdClient * client,
 
   /* ETag */
   GString *  whole_etag_str = g_string_new (NULL);
-  g_string_append_printf (whole_etag_str, "%" G_GSIZE_FORMAT, total_rows);
+  g_string_append_printf (whole_etag_str, "%" G_GSIZE_FORMAT "%d%d", total_rows, count, offset);
 
   for (list = results; list; list = list->next)
     {

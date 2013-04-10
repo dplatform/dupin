@@ -2599,8 +2599,8 @@ dupin_view_sync_record_update (DupinView * view, gchar * previous_rowid, gint re
 				key,
 				pid_serialized,
 				value,
-				replace_rowid_str,
-				modified);
+				modified,
+				replace_rowid_str);
 
 //g_message("dupin_view_sync_record_update() view %s update query=%s\n",view->name, query);
 

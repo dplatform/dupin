@@ -232,28 +232,31 @@ dupin_attachment_db_p_update_cb (void *data, int argc, char **argv, char **col)
 static void
 dupin_attachment_db_p_update_real (DupinAttachmentDBP * p, DupinAttachmentDB * attachment_db)
 {
-  /* NOTE - need to remove pointer from parent if attachment db is "hot deleted" */
+  g_rw_lock_reader_lock (attachment_db->rwlock);
+  gboolean todelete = attachment_db->todelete;
+  g_rw_lock_reader_unlock (attachment_db->rwlock);
 
-  if (attachment_db->todelete == TRUE)
+  if (todelete == TRUE)
     {
       if (p->attachment_dbs != NULL)
         {
-          DupinAttachmentDB ** attachment_dbs = p->attachment_dbs;
-          p->attachment_dbs = g_malloc (sizeof (DupinAttachmentDB *) * p->size);
+          /* NOTE - need to remove pointer from parent if linkb is "hot deleted" */
+
+          DupinAttachmentDB ** attachment_dbs = g_malloc (sizeof (DupinAttachmentDB *) * p->size);
 
           gint i;
           gint current_numb = p->numb;
           p->numb = 0;
           for (i=0; i < current_numb ; i++)
             {
-              if (attachment_dbs[i] != attachment_db)
+              if (p->attachment_dbs[i] != attachment_db)
                 {
-                  p->attachment_dbs[p->numb] = attachment_dbs[i];
+                  attachment_dbs[p->numb] = p->attachment_dbs[i];
                   p->numb++;
                 }
             }
-
-          g_free (attachment_dbs);
+          g_free (p->attachment_dbs);
+          p->attachment_dbs = attachment_dbs;
         }
 
       return;

@@ -6,7 +6,6 @@ index-formats.view.dupin
 index-formats.view.dupin-shm
 index-formats.view.dupin-wal
 ltmain.sh
-m4/
 src/Makefile.in
 src/httpd/Makefile.in
 src/lib/Makefile.in

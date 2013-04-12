@@ -678,6 +678,9 @@ dupin_linkb_connect (Dupin * d, gchar * name, gchar * path,
   linkb->tocheck = FALSE;
   linkb->check_processed_count = 0;
 
+  linkb->rwlock = g_new0 (GRWLock, 1);
+  g_rw_lock_init (linkb->rwlock);
+
   if (sqlite3_open_v2 (linkb->path, &linkb->db, dupin_util_dupin_mode_to_sqlite_mode (mode), NULL) != SQLITE_OK)
     {
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
@@ -788,9 +791,6 @@ dupin_linkb_connect (Dupin * d, gchar * name, gchar * path,
   /* NOTE - we know this is inefficient, but we need it till proper Elastic search or lucene used as frontend */
 
   sqlite3_create_function(linkb->db, "filterBy", 5, SQLITE_ANY, d, dupin_sqlite_json_filterby, NULL, NULL);
-
-  linkb->rwlock = g_new0 (GRWLock, 1);
-  g_rw_lock_init (linkb->rwlock);
 
   return linkb;
 }

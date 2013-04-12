@@ -144,7 +144,7 @@ dupin_util_generate_id (gchar id[DUPIN_ID_MAX_LEN])
 }
 
 gboolean
-dupin_util_is_valid_mr_lang (gchar * lang)
+dupin_util_is_valid_view_engine_lang (gchar * lang)
 {
   g_return_val_if_fail (lang != NULL, FALSE);
 
@@ -154,27 +154,27 @@ dupin_util_is_valid_mr_lang (gchar * lang)
   return FALSE;
 }
 
-DupinMRLang
-dupin_util_mr_lang_to_enum (gchar * lang)
+DupinViewEngineLang
+dupin_util_view_engine_lang_to_enum (gchar * lang)
 {
   g_return_val_if_fail (lang != NULL, 0);
 
   if (!g_strcmp0 (lang, "javascript"))
-    return DP_MR_LANG_JAVASCRIPT;
+    return DP_VIEW_ENGINE_LANG_JAVASCRIPT;
 
   if (!g_strcmp0 (lang, "dupin_gi"))
-    return DP_MR_LANG_DUPIN_GI;
+    return DP_VIEW_ENGINE_LANG_DUPIN_GI;
 
-  g_return_val_if_fail (dupin_util_is_valid_mr_lang (lang) == TRUE, 0);
+  g_return_val_if_fail (dupin_util_is_valid_view_engine_lang (lang) == TRUE, 0);
   return 0;
 }
 
 const gchar *
-dupin_util_mr_lang_to_string (DupinMRLang lang)
+dupin_util_view_engine_lang_to_string (DupinViewEngineLang lang)
 {
   switch (lang)
     {
-    case DP_MR_LANG_JAVASCRIPT:
+    case DP_VIEW_ENGINE_LANG_JAVASCRIPT:
       return "javascript";
 
     default:

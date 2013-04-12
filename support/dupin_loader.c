@@ -367,7 +367,7 @@ main (int argc, char *argv[])
     }
   if (!(d_conf = configure_init (argc, argv, &error)))
     {
-      fprintf (stderr, "Error: %s\n", error->message);
+      fprintf (stderr, "Error: %s\n", (error) ? error->message : DUPIN_UNKNOWN_ERROR);
       g_error_free (error);
 
       dupin_loader_usage (argv);
@@ -378,7 +378,7 @@ main (int argc, char *argv[])
   /* Check permissions */
   if (dupin_server_common_permission (d_conf, &error) == FALSE)
     {
-      fprintf (stderr, "Error about the permissions: %s\n", error->message);
+      fprintf (stderr, "Error about the permissions: %s\n", (error) ? error->message : DUPIN_UNKNOWN_ERROR);
       goto dupin_loader_end;
     }
 #endif
@@ -391,7 +391,7 @@ main (int argc, char *argv[])
 
   if (!(d = dupin_loader_init (d_conf, &error)))
     {
-      fprintf (stderr, "Error: %s\n", error->message);
+      fprintf (stderr, "Error: %s\n", (error) ? error->message : DUPIN_UNKNOWN_ERROR);
       g_error_free (error);
       return 1;
     }
@@ -464,7 +464,7 @@ main (int argc, char *argv[])
 
       if (status == G_IO_STATUS_ERROR)
 	{
-	  fprintf (stderr, "Error: %s\n", error->message);
+	  fprintf (stderr, "Error: %s\n", (error) ? error->message : DUPIN_UNKNOWN_ERROR);
 	  g_error_free (error);
 	  break;
 	}

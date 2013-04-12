@@ -10,10 +10,10 @@ libdupin_la_SOURCES = \
 	dupin_init.c \
 	dupin_init.h \
 	dupin_internal.h \
-	dupin_js.c \
-	dupin_js.h \
-	dupin_mr.c \
-	dupin_mr.h \
+	dupin_webkit.c \
+	dupin_webkit.h \
+	dupin_view_engine.c \
+	dupin_view_engine.h \
 	dupin_record.c \
 	dupin_record.h \
 	dupin_utils.c \

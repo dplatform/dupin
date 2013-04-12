@@ -81,7 +81,7 @@ struct dp_args
   {
   1, "openView", "Open a view.", command_openView},
   {
-  7, "newView", "Create a new view.", command_newView},
+  6, "newView", "Create a new view.", command_newView},
   {
   0, "deleteView", "Delete a view.", command_deleteView},
   {
@@ -529,10 +529,9 @@ command_newView (GList * list)
   gchar *parent = g_list_nth_data (list, 1);
   gchar *is_db = g_list_nth_data (list, 2);
   gchar *is_linkb = g_list_nth_data (list, 3);
-  gchar *map = g_list_nth_data (list, 4);
-  gchar *map_lang = g_list_nth_data (list, 5);
+  gchar *lang = g_list_nth_data (list, 4);
+  gchar *map = g_list_nth_data (list, 5);
   gchar *reduce = g_list_nth_data (list, 6);
-  gchar *reduce_lang = g_list_nth_data (list, 7);
 
   if (view)
     dupin_view_unref (view);
@@ -542,9 +541,9 @@ command_newView (GList * list)
        dupin_view_new (d, name, parent,
 		       !g_strcmp0 (is_db, "true") ? TRUE : FALSE,
 		       !g_strcmp0 (is_linkb, "true") ? TRUE : FALSE,
+		       dupin_util_view_engine_lang_to_enum (lang),
 		       map,
-		       dupin_util_mr_lang_to_enum (map_lang), reduce,
-		       dupin_util_mr_lang_to_enum (reduce_lang),
+		       reduce,
 		       NULL, FALSE, FALSE, &error)))
     {
       fprintf (stderr, "Error: %s\n", error->message);

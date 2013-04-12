@@ -189,41 +189,48 @@ request_status (DSHttpdClient * client,
 		GList * paths,
 		GList * arguments)
 {
-  JsonObject *obj;
-  JsonObject *nobj;
-  JsonNode *node=NULL;
-  JsonGenerator *gen=NULL;
+  JsonObject * obj;
+  JsonObject * nobj1, * nobj2, * nobj3, * nobj4;
+  JsonNode * node=NULL;
 
   GTimeVal tv;
+
+  node = json_node_new (JSON_NODE_OBJECT);
 
   obj = json_object_new ();
 
   if (obj == NULL)
     {
+      if (node != NULL)
+        json_node_free (node);
+
       request_set_error (client, "Cannot return status");
+
       return HTTP_STATUS_500;
     }
+
+  json_node_take_object (node, obj);
 
   g_mutex_lock (client->thread->data->httpd_mutex);
 
   /* Start TimeVal: */
-  nobj = json_object_new ();
+  nobj1 = json_object_new ();
 
-  if (nobj == NULL)
+  if (nobj1 == NULL)
     goto request_status_quit;
 
   /* timeval:tv_sec: */
-  json_object_set_int_member (nobj, "sec", client->thread->data->start_timeval.tv_sec );
+  json_object_set_int_member (nobj1, "sec", client->thread->data->start_timeval.tv_sec );
 
   /* timeval:tv_usec: */
-  json_object_set_int_member (nobj, "usec", client->thread->data->start_timeval.tv_usec );
+  json_object_set_int_member (nobj1, "usec", client->thread->data->start_timeval.tv_usec );
 
-  json_object_set_object_member (obj, "startTimeVal", nobj );
+  json_object_set_object_member (obj, "startTimeVal", nobj1 );
 
   /* This TimeVal: */
-  nobj = json_object_new ();
+  nobj2 = json_object_new ();
 
-  if (nobj == NULL)
+  if (nobj2 == NULL)
     goto request_status_quit;
 
 #if GLIB_CHECK_VERSION (2, 27, 3)
@@ -236,12 +243,12 @@ request_status (DSHttpdClient * client,
 #endif
 
   /* timeval:tv_sec: */
-  json_object_set_int_member (nobj, "sec", tv.tv_sec );
+  json_object_set_int_member (nobj2, "sec", tv.tv_sec );
 
   /* timeval:tv_usec: */
-  json_object_set_int_member (nobj, "usec", tv.tv_usec );
+  json_object_set_int_member (nobj2, "usec", tv.tv_usec );
 
-  json_object_set_object_member (obj, "thisTimeVal", nobj );
+  json_object_set_object_member (obj, "thisTimeVal", nobj2 );
 
   /* Number of threads: */
   json_object_set_int_member (obj, "threads", client->thread->data->httpd_threads_numb);
@@ -250,71 +257,59 @@ request_status (DSHttpdClient * client,
   json_object_set_int_member (obj, "clients", client->thread->data->httpd_clients_numb);
 
   /* Limit obj: */
-  nobj = json_object_new ();
+  nobj3 = json_object_new ();
 
-  if (nobj == NULL)
+  if (nobj3 == NULL)
     goto request_status_quit;
 
   /* Max Headers: */
-  json_object_set_int_member (nobj, "maxHeaders", client->thread->data->limit_maxheaders);
+  json_object_set_int_member (nobj3, "maxHeaders", client->thread->data->limit_maxheaders);
 
   /* Max Clients: */
-  json_object_set_int_member (nobj, "maxClients", client->thread->data->limit_maxclients);
+  json_object_set_int_member (nobj3, "maxClients", client->thread->data->limit_maxclients);
 
   /* Max Content-Length: */
-  json_object_set_int_member (nobj, "maxContentLength", client->thread->data->limit_maxcontentlength);
+  json_object_set_int_member (nobj3, "maxContentLength", client->thread->data->limit_maxcontentlength);
 
   /* Number of clients for Thread: */
-  json_object_set_int_member (nobj, "clientsForThread", client->thread->data->limit_clientsforthread);
+  json_object_set_int_member (nobj3, "clientsForThread", client->thread->data->limit_clientsforthread);
 
   /* Timeout: */
-  json_object_set_int_member (nobj, "timeout", client->thread->data->limit_timeout);
+  json_object_set_int_member (nobj3, "timeout", client->thread->data->limit_timeout);
 
   /* Timeout for thread: */
-  json_object_set_int_member (nobj, "timeoutForThread", client->thread->data->limit_timeoutforthread);
+  json_object_set_int_member (nobj3, "timeoutForThread", client->thread->data->limit_timeoutforthread);
 
-  json_object_set_object_member (obj, "limits", nobj );
+  json_object_set_object_member (obj, "limits", nobj3 );
 
   /* Httpd obj: */
-  nobj = json_object_new ();
+  nobj4 = json_object_new ();
 
-  if (nobj == NULL)
+  if (nobj4 == NULL)
     goto request_status_quit;
 
   /* Interface: */
   if (client->thread->data->httpd_interface != NULL)
-    json_object_set_string_member (nobj, "interface", client->thread->data->httpd_interface);
+    json_object_set_string_member (nobj4, "interface", client->thread->data->httpd_interface);
   else
-    json_object_set_null_member (nobj, "interface");
+    json_object_set_null_member (nobj4, "interface");
 
   /* port: */
-  json_object_set_int_member (nobj, "port", client->thread->data->httpd_port);
+  json_object_set_int_member (nobj4, "port", client->thread->data->httpd_port);
 
   /* listen: */
-  json_object_set_int_member (nobj, "listen", client->thread->data->httpd_listen);
+  json_object_set_int_member (nobj4, "listen", client->thread->data->httpd_listen);
 
   /* ipv6: */
-  json_object_set_boolean_member (nobj, "ipv6", client->thread->data->httpd_ipv6);
+  json_object_set_boolean_member (nobj4, "ipv6", client->thread->data->httpd_ipv6);
 
-  json_object_set_object_member (obj, "httpd", nobj );
+  json_object_set_object_member (obj, "httpd", nobj4 );
 
   /* Serialize: */
   client->output_type = DS_HTTPD_OUTPUT_STRING;
 
-  node = json_node_new (JSON_NODE_OBJECT);
-
-  if (node == NULL)
-    goto request_status_quit;
-
-  json_node_set_object (node, obj);
-
-  gen = json_generator_new();
-
-  if (gen == NULL)
-    goto request_status_quit;
-
-  json_generator_set_root (gen, node );
-  client->output.string.string = json_generator_to_data (gen,&client->output_size);
+  client->output.string.string = dupin_util_json_serialize (node);
+  client->output_size = strlen(client->output.string.string);
 
   if (client->output.string.string == NULL)
     goto request_status_quit;
@@ -323,22 +318,19 @@ request_status (DSHttpdClient * client,
 
   g_mutex_unlock (client->thread->data->httpd_mutex);
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
-  json_object_unref (obj);
+
   return HTTP_STATUS_200;
 
 request_status_quit:
   g_mutex_unlock (client->thread->data->httpd_mutex);
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
-  json_object_unref (obj);
+
   request_set_error (client, "Cannot return status");
+
   return HTTP_STATUS_500;
 }
 
@@ -598,9 +590,8 @@ request_global_get_uuids (DSHttpdClient * client,
   guint count = 1;
   guint i;
 
-  JsonArray *array;
-  JsonNode *node=NULL;
-  JsonGenerator *gen=NULL;
+  JsonArray * array;
+  JsonNode * node = NULL;
 
   for (list = arguments; list; list = list->next)
     {
@@ -616,13 +607,30 @@ request_global_get_uuids (DSHttpdClient * client,
       return HTTP_STATUS_400;
     }
 
+  node = json_node_new (JSON_NODE_OBJECT);
+
+  if (node == NULL)
+    {
+      goto request_global_get_uuids_error;
+    }
+
+  JsonObject * node_obj = json_object_new ();
+
+  if (node_obj == NULL)
+    {
+      goto request_global_get_uuids_error;
+    }
+
+  json_node_take_object (node, node_obj);
+ 
   array = json_array_new ();
 
   if (array == NULL)
     {
-      request_set_error (client, "Cannot return UUIDs");
-      return HTTP_STATUS_500;
+      goto request_global_get_uuids_error;
     }
+
+  json_object_set_array_member (node_obj, "uuids", array);
 
   for (i = 0; i < count; i++)
     {
@@ -633,27 +641,8 @@ request_global_get_uuids (DSHttpdClient * client,
       json_array_add_string_element (array, id);
     }
 
-  node = json_node_new (JSON_NODE_OBJECT);
-
-  if (node == NULL)
-    {
-      json_array_unref (array);
-      goto request_global_get_uuids_error;
-    }
-
-  JsonObject * node_obj = json_object_new ();
-
-  json_node_take_object (node, node_obj);
- 
-  json_object_set_array_member (node_obj, "uuids", array);
-
-  gen = json_generator_new();
-
-  if (gen == NULL)
-    goto request_global_get_uuids_error;
-
-  json_generator_set_root (gen, node );
-  client->output.string.string = json_generator_to_data (gen,&client->output_size);
+  client->output.string.string = dupin_util_json_serialize (node);
+  client->output_size = strlen(client->output.string.string);
 
   if (client->output.string.string == NULL)
     goto request_global_get_uuids_error;
@@ -661,19 +650,18 @@ request_global_get_uuids (DSHttpdClient * client,
   client->output_mime = g_strdup (HTTP_MIME_JSON);
   client->output_type = DS_HTTPD_OUTPUT_STRING;
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
+
   return HTTP_STATUS_200;
 
 request_global_get_uuids_error:
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
+
   request_set_error (client, "Cannot return UUIDs");
+
   return HTTP_STATUS_500;
 }
 
@@ -683,10 +671,9 @@ request_global_get_all_dbs (DSHttpdClient * client,
 			    GList * arguments)
 {
   guint i;
-  gchar **dbs;
-  JsonArray *array;
-  JsonNode *node=NULL;
-  JsonGenerator *gen=NULL;
+  gchar ** dbs;
+  JsonArray * array;
+  JsonNode * node = NULL;
 
   if (client->request != DS_HTTPD_REQUEST_GET)
     {
@@ -717,36 +704,30 @@ request_global_get_all_dbs (DSHttpdClient * client,
   if (node == NULL)
     goto request_global_get_all_dbs;
 
-  json_node_set_array (node, array);
+  json_node_take_array (node, array);
 
-  gen = json_generator_new();
-
-  if (gen == NULL)
-    goto request_global_get_all_dbs;
-
-  json_generator_set_root (gen, node );
-  client->output.string.string = json_generator_to_data (gen,&client->output_size);
+  client->output.string.string = dupin_util_json_serialize (node);
+  client->output_size = strlen(client->output.string.string);
 
   if (client->output.string.string == NULL)
     goto request_global_get_all_dbs;
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
-  json_array_unref (array);
+
   g_strfreev (dbs);
+
   return HTTP_STATUS_200;
 
 request_global_get_all_dbs:
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
-  json_array_unref (array);
+
   g_strfreev (dbs);
+
   request_set_error (client, "Cannot return list of databases");
+
   return HTTP_STATUS_500;
 }
 
@@ -756,10 +737,9 @@ request_global_get_all_linkbs (DSHttpdClient * client,
 			       GList * arguments)
 {
   guint i;
-  gchar **linkbs;
-  JsonArray *array;
-  JsonNode *node=NULL;
-  JsonGenerator *gen=NULL;
+  gchar ** linkbs;
+  JsonArray * array;
+  JsonNode * node = NULL;
 
   if (client->request != DS_HTTPD_REQUEST_GET)
     {
@@ -790,36 +770,30 @@ request_global_get_all_linkbs (DSHttpdClient * client,
   if (node == NULL)
     goto request_global_get_all_linkbs;
 
-  json_node_set_array (node, array);
+  json_node_take_array (node, array);
 
-  gen = json_generator_new();
-
-  if (gen == NULL)
-    goto request_global_get_all_linkbs;
-
-  json_generator_set_root (gen, node );
-  client->output.string.string = json_generator_to_data (gen,&client->output_size);
+  client->output.string.string = dupin_util_json_serialize (node);
+  client->output_size = strlen(client->output.string.string);
 
   if (client->output.string.string == NULL)
     goto request_global_get_all_linkbs;
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
-  json_array_unref (array);
+
   g_strfreev (linkbs);
+
   return HTTP_STATUS_200;
 
 request_global_get_all_linkbs:
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
-  json_array_unref (array);
+
   g_strfreev (linkbs);
+
   request_set_error (client, "Cannot return list of linkbases");
+
   return HTTP_STATUS_500;
 }
 
@@ -829,10 +803,9 @@ request_global_get_all_attachment_dbs (DSHttpdClient * client,
 			    	       GList * arguments)
 {
   guint i;
-  gchar **attachment_dbs;
-  JsonArray *array;
-  JsonNode *node=NULL;
-  JsonGenerator *gen=NULL;
+  gchar ** attachment_dbs;
+  JsonArray * array;
+  JsonNode * node = NULL;
 
   if (client->request != DS_HTTPD_REQUEST_GET)
     {
@@ -863,36 +836,30 @@ request_global_get_all_attachment_dbs (DSHttpdClient * client,
   if (node == NULL)
     goto request_global_get_all_attachment_dbs;
 
-  json_node_set_array (node, array);
+  json_node_take_array (node, array);
 
-  gen = json_generator_new();
-
-  if (gen == NULL)
-    goto request_global_get_all_attachment_dbs;
-
-  json_generator_set_root (gen, node );
-  client->output.string.string = json_generator_to_data (gen,&client->output_size);
+  client->output.string.string = dupin_util_json_serialize (node);
+  client->output_size = strlen(client->output.string.string);
 
   if (client->output.string.string == NULL)
     goto request_global_get_all_attachment_dbs;
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
-  json_array_unref (array);
+
   g_strfreev (attachment_dbs);
+
   return HTTP_STATUS_200;
 
 request_global_get_all_attachment_dbs:
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
-  json_array_unref (array);
+
   g_strfreev (attachment_dbs);
+
   request_set_error (client, "Cannot return list of attachment databases");
+
   return HTTP_STATUS_500;
 }
 
@@ -902,10 +869,9 @@ request_global_get_all_views (DSHttpdClient * client,
 			      GList * arguments)
 {
   guint i;
-  gchar **views;
-  JsonArray *array;
-  JsonNode *node=NULL;
-  JsonGenerator *gen=NULL;
+  gchar ** views;
+  JsonArray * array;
+  JsonNode * node = NULL;
 
   if (client->request != DS_HTTPD_REQUEST_GET)
     {
@@ -936,36 +902,30 @@ request_global_get_all_views (DSHttpdClient * client,
   if (node == NULL)
     goto request_global_get_all_views;
 
-  json_node_set_array (node, array);
+  json_node_take_array (node, array);
 
-  gen = json_generator_new();
-
-  if (gen == NULL)
-    goto request_global_get_all_views;
-
-  json_generator_set_root (gen, node );
-  client->output.string.string = json_generator_to_data (gen,&client->output_size);
+  client->output.string.string = dupin_util_json_serialize (node);
+  client->output_size = strlen(client->output.string.string);
 
   if (client->output.string.string == NULL)
     goto request_global_get_all_views;
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
-  json_array_unref (array);
+
   g_strfreev (views);
+
   return HTTP_STATUS_200;
 
 request_global_get_all_views:
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
-  json_array_unref (array);
+
   g_strfreev (views);
+
   request_set_error (client, "Cannot return list of views");
+
   return HTTP_STATUS_500;
 }
 
@@ -995,10 +955,9 @@ request_global_get_changes_database (DSHttpdClient * client,
   gchar ** types = NULL;
   DupinFilterByType types_op = DP_FILTERBY_EQUALS;
 
-  JsonObject *obj;
-  JsonNode *node=NULL;
-  JsonArray *array;
-  JsonGenerator *gen=NULL;
+  JsonObject * obj;
+  JsonNode * node = NULL;
+  JsonArray * array;
 
   for (list = arguments; list; list = list->next)
     {
@@ -1152,7 +1111,9 @@ request_global_get_changes_database (DSHttpdClient * client,
     {
       if (types)
         g_strfreev (types);
+
       request_set_error (client, "Cannot connect to changes database");
+
       return HTTP_STATUS_404;
     }
 
@@ -1160,7 +1121,9 @@ request_global_get_changes_database (DSHttpdClient * client,
     {
       if (types)
         g_strfreev (types);
+
       request_set_error (client, "Cannot get last change from database");
+
       return HTTP_STATUS_404;
     }
 
@@ -1179,9 +1142,12 @@ request_global_get_changes_database (DSHttpdClient * client,
       if (dupin_database_get_total_changes (db, &total_rows, since, 0, DP_COUNT_CHANGES, TRUE, types, types_op, NULL) == FALSE)
         {
           dupin_database_unref (db);
+
           if (types)
             g_strfreev (types);
+
           request_set_error (client, "Cannot get last seq number from changes database");
+
           return HTTP_STATUS_500;
         }
    }
@@ -1190,24 +1156,41 @@ request_global_get_changes_database (DSHttpdClient * client,
       FALSE)
     {
       dupin_database_unref (db);
+
       if (types)
         g_strfreev (types);
+
       request_set_error (client, "Cannot list changes from database");
+
       return HTTP_STATUS_500;
     }
+
+  node = json_node_new (JSON_NODE_OBJECT);
+
+  if (node == NULL)
+    goto request_global_get_changes_database_error;
 
   obj = json_object_new ();
 
   if (obj == NULL)
     {
+      if (node != NULL)
+        json_node_free (node);
+
       if( results )
         dupin_database_get_changes_list_close (results);
+
       dupin_database_unref (db);
+
       if (types)
         g_strfreev (types);
+
       request_set_error (client, "Cannot list changes from database");
+
       return HTTP_STATUS_500;
     }
+
+  json_node_take_object (node, obj);
 
   json_object_set_int_member (obj, "total_rows", total_rows);
   json_object_set_int_member (obj, "rows_per_page", count);
@@ -1216,6 +1199,8 @@ request_global_get_changes_database (DSHttpdClient * client,
 
   if (array == NULL)
     goto request_global_get_changes_database_error;
+
+  json_object_set_array_member (obj, "results", array );
 
   for (list = results; list; list = list->next)
     {
@@ -1234,7 +1219,6 @@ request_global_get_changes_database (DSHttpdClient * client,
           if (!(db_record = dupin_record_read (db, record_id, NULL)))
             {
               json_node_free (change);
-              json_array_unref (array);
               goto request_global_get_changes_database_error;
             }
 
@@ -1244,7 +1228,6 @@ request_global_get_changes_database (DSHttpdClient * client,
 						    db_record, record_id, record_mvcc, FALSE)))
             {
               json_node_free (change);
-              json_array_unref (array);
               goto request_global_get_changes_database_error;
             }
 
@@ -1256,8 +1239,6 @@ request_global_get_changes_database (DSHttpdClient * client,
       json_array_add_element (array, change);
     }
 
-  json_object_set_array_member (obj, "results", array );
-
   if (total_rows > 0)
     {
       json_object_set_int_member (obj, "last_seq", last_seq);
@@ -1266,20 +1247,8 @@ request_global_get_changes_database (DSHttpdClient * client,
   client->output_mime = g_strdup (HTTP_MIME_JSON);
   client->output_type = DS_HTTPD_OUTPUT_STRING;
 
-  node = json_node_new (JSON_NODE_OBJECT);
-
-  if (node == NULL)
-    goto request_global_get_changes_database_error;
-
-  json_node_set_object (node, obj);
-
-  gen = json_generator_new();
-
-  if (gen == NULL)
-    goto request_global_get_changes_database_error;
-
-  json_generator_set_root (gen, node );
-  client->output.string.string = json_generator_to_data (gen,&client->output_size);
+  client->output.string.string = dupin_util_json_serialize (node);
+  client->output_size = strlen(client->output.string.string);
 
   if (client->output.string.string == NULL)
     goto request_global_get_changes_database_error;
@@ -1289,12 +1258,8 @@ request_global_get_changes_database (DSHttpdClient * client,
 
   dupin_database_unref (db);
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
-
-  json_object_unref (obj);
 
   if (types)
     g_strfreev (types);
@@ -1308,11 +1273,8 @@ request_global_get_changes_database_error:
 
   dupin_database_unref (db);
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
-  json_object_unref (obj);
 
   if (types)
     g_strfreev (types);
@@ -1346,10 +1308,9 @@ request_global_get_all_docs (DSHttpdClient * client,
   gboolean inclusive_end = TRUE;
   gboolean include_docs = FALSE;
 
-  JsonObject *obj;
-  JsonNode *node=NULL;
-  JsonArray *array;
-  JsonGenerator *gen=NULL;
+  JsonObject * obj;
+  JsonNode * node = NULL;
+  JsonArray * array;
 
   gsize created = 0;
   DupinCreatedType created_op = DP_CREATED_SINCE;
@@ -1646,6 +1607,7 @@ request_global_get_all_docs (DSHttpdClient * client,
         g_free (endkey);
 
       dupin_database_unref (db);
+
       if (types)
         g_strfreev (types);
 
@@ -1656,13 +1618,34 @@ request_global_get_all_docs (DSHttpdClient * client,
         g_object_unref (parser);
 
       request_set_error (client, "Cannot list documents from database");
+
       return HTTP_STATUS_500;
     }
+
+  node = json_node_new (JSON_NODE_OBJECT);
+
+  if (node == NULL)
+    goto request_global_get_all_docs_error;
+
+  obj = json_object_new ();
+
+  if (obj == NULL)
+    {
+      goto request_global_get_all_docs_error;
+    }
+
+  json_node_take_object (node, obj);
+
+  json_object_set_int_member (obj, "total_rows", total_rows);
+  json_object_set_int_member (obj, "offset", offset);
+  json_object_set_int_member (obj, "rows_per_page", count);
 
   array = json_array_new ();
 
   if (array == NULL)
     goto request_global_get_all_docs_error;
+
+  json_object_set_array_member (obj, "rows", array );
 
   /* ETag */
   GString *  whole_etag_str = g_string_new (NULL);
@@ -1700,7 +1683,6 @@ request_global_get_all_docs (DSHttpdClient * client,
 					record, (gchar *) dupin_record_get_id (record),
 					dupin_record_get_last_revision (record), TRUE)))
             {
-	      json_array_unref (array);
 	      json_node_free (kvd);
 
               g_string_free (whole_etag_str, TRUE);
@@ -1723,10 +1705,11 @@ request_global_get_all_docs (DSHttpdClient * client,
   if ((dupin_util_http_if_none_match (client->input_if_none_match, client->output_etag) == FALSE)
       && results)
     {
+      if (node != NULL)
+        json_node_free (node);
+
       if( results )
         dupin_record_get_list_close (results);
-
-      json_array_unref (array);
 
       if (startkey != NULL)
         g_free (startkey);
@@ -1748,37 +1731,11 @@ request_global_get_all_docs (DSHttpdClient * client,
       return HTTP_STATUS_304;
     }
 
-  obj = json_object_new ();
-
-  if (obj == NULL)
-    {
-      json_array_unref (array);
-      goto request_global_get_all_docs_error;
-    }
-
-  json_object_set_int_member (obj, "total_rows", total_rows);
-  json_object_set_int_member (obj, "offset", offset);
-  json_object_set_int_member (obj, "rows_per_page", count);
-
-  json_object_set_array_member (obj, "rows", array );
-
   client->output_mime = g_strdup (HTTP_MIME_JSON);
   client->output_type = DS_HTTPD_OUTPUT_STRING;
 
-  node = json_node_new (JSON_NODE_OBJECT);
-
-  if (node == NULL)
-    goto request_global_get_all_docs_error;
-
-  json_node_set_object (node, obj);
-
-  gen = json_generator_new();
-
-  if (gen == NULL)
-    goto request_global_get_all_docs_error;
-
-  json_generator_set_root (gen, node );
-  client->output.string.string = json_generator_to_data (gen,&client->output_size);
+  client->output.string.string = dupin_util_json_serialize (node);
+  client->output_size = strlen(client->output.string.string);
 
   if (client->output.string.string == NULL)
     goto request_global_get_all_docs_error;
@@ -1794,11 +1751,8 @@ request_global_get_all_docs (DSHttpdClient * client,
 
   dupin_database_unref (db);
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
-  json_object_unref (obj);
 
   if (types)
     g_strfreev (types);
@@ -1824,11 +1778,8 @@ request_global_get_all_docs_error:
 
   dupin_database_unref (db);
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
-  json_object_unref (obj);
 
   if (types)
     g_strfreev (types);
@@ -1849,9 +1800,13 @@ request_global_get_server_info (DSHttpdClient * client,
 				GList * path,
 			     	GList * arguments)
 {
-  JsonObject *obj;
-  JsonNode *node=NULL;
-  JsonGenerator *gen=NULL;
+  JsonObject * obj;
+  JsonNode * node = NULL;
+
+  node = json_node_new (JSON_NODE_OBJECT);
+
+  if (node == NULL)
+    goto request_global_get_server_info_error;
 
   obj = json_object_new ();
 
@@ -1861,23 +1816,13 @@ request_global_get_server_info (DSHttpdClient * client,
       return HTTP_STATUS_500;
     }
 
+  json_node_take_object (node, obj);
+
   json_object_set_string_member (obj, "dupindb", "Welcome to Dupin");
   json_object_set_string_member (obj, "version", PACKAGE " " VERSION);
 
-  node = json_node_new (JSON_NODE_OBJECT);
-
-  if (node == NULL)
-    goto request_global_get_server_info_error;
-
-  json_node_set_object (node, obj);
-
-  gen = json_generator_new();
-
-  if (gen == NULL)
-    goto request_global_get_server_info_error;
-
-  json_generator_set_root (gen, node );
-  client->output.string.string = json_generator_to_data (gen,&client->output_size);
+  client->output.string.string = dupin_util_json_serialize (node);
+  client->output_size = strlen(client->output.string.string);
 
   if (client->output.string.string == NULL)
     goto request_global_get_server_info_error;
@@ -1885,20 +1830,15 @@ request_global_get_server_info (DSHttpdClient * client,
   client->output_mime = g_strdup (HTTP_MIME_JSON);
   client->output_type = DS_HTTPD_OUTPUT_STRING;
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
-  json_object_unref (obj);
+
   return HTTP_STATUS_200;
 
 request_global_get_server_info_error:
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
-  json_object_unref (obj);
 
   request_set_error (client, "Cannot get server information");
 
@@ -1912,9 +1852,8 @@ request_global_get_database (DSHttpdClient * client,
 {
   DupinDB *db;
   GList *list;
-  JsonObject *obj;
-  JsonNode *node=NULL;
-  JsonGenerator *gen=NULL;
+  JsonObject * obj;
+  JsonNode * node = NULL;
 
   for (list = arguments; list; list = list->next)
     {
@@ -1940,14 +1879,19 @@ request_global_get_database (DSHttpdClient * client,
       return HTTP_STATUS_500;
     }
 
+  node = json_node_new (JSON_NODE_OBJECT);
+
+  if (node == NULL)
+    goto request_global_get_database_error;
+
   obj = json_object_new ();
 
   if (obj == NULL)
     {
-      dupin_database_unref (db);
-      request_set_error (client, "Cannot read database information");
-      return HTTP_STATUS_500;
+      goto request_global_get_database_error;
     }
+
+  json_node_take_object (node, obj);
 
   json_object_set_string_member (obj, "db_name", (gchar *) dupin_database_get_name (db));
   json_object_set_int_member (obj, "doc_count", dupin_database_count (db, DP_COUNT_EXIST));
@@ -1969,20 +1913,8 @@ request_global_get_database (DSHttpdClient * client,
   /* NOTE - Compaction removes old revs, only the latest rev is represented in view queries, and only the latest revision is replicated. */
   json_object_set_boolean_member (obj, "compact_running", dupin_database_is_compacting (db));
 
-  node = json_node_new (JSON_NODE_OBJECT);
-
-  if (node == NULL)
-    goto request_global_get_database_error;
-
-  json_node_set_object (node, obj);
-
-  gen = json_generator_new();
-
-  if (gen == NULL)
-    goto request_global_get_database_error;
-
-  json_generator_set_root (gen, node );
-  client->output.string.string = json_generator_to_data (gen,&client->output_size);
+  client->output.string.string = dupin_util_json_serialize (node);
+  client->output_size = strlen(client->output.string.string);
 
   if (client->output.string.string == NULL)
     goto request_global_get_database_error;
@@ -1990,21 +1922,18 @@ request_global_get_database (DSHttpdClient * client,
   client->output_mime = g_strdup (HTTP_MIME_JSON);
   client->output_type = DS_HTTPD_OUTPUT_STRING;
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
-  json_object_unref (obj);
+
   dupin_database_unref (db);
+
   return HTTP_STATUS_200;
 
 request_global_get_database_error:
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
-  json_object_unref (obj);
+
   dupin_database_unref (db);
 
   request_set_error (client, "Cannot read database information");
@@ -2619,9 +2548,8 @@ request_global_get_linkbase (DSHttpdClient * client,
 {
   DupinLinkB *linkb;
   GList *list;
-  JsonObject *obj;
-  JsonNode *node=NULL;
-  JsonGenerator *gen=NULL;
+  JsonObject * obj;
+  JsonNode * node = NULL;
 
   for (list = arguments; list; list = list->next)
     {
@@ -2647,14 +2575,19 @@ request_global_get_linkbase (DSHttpdClient * client,
       return HTTP_STATUS_500;
     }
 
+  node = json_node_new (JSON_NODE_OBJECT);
+
+  if (node == NULL)
+    goto request_global_get_linkbase_error;
+
   obj = json_object_new ();
 
   if (obj == NULL)
     {
-      dupin_linkbase_unref (linkb);
-      request_set_error (client, "Cannot get linkabse information");
-      return HTTP_STATUS_500;
+      goto request_global_get_linkbase_error;
     }
+
+  json_node_take_object (node, obj);
 
   json_object_set_string_member (obj, "db_name", (gchar *) dupin_linkbase_get_name (linkb));
   json_object_set_string_member (obj, "parent", (gchar *) dupin_linkbase_get_parent (linkb));
@@ -2676,20 +2609,8 @@ request_global_get_linkbase (DSHttpdClient * client,
   json_object_set_boolean_member (obj, "compact_running", dupin_linkbase_is_compacting (linkb));
   json_object_set_boolean_member (obj, "check_running", dupin_linkbase_is_checking (linkb));
 
-  node = json_node_new (JSON_NODE_OBJECT);
-
-  if (node == NULL)
-    goto request_global_get_linkbase_error;
-
-  json_node_set_object (node, obj);
-
-  gen = json_generator_new();
-
-  if (gen == NULL)
-    goto request_global_get_linkbase_error;
-
-  json_generator_set_root (gen, node );
-  client->output.string.string = json_generator_to_data (gen,&client->output_size);
+  client->output.string.string = dupin_util_json_serialize (node);
+  client->output_size = strlen(client->output.string.string);
 
   if (client->output.string.string == NULL)
     goto request_global_get_linkbase_error;
@@ -2697,21 +2618,18 @@ request_global_get_linkbase (DSHttpdClient * client,
   client->output_mime = g_strdup (HTTP_MIME_JSON);
   client->output_type = DS_HTTPD_OUTPUT_STRING;
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
-  json_object_unref (obj);
+
   dupin_linkbase_unref (linkb);
+
   return HTTP_STATUS_200;
 
 request_global_get_linkbase_error:
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
-  json_object_unref (obj);
+
   dupin_linkbase_unref (linkb);
 
   request_set_error (client, "Cannot get linkabse information");
@@ -2761,10 +2679,9 @@ request_global_get_all_links_linkbase (DSHttpdClient * client,
   gsize created = 0;
   DupinCreatedType created_op = DP_CREATED_SINCE;
 
-  JsonObject *obj;
-  JsonNode *node=NULL;
-  JsonArray *array;
-  JsonGenerator *gen=NULL;
+  JsonObject * obj;
+  JsonNode * node = NULL;
+  JsonArray * array;
 
   gchar * linkbase_name = path->data;
 
@@ -3130,10 +3047,47 @@ request_global_get_all_links_linkbase (DSHttpdClient * client,
       return HTTP_STATUS_500;
     }
 
+  node = json_node_new (JSON_NODE_OBJECT);
+
+  if (node == NULL)
+    goto request_global_get_all_links_linkbase_error;
+
+  obj = json_object_new ();
+
+  if (obj == NULL)
+    {
+      goto request_global_get_all_links_linkbase_error;
+    }
+
+  json_node_take_object (node, obj);
+
+  json_object_set_int_member (obj, "total_rows", total_rows);
+  json_object_set_int_member (obj, "offset", offset);
+  json_object_set_int_member (obj, "rows_per_page", count);
+
+  /* add base */
+  if (link_type == DP_LINK_TYPE_ANY
+      || link_type == DP_LINK_TYPE_RELATIONSHIP)
+    {
+      /* NOTE - we assume that the linkbase is named after the documents database */
+      gchar * escaped_base = g_uri_escape_string (linkb->parent, NULL, TRUE);
+      GString * str = g_string_new (NULL);
+      if (dupin_linkbase_get_parent_is_db (linkb) == TRUE)
+        g_string_append_printf (str, "/%s/", escaped_base);
+      else
+        g_string_append_printf (str, "/_linkbs/%s/", escaped_base);
+      g_free (escaped_base);
+      gchar * tmp = g_string_free (str, FALSE);
+      json_object_set_string_member (obj, "base", tmp);
+      g_free (tmp);
+    }
+
   array = json_array_new ();
 
   if (array == NULL)
     goto request_global_get_all_links_linkbase_error;
+
+  json_object_set_array_member (obj, "rows", array );
 
   /* ETag */
   GString *  whole_etag_str = g_string_new (NULL);
@@ -3184,7 +3138,6 @@ request_global_get_all_links_linkbase (DSHttpdClient * client,
 			       		     dupin_link_record_get_last_revision (record),
 					     TRUE)))
             {
-	      json_array_unref (array);
               json_node_free (kvd);
               g_string_free (whole_etag_str, TRUE);
 	      goto request_global_get_all_links_linkbase_error;
@@ -3205,10 +3158,11 @@ request_global_get_all_links_linkbase (DSHttpdClient * client,
   if ((dupin_util_http_if_none_match (client->input_if_none_match, client->output_etag) == FALSE)
       && results)
     {
+      if (node != NULL)
+        json_node_free (node);
+
       if( results )
         dupin_link_record_get_list_close (results);
-
-      json_array_unref (array);
 
       dupin_linkbase_unref (linkb);
 
@@ -3239,54 +3193,11 @@ request_global_get_all_links_linkbase (DSHttpdClient * client,
       return HTTP_STATUS_304;
     }
 
-  obj = json_object_new ();
-
-  if (obj == NULL)
-    {
-      json_array_unref (array);
-      goto request_global_get_all_links_linkbase_error;
-    }
-
-  json_object_set_int_member (obj, "total_rows", total_rows);
-  json_object_set_int_member (obj, "offset", offset);
-  json_object_set_int_member (obj, "rows_per_page", count);
-
-  /* add base */
-  if (link_type == DP_LINK_TYPE_ANY
-      || link_type == DP_LINK_TYPE_RELATIONSHIP)
-    {
-      /* NOTE - we assume that the linkbase is named after the documents database */
-      gchar * escaped_base = g_uri_escape_string (linkb->parent, NULL, TRUE);
-      GString * str = g_string_new (NULL);
-      if (dupin_linkbase_get_parent_is_db (linkb) == TRUE)
-        g_string_append_printf (str, "/%s/", escaped_base);
-      else
-        g_string_append_printf (str, "/_linkbs/%s/", escaped_base);
-      g_free (escaped_base);
-      gchar * tmp = g_string_free (str, FALSE);
-      json_object_set_string_member (obj, "base", tmp);
-      g_free (tmp);
-    }
-
-  json_object_set_array_member (obj, "rows", array );
-
   client->output_mime = g_strdup (HTTP_MIME_JSON);
   client->output_type = DS_HTTPD_OUTPUT_STRING;
 
-  node = json_node_new (JSON_NODE_OBJECT);
-
-  if (node == NULL)
-    goto request_global_get_all_links_linkbase_error;
-
-  json_node_set_object (node, obj);
-
-  gen = json_generator_new();
-
-  if (gen == NULL)
-    goto request_global_get_all_links_linkbase_error;
-
-  json_generator_set_root (gen, node );
-  client->output.string.string = json_generator_to_data (gen,&client->output_size);
+  client->output.string.string = dupin_util_json_serialize (node);
+  client->output_size = strlen(client->output.string.string);
 
   if (client->output.string.string == NULL)
     goto request_global_get_all_links_linkbase_error;
@@ -3296,11 +3207,8 @@ request_global_get_all_links_linkbase (DSHttpdClient * client,
 
   dupin_linkbase_unref (linkb);
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
-  json_object_unref (obj);
 
   if (link_rels)
     g_strfreev (link_rels);
@@ -3335,11 +3243,8 @@ request_global_get_all_links_linkbase_error:
 
   dupin_linkbase_unref (linkb);
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
-  json_object_unref (obj);
 
   if (link_rels)
     g_strfreev (link_rels);
@@ -3398,10 +3303,9 @@ request_global_get_changes_linkbase (DSHttpdClient * client,
   DupinChangesFeedType feed = DP_CHANGES_FEED_POLL;
   gboolean include_links = FALSE;
 
-  JsonObject *obj;
-  JsonNode *node=NULL;
-  JsonArray *array;
-  JsonGenerator *gen=NULL;
+  JsonObject * obj;
+  JsonNode * node = NULL;
+  JsonArray * array;
 
   for (list = arguments; list; list = list->next)
     {
@@ -3602,20 +3506,19 @@ request_global_get_changes_linkbase (DSHttpdClient * client,
       return HTTP_STATUS_500;
     }
 
+  node = json_node_new (JSON_NODE_OBJECT);
+
+  if (node == NULL)
+    goto request_global_get_changes_linkbase_error;
+
   obj = json_object_new ();
 
   if (obj == NULL)
     {
-      if( results )
-        dupin_linkbase_get_changes_list_close (results);
-
-      if (tags != NULL)
-        g_strfreev (tags);
-
-      dupin_linkbase_unref (linkb);
-      request_set_error (client, "Cannot list changes from linkbase");
-      return HTTP_STATUS_500;
+      goto request_global_get_changes_linkbase_error;
     }
+
+  json_node_take_object (node, obj);
 
   json_object_set_int_member (obj, "total_rows", total_rows);
   json_object_set_int_member (obj, "rows_per_page", count);
@@ -3624,6 +3527,8 @@ request_global_get_changes_linkbase (DSHttpdClient * client,
 
   if (array == NULL)
     goto request_global_get_changes_linkbase_error;
+
+  json_object_set_array_member (obj, "results", array );
 
   for (list = results; list; list = list->next)
     {
@@ -3642,7 +3547,6 @@ request_global_get_changes_linkbase (DSHttpdClient * client,
           if (!(link_record = dupin_link_record_read (linkb, record_id, NULL)))
             {
               json_node_free (change);
-              json_array_unref (array);
               goto request_global_get_changes_linkbase_error;
             }
 
@@ -3653,7 +3557,6 @@ request_global_get_changes_linkbase (DSHttpdClient * client,
 							  FALSE)))
             {
               json_node_free (change);
-              json_array_unref (array);
               goto request_global_get_changes_linkbase_error;
             }
 
@@ -3665,8 +3568,6 @@ request_global_get_changes_linkbase (DSHttpdClient * client,
       json_array_add_element (array, change);
     }
 
-  json_object_set_array_member (obj, "results", array );
-
   if (total_rows > 0)
     {
       json_object_set_int_member (obj, "last_seq", last_seq);
@@ -3675,20 +3576,8 @@ request_global_get_changes_linkbase (DSHttpdClient * client,
   client->output_mime = g_strdup (HTTP_MIME_JSON);
   client->output_type = DS_HTTPD_OUTPUT_STRING;
 
-  node = json_node_new (JSON_NODE_OBJECT);
-
-  if (node == NULL)
-    goto request_global_get_changes_linkbase_error;
-
-  json_node_set_object (node, obj);
-
-  gen = json_generator_new();
-
-  if (gen == NULL)
-    goto request_global_get_changes_linkbase_error;
-
-  json_generator_set_root (gen, node );
-  client->output.string.string = json_generator_to_data (gen,&client->output_size);
+  client->output.string.string = dupin_util_json_serialize (node);
+  client->output_size = strlen(client->output.string.string);
 
   if (client->output.string.string == NULL)
     goto request_global_get_changes_linkbase_error;
@@ -3701,12 +3590,8 @@ request_global_get_changes_linkbase (DSHttpdClient * client,
 
   dupin_linkbase_unref (linkb);
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
-
-  json_object_unref (obj);
 
   return HTTP_STATUS_200;
 
@@ -3720,11 +3605,8 @@ request_global_get_changes_linkbase_error:
 
   dupin_linkbase_unref (linkb);
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
-  json_object_unref (obj);
 
   request_set_error (client, "Cannot list changes from linkbase");
 
@@ -4095,17 +3977,16 @@ request_global_get_view (DSHttpdClient * client,
 			 GList * path,
 			 GList * arguments)
 {
-  GList *list;
-  DupinView *view;
+  GList * list;
+  DupinView * view;
 
-  JsonObject *obj;
-  JsonObject *subobj;
-  JsonNode *node=NULL;
-  JsonGenerator *gen=NULL;
+  JsonObject * obj;
+  JsonObject * subobj1, * subobj2;
+  JsonNode * node=NULL;
 
   for (list = arguments; list; list = list->next)
     {
-      dupin_keyvalue_t *kv = list->data;
+      dupin_keyvalue_t * kv = list->data;
 
       if (!g_strcmp0 (kv->key, REQUEST_QUERY))
 	return request_global_get_view_query (client, path, kv->value);
@@ -4119,61 +4000,59 @@ request_global_get_view (DSHttpdClient * client,
       return HTTP_STATUS_404;
     }
 
+  node = json_node_new (JSON_NODE_OBJECT);
+
+  if (node == NULL)
+    goto request_global_get_view_error;
+
   obj = json_object_new ();
 
   if (obj == NULL)
     {
       dupin_view_unref (view);
+      if (node != NULL)
+        json_node_free (node); 
       request_set_error (client, "Cannot get view information");
       return HTTP_STATUS_500;
     }
 
+  json_node_take_object (node, obj);
+
   json_object_set_string_member (obj, "view_name", (gchar *) dupin_view_get_name (view));
 
-  subobj = json_object_new ();
+  subobj1 = json_object_new ();
 
-  if (subobj == NULL)
+  if (subobj1 == NULL)
     goto request_global_get_view_error;
 
-  json_object_set_string_member (subobj, "name", (gchar *) dupin_view_get_parent (view));
-  json_object_set_boolean_member (subobj, "is_db", dupin_view_get_parent_is_db (view));
-  json_object_set_boolean_member (subobj, "is_linkb", dupin_view_get_parent_is_linkb (view));
-  json_object_set_object_member (obj, "parent", subobj );
+  //json_object_set_string_member (subobj1, "name", (gchar *) dupin_view_get_parent (view));
+  json_object_set_boolean_member (subobj1, "is_db", dupin_view_get_parent_is_db (view));
+  json_object_set_boolean_member (subobj1, "is_linkb", dupin_view_get_parent_is_linkb (view));
+  json_object_set_object_member (obj, "parent", subobj1 );
 
-  subobj = json_object_new ();
+  subobj2 = json_object_new ();
 
-  if (subobj == NULL)
+  if (subobj2 == NULL)
     goto request_global_get_view_error;
 
-  json_object_set_string_member (subobj, "name", (gchar *) dupin_view_get_output (view));
-  json_object_set_boolean_member (subobj, "is_db", dupin_view_get_output_is_db (view));
-  json_object_set_boolean_member (subobj, "is_linkb", dupin_view_get_output_is_linkb (view));
-  json_object_set_object_member (obj, "output", subobj );
-
-  subobj = json_object_new ();
-
-  if (subobj == NULL)
-    goto request_global_get_view_error;
+  json_object_set_string_member (subobj2, "name", (gchar *) dupin_view_get_output (view));
+  json_object_set_boolean_member (subobj2, "is_db", dupin_view_get_output_is_db (view));
+  json_object_set_boolean_member (subobj2, "is_linkb", dupin_view_get_output_is_linkb (view));
+  json_object_set_object_member (obj, "output", subobj2 );
+  json_object_set_string_member (obj, "language",
+					(gchar *) dupin_util_view_engine_lang_to_string (dupin_view_engine_get_language (dupin_view_get_engine (view))));
 
   /* TODO - double check that the actual Javascript code does not need any special escaping or anything here */
-  json_object_set_string_member (subobj, "code", (gchar *) dupin_view_get_map (view));
-  json_object_set_string_member (subobj, "language", (gchar *) dupin_util_mr_lang_to_string (dupin_view_get_map_language (view)));
-  json_object_set_object_member (obj, "map", subobj );
 
-  gchar * reduce = (gchar *) dupin_view_get_reduce (view);
-  gchar * reduce_lang = (gchar *) dupin_util_mr_lang_to_string (dupin_view_get_reduce_language (view));
+  json_object_set_string_member (obj, "map", (gchar *) dupin_view_engine_get_map_code (dupin_view_get_engine (view)));
+
+  gchar * reduce = (gchar *) dupin_view_engine_get_reduce_code (dupin_view_get_engine (view));
 
   if (reduce != NULL)
     {
-      subobj = json_object_new ();
-
-      if (subobj == NULL)
-        goto request_global_get_view_error;
-
       /* TODO - double check that the actual Javascript code does not need any special escaping or anything here */
-      json_object_set_string_member (subobj, "code", reduce);
-      json_object_set_string_member (subobj, "language", reduce_lang);
-      json_object_set_object_member (obj, "reduce", subobj );
+
+      json_object_set_string_member (obj, "reduce", reduce);
     }
 
   json_object_set_int_member (obj, "doc_count", dupin_view_count (view));
@@ -4191,20 +4070,9 @@ request_global_get_view (DSHttpdClient * client,
   json_object_set_boolean_member (obj, "compact_running", dupin_view_is_compacting (view));
 
   /* Writing: */
-  node = json_node_new (JSON_NODE_OBJECT);
 
-  if (node == NULL)
-    goto request_global_get_view_error;
-
-  json_node_set_object (node, obj);
-
-  gen = json_generator_new();
-
-  if (gen == NULL)
-    goto request_global_get_view_error;
-
-  json_generator_set_root (gen, node );
-  client->output.string.string = json_generator_to_data (gen,&client->output_size);
+  client->output.string.string = dupin_util_json_serialize (node);
+  client->output_size = strlen (client->output.string.string);
 
   if (client->output.string.string == NULL)
     goto request_global_get_view_error;
@@ -4212,21 +4080,18 @@ request_global_get_view (DSHttpdClient * client,
   client->output_mime = g_strdup (HTTP_MIME_JSON);
   client->output_type = DS_HTTPD_OUTPUT_STRING;
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
-  json_object_unref (obj);
+
   dupin_view_unref (view);
+
   return HTTP_STATUS_200;
 
 request_global_get_view_error:
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
-  json_object_unref (obj);
+
   dupin_view_unref (view);
 
   request_set_error (client, "Cannot get view information");
@@ -4300,10 +4165,9 @@ request_global_get_all_docs_view (DSHttpdClient * client,
   DupinFilterByType filter_op = DP_FILTERBY_UNDEF;
   gchar * filter_values = NULL;
 
-  JsonObject *obj;
-  JsonNode *node=NULL;
-  JsonArray *array;
-  JsonGenerator *gen=NULL;
+  JsonObject * obj;
+  JsonNode * node = NULL;
+  JsonArray * array;
 
   if (!
       (view =
@@ -4333,7 +4197,7 @@ request_global_get_all_docs_view (DSHttpdClient * client,
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_DOCS))
         {
-          if (view->reduce != NULL
+          if (dupin_view_engine_get_reduce_code (view->engine) != NULL
              || (g_strcmp0 (kv->value,"false") && g_strcmp0 (kv->value,"FALSE") &&
                  g_strcmp0 (kv->value,"true") && g_strcmp0 (kv->value,"TRUE")))
             {
@@ -4357,7 +4221,7 @@ request_global_get_all_docs_view (DSHttpdClient * client,
               if (parser != NULL)
                 g_object_unref (parser);
 	      
-      	      if (view->reduce != NULL)
+      	      if (dupin_view_engine_get_reduce_code (view->engine) != NULL)
                 request_set_error (client, "The " REQUEST_GET_ALL_DOCS_INCLUDE_DOCS " parameter can only be used on map only views.");
               else
                 request_set_error (client, "Invalid " REQUEST_GET_ALL_DOCS_INCLUDE_DOCS " parameter. Allowed values are: true, false");
@@ -4365,7 +4229,7 @@ request_global_get_all_docs_view (DSHttpdClient * client,
               return HTTP_STATUS_400;
             }
 
-          if (view->reduce == NULL)
+          if (dupin_view_engine_get_reduce_code (view->engine) == NULL)
             {
               include_docs = (!g_strcmp0 (kv->value,"false") || !g_strcmp0 (kv->value,"FALSE")) ? FALSE : TRUE;
             }
@@ -4856,10 +4720,30 @@ request_global_get_all_docs_view (DSHttpdClient * client,
       return HTTP_STATUS_500;
     }
 
+  node = json_node_new (JSON_NODE_OBJECT);
+
+  if (node == NULL)
+    goto request_global_get_all_docs_view_error;
+
+  obj = json_object_new ();
+
+  if (obj == NULL)
+    {
+      goto request_global_get_all_docs_view_error;
+    }
+
+  json_node_take_object (node, obj);
+
+  json_object_set_int_member (obj, "total_rows", total_rows);
+  json_object_set_int_member (obj, "offset", offset);
+  json_object_set_int_member (obj, "rows_per_page", count);
+
   array = json_array_new ();
 
   if (array == NULL)
     goto request_global_get_all_docs_view_error;
+
+  json_object_set_array_member (obj, "rows", array );
 
   /* ETag */
   GString *  whole_etag_str = g_string_new (NULL);
@@ -4887,7 +4771,6 @@ request_global_get_all_docs_view (DSHttpdClient * client,
 				    TRUE)))
         {
 	  json_node_free (result_node);
-          json_array_unref (array);
           g_string_free (whole_etag_str, TRUE);
 	  goto request_global_get_all_docs_view_error;
         }
@@ -5005,6 +4888,9 @@ request_global_get_all_docs_view (DSHttpdClient * client,
   if ((dupin_util_http_if_none_match (client->input_if_none_match, client->output_etag) == FALSE)
       && results)
     {
+      if (node != NULL)
+        json_node_free (node);
+
       if (startkey != NULL)
         g_free (startkey);
 
@@ -5037,40 +4923,13 @@ request_global_get_all_docs_view (DSHttpdClient * client,
       if (parser != NULL)
         g_object_unref (parser);
 	      
-      json_array_unref (array);
-
       return HTTP_STATUS_304;
     }
 
-  obj = json_object_new ();
-
-  if (obj == NULL)
-    {
-      json_array_unref (array);
-      goto request_global_get_all_docs_view_error;
-    }
-
-  json_object_set_int_member (obj, "total_rows", total_rows);
-  json_object_set_int_member (obj, "offset", offset);
-  json_object_set_int_member (obj, "rows_per_page", count);
-
-  json_object_set_array_member (obj, "rows", array );
-
   /* Writing: */
-  node = json_node_new (JSON_NODE_OBJECT);
 
-  if (node == NULL)
-    goto request_global_get_all_docs_view_error;
-
-  json_node_set_object (node, obj);
-
-  gen = json_generator_new();
-
-  if (gen == NULL)
-    goto request_global_get_all_docs_view_error;
-
-  json_generator_set_root (gen, node );
-  client->output.string.string = json_generator_to_data (gen,&client->output_size);
+  client->output.string.string = dupin_util_json_serialize (node);
+  client->output_size = strlen(client->output.string.string);
 
   if (client->output.string.string == NULL)
     goto request_global_get_all_docs_view_error;
@@ -5078,11 +4937,8 @@ request_global_get_all_docs_view (DSHttpdClient * client,
   client->output_mime = g_strdup (HTTP_MIME_JSON);
   client->output_type = DS_HTTPD_OUTPUT_STRING;
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
-  json_object_unref (obj);
 
   if (startkey != NULL)
     g_free (startkey);
@@ -5120,11 +4976,8 @@ request_global_get_all_docs_view (DSHttpdClient * client,
 
 request_global_get_all_docs_view_error:
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
-  json_object_unref (obj);
 
   if (startkey != NULL)
     g_free (startkey);
@@ -5171,8 +5024,7 @@ request_global_get_record_view (DSHttpdClient * client,
   DupinView *view;
   DupinViewRecord *record;
 
-  JsonNode *node=NULL;
-  JsonGenerator *gen=NULL;
+  JsonNode * node = NULL;
 
   if (!
       (view =
@@ -5192,6 +5044,7 @@ request_global_get_record_view (DSHttpdClient * client,
   /* Has the document changed ? */
 
   gboolean record_is_changed = TRUE;
+
   if (client->input_if_none_match != NULL)
     record_is_changed = dupin_util_http_if_none_match (client->input_if_none_match, dupin_view_record_get_etag (record));
   else if (client->input_if_modified_since != NULL)
@@ -5228,13 +5081,9 @@ request_global_get_record_view (DSHttpdClient * client,
     }
 
   /* Writing: */
-  gen = json_generator_new();
 
-  if (gen == NULL)
-    goto request_global_get_view_record_error;
-
-  json_generator_set_root (gen, node );
-  client->output.string.string = json_generator_to_data (gen,&client->output_size);
+  client->output.string.string = dupin_util_json_serialize (node);
+  client->output_size = strlen(client->output.string.string);
 
   if (client->output.string.string == NULL)
     goto request_global_get_view_record_error;
@@ -5250,8 +5099,6 @@ request_global_get_record_view (DSHttpdClient * client,
   client->output_mime = g_strdup (HTTP_MIME_JSON);
   client->output_type = DS_HTTPD_OUTPUT_STRING;
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
 
@@ -5262,8 +5109,6 @@ request_global_get_record_view (DSHttpdClient * client,
 
 request_global_get_view_record_error:
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
 
@@ -5286,9 +5131,8 @@ request_global_get_database_query (DSHttpdClient * client,
   GList *results;
   gsize offset = 0;
 
-  JsonArray *array;
-  JsonNode *node=NULL;
-  JsonGenerator *gen=NULL;
+  JsonArray * array;
+  JsonNode * node = NULL;
 
   if (!
       (db =
@@ -5298,7 +5142,17 @@ request_global_get_database_query (DSHttpdClient * client,
       return HTTP_STATUS_404;
     }
 
+  node = json_node_new (JSON_NODE_ARRAY);
+
+  if (node == NULL)
+    goto request_global_get_database_query_error;
+
   array = json_array_new ();
+  
+  if (array == NULL)
+    goto request_global_get_database_query_error;
+
+  json_node_take_array (node, array);
 
   while (dupin_record_get_list (db, QUERY_BLOCK, offset, 0, 0, NULL, NULL, NULL, TRUE, DP_COUNT_EXIST, DP_ORDERBY_ROWID,
 					FALSE, NULL, DP_FILTERBY_EQUALS, 
@@ -5331,20 +5185,8 @@ request_global_get_database_query (DSHttpdClient * client,
       dupin_record_get_list_close (results);
     }
 
-  node = json_node_new (JSON_NODE_ARRAY);
-
-  if (node == NULL)
-    goto request_global_get_database_query_error;
-
-  json_node_set_array (node, array);
-
-  gen = json_generator_new();
-
-  if (gen == NULL)
-    goto request_global_get_database_query_error;
-
-  json_generator_set_root (gen, node );
-  client->output.string.string = json_generator_to_data (gen,&client->output_size);
+  client->output.string.string = dupin_util_json_serialize (node);
+  client->output_size = strlen(client->output.string.string);
 
   if (client->output.string.string == NULL)
     goto request_global_get_database_query_error;
@@ -5352,21 +5194,18 @@ request_global_get_database_query (DSHttpdClient * client,
   client->output_mime = g_strdup (HTTP_MIME_JSON);
   client->output_type = DS_HTTPD_OUTPUT_STRING;
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
-  json_array_unref (array);
+
   dupin_database_unref (db);
+
   return HTTP_STATUS_200;
 
 request_global_get_database_query_error:
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
-  json_array_unref (array);
+
   dupin_database_unref (db);
 
   request_set_error (client, "Cannot query database");
@@ -5385,7 +5224,6 @@ request_global_get_linkbase_query (DSHttpdClient * client,
 
   JsonArray *array;
   JsonNode *node=NULL;
-  JsonGenerator *gen=NULL;
 
   if (!
       (linkb =
@@ -5395,7 +5233,17 @@ request_global_get_linkbase_query (DSHttpdClient * client,
       return HTTP_STATUS_404;
     }
 
+  node = json_node_new (JSON_NODE_ARRAY);
+
+  if (node == NULL)
+    goto request_global_get_linkbase_query_error;
+
   array = json_array_new ();
+
+  if (array == NULL)
+    goto request_global_get_linkbase_query_error;
+
+  json_node_take_array (node, array);
 
   while (dupin_link_record_get_list (linkb, QUERY_BLOCK, offset, 0, 0, DP_LINK_TYPE_ANY, NULL, NULL, NULL, TRUE, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE,
 					NULL, NULL, DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS, NULL, 
@@ -5429,20 +5277,8 @@ request_global_get_linkbase_query (DSHttpdClient * client,
       dupin_link_record_get_list_close (results);
     }
 
-  node = json_node_new (JSON_NODE_ARRAY);
-
-  if (node == NULL)
-    goto request_global_get_linkbase_query_error;
-
-  json_node_set_array (node, array);
-
-  gen = json_generator_new();
-
-  if (gen == NULL)
-    goto request_global_get_linkbase_query_error;
-
-  json_generator_set_root (gen, node );
-  client->output.string.string = json_generator_to_data (gen,&client->output_size);
+  client->output.string.string = dupin_util_json_serialize (node);
+  client->output_size = strlen(client->output.string.string);
 
   if (client->output.string.string == NULL)
     goto request_global_get_linkbase_query_error;
@@ -5450,21 +5286,18 @@ request_global_get_linkbase_query (DSHttpdClient * client,
   client->output_mime = g_strdup (HTTP_MIME_JSON);
   client->output_type = DS_HTTPD_OUTPUT_STRING;
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
-  json_array_unref (array);
+
   dupin_linkbase_unref (linkb);
+
   return HTTP_STATUS_200;
 
 request_global_get_linkbase_query_error:
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
-  json_array_unref (array);
+
   dupin_linkbase_unref (linkb);
 
   request_set_error (client, "Cannot query linkbase");
@@ -5483,7 +5316,6 @@ request_global_get_view_query (DSHttpdClient * client,
 
   JsonArray *array;
   JsonNode *node=NULL;
-  JsonGenerator *gen=NULL;
 
   if (!
       (view =
@@ -5493,7 +5325,17 @@ request_global_get_view_query (DSHttpdClient * client,
       return HTTP_STATUS_404;
     }
 
+  node = json_node_new (JSON_NODE_ARRAY);
+
+  if (node == NULL)
+    goto request_global_get_view_query_error;
+
   array = json_array_new ();
+
+  if (array == NULL)
+    goto request_global_get_view_query_error;
+
+  json_node_take_array (node, array);
 
   while (dupin_view_record_get_list (view, QUERY_BLOCK, offset, 0, 0, DP_ORDERBY_KEY, FALSE, NULL, NULL, NULL, TRUE, NULL, NULL, TRUE,
 					NULL, DP_FIELDS_FORMAT_DOTTED, DP_FILTERBY_EQUALS, NULL, &results, NULL) == TRUE
@@ -5526,20 +5368,8 @@ request_global_get_view_query (DSHttpdClient * client,
       dupin_view_record_get_list_close (results);
     }
 
-  node = json_node_new (JSON_NODE_ARRAY);
-
-  if (node == NULL)
-    goto request_global_get_view_query_error;
-
-  json_node_set_array (node, array);
-
-  gen = json_generator_new();
-
-  if (gen == NULL)
-    goto request_global_get_view_query_error;
-
-  json_generator_set_root (gen, node );
-  client->output.string.string = json_generator_to_data (gen,&client->output_size);
+  client->output.string.string = dupin_util_json_serialize (node);
+  client->output_size = strlen(client->output.string.string);
 
   if (client->output.string.string == NULL)
     goto request_global_get_view_query_error;
@@ -5547,21 +5377,18 @@ request_global_get_view_query (DSHttpdClient * client,
   client->output_mime = g_strdup (HTTP_MIME_JSON);
   client->output_type = DS_HTTPD_OUTPUT_STRING;
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
-  json_array_unref (array);
+
   dupin_view_unref (view);
+
   return HTTP_STATUS_200;
 
 request_global_get_view_query_error:
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
-  json_array_unref (array);
+
   dupin_view_unref (view);
 
   request_set_error (client, "Cannot query view");
@@ -6701,10 +6528,9 @@ request_global_put_view (DSHttpdClient * client,
   const gchar *parent = NULL;
   gboolean parent_is_db = FALSE;
   gboolean parent_is_linkb = FALSE;
+  const gchar *language = "javascript";
   const gchar *map = NULL;
-  const gchar *map_lang = "javascript";
   const gchar *reduce = NULL;
-  const gchar *reduce_lang = "javascript";
   const gchar *output = NULL;
   gboolean output_is_db = FALSE;
   gboolean output_is_linkb = FALSE;
@@ -6752,6 +6578,8 @@ request_global_put_view (DSHttpdClient * client,
       code = HTTP_STATUS_400;
       goto request_global_put_view_error;
     }
+
+  //DUPIN_UTIL_DUMP_JSON ("VIEW", node);
 
   obj = json_node_get_object (node); /* it is a volatile object part of parser as well as node - see docs */
 
@@ -6816,67 +6644,41 @@ request_global_put_view (DSHttpdClient * client,
           g_list_free (subnodes);
 	}
 
-      else if (!g_strcmp0 (member_name, "map")
-	       && json_node_get_node_type (subnode) == JSON_NODE_OBJECT)
+      else if (!g_strcmp0 (member_name, "language")
+	       && json_node_get_value_type (subnode) == G_TYPE_STRING) /* check this is correct type */
 	{
-          JsonObject *subobj = json_node_get_object (subnode);
-          GList *subnodes = json_object_get_members (subobj);
-	  GList *sn;
+	  language = json_node_get_string (subnode);
+	}
 
-          for (sn = subnodes; sn != NULL; sn = sn->next)
-	    {
-              gchar *sub_member_name = (gchar *) sn->data;
-              JsonNode *sub_subnode = json_object_get_member (subobj, sub_member_name);
-
-	      if (!g_strcmp0 (sub_member_name, "code")
-		  && json_node_get_value_type (sub_subnode) == G_TYPE_STRING) /* check this is correct type */
-		map = json_node_get_string (sub_subnode);
-
-	      else if (!g_strcmp0 (sub_member_name, "language")
-		  && json_node_get_value_type (sub_subnode) == G_TYPE_STRING) /* check this is correct type */
-		map_lang = json_node_get_string (sub_subnode);
-	    }
-          g_list_free (subnodes);
+      else if (!g_strcmp0 (member_name, "map")
+	       && json_node_get_value_type (subnode) == G_TYPE_STRING) /* check this is correct type */
+	{
+	  map = json_node_get_string (subnode);
 	}
 
       else if (!g_strcmp0 (member_name, "reduce")
-	       && json_node_get_node_type (subnode) == JSON_NODE_OBJECT)
+	       && json_node_get_value_type (subnode) == G_TYPE_STRING) /* check this is correct type */
 	{
-          JsonObject *subobj = json_node_get_object (subnode);
-          GList *subnodes = json_object_get_members (subobj);
-	  GList *sn;
-
-          for (sn = subnodes; sn != NULL; sn = sn->next)
-	    {
-              gchar *sub_member_name = (gchar *) sn->data;
-              JsonNode *sub_subnode = json_object_get_member (subobj, sub_member_name);
-
-	      if (!g_strcmp0 (sub_member_name, "code")
-		  && json_node_get_value_type (sub_subnode) == G_TYPE_STRING) /* check this is correct type */
-		reduce = json_node_get_string (sub_subnode);
-
-	      else if (!g_strcmp0 (sub_member_name, "language")
-		  && json_node_get_value_type (sub_subnode) == G_TYPE_STRING) /* check this is correct type */
-		reduce_lang = json_node_get_string (sub_subnode);
-	    }
-          g_list_free (subnodes);
+	  reduce = json_node_get_string (subnode);
 	}
     }
   g_list_free (nodes);
 
-  if (!map || !map_lang || !parent)
+  if (!language || !map || !parent)
     {
-      request_set_error (client, "No map, map language or parent fields defined");
+      request_set_error (client, "No language, map or parent fields specified");
       code = HTTP_STATUS_400;
       goto request_global_put_view_error;
     }
 
   if (!
       (view =
-       dupin_view_new (client->thread->data->dupin, path->next->data, (gchar *)parent,
-		       parent_is_db, parent_is_linkb, (gchar *)map,
-		       dupin_util_mr_lang_to_enum ((gchar *)map_lang), (gchar *)reduce,
-		       dupin_util_mr_lang_to_enum ((gchar *)reduce_lang),
+       dupin_view_new (client->thread->data->dupin,
+		       path->next->data,
+		       (gchar *)parent, parent_is_db, parent_is_linkb,
+		       dupin_util_view_engine_lang_to_enum ((gchar *)language),
+		       (gchar *)map,
+		       (gchar *)reduce,
 		       (gchar *)output, output_is_db, output_is_linkb, &error)))
     {
       if (error)
@@ -8177,7 +7979,6 @@ request_record_response (DSHttpdClient * client,
 			 GList * response_list,
 			 gboolean is_bulk)
 {
-  JsonGenerator *gen=NULL;
   JsonNode *response_node=NULL;
 
 /*
@@ -8229,13 +8030,13 @@ request_record_response (DSHttpdClient * client,
 
       JsonArray * response_array = json_array_new ();
 
-      json_node_take_array (response_node, response_array);
-
       if (response_array == NULL)
         {
           json_node_free (response_node);
           return FALSE;
         }
+
+      json_node_take_array (response_node, response_array);
 
       for (; response_list; response_list = response_list->next)
         {
@@ -8244,14 +8045,8 @@ request_record_response (DSHttpdClient * client,
         }
     }
 
-  gen = json_generator_new();
-
-  if (gen == NULL)
-    goto request_record_response_error;
- 
-  json_generator_set_root (gen, response_node );
-
-  client->output.string.string = json_generator_to_data (gen,&client->output_size);
+  client->output.string.string = dupin_util_json_serialize (response_node);
+  client->output_size = strlen(client->output.string.string);
  
   if (client->output.string.string == NULL)
     goto request_record_response_error;
@@ -8259,8 +8054,6 @@ request_record_response (DSHttpdClient * client,
   client->output_mime = g_strdup (HTTP_MIME_JSON);
   client->output_type = DS_HTTPD_OUTPUT_STRING;
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (response_node != NULL)
     json_node_free (response_node);
 
@@ -8268,8 +8061,6 @@ request_record_response (DSHttpdClient * client,
 
 request_record_response_error:
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (response_node != NULL)
     json_node_free (response_node);
 
@@ -9853,10 +9644,9 @@ request_global_get_portable_listings (DSHttpdClient * client,
   guint offset = 0;
   gsize total_rows = 0;
 
-  JsonObject *obj;
-  JsonNode *node=NULL;
-  JsonArray *array;
-  JsonGenerator *gen=NULL;
+  JsonObject * obj;
+  JsonNode * node = NULL;
+  JsonArray * array;
 
   gsize created = 0;
   DupinCreatedType created_op = DP_CREATED_SINCE;
@@ -10089,19 +9879,19 @@ request_global_get_portable_listings (DSHttpdClient * client,
       return HTTP_STATUS_500;
     }
 
+  node = json_node_new (JSON_NODE_OBJECT);
+
+  if (node == NULL)
+    goto request_global_get_portable_listings_error;
+
   obj = json_object_new ();
 
   if (obj == NULL)
     {
-      if( results )
-        dupin_record_get_list_close (results);
-
-      dupin_database_unref (db);
-      if (types)
-        g_strfreev (types);
-      request_set_error (client, "Cannot list documents from database");
-      return HTTP_STATUS_500;
+      goto request_global_get_portable_listings_error;
     }
+
+  json_node_take_object (node, obj);
 
   json_object_set_int_member (obj, "totalResults", total_rows);
   json_object_set_int_member (obj, "startIndex", offset);
@@ -10124,16 +9914,17 @@ request_global_get_portable_listings (DSHttpdClient * client,
   if (array == NULL)
     goto request_global_get_portable_listings_error;
 
+  json_object_set_array_member (obj, "entry", array );
+
   for (list = results; list; list = list->next)
     {
       DupinRecord *record = list->data;
 
       JsonNode *on;
       if (!  (on = request_record_revision_obj (client, arguments,
-					record, (gchar *) dupin_record_get_id (record),
-					dupin_record_get_last_revision (record), TRUE)))
+					        record, (gchar *) dupin_record_get_id (record),
+					        dupin_record_get_last_revision (record), TRUE)))
         {
-	  json_array_unref (array);
 	  goto request_global_get_portable_listings_error;
         }
 
@@ -10292,25 +10083,11 @@ request_global_get_portable_listings (DSHttpdClient * client,
       json_array_add_element( array, on);
     }
 
-  json_object_set_array_member (obj, "entry", array );
-
   client->output_mime = g_strdup (HTTP_MIME_PORTABLE_LISTINGS_JSON);
   client->output_type = DS_HTTPD_OUTPUT_STRING;
 
-  node = json_node_new (JSON_NODE_OBJECT);
-
-  if (node == NULL)
-    goto request_global_get_portable_listings_error;
-
-  json_node_set_object (node, obj);
-
-  gen = json_generator_new();
-
-  if (gen == NULL)
-    goto request_global_get_portable_listings_error;
-
-  json_generator_set_root (gen, node );
-  client->output.string.string = json_generator_to_data (gen,&client->output_size);
+  client->output.string.string = dupin_util_json_serialize (node);
+  client->output_size = strlen(client->output.string.string);
 
   if (client->output.string.string == NULL)
     goto request_global_get_portable_listings_error;
@@ -10320,11 +10097,8 @@ request_global_get_portable_listings (DSHttpdClient * client,
 
   dupin_database_unref (db);
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
-  json_object_unref (obj);
 
   if (types)
     g_strfreev (types);
@@ -10338,11 +10112,8 @@ request_global_get_portable_listings_error:
 
   dupin_database_unref (db);
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
-  json_object_unref (obj);
 
   if (types)
     g_strfreev (types);
@@ -10519,9 +10290,9 @@ request_global_get_portable_listings_record (DSHttpdClient * client,
   mvcc = dupin_record_get_last_revision (record);
 
   if (!  (node_temp = request_record_revision_obj (client, arguments,
-					record, (gchar *) dupin_record_get_id (record),
-					mvcc,
-					TRUE)))
+					           record, (gchar *) dupin_record_get_id (record),
+						   mvcc,
+						   TRUE)))
     {
       dupin_record_close (record);
       dupin_database_unref (db);
@@ -10685,15 +10456,31 @@ request_global_get_portable_listings_record (DSHttpdClient * client,
     }
 
   JsonNode * entry = json_node_new (JSON_NODE_OBJECT);
+
+  if (entry == NULL)
+    {
+      if (node_temp != NULL)
+        json_node_free (node_temp);
+
+      goto request_global_get_portable_listings_record_error;
+    }
+
   JsonObject * entry_obj = json_object_new ();
+
+  if (entry_obj == NULL)
+    {
+      if (node_temp != NULL)
+        json_node_free (node_temp);
+
+      goto request_global_get_portable_listings_record_error;
+    }
+
   json_node_take_object (entry, entry_obj);
 
-  json_object_set_member (entry_obj, "entry", json_node_copy (node_temp));
+  json_object_set_member (entry_obj, "entry", node_temp);
 
   if (declining_filtered == TRUE)
     json_object_set_boolean_member (entry_obj, "filtered", FALSE);
-
-  json_node_free (node_temp);
 
   /* Writing: */
 
@@ -10710,6 +10497,7 @@ request_global_get_portable_listings_record (DSHttpdClient * client,
     json_node_free (entry);
 
   dupin_record_close (record);
+
   dupin_database_unref (db);
 
   g_free (doc_id);
@@ -10719,6 +10507,7 @@ request_global_get_portable_listings_record (DSHttpdClient * client,
 request_global_get_portable_listings_record_error:
 
   dupin_record_close (record);
+
   dupin_database_unref (db);
 
   g_free (doc_id);
@@ -10782,10 +10571,9 @@ request_global_get_portable_listings_record_relationship (DSHttpdClient * client
 
   gchar * fields = NULL;
 
-  JsonObject *obj;
-  JsonNode *node=NULL;
-  JsonArray *array;
-  JsonGenerator *gen=NULL;
+  JsonObject * obj;
+  JsonNode * node = NULL;
+  JsonArray * array;
 
   gchar * linkbase_name = (gchar *) path->data;
 
@@ -10995,20 +10783,19 @@ request_global_get_portable_listings_record_relationship (DSHttpdClient * client
       return HTTP_STATUS_500;
     }
 
+  node = json_node_new (JSON_NODE_OBJECT);
+
+  if (node == NULL)
+    goto request_global_get_portable_listings_record_relationship_error;
+
   obj = json_object_new ();
 
   if (obj == NULL)
     {
-      if( results )
-        dupin_link_record_get_list_close (results);
-
-      if (link_labels)
-        g_strfreev (link_labels);
-
-      dupin_linkbase_unref (linkb);
-      request_set_error (client, "Cannot get list of links from linkabse");
-      return HTTP_STATUS_500;
+      goto request_global_get_portable_listings_record_relationship_error;
     }
+
+  json_node_take_object (node, obj);
 
   json_object_set_int_member (obj, "totalResults", total_rows);
   json_object_set_int_member (obj, "startIndex", offset);
@@ -11031,22 +10818,28 @@ request_global_get_portable_listings_record_relationship (DSHttpdClient * client
   if (array == NULL)
     goto request_global_get_portable_listings_record_relationship_error;
 
+  json_object_set_array_member (obj, "entry", array );
+
   for (list = results; list; list = list->next)
     {
       DupinLinkRecord *record = list->data;
 
       JsonNode *temp_node;
       if (!  (temp_node = request_link_record_revision_obj (client, arguments,
-					     record, (gchar *) dupin_link_record_get_id (record),
-			       		     dupin_link_record_get_last_revision (record),
-					     TRUE)))
+					     		    record, (gchar *) dupin_link_record_get_id (record),
+			       		     		    dupin_link_record_get_last_revision (record),
+					     		    TRUE)))
         {
-	  json_array_unref (array);
 	  goto request_global_get_portable_listings_record_relationship_error;
         }
 
       if (json_object_has_member (json_node_get_object (temp_node), RESPONSE_LINK_OBJ_DOC_OUT) == FALSE)
-        continue;
+        {
+          if (temp_node != NULL)
+	    json_node_free (temp_node);
+
+          continue;
+        }
 
       JsonNode *on = json_node_copy (json_object_get_member (json_node_get_object (temp_node), RESPONSE_LINK_OBJ_DOC_OUT));
 
@@ -11206,25 +10999,11 @@ request_global_get_portable_listings_record_relationship (DSHttpdClient * client
       json_array_add_element( array, on);
     }
 
-  json_object_set_array_member (obj, "entry", array );
-
   client->output_mime = g_strdup (HTTP_MIME_PORTABLE_LISTINGS_JSON);
   client->output_type = DS_HTTPD_OUTPUT_STRING;
 
-  node = json_node_new (JSON_NODE_OBJECT);
-
-  if (node == NULL)
-    goto request_global_get_portable_listings_record_relationship_error;
-
-  json_node_set_object (node, obj);
-
-  gen = json_generator_new();
-
-  if (gen == NULL)
-    goto request_global_get_portable_listings_record_relationship_error;
-
-  json_generator_set_root (gen, node );
-  client->output.string.string = json_generator_to_data (gen,&client->output_size);
+  client->output.string.string = dupin_util_json_serialize (node);
+  client->output_size = strlen(client->output.string.string);
 
   if (client->output.string.string == NULL)
     goto request_global_get_portable_listings_record_relationship_error;
@@ -11234,11 +11013,8 @@ request_global_get_portable_listings_record_relationship (DSHttpdClient * client
 
   dupin_linkbase_unref (linkb);
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
-  json_object_unref (obj);
 
   if (link_labels)
     g_strfreev (link_labels);
@@ -11252,11 +11028,8 @@ request_global_get_portable_listings_record_relationship_error:
 
   dupin_linkbase_unref (linkb);
 
-  if (gen != NULL)
-    g_object_unref (gen);
   if (node != NULL)
     json_node_free (node);
-  json_object_unref (obj);
 
   if (link_labels)
     g_strfreev (link_labels);

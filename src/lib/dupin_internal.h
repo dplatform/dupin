@@ -204,11 +204,7 @@ struct dupin_view_t
 
   sqlite3 *	db;
 
-  gchar *	map;
-  DupinMRLang	map_lang;
-
-  gchar *	reduce;
-  DupinMRLang	reduce_lang;
+  DupinViewEngine * engine;
 
   JsonParser *	collation_parser;
 
@@ -221,6 +217,36 @@ struct dupin_view_t
   guint		deletes_queue_size;
 
   gsize		creation_time;
+};
+
+/* WebKit specific JavaScript */
+
+struct dupin_webkit_t
+{
+  Dupin *	d;
+
+  JSGlobalContextRef ctx;
+  JSObjectRef globalObject;
+
+  /* TODO - Add union with more engines (e.g. Google V8/NodeJS) */
+};
+
+struct dupin_view_engine_t
+{
+  Dupin *	      d;
+
+  DupinViewEngineLang language;
+
+  gchar *             map_code;
+  gchar *             reduce_code;
+
+  union
+  {
+    struct
+    {
+      DupinWebKit *   webkit;
+    } javascript;
+  } runtime;
 };
 
 struct dupin_attachment_db_t
@@ -358,12 +384,6 @@ struct dupin_view_record_t
   gchar *	obj_serialized;
   gsize		obj_serialized_len;
   JsonNode *    obj;
-};
-
-struct dupin_js_t
-{
-  JsonNode *	reduceResult;
-  JsonArray *	mapResults;
 };
 
 DupinDB *	dupin_db_connect

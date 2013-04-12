@@ -69,12 +69,12 @@ typedef enum
   DP_CHANGES_FEED_CONTINUOUS
 } DupinChangesFeedType;
 
-/* Languages: */
+/* View Engine Languages: */
 typedef enum
 {
-  DP_MR_LANG_JAVASCRIPT = 0,
-  DP_MR_LANG_DUPIN_GI
-} DupinMRLang;
+  DP_VIEW_ENGINE_LANG_JAVASCRIPT = 0,
+  DP_VIEW_ENGINE_LANG_DUPIN_GI /* TODO */
+} DupinViewEngineLang;
 
 /* OrderBy type: */ 
 typedef enum
@@ -135,11 +135,15 @@ typedef struct dupin_view_record_t	DupinViewRecord;
 typedef struct dupin_view_t		DupinView;
 typedef struct dupin_attachment_db_t		DupinAttachmentDB;
 typedef struct dupin_attachment_record_t	DupinAttachmentRecord;
-typedef struct dupin_js_t		DupinJs;
+typedef struct dupin_webkit_t		DupinWebKit;
+typedef struct dupin_view_engine_t	DupinViewEngine;
 typedef struct dupin_linkb_t		DupinLinkB;
 typedef struct dupin_link_record_t	DupinLinkRecord;
 
-#define DUPIN_DEBUG	0
+#define DUPIN_DEBUG		0
+#define DUPIN_VIEW_DEBUG	0
+
+#define DUPIN_UNKNOWN_ERROR 	"Unknown Error"
 
 /* wait 30 second timeout by default if "database is locked" before failing */
 #define DUPIN_SQLITE_TIMEOUT		30000
@@ -455,8 +459,8 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 #include <dupin_view.h>
 #include <dupin_attachment_db.h>
 #include <dupin_linkb.h>
-#include <dupin_mr.h>
-#include <dupin_js.h>
+#include <dupin_view_engine.h>
+#include <dupin_webkit.h>
 
 #include <dupin_internal.h>
 #include <dupin_utils.h>

@@ -5,96 +5,162 @@
 #include "dupin_internal.h"
 #include "dupin_utils.h"
 #include "dupin_date.h"
-#include "dupin_js.h"
+#include "dupin_webkit.h"
 
 #include <string.h>
 
-#define DUPIN_JS_FUNCTION_SUM "function sum(values) { var rv = 0; for (var i in values) { rv += values[i]; } return rv; };\n"
+#define DUPIN_WEBKIT_FUNCTION_SUM "function sum (values) { var rv = 0; for (var i in values) { rv += values[i]; } return rv; };\n"
 
-static JSValueRef dupin_js_emit (JSContextRef ctx,
-					     JSObjectRef object,
-					     JSObjectRef thisObject,
-					     size_t argumentCount,
-					     const JSValueRef arguments[],
-					     JSValueRef * exception);
+static JSValueRef dupin_webkit_emit	(JSContextRef ctx,
+			 	     	 JSObjectRef object,
+				     	 JSObjectRef thisObject,
+				     	 size_t argumentCount,
+				     	 const JSValueRef arguments[],
+				     	 JSValueRef * exception);
 
-static gchar* dupin_js_string_utf8 (JSStringRef js_string);
+static gchar* dupin_webkit_string_utf8	(JSStringRef js_string);
 
-static void dupin_js_obj (JSContextRef ctx, JSValueRef object_value,
-			  JsonNode ** obj_node);
+static void dupin_webkit_obj 		(JSContextRef ctx,
+					 JSValueRef object_value,
+			  		 JsonNode ** obj_node);
 
-static void dupin_js_value (JSContextRef ctx, JSValueRef value,
-                          JsonNode ** v);
+static void dupin_webkit_value 		(JSContextRef ctx,
+					 JSValueRef value,
+                          		 JsonNode ** v);
 
-static JSValueRef dupin_js_dupin_class_log (JSContextRef ctx,
-					    JSObjectRef object,
-					    JSObjectRef thisObject,
-					    size_t argumentCount,
-					    const JSValueRef arguments[],
-					    JSValueRef * exception);
+static JSValueRef dupin_webkit_dupin_class_log
+					(JSContextRef ctx,
+					 JSObjectRef object,
+					 JSObjectRef thisObject,
+					 size_t argumentCount,
+					 const JSValueRef arguments[],
+					 JSValueRef * exception);
 
-static JSValueRef dupin_js_dupin_class_view_lookup
-					   (JSContextRef ctx,
-					    JSObjectRef object,
-					    JSObjectRef thisObject,
-					    size_t argumentCount,
-					    const JSValueRef arguments[],
-					    JSValueRef * exception);
+static JSValueRef dupin_webkit_dupin_class_view_lookup
+					(JSContextRef ctx,
+					 JSObjectRef object,
+					 JSObjectRef thisObject,
+					 size_t argumentCount,
+					 const JSValueRef arguments[],
+					 JSValueRef * exception);
 
-static JSValueRef dupin_js_dupin_class_links
-					   (JSContextRef ctx,
-					    JSObjectRef object,
-		   	       		    JSObjectRef thisObject,
-					    size_t argumentCount,
-		   	       		    const JSValueRef arguments[],
-		   	       		    JSValueRef * exception);
+static JSValueRef dupin_webkit_dupin_class_links
+					(JSContextRef ctx,
+					 JSObjectRef object,
+		   	       		 JSObjectRef thisObject,
+					 size_t argumentCount,
+		   	       		 const JSValueRef arguments[],
+		   	       		 JSValueRef * exception);
 
-static JSValueRef dupin_js_dupin_class_util_hash (JSContextRef ctx,
-					          JSObjectRef object,
-					          JSObjectRef thisObject,
-					          size_t argumentCount,
-					          const JSValueRef arguments[],
-					          JSValueRef * exception);
+static JSValueRef dupin_webkit_dupin_class_util_hash
+					(JSContextRef ctx,
+					 JSObjectRef object,
+					 JSObjectRef thisObject,
+					 size_t argumentCount,
+					 const JSValueRef arguments[],
+					 JSValueRef * exception);
 
-static JSValueRef dupin_js_dupin_class_util_base64_encode
-						(JSContextRef ctx,
-					         JSObjectRef object,
-					         JSObjectRef thisObject,
-					         size_t argumentCount,
-					         const JSValueRef arguments[],
-					         JSValueRef * exception);
+static JSValueRef dupin_webkit_dupin_class_util_base64_encode
+					(JSContextRef ctx,
+					 JSObjectRef object,
+					 JSObjectRef thisObject,
+					 size_t argumentCount,
+					 const JSValueRef arguments[],
+					 JSValueRef * exception);
 
-static JSValueRef dupin_js_dupin_class_util_base64_decode
-						(JSContextRef ctx,
-					         JSObjectRef object,
-					         JSObjectRef thisObject,
-					         size_t argumentCount,
-					         const JSValueRef arguments[],
-					         JSValueRef * exception);
+static JSValueRef dupin_webkit_dupin_class_util_base64_decode
+					(JSContextRef ctx,
+					 JSObjectRef object,
+					 JSObjectRef thisObject,
+					 size_t argumentCount,
+					 const JSValueRef arguments[],
+					 JSValueRef * exception);
 
-static JSValueRef dupin_js_dupin_class_util_http_client
-					   (JSContextRef ctx,
-					    JSObjectRef object,
-		   	       		    JSObjectRef thisObject,
-					    size_t argumentCount,
-		   	       		    const JSValueRef arguments[],
-		   	       		    JSValueRef * exception);
+static JSValueRef dupin_webkit_dupin_class_util_http_client
+					(JSContextRef ctx,
+					 JSObjectRef object,
+		   	       		 JSObjectRef thisObject,
+					 size_t argumentCount,
+		   	       		 const JSValueRef arguments[],
+		   	       		 JSValueRef * exception);
 
-static JSStaticFunction dupin_js_dupin_class_static_functions[] = {
-    { "log", dupin_js_dupin_class_log, kJSPropertyAttributeNone },
-    { "view_lookup", dupin_js_dupin_class_view_lookup, kJSPropertyAttributeNone },
-    { "links", dupin_js_dupin_class_links, kJSPropertyAttributeNone },
-    { "util_hash", dupin_js_dupin_class_util_hash, kJSPropertyAttributeNone },
-    { "util_base64_encode", dupin_js_dupin_class_util_base64_encode, kJSPropertyAttributeNone },
-    { "util_base64_decode", dupin_js_dupin_class_util_base64_decode, kJSPropertyAttributeNone },
-    { "util_http_client", dupin_js_dupin_class_util_http_client, kJSPropertyAttributeNone },
+static JSStaticFunction dupin_webkit_dupin_class_static_functions[] = {
+    { "log", dupin_webkit_dupin_class_log, kJSPropertyAttributeNone },
+    { "view_lookup", dupin_webkit_dupin_class_view_lookup, kJSPropertyAttributeNone },
+    { "links", dupin_webkit_dupin_class_links, kJSPropertyAttributeNone },
+    { "util_hash", dupin_webkit_dupin_class_util_hash, kJSPropertyAttributeNone },
+    { "util_base64_encode", dupin_webkit_dupin_class_util_base64_encode, kJSPropertyAttributeNone },
+    { "util_base64_decode", dupin_webkit_dupin_class_util_base64_decode, kJSPropertyAttributeNone },
+    { "util_http_client", dupin_webkit_dupin_class_util_http_client, kJSPropertyAttributeNone },
     { 0, 0, 0 }
 };
 
 /* TODO */
-static JSStaticValue dupin_js_dupin_class_static_values[] = {
+static JSStaticValue dupin_webkit_dupin_class_static_values[] = {
     { 0, 0, 0, 0 }
 };
+
+DupinWebKit *
+dupin_webkit_new (Dupin * d,
+	          GError ** error)
+{
+  g_return_val_if_fail (d != NULL, NULL);
+
+  DupinWebKit *js;
+
+  JSStringRef str;
+  JSObjectRef func;
+
+  js = g_malloc0 (sizeof (DupinWebKit));
+
+  js->d = d;
+  js->ctx = JSGlobalContextCreate (NULL);
+
+  /*
+     TODO
+        -> we should have ctx in scope of of caller to avoid too many of these and
+           if we do it, note we could have multiple views, so we should have the
+           global state in context kept per view (E.g. an object or array of states)
+  */
+
+  /* Setup JavaScript environment */
+
+  static JSClassRef jsDupinClass;
+  JSClassDefinition dupin_class_def = kJSClassDefinitionEmpty;
+  dupin_class_def.className = "Dupin";
+  dupin_class_def.staticFunctions = dupin_webkit_dupin_class_static_functions;
+  dupin_class_def.staticValues = dupin_webkit_dupin_class_static_values;
+
+  if (!jsDupinClass)
+    jsDupinClass = JSClassCreate (&dupin_class_def);
+
+  JSObjectRef globalObject = JSContextGetGlobalObject(js->ctx);
+
+  JSObjectRef DupinObject = JSObjectMake(js->ctx, jsDupinClass, js->d);
+  str = JSStringCreateWithUTF8CString("dupin");
+  JSObjectSetProperty(js->ctx, globalObject, str, DupinObject, kJSPropertyAttributeNone, NULL);
+  JSStringRelease(str);
+
+  /* register call back fro emit (k,v) */
+
+  str = JSStringCreateWithUTF8CString ("emit");
+  func = JSObjectMakeFunctionWithCallback (js->ctx, str, dupin_webkit_emit);
+  JSObjectSetProperty (js->ctx, globalObject, str, func,
+                       kJSPropertyAttributeNone, NULL);
+  JSStringRelease (str);
+
+  return js;
+}
+
+void
+dupin_webkit_free (DupinWebKit * js)
+{
+  g_return_if_fail (js != NULL);
+
+  JSGlobalContextRelease (js->ctx);
+
+  g_free (js);
+}
 
 /*
  See http://wiki.apache.org/couchdb/Introduction_to_CouchDB_views#Concept
@@ -105,19 +171,13 @@ static JSStaticValue dupin_js_dupin_class_static_values[] = {
   }
  */
 
-DupinJs *
-dupin_js_new_map (Dupin *    	 d,
+JsonNode *
+dupin_webkit_map (DupinWebKit *  js,
 		  gchar *        js_json_doc,
                   gchar *        js_code,
-                  gchar**        exception_string)
+                  gchar **       exception_string)
 {
-  DupinJs *js;
-  JSGlobalContextRef ctx;
-
-  JSStringRef str;
-  JSObjectRef func, array, globalObject;
-  JSValueRef p, result;
-  JSValueRef js_exception=NULL;
+  g_return_val_if_fail (js != NULL, NULL);
 
   g_return_val_if_fail (js_json_doc != NULL, NULL);
   g_return_val_if_fail (js_code != NULL, NULL);
@@ -128,61 +188,38 @@ dupin_js_new_map (Dupin *    	 d,
   if (g_utf8_validate (js_code, -1, NULL) == FALSE)
     return NULL;
 
-  ctx = JSGlobalContextCreate (NULL);
-  globalObject = JSContextGetGlobalObject(ctx);
-
-  js = g_malloc0 (sizeof (DupinJs));
-
-  /*
-     TODO
-	-> we should have ctx in scope of of caller to avoid too many of these and
-           if we do it, note we could have multiple views, so we should have the
-           global state in context kept per view (E.g. an object or array of states)
-  */
-
-  static JSClassRef jsDupinClass;
-  JSClassDefinition dupin_class_def = kJSClassDefinitionEmpty;
-  dupin_class_def.className = "Dupin";
-  dupin_class_def.staticFunctions = dupin_js_dupin_class_static_functions;
-  dupin_class_def.staticValues = dupin_js_dupin_class_static_values;
-  if (!jsDupinClass)
-    jsDupinClass = JSClassCreate (&dupin_class_def);
-  JSObjectRef DupinObject = JSObjectMake(ctx, jsDupinClass, d);
-  str = JSStringCreateWithUTF8CString("dupin");
-  JSObjectSetProperty(ctx, globalObject, str, DupinObject, kJSPropertyAttributeNone, NULL);
-  JSStringRelease(str);
-
+  JSStringRef str;
+  JSObjectRef array;
+  JSValueRef result;
+  JSValueRef js_exception=NULL;
+  JSValueRef p;
   GString *buffer;
   gchar *b=NULL;
 
   /* we will keep callback result pairs (key,value) in two separated arrays keys[i]->values[i] for simplicity */
+
+  JSObjectRef globalObject = JSContextGetGlobalObject(js->ctx);
+
   str = JSStringCreateWithUTF8CString ("return new Array");
-  array = JSObjectMakeFunction(ctx, NULL, 0, NULL, str, NULL, 1, NULL);
+  array = JSObjectMakeFunction(js->ctx, NULL, 0, NULL, str, NULL, 1, NULL);
   JSStringRelease (str);
-  p = JSObjectCallAsFunction(ctx, array, NULL, 0, NULL, NULL);
+  p = JSObjectCallAsFunction(js->ctx, array, NULL, 0, NULL, NULL);
   str = JSStringCreateWithUTF8CString ("__dupin_emit_keys");
-  JSObjectSetProperty (ctx, globalObject, str, p,
-		       kJSPropertyAttributeDontDelete, NULL); /* or kJSPropertyAttributeNone ? */
+  JSObjectSetProperty (js->ctx, globalObject, str, p,
+                       kJSPropertyAttributeDontDelete, NULL); /* or kJSPropertyAttributeNone ? */
   JSStringRelease (str);
 
   str = JSStringCreateWithUTF8CString ("return new Array");
-  array = JSObjectMakeFunction(ctx, NULL, 0, NULL, str, NULL, 1, NULL);
+  array = JSObjectMakeFunction(js->ctx, NULL, 0, NULL, str, NULL, 1, NULL);
   JSStringRelease (str);
-  p = JSObjectCallAsFunction(ctx, array, NULL, 0, NULL, NULL);
+  p = JSObjectCallAsFunction(js->ctx, array, NULL, 0, NULL, NULL);
   str = JSStringCreateWithUTF8CString ("__dupin_emit_values");
-  JSObjectSetProperty (ctx, globalObject, str, p,
-		       kJSPropertyAttributeDontDelete, NULL); /* or kJSPropertyAttributeNone ? */
-  JSStringRelease (str);
-
-  /* register call back fro emit(k,v) */
-  str = JSStringCreateWithUTF8CString ("emit");
-  func = JSObjectMakeFunctionWithCallback (ctx, str, dupin_js_emit);
-  JSObjectSetProperty (ctx, globalObject, str, func,
-		       kJSPropertyAttributeNone, NULL);
+  JSObjectSetProperty (js->ctx, globalObject, str, p,
+                       kJSPropertyAttributeDontDelete, NULL); /* or kJSPropertyAttributeNone ? */
   JSStringRelease (str);
 
   /* make map function (doc) { ... passed JS code calling eventually emit(k,v) ... }  */
-  buffer = g_string_new (DUPIN_JS_FUNCTION_SUM);
+  buffer = g_string_new (DUPIN_WEBKIT_FUNCTION_SUM);
   buffer = g_string_append (buffer, "var __dupin_map_function = ");
   buffer = g_string_append_len (buffer, js_code, strlen (js_code));
   buffer = g_string_append (buffer, "\n"); /* no semicolon to avoid checking input js_code for it */
@@ -199,30 +236,30 @@ dupin_js_new_map (Dupin *    	 d,
 */
 
   str = JSStringCreateWithUTF8CString (b);
-  result = JSEvaluateScript (ctx, str, NULL, NULL, 0, &js_exception);
+  result = JSEvaluateScript (js->ctx, str, NULL, NULL, 0, &js_exception);
   JSStringRelease (str);
 
   g_free (b);
 
   if (!result)
     {
-      JSStringRef js_message = JSValueToStringCopy (ctx, js_exception, NULL);
-      gchar* value = dupin_js_string_utf8 (js_message);
+      JSStringRef js_message = JSValueToStringCopy (js->ctx, js_exception, NULL);
+      gchar* value = dupin_webkit_string_utf8 (js_message);
+
       if (exception_string)
         *exception_string = value;
       else
         {
-          g_warning ("dupin_js_new_map: %s", value);
+          g_warning ("dupin_webkit_map: %s", value);
 
           g_warning("\n\tscript is: %s\n",js_code);
           g_warning("\n\tjs_json_doc is: %s\n",js_json_doc);
 
           g_free (value);
         }
+
       JSStringRelease (js_message);
 
-      JSGlobalContextRelease (ctx);
-      dupin_js_destroy (js);
       return NULL;
     }
   else
@@ -234,59 +271,58 @@ dupin_js_new_map (Dupin *    	 d,
       /* mapped keys and values */
 
       str = JSStringCreateWithUTF8CString ("__dupin_emit_keys");
-      JSValueRef mkeys = JSObjectGetProperty (ctx, globalObject, str, NULL);
+      JSValueRef mkeys = JSObjectGetProperty (js->ctx, globalObject, str, NULL);
       JSStringRelease (str);
 
       str = JSStringCreateWithUTF8CString ("__dupin_emit_values");
-      JSValueRef mvalues = JSObjectGetProperty (ctx, globalObject, str, NULL);
+      JSValueRef mvalues = JSObjectGetProperty (js->ctx, globalObject, str, NULL);
       JSStringRelease (str);
 
       if (mkeys && mvalues)
         {
-          JSObjectRef map_keys = JSValueToObject(ctx, mkeys, NULL);
-          JSObjectRef map_values = JSValueToObject(ctx, mvalues, NULL);
-          JSPropertyNameArrayRef maps_names = JSObjectCopyPropertyNames (ctx, map_keys);
+          JSObjectRef map_keys = JSValueToObject(js->ctx, mkeys, NULL);
+          JSObjectRef map_values = JSValueToObject(js->ctx, mvalues, NULL);
+          JSPropertyNameArrayRef maps_names = JSObjectCopyPropertyNames (js->ctx, map_keys);
+
 	  /* NOTE - we assumed emit keys and value to have the same cardinality */
+
           gsize nmaps = JSPropertyNameArrayGetCount (maps_names);
 
-          if (!js->mapResults)
-            js->mapResults = json_array_new ();
+	  JsonArray * mapResults = json_array_new ();
 
           gint i;
           for (i = 0; i < nmaps; i++)
             {
-              JsonNode *key_node;
-              JsonNode *value_node;
-              JSValueRef  key = JSObjectGetPropertyAtIndex (ctx,map_keys,i,NULL);
-              JSValueRef  value = JSObjectGetPropertyAtIndex (ctx,map_values,i,NULL);
+              JsonNode * key_node;
+              JsonNode * value_node;
+              JSValueRef key = JSObjectGetPropertyAtIndex (js->ctx, map_keys, i, NULL);
+              JSValueRef value = JSObjectGetPropertyAtIndex (js->ctx, map_values, i, NULL);
 
 	      /* TODO - check if we migth not want to emit an empty key or empty value */
 
-              dupin_js_value (ctx, key, &key_node); /* CHECK - possible bug when mapped key=NULL but seen as string by dupin_js_value() ?!? */
-              dupin_js_value (ctx, value, &value_node);
+              dupin_webkit_value (js->ctx, key, &key_node); /* CHECK - possible bug when mapped key=NULL but seen as string by dupin_webkit_value() ?!? */
+              dupin_webkit_value (js->ctx, value, &value_node);
 
-	      JsonObject *map_object = json_object_new (); /* TODO - make double sure we do nto need a json node object for GC reasons */
-	      json_object_set_member (map_object, "key", key_node);
-	      json_object_set_member (map_object, "value", value_node);
+	      JsonObject *map_object = json_object_new (); /* TODO - make double sure we do not need a json node object for GC reasons */
+	      json_object_set_member (map_object, DUPIN_VIEW_KEY, key_node);
+	      json_object_set_member (map_object, DUPIN_VIEW_VALUE, value_node);
 
-              json_array_add_object_element(js->mapResults, map_object);
+              json_array_add_object_element(mapResults, map_object);
             }
 
-	  /* debug print what's there */
+	  JsonNode * result_node = json_node_new (JSON_NODE_ARRAY);
+          json_node_set_array (result_node, mapResults);
 /*
-	  JsonNode *node = json_node_new (JSON_NODE_ARRAY);
-          json_node_set_array (node, js->mapResults);
-	  g_message("mapResults: %s\n", dupin_util_json_serialize (node));
-          json_node_free (node);
+	  g_message("mapResults: %s\n", dupin_util_json_serialize (result_node));
 */
 
           JSPropertyNameArrayRelease (maps_names);
+
+	  return result_node;
         }
     }
 
-  JSGlobalContextRelease (ctx);
-
-  return js;
+  return NULL;
 }
 
 /*
@@ -318,22 +354,15 @@ CouchDB doesn't necessarily pass in all the values for a unique key to the reduc
 
  */
 
-DupinJs *
-dupin_js_new_reduce (Dupin *        d,
+JsonNode *
+dupin_webkit_reduce (DupinWebKit *  js,
 		     gchar *        js_json_keys,
 		     gchar *        js_json_values,
                      gboolean       rereduce,
                      gchar *        js_code,
-                     gchar**        exception_string)
+                     gchar **       exception_string)
 {
-  DupinJs *js;
-  JSGlobalContextRef ctx;
-
-  JSStringRef str;
-  JSObjectRef globalObject;
-  JSValueRef result;
-  JSValueRef js_exception=NULL;
-
+  g_return_val_if_fail (js != NULL, NULL);
   g_return_val_if_fail (js_json_values != NULL, NULL);
   g_return_val_if_fail (js_code != NULL, NULL);
 
@@ -347,44 +376,28 @@ dupin_js_new_reduce (Dupin *        d,
   if (g_utf8_validate (js_code, -1, NULL) == FALSE)
     return NULL;
 
-  ctx = JSGlobalContextCreate (NULL);
-  globalObject = JSContextGetGlobalObject(ctx);
-
-  js = g_malloc0 (sizeof (DupinJs));
-
-  /*
-     TODO
-	-> we should have ctx in scope of of caller to avoid too many of these and
-           if we do it, note we could have multiple views, so we should have the
-           global state in context kept per view (E.g. an object or array of states)
-  */
-
-  static JSClassRef jsDupinClass;
-  JSClassDefinition dupin_class_def = kJSClassDefinitionEmpty;
-  dupin_class_def.className = "Dupin";
-  dupin_class_def.staticFunctions = dupin_js_dupin_class_static_functions;
-  dupin_class_def.staticValues = dupin_js_dupin_class_static_values;
-  if (!jsDupinClass)
-    jsDupinClass = JSClassCreate (&dupin_class_def);
-  JSObjectRef DupinObject = JSObjectMake(ctx, jsDupinClass, d);
-  str = JSStringCreateWithUTF8CString("dupin");
-  JSObjectSetProperty(ctx, globalObject, str, DupinObject, kJSPropertyAttributeNone, NULL);
-  JSStringRelease(str);
-
+  JSStringRef str;
+  JSValueRef result;
+  JSValueRef js_exception=NULL;
   GString *buffer;
   gchar *b=NULL;
 
+  JSObjectRef globalObject = JSContextGetGlobalObject(js->ctx);
+
   /* make map function (keys,values,rereduce) { ... passed JS code returning an object ... } */
-  buffer = g_string_new (DUPIN_JS_FUNCTION_SUM);
-  buffer = g_string_append (buffer, "var __dupin_reduce_function = ");
+  //buffer = g_string_new (DUPIN_WEBKIT_FUNCTION_SUM); // Already defined in dupin_webkit_map () - see above
+  buffer = g_string_new ("var __dupin_reduce_function = ");
   buffer = g_string_append_len (buffer, js_code, strlen (js_code));
   buffer = g_string_append (buffer, "\n"); /* no semicolon to avoid checking input js_code for it */
   buffer = g_string_append (buffer, "__dupin_reduce_result = __dupin_reduce_function (");
+
   /* TODO - check reduce passed function takes three params - or return error */
+
   if (js_json_keys != NULL)
     buffer = g_string_append_len (buffer, js_json_keys, strlen (js_json_keys));
   else
     buffer = g_string_append_len (buffer, "null", 4);
+
   buffer = g_string_append (buffer, ", ");
   buffer = g_string_append_len (buffer, js_json_values, strlen (js_json_values));
   buffer = g_string_append (buffer, ", ");
@@ -403,20 +416,21 @@ dupin_js_new_reduce (Dupin *        d,
 */
 
   str = JSStringCreateWithUTF8CString (b);
-  result = JSEvaluateScript (ctx, str, NULL, NULL, 0, &js_exception);
+  result = JSEvaluateScript (js->ctx, str, NULL, NULL, 0, &js_exception);
   JSStringRelease (str);
 
   g_free (b);
 
   if (!result)
     {
-      JSStringRef js_message = JSValueToStringCopy (ctx, js_exception, NULL);
-      gchar* value = dupin_js_string_utf8 (js_message);
+      JSStringRef js_message = JSValueToStringCopy (js->ctx, js_exception, NULL);
+      gchar* value = dupin_webkit_string_utf8 (js_message);
+
       if (exception_string)
         *exception_string = value;
       else
         {
-          g_warning ("dupin_js_new_reduce: %s", value);
+          g_warning ("dupin_webkit_reduce: %s", value);
 
           g_warning("\n\tscript is: %s\n",js_code);
           g_warning("\n\tjs_json_keys is: %s\n",js_json_keys);
@@ -425,10 +439,9 @@ dupin_js_new_reduce (Dupin *        d,
 
           g_free (value);
         }
+
       JSStringRelease (js_message);
 
-      JSGlobalContextRelease (ctx);
-      dupin_js_destroy (js);
       return NULL;
     }
   else
@@ -437,24 +450,26 @@ dupin_js_new_reduce (Dupin *        d,
       /* process __dupin_reduce_result */
 
       str = JSStringCreateWithUTF8CString ("__dupin_reduce_result");
-      JSValueRef reduce_results = JSObjectGetProperty (ctx, globalObject, str, NULL);
+      JSValueRef reduce_results = JSObjectGetProperty (js->ctx, globalObject, str, NULL);
       JSStringRelease (str);
 
-      dupin_js_value (ctx, reduce_results, &js->reduceResult);
+      JsonNode * result_node = NULL;
+
+      dupin_webkit_value (js->ctx, reduce_results, &result_node);
 
       /* debug print what's there */
 /*
-      g_message("reduceResult: %s\n", dupin_util_json_serialize (js->reduceResult));
+      g_message("reduceResult: %s\n", dupin_util_json_serialize (result_node));
 */
+
+      return result_node;
     }
 
-  JSGlobalContextRelease (ctx);
-
-  return js;
+  return NULL;
 }
 
 static gchar*
-dupin_js_string_utf8 (JSStringRef js_string)
+dupin_webkit_string_utf8 (JSStringRef js_string)
 {
     size_t size_utf8;
     gchar* string_utf8;
@@ -467,39 +482,8 @@ dupin_js_string_utf8 (JSStringRef js_string)
     return string_utf8;
 }
 
-void
-dupin_js_destroy (DupinJs * js)
-{
-  if (!js)
-    return;
-
-  if (js->reduceResult)
-    json_node_free (js->reduceResult);
-
-  if (js->mapResults)
-    json_array_unref (js->mapResults);
-
-  g_free (js);
-}
-
-const JsonNode *
-dupin_js_get_reduceResult (DupinJs * js)
-{
-  g_return_val_if_fail (js != NULL, NULL);
-
-  return js->reduceResult;
-}
-
-const JsonArray *
-dupin_js_get_mapResults (DupinJs * js)
-{
-  g_return_val_if_fail (js != NULL, NULL);
-
-  return js->mapResults;
-}
-
 gchar *
-dupin_js_string (JSStringRef js_string)
+dupin_webkit_string (JSStringRef js_string)
 {
   gsize size;
   gchar *string;
@@ -512,7 +496,9 @@ dupin_js_string (JSStringRef js_string)
 }
 
 static void
-dupin_js_value (JSContextRef ctx, JSValueRef value, JsonNode ** v)
+dupin_webkit_value (JSContextRef ctx,
+		    JSValueRef value,
+		    JsonNode ** v)
 {
   switch (JSValueGetType (ctx, value))
     {
@@ -544,8 +530,8 @@ dupin_js_value (JSContextRef ctx, JSValueRef value, JsonNode ** v)
 	gchar *str;
 
 	string = JSValueToStringCopy (ctx, value, NULL);
-	//str = dupin_js_string (string);
-	str = dupin_js_string_utf8 (string);
+	//str = dupin_webkit_string (string);
+	str = dupin_webkit_string_utf8 (string);
 	JSStringRelease (string);
 
         *v = json_node_new (JSON_NODE_VALUE);
@@ -558,7 +544,7 @@ dupin_js_value (JSContextRef ctx, JSValueRef value, JsonNode ** v)
 
     case kJSTypeObject:
       {
-        dupin_js_obj (ctx, value, v);
+        dupin_webkit_obj (ctx, value, v);
 
 	break;
       }
@@ -571,7 +557,9 @@ dupin_js_value (JSContextRef ctx, JSValueRef value, JsonNode ** v)
 }
 
 static void
-dupin_js_obj (JSContextRef ctx, JSValueRef object_value, JsonNode ** obj_node)
+dupin_webkit_obj (JSContextRef ctx,
+	          JSValueRef object_value,
+	          JsonNode ** obj_node)
 {
   JSPropertyNameArrayRef props;
   gsize nprops, i;
@@ -607,10 +595,10 @@ dupin_js_obj (JSContextRef ctx, JSValueRef object_value, JsonNode ** obj_node)
       JsonNode *node;
       gchar *p;
 
-      p = dupin_js_string_utf8 (prop);
+      p = dupin_webkit_string_utf8 (prop);
 
       value = JSObjectGetProperty (ctx, object, prop, NULL);
-      dupin_js_value (ctx, value, &node);
+      dupin_webkit_value (ctx, value, &node);
 
       if (is_array == TRUE)
         {
@@ -638,10 +626,11 @@ dupin_js_obj (JSContextRef ctx, JSValueRef object_value, JsonNode ** obj_node)
 
 /* emit(key,value) { ... } */
 static JSValueRef
-dupin_js_emit(JSContextRef ctx, JSObjectRef object,
-			   JSObjectRef thisObject, size_t argumentCount,
-			   const JSValueRef arguments[],
-			   JSValueRef * exception)
+dupin_webkit_emit (JSContextRef ctx,
+	           JSObjectRef object,
+	           JSObjectRef thisObject, size_t argumentCount,
+	           const JSValueRef arguments[],
+	           JSValueRef * exception)
 {
   if (argumentCount != 2) /* does it work if key or value are null/empty ? */
     {
@@ -664,8 +653,9 @@ dupin_js_emit(JSContextRef ctx, JSObjectRef object,
 
   /* TODO - check if we need to allow/disallow key or value null/empty and how */
 
-  /* key */
   JSObjectRef globalObject = JSContextGetGlobalObject(ctx);
+
+  /* key */
   str = JSStringCreateWithUTF8CString ("__dupin_emit_keys");
   JSValueRef o = JSObjectGetProperty (ctx, globalObject, str, NULL);
   JSStringRelease (str);
@@ -676,7 +666,6 @@ dupin_js_emit(JSContextRef ctx, JSObjectRef object,
   JSObjectSetPropertyAtIndex(ctx,array,last, arguments[0], NULL); /* push */
 
   /* value */
-  globalObject = JSContextGetGlobalObject(ctx);
   str = JSStringCreateWithUTF8CString ("__dupin_emit_values");
   o = JSObjectGetProperty (ctx, globalObject, str, NULL);
   JSStringRelease (str);
@@ -690,11 +679,11 @@ dupin_js_emit(JSContextRef ctx, JSObjectRef object,
 }
 
 static JSValueRef
-dupin_js_dupin_class_log(JSContextRef ctx,
-             		 JSObjectRef object,
-	     		 JSObjectRef thisObject, size_t argumentCount,
-             		 const JSValueRef arguments[],
-	     		 JSValueRef * exception)
+dupin_webkit_dupin_class_log (JSContextRef ctx,
+             		      JSObjectRef object,
+	     		      JSObjectRef thisObject, size_t argumentCount,
+             		      const JSValueRef arguments[],
+	     		      JSValueRef * exception)
 {
   if (argumentCount != 1)
     {
@@ -703,9 +692,9 @@ dupin_js_dupin_class_log(JSContextRef ctx,
     }
 
   JsonNode * node = NULL;
-  dupin_js_value (ctx, arguments[0], &node);
+  dupin_webkit_value (ctx, arguments[0], &node);
   gchar * json = dupin_util_json_serialize (node);
-  g_message("dupin_js_dupin_class_log: %s\n", json);
+  g_message("dupin_webkit_dupin_class_log: %s\n", json);
   g_free (json);
   json_node_free (node);
 
@@ -717,11 +706,11 @@ dupin_js_dupin_class_log(JSContextRef ctx,
 /* NOTE - we start by doing simple single key lookup ok/fail */
 
 static JSValueRef
-dupin_js_dupin_class_view_lookup(JSContextRef ctx,
-                   		 JSObjectRef object,
-		   		 JSObjectRef thisObject, size_t argumentCount,
-		   		 const JSValueRef arguments[],
-		   		 JSValueRef * exception)
+dupin_webkit_dupin_class_view_lookup (JSContextRef ctx,
+                   		      JSObjectRef object,
+		   		      JSObjectRef thisObject, size_t argumentCount,
+		   		      const JSValueRef arguments[],
+		   		      JSValueRef * exception)
 {
   JSValueRef result=NULL;
   Dupin * d = (Dupin *) JSObjectGetPrivate(thisObject);
@@ -747,23 +736,23 @@ dupin_js_dupin_class_view_lookup(JSContextRef ctx,
       return JSValueMakeNull(ctx);
     }
 
-//g_message("dupin_js_dupin_class_view_lookup: checking params...\n");
+//g_message("dupin_webkit_dupin_class_view_lookup: checking params...\n");
 
   if ((!JSValueIsString(ctx, arguments[0]))
        || (!arguments[1])
        || (!JSValueIsBoolean(ctx, arguments[2])))
     return JSValueMakeNull(ctx);
 
-//g_message("dupin_js_dupin_class_view_lookup: ok params...\n");
+//g_message("dupin_webkit_dupin_class_view_lookup: ok params...\n");
 
   /* view name */
   JSStringRef string = JSValueToStringCopy (ctx, arguments[0], NULL);
-  gchar * view_name = dupin_js_string_utf8 (string);
+  gchar * view_name = dupin_webkit_string_utf8 (string);
   JSStringRelease (string);
 
   /* key is node */
   JsonNode * key = NULL;
-  dupin_js_value (ctx, arguments[1], &key);
+  dupin_webkit_value (ctx, arguments[1], &key);
   if (key == NULL)
     {
       g_free (view_name);
@@ -774,7 +763,7 @@ dupin_js_dupin_class_view_lookup(JSContextRef ctx,
   /* include_docs */
   gboolean include_docs = (JSValueToBoolean (ctx, arguments[2]) == true) ? TRUE : FALSE;
 
-//g_message("dupin_js_dupin_class_view_lookup: view_name=%s include_docs=%d (dupin_path=%s)\n", view_name, (gint)include_docs, d->path);
+//g_message("dupin_webkit_dupin_class_view_lookup: view_name=%s include_docs=%d (dupin_path=%s)\n", view_name, (gint)include_docs, d->path);
 
   if (!
       (view =
@@ -831,7 +820,7 @@ dupin_js_dupin_class_view_lookup(JSContextRef ctx,
        || (g_list_length (results) <= 0))
     {
       result = NULL;
-      goto dupin_js_dupin_class_view_lookup_error;
+      goto dupin_webkit_dupin_class_view_lookup_error;
     }
 
   record = results->data;
@@ -839,7 +828,7 @@ dupin_js_dupin_class_view_lookup(JSContextRef ctx,
   if (! (match = dupin_view_record_get (record)))
     {
       result = NULL;
-      goto dupin_js_dupin_class_view_lookup_error;
+      goto dupin_webkit_dupin_class_view_lookup_error;
     }
   match = json_node_copy (match);
 
@@ -924,7 +913,7 @@ dupin_js_dupin_class_view_lookup(JSContextRef ctx,
   g_free (b);
   g_free (match_json);
 
-dupin_js_dupin_class_view_lookup_error:
+dupin_webkit_dupin_class_view_lookup_error:
 
   if (match != NULL)
     json_node_free (match);
@@ -950,11 +939,11 @@ dupin_js_dupin_class_view_lookup_error:
 }
 
 static JSValueRef
-dupin_js_dupin_class_links (JSContextRef ctx,
-                   	    JSObjectRef object,
-		   	    JSObjectRef thisObject, size_t argumentCount,
-		   	    const JSValueRef arguments[],
-		   	    JSValueRef * exception)
+dupin_webkit_dupin_class_links (JSContextRef ctx,
+                   	        JSObjectRef object,
+		   	        JSObjectRef thisObject, size_t argumentCount,
+		   	        const JSValueRef arguments[],
+		   	        JSValueRef * exception)
 {
   JSValueRef result=NULL;
 
@@ -1000,16 +989,16 @@ dupin_js_dupin_class_links (JSContextRef ctx,
       *exception = JSValueMakeNumber (ctx, 1);
       return JSValueMakeNull(ctx);
     }
-//g_message("dupin_js_dupin_class_links: checking params...\n");
+//g_message("dupin_webkit_dupin_class_links: checking params...\n");
 
   if (((!arguments[0]))
       || (!arguments[1]))
     return JSValueMakeNull(ctx);
 
-//g_message("dupin_js_dupin_class_links: ok params...\n");
+//g_message("dupin_webkit_dupin_class_links: ok params...\n");
 
   JsonNode * doc_node = NULL;
-  dupin_js_value (ctx, arguments[0], &doc_node);
+  dupin_webkit_value (ctx, arguments[0], &doc_node);
   if (doc_node == NULL
       || json_node_get_node_type (doc_node) != JSON_NODE_OBJECT
       || json_object_has_member (json_node_get_object (doc_node), "_linkbase") == FALSE)
@@ -1021,7 +1010,7 @@ dupin_js_dupin_class_links (JSContextRef ctx,
     }
 
   JsonNode * params_node = NULL;
-  dupin_js_value (ctx, arguments[1], &params_node);
+  dupin_webkit_value (ctx, arguments[1], &params_node);
   if (params_node == NULL
       || json_node_get_node_type (params_node) != JSON_NODE_OBJECT)
     {
@@ -1034,8 +1023,8 @@ dupin_js_dupin_class_links (JSContextRef ctx,
     }
   JsonObject * params_node_obj = json_node_get_object (params_node);
 
-//DUPIN_UTIL_DUMP_JSON ("dupin_js_dupin_class_links: doc:", doc_node);
-//DUPIN_UTIL_DUMP_JSON ("dupin_js_dupin_class_links: params:", params_node);
+//DUPIN_UTIL_DUMP_JSON ("dupin_webkit_dupin_class_links: doc:", doc_node);
+//DUPIN_UTIL_DUMP_JSON ("dupin_webkit_dupin_class_links: params:", params_node);
 
   /* parse parameters */
 
@@ -1887,19 +1876,19 @@ dupin_js_dupin_class_links (JSContextRef ctx,
 }
 
 static void
-dupin_js_dupin_class_util_http_client_return_headers (const gchar *name,
-						      const gchar *value,
-						      gpointer data)
+dupin_webkit_dupin_class_util_http_client_return_headers (const gchar *name,
+						          const gchar *value,
+						          gpointer data)
 {
   json_object_set_string_member (data, name, value);
 }
 
 static gboolean
-_dupin_js_dupin_class_util_http_client_session_authenticate (SoupSession *session,
-							     SoupMessage *msg,
-							     SoupAuth *auth,
-							     gboolean retrying,
-							     gpointer callback_data)
+_dupin_webkit_dupin_class_util_http_client_session_authenticate (SoupSession *session,
+							         SoupMessage *msg,
+							         SoupAuth *auth,
+							         gboolean retrying,
+							         gpointer callback_data)
 {
   g_return_val_if_fail (callback_data != NULL, FALSE);
 
@@ -1921,11 +1910,11 @@ _dupin_js_dupin_class_util_http_client_session_authenticate (SoupSession *sessio
 }
 
 static JSValueRef
-dupin_js_dupin_class_util_http_client (JSContextRef ctx,
-                   	    	       JSObjectRef object,
-		   	    	       JSObjectRef thisObject, size_t argumentCount,
-		   	    	       const JSValueRef arguments[],
-		   	    	       JSValueRef * exception)
+dupin_webkit_dupin_class_util_http_client (JSContextRef ctx,
+                   	    	           JSObjectRef object,
+		   	    	           JSObjectRef thisObject, size_t argumentCount,
+		   	    	           const JSValueRef arguments[],
+		   	    	           JSValueRef * exception)
 {
   JSValueRef result=NULL;
 
@@ -1967,7 +1956,7 @@ dupin_js_dupin_class_util_http_client (JSContextRef ctx,
     return JSValueMakeNull(ctx);
 
   JsonNode * params_node = NULL;
-  dupin_js_value (ctx, arguments[0], &params_node);
+  dupin_webkit_value (ctx, arguments[0], &params_node);
   if (params_node == NULL
       || json_node_get_node_type (params_node) != JSON_NODE_OBJECT)
     {
@@ -2054,7 +2043,7 @@ dupin_js_dupin_class_util_http_client (JSContextRef ctx,
   if (json_object_has_member (params_node_obj, "debug"))
     debug = json_object_get_boolean_member (params_node_obj, "debug");
 
-//DUPIN_UTIL_DUMP_JSON ("dupin_js_dupin_class_util_http_client: params:", params_node);
+//DUPIN_UTIL_DUMP_JSON ("dupin_webkit_dupin_class_util_http_client: params:", params_node);
 
   session = soup_session_sync_new_with_options (
 #ifdef HAVE_GNOME
@@ -2076,7 +2065,7 @@ dupin_js_dupin_class_util_http_client (JSContextRef ctx,
     }
 
   /* auth stuff */
-  g_signal_connect (session, "authenticate", G_CALLBACK (_dupin_js_dupin_class_util_http_client_session_authenticate), params_node_obj);
+  g_signal_connect (session, "authenticate", G_CALLBACK (_dupin_webkit_dupin_class_util_http_client_session_authenticate), params_node_obj);
 
   /* NOTE - do HTTP GET */
 
@@ -2122,7 +2111,7 @@ dupin_js_dupin_class_util_http_client (JSContextRef ctx,
   json_object_set_member (response_obj, "response_headers", response_headers);
 
   soup_message_headers_foreach (msg->response_headers,
-			        dupin_js_dupin_class_util_http_client_return_headers,
+			        dupin_webkit_dupin_class_util_http_client_return_headers,
 				response_headers_obj);
 
   if (msg->status_code == SOUP_STATUS_OK)
@@ -2193,11 +2182,11 @@ dupin_js_dupin_class_util_http_client (JSContextRef ctx,
 }
 
 static JSValueRef
-dupin_js_dupin_class_util_hash (JSContextRef ctx,
-                   	        JSObjectRef object,
-		   	        JSObjectRef thisObject, size_t argumentCount,
-		   	        const JSValueRef arguments[],
-		   	        JSValueRef * exception)
+dupin_webkit_dupin_class_util_hash (JSContextRef ctx,
+                   	            JSObjectRef object,
+		   	            JSObjectRef thisObject, size_t argumentCount,
+		   	            const JSValueRef arguments[],
+		   	            JSValueRef * exception)
 {
   JSValueRef result=NULL;
 
@@ -2212,16 +2201,16 @@ dupin_js_dupin_class_util_hash (JSContextRef ctx,
     return JSValueMakeNull(ctx);
 
   JSStringRef string = JSValueToStringCopy (ctx, arguments[0], NULL);
-  gchar * input = dupin_js_string_utf8 (string);
+  gchar * input = dupin_webkit_string_utf8 (string);
   JSStringRelease (string);
 
-//g_message ("dupin_js_dupin_class_util_hash: input=%s\n", input);
+//g_message ("dupin_webkit_dupin_class_util_hash: input=%s\n", input);
 
   gchar *md5 = g_compute_checksum_for_string (DUPIN_ID_HASH_ALGO, input, -1);
   string=JSStringCreateWithUTF8CString(md5);
   g_free (input);
 
-//g_message ("dupin_js_dupin_class_util_hash: hash=%s\n", md5);
+//g_message ("dupin_webkit_dupin_class_util_hash: hash=%s\n", md5);
 
   g_free (md5);
   result = JSValueMakeString(ctx, string);
@@ -2231,11 +2220,11 @@ dupin_js_dupin_class_util_hash (JSContextRef ctx,
 }
 
 static JSValueRef
-dupin_js_dupin_class_util_base64_encode (JSContextRef ctx,
-                   	        	 JSObjectRef object,
-		   	        	 JSObjectRef thisObject, size_t argumentCount,
-		   	        	 const JSValueRef arguments[],
-		   	        	 JSValueRef * exception)
+dupin_webkit_dupin_class_util_base64_encode (JSContextRef ctx,
+                   	        	     JSObjectRef object,
+		   	        	     JSObjectRef thisObject, size_t argumentCount,
+		   	        	     const JSValueRef arguments[],
+		   	        	     JSValueRef * exception)
 {
   JSValueRef result=NULL;
 
@@ -2250,16 +2239,16 @@ dupin_js_dupin_class_util_base64_encode (JSContextRef ctx,
     return JSValueMakeNull(ctx);
 
   JSStringRef string = JSValueToStringCopy (ctx, arguments[0], NULL);
-  gchar * input = dupin_js_string_utf8 (string);
+  gchar * input = dupin_webkit_string_utf8 (string);
   JSStringRelease (string);
 
-//g_message ("dupin_js_dupin_class_util_base64_encode: input=%s\n", input);
+//g_message ("dupin_webkit_dupin_class_util_base64_encode: input=%s\n", input);
 
   gchar *base64 = g_base64_encode ((const guchar *)input, strlen(input));
   string=JSStringCreateWithUTF8CString(base64);
   g_free (input);
 
-//g_message ("dupin_js_dupin_class_util_base64_encode: base64=%s\n", base64);
+//g_message ("dupin_webkit_dupin_class_util_base64_encode: base64=%s\n", base64);
 
   g_free (base64);
   result = JSValueMakeString(ctx, string);
@@ -2269,11 +2258,11 @@ dupin_js_dupin_class_util_base64_encode (JSContextRef ctx,
 }
 
 static JSValueRef
-dupin_js_dupin_class_util_base64_decode (JSContextRef ctx,
-                   	        	 JSObjectRef object,
-		   	        	 JSObjectRef thisObject, size_t argumentCount,
-		   	        	 const JSValueRef arguments[],
-		   	        	 JSValueRef * exception)
+dupin_webkit_dupin_class_util_base64_decode (JSContextRef ctx,
+                   	        	     JSObjectRef object,
+		   	        	     JSObjectRef thisObject, size_t argumentCount,
+		   	        	     const JSValueRef arguments[],
+		   	        	     JSValueRef * exception)
 {
   JSValueRef result=NULL;
 
@@ -2288,17 +2277,17 @@ dupin_js_dupin_class_util_base64_decode (JSContextRef ctx,
     return JSValueMakeNull(ctx);
 
   JSStringRef string = JSValueToStringCopy (ctx, arguments[0], NULL);
-  gchar * base64 = dupin_js_string_utf8 (string);
+  gchar * base64 = dupin_webkit_string_utf8 (string);
   JSStringRelease (string);
 
-//g_message ("dupin_js_dupin_class_util_base64_decode: base64=%s\n", base64);
+//g_message ("dupin_webkit_dupin_class_util_base64_decode: base64=%s\n", base64);
 
   gsize buff_size;
   guchar * buff = g_base64_decode ((const gchar *)base64, &buff_size);
   string=JSStringCreateWithUTF8CString((gchar *)buff);
   g_free (base64);
 
-//g_message ("dupin_js_dupin_class_util_base64_decode: buff=%s\n", buff);
+//g_message ("dupin_webkit_dupin_class_util_base64_decode: buff=%s\n", buff);
 
   g_free (buff);
   result = JSValueMakeString(ctx, string);

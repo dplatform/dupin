@@ -53,7 +53,7 @@ main (int argc, char **argv)
   /* Read the config file: */
   if (!(data = configure_init (argc, argv, &error)))
     {
-      fprintf (stderr, "Error: %s\n", error->message);
+      fprintf (stderr, "Error: %s\n", (error) ? error->message : DUPIN_UNKNOWN_ERROR);
       g_error_free (error);
       return 1;
     }
@@ -68,7 +68,7 @@ main (int argc, char **argv)
   /* Pid check: */
   if (dupin_server_common_pid_check (data, &error) == FALSE)
     {
-      fprintf (stderr, "Error about the Pid File: %s\n", error->message);
+      fprintf (stderr, "Error about the Pid File: %s\n", (error) ? error->message : DUPIN_UNKNOWN_ERROR);
       goto main_error_pid;
     }
 #endif
@@ -76,7 +76,7 @@ main (int argc, char **argv)
   /* Open the log file: */
   if (log_open (data, &error) == FALSE)
     {
-      fprintf (stderr, "Error about the Log File: %s\n", error->message);
+      fprintf (stderr, "Error about the Log File: %s\n", (error) ? error->message : DUPIN_UNKNOWN_ERROR);
       goto main_error_log;
     }
 
@@ -84,7 +84,7 @@ main (int argc, char **argv)
   /* Permissions */
   if (dupin_server_common_permission (data, &error) == FALSE)
     {
-      fprintf (stderr, "Error about the permissions: %s\n", error->message);
+      fprintf (stderr, "Error about the permissions: %s\n", (error) ? error->message : DUPIN_UNKNOWN_ERROR);
       goto main_error_permission;
     }
 #endif
@@ -97,14 +97,14 @@ main (int argc, char **argv)
   if (!(data->dupin = dupin_init (data, &error)))
     {
       fprintf (stderr, "Error connecting to database: %s\n",
-	       error->message);
+	       (error) ? error->message : DUPIN_UNKNOWN_ERROR);
       goto main_error_dupin;
     }
 
   /* Mapped file cache: */
   if (map_init (data, &error) == FALSE)
     {
-      fprintf (stderr, "Error activing the cache: %s\n", error->message);
+      fprintf (stderr, "Error activing the cache: %s\n", (error) ? error->message : DUPIN_UNKNOWN_ERROR);
       goto main_error_map;
     }
 
@@ -112,7 +112,7 @@ main (int argc, char **argv)
   if (httpd_init (data, &error) == FALSE)
     {
       fprintf (stderr, "Error activing the network interface: %s\n",
-	       error->message);
+	       (error) ? error->message : DUPIN_UNKNOWN_ERROR);
       goto main_error_httpd;
     }
 

@@ -323,7 +323,7 @@ dupin_attachment_db_p_update (DupinAttachmentDB * attachment_db, GError ** error
 
   dupin_database_unref (db);
 
-  /* make sure parameters are set after dupin server restart on existing database */
+  /* make sure parameters are set after dupin server restart on existing attachment database */
 
   if (attachment_db->parent == NULL)
     attachment_db->parent = update.parent;
@@ -557,6 +557,9 @@ dupin_attachment_db_connect (Dupin * d, gchar * name, gchar * path,
   attachment_db->name = g_strdup (name);
   attachment_db->path = g_strdup (path);
 
+  attachment_db->rwlock = g_new0 (GRWLock, 1);
+  g_rw_lock_init (attachment_db->rwlock);
+
   if (sqlite3_open_v2 (attachment_db->path, &attachment_db->db, dupin_util_dupin_mode_to_sqlite_mode (mode), NULL) != SQLITE_OK)
     {
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
@@ -675,9 +678,6 @@ dupin_attachment_db_connect (Dupin * d, gchar * name, gchar * path,
       sqlite3_free (errmsg);
       dupin_attachment_db_disconnect (attachment_db);
     }
-
-  attachment_db->rwlock = g_new0 (GRWLock, 1);
-  g_rw_lock_init (attachment_db->rwlock);
 
   return attachment_db;
 }

@@ -2,32 +2,31 @@
 #define _DUPIN_VIEW_H_
 
 #include <dupin.h>
-#include <dupin_mr.h>
+#include <dupin_view_engine.h>
 #include <dupin_db.h>
 #include <dupin_linkb.h>
 
 G_BEGIN_DECLS
 
-struct dupin_view_p_update_t
+struct dupin_view_db_record_t
 {
-  gchar *parent;
-  gchar *map;
-  DupinMRLang map_lang;
-  gchar *reduce;
-  DupinMRLang reduce_lang;
-  gboolean isdb;
-  gboolean islinkb;
-  gchar *output;
-  gboolean output_isdb;
-  gboolean output_islinkb;
+  DupinViewEngineLang language;
+  gchar *	      map;
+  gchar *	      reduce;
+  gchar *	      parent;
+  gboolean	      isdb;
+  gboolean	      islinkb;
+  gchar *	      output;
+  gboolean 	      output_isdb;
+  gboolean 	      output_islinkb;
 };
 
 struct dupin_view_sync_t
 {
-  JsonNode *obj;
-  gchar *id;
-  JsonNode *pid; /* array or null */
-  JsonNode *key; /* array or null */
+  gchar    * id;
+  JsonNode * obj;
+  JsonNode * pid; /* array or null */
+  JsonNode * key; /* array or null */
 };
 
 struct dupin_view_sync_total_rereduce_t
@@ -50,10 +49,9 @@ DupinView *	dupin_view_new		(Dupin *	d,
 					 gchar *	parent,
 					 gboolean	is_db,
 					 gboolean	is_linkb,
+					 DupinViewEngineLang language,
 					 gchar *	map,
-					 DupinMRLang	map_language,
 					 gchar *	reduce,
-					 DupinMRLang	reduce_language,
 					 gchar *	output,
 					 gboolean	output_is_db,
 					 gboolean	output_is_linkb,
@@ -99,15 +97,8 @@ gboolean	dupin_view_get_output_is_db
 gboolean	dupin_view_get_output_is_linkb
 					(DupinView *	view);
 
-const gchar *	dupin_view_get_map	(DupinView *	view);
-
-DupinMRLang	dupin_view_get_map_language
-					(DupinView *	view);
-
-const gchar *	dupin_view_get_reduce	(DupinView *	view);
-
-DupinMRLang	dupin_view_get_reduce_language
-					(DupinView *	view);
+DupinViewEngine *
+		dupin_view_get_engine	(DupinView *	view);
 
 gsize		dupin_view_get_size	(DupinView *	view);
 

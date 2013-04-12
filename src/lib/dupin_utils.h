@@ -92,11 +92,15 @@ gboolean	dupin_util_is_valid_obj		(JsonObject *obj);
 
 void		dupin_util_generate_id		(gchar		id[DUPIN_ID_MAX_LEN]);
 
-gboolean	dupin_util_is_valid_mr_lang	(gchar *	lang);
+gboolean	dupin_util_is_valid_view_engine_lang
+						(gchar *	lang);
 
-DupinMRLang	dupin_util_mr_lang_to_enum	(gchar *	lang);
+DupinViewEngineLang
+		dupin_util_view_engine_lang_to_enum
+						(gchar *	lang);
 
-const gchar *	dupin_util_mr_lang_to_string	(DupinMRLang	lang);
+const gchar *	dupin_util_view_engine_lang_to_string
+						(DupinViewEngineLang	lang);
 
 gchar *		dupin_util_utf8_normalize	(const gchar *text);
 

@@ -90,12 +90,13 @@ my $opt_parent_islinkb;
 my $opt_output_islinkb;
 my $opt_map_file;
 my $opt_reduce_file;
+my $opt_language = "javascript";
 
 Getopt::Long::Configure ("posix_default","bundling", "no_ignore_case", "require_order");
 
 my $opt_params = {};
 
-my $usage = "\nUsage: $0 [-v] [--parent-name parent] [--parent-islinkb] [--output-name output] [--output-islinkb] [--map-file file.js] [--reduce-file file.js] \n";
+my $usage = "\nUsage: $0 [-v] [--parent-name parent] [--parent-islinkb] [--output-name output] [--output-islinkb] [--language \"javascript\"] [--map-file file.js] [--reduce-file file.js] \n";
 
 GetOptions(
    "v"   => \$opt_verbose,
@@ -104,6 +105,7 @@ GetOptions(
    "parent-islinkb" => \$opt_parent_islinkb,
    "output-name=s" => \$opt_output_name,
    "output-islinkb" => \$opt_output_islinkb,
+   "language=s" => \$opt_language,
    "map-file=s" => \$opt_map_file,
    "reduce-file=s" => \$opt_reduce_file,
 ) or die $usage."\n";
@@ -152,18 +154,16 @@ if ($opt_reduce_file)
 }
 
 my $view = {
+  "language" => $opt_language,
   "parent" => {
 	"name" => $opt_parent_name,
 	},
-  "map" => {
-	"code" => $json->decode ($map)
-	}
+  "map" => $json->decode ($map)
 };
 
 if ($reduce)
   {
-    $view->{'reduce'} = {};
-    $view->{'reduce'}->{'code'} = $json->decode ($reduce);
+    $view->{'reduce'} = $json->decode ($reduce);
   }
 
 if ($opt_parent_islinkb)

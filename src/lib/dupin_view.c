@@ -85,7 +85,7 @@ See http://wiki.apache.org/couchdb/Introduction_to_CouchDB_views
         "VALUES('%q', '%q')"
 
 #define DUPIN_VIEW_SQL_TOTAL_REREDUCE \
-	"SELECT key AS inner_key, count(*) AS inner_count FROM Dupin GROUP BY inner_key HAVING inner_count > 1 "
+	"SELECT key AS inner_key, count(*) AS inner_count FROM Dupin GROUP BY inner_key HAVING inner_count > 1 LIMIT 1"
 
 #define DUPIN_VIEW_SQL_COUNT \
 	"SELECT count(id) as c FROM Dupin"
@@ -3065,12 +3065,15 @@ dupin_view_sync_total_rereduce_cb (void *data, int argc, char **argv,
 {
   struct dupin_view_sync_total_rereduce_t * rere = data;
  
-  if (argv[0] && *argv[0]
-      && rere->first_matching_key==NULL)
+  if (argv[0] && *argv[0])
     rere->first_matching_key = g_strdup (argv[0]);
 
   if (argv[1] && *argv[1])
-    rere->total += (gsize) g_ascii_strtoll (argv[1], NULL, 10);
+    rere->total = (gsize) g_ascii_strtoll (argv[1], NULL, 10);
+
+#if DUPIN_VIEW_DEBUG
+  g_message ("dupin_view_sync_total_rereduce_cb(): first_matching_key='%s' total='%d'\n", rere->first_matching_key, (gint)rere->total);
+#endif
 
   return 0;
 }
@@ -3114,7 +3117,13 @@ dupin_view_sync_total_rereduce (DupinView * view, struct dupin_view_sync_total_r
 void
 dupin_view_sync_map_func (gpointer data, gpointer user_data)
 {
+
+#if DUPIN_VIEW_BENCHMARK
+  gsize start_time = dupin_date_timestamp_now (0);
+#endif
+
   gchar * errmsg;
+
   DupinView * view = (DupinView*) data;
 
   dupin_view_ref (view);
@@ -3214,11 +3223,21 @@ dupin_view_sync_map_func (gpointer data, gpointer user_data)
   g_rw_lock_writer_unlock (view->rwlock);
 
   dupin_view_unref (view);
+
+#if DUPIN_VIEW_BENCHMARK
+  g_message("dupin_view_sync_map_func(%p/%s) finished in %" G_GSIZE_FORMAT " seconds\n",g_thread_self (), view->name, ((dupin_date_timestamp_now (0)-start_time)/G_USEC_PER_SEC));
+#endif
+
 }
 
 void
 dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
 {
+
+#if DUPIN_VIEW_BENCHMARK
+  gsize start_time = dupin_date_timestamp_now (0);
+#endif
+
   gchar * query;
   gchar * errmsg;
   struct dupin_view_sync_total_rereduce_t rere_matching;
@@ -3241,7 +3260,6 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
   g_rw_lock_writer_unlock (view->rwlock);
 
   gboolean rereduce = FALSE;
-  gchar * rereduce_previous_matching_key = NULL;
 
   rere_matching.total = 0;
   rere_matching.first_matching_key = NULL;
@@ -3354,7 +3372,7 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
           g_rw_lock_writer_unlock (view->rwlock);
 
 #if DUPIN_VIEW_DEBUG
-          g_message("dupin_view_sync_reduce_func(%p/%s) got %d records to REDUCE (rereduce=%d)\n",g_thread_self (), view->name, (gint)sync_reduce_total_records,(gint)rereduce);
+          g_message("dupin_view_sync_reduce_func(%p/%s) got new records to REDUCE (rereduce=%d, sync_reduce_total_records=%d)\n",g_thread_self (), view->name, (gint)sync_reduce_total_records,(gint)rereduce);
 #endif
 
           while (dupin_view_sync_thread_reduce (view, VIEW_SYNC_COUNT, rereduce, rere_matching.first_matching_key) == TRUE);
@@ -3376,10 +3394,14 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
 #endif
 
 	  /* check if there is anything to re-reduce */
+
           rere_matching.total = 0;
+
           if (rere_matching.first_matching_key != NULL)
             g_free (rere_matching.first_matching_key);
+
           rere_matching.first_matching_key = NULL;
+
           dupin_view_sync_total_rereduce (view, &rere_matching);
 
 #if DUPIN_VIEW_DEBUG
@@ -3395,143 +3417,6 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
 	      g_message("View %s going to re-reduce\n", view->name);
 #endif
 
-              /* NOTE - the following check allows to skip any possible bad records in re-reduce process dupin_view_sync_thread_reduce()
-		and avoid infinite loop - if nothing has changed  */
-
-              if (rere_matching.first_matching_key == NULL 
-	          || rereduce_previous_matching_key == NULL
-		  || g_strcmp0(rere_matching.first_matching_key, rereduce_previous_matching_key))
-                {
-                  query = "UPDATE DupinView SET sync_reduce_id = '0', sync_rereduce = 'TRUE'";
-                }
-	      else
-                {
-		  g_warning("dupin_view_sync_reduce_func: rereduce of key %s reported problems - bad records have been deleted\n", rere_matching.first_matching_key);
-
-		  gsize max_rowid;
-
-                  g_rw_lock_writer_lock (view->rwlock);
-
-		  if (dupin_view_begin_transaction (view, NULL) < 0)
-		    {
-		      g_rw_lock_writer_unlock (view->rwlock);
-
-      		      break;
-		    }
-
-  		  if (dupin_view_record_get_max_rowid (view, &max_rowid, FALSE) == FALSE)
-                    {
-                      g_rw_lock_writer_unlock (view->rwlock);
-
-                      dupin_view_rollback_transaction (view, NULL);
-
-      		      break;
-    		    }
-
-  		  gchar * max_rowid_str = g_strdup_printf ("%d", (gint)max_rowid);
-
-		  /* NOTE - delete records giving problems */
-
-		  /* NOTE - cleanup PID <-> ID mappings first */
-
-                  gchar * str = sqlite3_mprintf ("DELETE FROM DupinPid2Id WHERE id IN (SELECT id FROM Dupin WHERE ROWID < %q AND key='%q') ;", max_rowid_str, rere_matching.first_matching_key);
-
-                  if (sqlite3_exec (view->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
-                    {
-                      g_rw_lock_writer_unlock (view->rwlock);
-
-                      g_error("dupin_view_sync_reduce_func: %s", errmsg);
-                      sqlite3_free (errmsg);
-
-                      dupin_view_rollback_transaction (view, NULL);
-                      g_free (max_rowid_str);
-                      sqlite3_free (str);
-
-                      break;
-                    }
-
-                  sqlite3_free (str);
-
-  		  /* NOTE - we never delete the last record of the SQLite database to avoid ROWID recycling */
-
-                  str = sqlite3_mprintf ("DELETE FROM Dupin WHERE ROWID < %q AND key='%q' ;", max_rowid_str, rere_matching.first_matching_key);
-
-                  if (sqlite3_exec (view->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
-                    {
-                      g_rw_lock_writer_unlock (view->rwlock);
-
-                      g_error("dupin_view_sync_reduce_func: %s", errmsg);
-                      sqlite3_free (errmsg);
-
-                      dupin_view_rollback_transaction (view, NULL);
-                      g_free (max_rowid_str);
-                      sqlite3_free (str);
-
-                      break;
-                    }
-
-                  sqlite3_free (str);
-
-  		  /* NOTE - check if last one needs to be deleted after next / future insert */
-  		  gsize count=0;
-
-  		  str = sqlite3_mprintf ("SELECT count(*) FROM Dupin WHERE ROWID = %q AND key='%q' ;", max_rowid_str, rere_matching.first_matching_key);
-
-  		  if (sqlite3_exec (view->db, str, dupin_view_record_delete_cb, &count, &errmsg) != SQLITE_OK)
-    		    {
-                      g_rw_lock_writer_unlock (view->rwlock);
-
-                      g_error("dupin_view_sync_reduce_func: %s", errmsg);
-                      sqlite3_free (errmsg);
-
-                      dupin_view_rollback_transaction (view, NULL);
-                      g_free (max_rowid_str);
-                      sqlite3_free (str);
-
-                      break;
-    		    }
-
-  		  sqlite3_free (str);
-
-  		  if (count == 1)
-    		    {
-		      str = sqlite3_mprintf ("UPDATE DupinView SET last_to_delete_id = '%q'", max_rowid_str);
-
-      		      if (sqlite3_exec (view->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
-		        {
-                          g_rw_lock_writer_unlock (view->rwlock);
-
-                          g_error("dupin_view_sync_reduce_func: %s", errmsg);
-                          sqlite3_free (errmsg);
-
-                          dupin_view_rollback_transaction (view, NULL);
-                          g_free (max_rowid_str);
-                          sqlite3_free (str);
-
-                          break;
-        		}
-
-      		      sqlite3_free (str);
-		    }
-
-  		  g_free (max_rowid_str);
-
-		  if (dupin_view_commit_transaction (view, NULL) < 0)
-		    {
-		      g_rw_lock_writer_unlock (view->rwlock);
-
-      		      break;
-		    }
-
-                  g_rw_lock_writer_unlock (view->rwlock);
-
-		  /* flag to carry on (for any future request to sync) */
-
-                  query = "UPDATE DupinView SET sync_rereduce = 'TRUE'";
-
-		  //continue;
-                }
-
               g_rw_lock_writer_lock (view->rwlock);
 
 	      if (dupin_view_begin_transaction (view, NULL) < 0)
@@ -3540,6 +3425,8 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
 
                   break;
                 }
+
+              query = "UPDATE DupinView SET sync_reduce_id = '0', sync_rereduce = 'TRUE'";
 
               if (sqlite3_exec (view->db, query, NULL, NULL, &errmsg) != SQLITE_OK)
                 {
@@ -3561,11 +3448,6 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
                 }
 
               g_rw_lock_writer_unlock (view->rwlock);
-
-              if (rereduce_previous_matching_key != NULL)
-                g_free (rereduce_previous_matching_key);
-
-              rereduce_previous_matching_key = g_strdup (rere_matching.first_matching_key);
             }
           else
             {
@@ -3616,9 +3498,6 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
       g_rw_lock_reader_unlock (view->rwlock);
     }
 
-  if (rereduce_previous_matching_key != NULL)
-    g_free (rereduce_previous_matching_key);
-
   if (rere_matching.first_matching_key != NULL)
     g_free (rere_matching.first_matching_key);
 
@@ -3648,6 +3527,11 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
   g_rw_lock_writer_unlock (view->rwlock);
 
   dupin_view_unref (view);
+
+#if DUPIN_VIEW_BENCHMARK
+  g_message("dupin_view_sync_reduce_func(%p/%s) finished in %" G_GSIZE_FORMAT " seconds\n",g_thread_self (), view->name, ((dupin_date_timestamp_now (0)-start_time)/G_USEC_PER_SEC));
+#endif
+
 }
 
 /* NOTE- we try to spawn two threads map, reduce 

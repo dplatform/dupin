@@ -142,7 +142,7 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 
 #define DUPIN_DEBUG		0
 #define DUPIN_VIEW_DEBUG	0
-#define DUPIN_VIEW_BENCHMARK	1
+#define DUPIN_VIEW_BENCHMARK	0
 
 #define DUPIN_UNKNOWN_ERROR 	"Unknown Error"
 

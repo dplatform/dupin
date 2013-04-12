@@ -945,8 +945,6 @@ request_global_get_changes_database (DSHttpdClient * client,
   guint heartbeat=REQUEST_GET_ALL_CHANGES_HEARTBEAT_DEFAULT;
   guint timeout=REQUEST_GET_ALL_CHANGES_TIMEOUT_DEFAULT;
 
-  gsize total_rows = 0;
-
   gsize last_seq=0;
   gsize since = 0;
   DupinChangesType style = DP_CHANGES_MAIN_ONLY;
@@ -1133,25 +1131,6 @@ request_global_get_changes_database (DSHttpdClient * client,
       since = last_seq;
     }
 
-  if (since == 0)
-    { 
-      total_rows = dupin_database_count (db, DP_COUNT_CHANGES);
-    }
-  else
-    {
-      if (dupin_database_get_total_changes (db, &total_rows, since, 0, DP_COUNT_CHANGES, TRUE, types, types_op, NULL) == FALSE)
-        {
-          dupin_database_unref (db);
-
-          if (types)
-            g_strfreev (types);
-
-          request_set_error (client, "Cannot get last seq number from changes database");
-
-          return HTTP_STATUS_500;
-        }
-   }
-
   if (dupin_database_get_changes_list (db, count, 0, since, 0, style, DP_COUNT_CHANGES, DP_ORDERBY_ROWID, descending, types, types_op, &results, NULL) ==
       FALSE)
     {
@@ -1192,7 +1171,6 @@ request_global_get_changes_database (DSHttpdClient * client,
 
   json_node_take_object (node, obj);
 
-  json_object_set_int_member (obj, "total_rows", total_rows);
   json_object_set_int_member (obj, "rows_per_page", count);
 
   array = json_array_new ();
@@ -1239,10 +1217,7 @@ request_global_get_changes_database (DSHttpdClient * client,
       json_array_add_element (array, change);
     }
 
-  if (total_rows > 0)
-    {
-      json_object_set_int_member (obj, "last_seq", last_seq);
-    }
+  json_object_set_int_member (obj, "last_seq", last_seq);
 
   client->output_mime = g_strdup (HTTP_MIME_JSON);
   client->output_type = DS_HTTPD_OUTPUT_STRING;
@@ -1875,7 +1850,7 @@ request_global_get_database (DSHttpdClient * client,
   if (dupin_database_get_max_rowid (db, &max_rowid) == FALSE)
     {
       dupin_database_unref (db);
-      request_set_error (client, "Cannot get last seq number from changes database");
+      request_set_error (client, "Cannot get last seq number from database");
       return HTTP_STATUS_500;
     }
 
@@ -2571,7 +2546,7 @@ request_global_get_linkbase (DSHttpdClient * client,
   if (dupin_linkbase_get_max_rowid (linkb, &max_rowid) == FALSE)
     {
       dupin_linkbase_unref (linkb);
-      request_set_error (client, "Cannot get last seq number from changes linkbase");
+      request_set_error (client, "Cannot get last seq number from linkbase");
       return HTTP_STATUS_500;
     }
 
@@ -3295,8 +3270,6 @@ request_global_get_changes_linkbase (DSHttpdClient * client,
   gchar ** tags = NULL;
   DupinFilterByType tags_op = DP_FILTERBY_EQUALS;
 
-  gsize total_rows = 0;
-
   gsize last_seq=0;
   gsize since = 0;
   DupinChangesType style = DP_CHANGES_MAIN_ONLY;
@@ -3478,23 +3451,6 @@ request_global_get_changes_linkbase (DSHttpdClient * client,
       since = last_seq;
     }
 
-  if (since == 0)
-    {
-      total_rows = dupin_linkbase_count (linkb, DP_LINK_TYPE_ANY, DP_COUNT_CHANGES);
-    }
-  else
-    {
-      if (dupin_linkbase_get_total_changes (linkb, &total_rows, since, 0, style, DP_COUNT_CHANGES, TRUE, context_id, tags, tags_op, NULL) == FALSE)
-        {
-          if (tags != NULL)
-            g_strfreev (tags);
-
-          dupin_linkbase_unref (linkb);
-          request_set_error (client, "Cannot get last seq number from changes linkbase");
-          return HTTP_STATUS_500;
-        }
-    }
-
   if (dupin_linkbase_get_changes_list (linkb, count, 0, since, 0, style, DP_COUNT_CHANGES, DP_ORDERBY_ROWID, descending, context_id, tags, tags_op, &results, NULL) ==
       FALSE)
     {
@@ -3520,7 +3476,6 @@ request_global_get_changes_linkbase (DSHttpdClient * client,
 
   json_node_take_object (node, obj);
 
-  json_object_set_int_member (obj, "total_rows", total_rows);
   json_object_set_int_member (obj, "rows_per_page", count);
 
   array = json_array_new ();
@@ -3568,10 +3523,7 @@ request_global_get_changes_linkbase (DSHttpdClient * client,
       json_array_add_element (array, change);
     }
 
-  if (total_rows > 0)
-    {
-      json_object_set_int_member (obj, "last_seq", last_seq);
-    }
+  json_object_set_int_member (obj, "last_seq", last_seq);
 
   client->output_mime = g_strdup (HTTP_MIME_JSON);
   client->output_type = DS_HTTPD_OUTPUT_STRING;

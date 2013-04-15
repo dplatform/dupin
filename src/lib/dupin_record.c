@@ -79,7 +79,7 @@ dupin_record_exists_real (DupinDB * db, gchar * id, gboolean lock)
 {
   gchar *tmp;
   gchar * errmsg;
-  gint numb = 0;
+  gsize numb = 0;
 
   tmp = sqlite3_mprintf (DUPIN_DB_SQL_EXISTS, id);
 

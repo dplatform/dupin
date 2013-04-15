@@ -90,7 +90,7 @@ gint		dupin_sqlite_subs_mgr_busy_handler
 
 gboolean	dupin_util_is_valid_obj		(JsonObject *obj);
 
-void		dupin_util_generate_id		(gchar		id[DUPIN_ID_MAX_LEN]);
+gchar *		dupin_util_generate_id		(GError **  error);
 
 gboolean	dupin_util_is_valid_view_engine_lang
 						(gchar *	lang);

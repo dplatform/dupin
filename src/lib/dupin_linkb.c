@@ -544,34 +544,44 @@ dupin_linkbase_get_creation_time (DupinLinkB * linkb, gsize * creation_time)
   return TRUE;
 }
 
-static void
-dupin_linkbase_generate_id_create (DupinLinkB * linkb, gchar id[DUPIN_ID_MAX_LEN])
-{
-  g_return_if_fail (linkb != NULL);
-
-  do
-    {
-      dupin_util_generate_id (id);
-    }
-  while (dupin_link_record_exists_real (linkb, id, FALSE) == TRUE);
-}
-
 gchar *
-dupin_linkbase_generate_id_real (DupinLinkB * linkb, GError ** error, gboolean lock)
+dupin_linkbase_generate_id_real (DupinLinkB * linkb,
+				 GError ** error,
+				 gboolean lock)
 {
   g_return_val_if_fail (linkb != NULL, NULL);
-
-  gchar id[DUPIN_ID_MAX_LEN];
 
   if (lock == TRUE)
     g_rw_lock_writer_lock (linkb->rwlock);
 
-  dupin_linkbase_generate_id_create (linkb, id);
+  while (TRUE)
+    { 
+      gchar * id = NULL;
+
+      id = dupin_util_generate_id (error);
+
+      if (id != NULL)
+        {   
+          if (dupin_link_record_exists_real (linkb, id, FALSE) == TRUE)
+            { 
+              g_free (id);
+            }
+          else
+            { 
+              if (lock == TRUE)
+                g_rw_lock_writer_unlock (linkb->rwlock);
+
+              return id;
+            }
+        }
+      else
+        break;
+    }
 
   if (lock == TRUE)
     g_rw_lock_writer_unlock (linkb->rwlock);
 
-  return g_strdup (id);
+  return NULL;
 }
 
 gchar *
@@ -579,7 +589,7 @@ dupin_linkbase_generate_id (DupinLinkB * linkb, GError ** error)
 {
   g_return_val_if_fail (linkb != NULL, NULL);
 
-  return dupin_linkbase_generate_id_real (linkb, error, TRUE);
+ return dupin_linkbase_generate_id_real (linkb, error, TRUE);
 }
 
 gchar *

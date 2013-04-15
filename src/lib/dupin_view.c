@@ -95,7 +95,7 @@ See http://wiki.apache.org/couchdb/Introduction_to_CouchDB_views
 
 #define VIEW_SYNC_COUNT	100
 
-static gchar *dupin_view_generate_id (DupinView * view);
+static gchar *dupin_view_generate_id (DupinView * view, GError ** error, gboolean lock);
 
 static int dupin_view_record_delete_cb (void *data, int argc, char **argv, char **col);
 
@@ -699,8 +699,14 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
   const gchar *id = NULL;
   gchar *tmp, *errmsg, *node_serialized=NULL, *key_serialized=NULL, *pid_serialized=NULL;
 
-  if (!(id = dupin_view_generate_id (view)))
+  GError * error = NULL;
+
+  g_rw_lock_writer_lock (view->rwlock);
+
+  if (!(id = dupin_view_generate_id (view, &error, FALSE)))
     {
+      g_rw_lock_writer_unlock (view->rwlock);
+
       return;
     }
 
@@ -709,8 +715,6 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
   DUPIN_UTIL_DUMP_JSON ("dupin_view_record_save_map: PID", pid_node);
   DUPIN_UTIL_DUMP_JSON ("dupin_view_record_save_map: OBJ", node);
 #endif
-
-  g_rw_lock_writer_lock (view->rwlock);
 
   /* serialize the node */
 
@@ -956,27 +960,44 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
   g_free ((gchar *)id);
 }
 
-static void
-dupin_view_generate_id_create (DupinView * view, gchar id[DUPIN_ID_MAX_LEN])
-{
-  g_return_if_fail (view != NULL);
-
-  do
-    {
-      dupin_util_generate_id (id);
-    }
-  while (dupin_view_record_exists_real (view, id, FALSE) == TRUE);
-}
-
-static gchar *
-dupin_view_generate_id (DupinView * view)
+gchar *
+dupin_view_generate_id (DupinView * view,
+		        GError ** error,
+			gboolean lock)
 {
   g_return_val_if_fail (view != NULL, NULL);
 
-  gchar id[DUPIN_ID_MAX_LEN];
+  if (lock == TRUE)
+    g_rw_lock_writer_lock (view->rwlock);
 
-  dupin_view_generate_id_create (view, id);
-  return g_strdup (id);
+  while (TRUE)
+    { 
+      gchar * id = NULL;
+
+      id = dupin_util_generate_id (error);
+
+      if (id != NULL)
+        {   
+          if (dupin_view_record_exists_real (view, id, FALSE) == TRUE)
+            { 
+              g_free (id);
+            }
+          else
+            { 
+	      if (lock == TRUE)
+                g_rw_lock_writer_unlock (view->rwlock);
+
+              return id;
+            }
+        }
+      else
+        break;
+    }
+
+  if (lock == TRUE)
+   g_rw_lock_writer_unlock (view->rwlock);
+
+  return NULL;
 }
 
 static int

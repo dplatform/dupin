@@ -39,11 +39,11 @@ static int
 dupin_view_record_exists_real_cb (void *data, int argc, char **argv,
 				  char **col)
 {
-  guint *numb = data;
+  gsize *numb = data;
 
-  if (argv[0])
-    *numb = atoi (argv[0]);
-
+  if (argv[0] && *argv[0])
+    *numb = (gsize) g_ascii_strtoll (argv[0], NULL, 10);
+  
   return 0;
 }
 
@@ -52,7 +52,7 @@ dupin_view_record_exists_real (DupinView * view, gchar * id, gboolean lock)
 {
   gchar *errmsg;
   gchar *tmp;
-  gint numb = 0;
+  gsize numb = 0;
 
   tmp = sqlite3_mprintf (DUPIN_VIEW_SQL_EXISTS, id);
 

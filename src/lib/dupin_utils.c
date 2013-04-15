@@ -118,29 +118,26 @@ dupin_util_is_valid_absolute_uri (gchar * uri)
 
 /* TODO - rework this function to be network portable (indep. of NTP) and sequential etc */
 /* roughly we want an ID which is unique per thread, machine/server and sequential, and sortable */
-void
-dupin_util_generate_id (gchar id[DUPIN_ID_MAX_LEN])
+
+gchar *
+dupin_util_generate_id (GError **  error)
 {
   gchar guid[32];
 
   static const unsigned char rchars[] =
 	"abcdefghijklmnopqrstuvwxyz"
 	"0123456789";
-   gint i;
+  gint i;
 
-   sqlite3_randomness(sizeof(guid), id);
+  sqlite3_randomness(sizeof(guid), guid);
 
-   for (i=0; i<sizeof(guid); i++)
-     {
-       id[i] = rchars[ id[i] % (sizeof(rchars)-1) ];
-     }
-   id[sizeof(guid)] = '\0';
+  for (i=0; i<sizeof(guid); i++)
+    {
+      guid[i] = rchars[ guid[i] % (sizeof(rchars)-1) ];
+    }
+  guid[sizeof(guid)] = '\0';
 
-   gchar *md5 = g_compute_checksum_for_string (DUPIN_ID_HASH_ALGO, id, 32);
-
-   snprintf (id, DUPIN_ID_MAX_LEN, "%s", md5);   
-
-   g_free (md5);
+  return g_compute_checksum_for_string (DUPIN_ID_HASH_ALGO, guid, -1);
 }
 
 gboolean

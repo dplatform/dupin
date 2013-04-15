@@ -586,6 +586,7 @@ request_global_get_uuids (DSHttpdClient * client,
 			  GList * arguments)
 {
   GList *list;
+  GError **  error;
 
   guint count = 1;
   guint i;
@@ -634,11 +635,11 @@ request_global_get_uuids (DSHttpdClient * client,
 
   for (i = 0; i < count; i++)
     {
-      gchar id[DUPIN_ID_MAX_LEN];
-
-      dupin_util_generate_id (id);
+      gchar * id = dupin_util_generate_id (error);
 
       json_array_add_string_element (array, id);
+
+      g_free (id);
     }
 
   client->output.string.string = dupin_util_json_serialize (node);

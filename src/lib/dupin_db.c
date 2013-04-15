@@ -401,34 +401,44 @@ dupin_database_get_creation_time (DupinDB * db, gsize * creation_time)
   return TRUE;
 }
 
-static void
-dupin_database_generate_id_create (DupinDB * db, gchar id[DUPIN_ID_MAX_LEN])
-{
-  g_return_if_fail (db != NULL);
-
-  do
-    {
-      dupin_util_generate_id (id);
-    }
-  while (dupin_record_exists_real (db, id, FALSE) == TRUE);
-}
-
 gchar *
-dupin_database_generate_id_real (DupinDB * db, GError ** error, gboolean lock)
+dupin_database_generate_id_real (DupinDB * db,
+				 GError ** error,
+				 gboolean lock)
 {
   g_return_val_if_fail (db != NULL, NULL);
-
-  gchar id[DUPIN_ID_MAX_LEN];
 
   if (lock == TRUE)
     g_rw_lock_writer_lock (db->rwlock);
 
-  dupin_database_generate_id_create (db, id);
+  while (TRUE)
+    {
+      gchar * id = NULL;
+
+      id = dupin_util_generate_id (error);
+
+      if (id != NULL)
+        {
+          if (dupin_record_exists_real (db, id, FALSE) == TRUE)
+	    {
+              g_free (id);
+	    }
+	  else
+	    {
+              if (lock == TRUE)
+                g_rw_lock_writer_unlock (db->rwlock);
+
+              return id;
+            }
+        }
+      else
+        break;
+    }
 
   if (lock == TRUE)
     g_rw_lock_writer_unlock (db->rwlock);
 
-  return g_strdup (id);
+  return NULL;
 }
 
 gchar *

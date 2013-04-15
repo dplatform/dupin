@@ -72,10 +72,20 @@ stop)
 status)
     $CURL -s $STATUSURL
     ;;
+restart|force-reload)
+    PID_FILE='@DUPINCTL_PIDFILE@'
+    if [ -f "$PID_FILE" ]; then
+      $0 stop
+      sleep 1
+    else
+        $CURL -s $QUITURL
+    fi
+    $0 start
+    ;;
 *)
     echo "Usage:"
     echo "   "
-    echo "   " $DUPINSERVER "(start | stop | status)"
+    echo "   " $DUPINSERVER "(start | stop | status | restart | force-reload)"
     echo "   "
     ERROR=$?
 esac

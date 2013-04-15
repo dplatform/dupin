@@ -234,10 +234,17 @@ request_status (DSHttpdClient * client,
     goto request_status_quit;
 
 #if GLIB_CHECK_VERSION (2, 27, 3)
+
+#if 0 /* TODO - the following returns wrong dates in 1970 on Ubuntu Linux - so we stick
+                to g_get_current_time() for the moment */
   gint64 timestamp;
   timestamp = g_source_get_time (client->channel_source);
   tv.tv_sec = timestamp / G_USEC_PER_SEC;
   tv.tv_usec = timestamp % G_USEC_PER_SEC;
+#endif
+
+  g_get_current_time (&tv);
+
 #else
   g_source_get_current_time (client->channel_source, &tv);
 #endif
@@ -586,7 +593,7 @@ request_global_get_uuids (DSHttpdClient * client,
 			  GList * arguments)
 {
   GList *list;
-  GError **  error;
+  GError * error = NULL;
 
   guint count = 1;
   guint i;
@@ -635,7 +642,7 @@ request_global_get_uuids (DSHttpdClient * client,
 
   for (i = 0; i < count; i++)
     {
-      gchar * id = dupin_util_generate_id (error);
+      gchar * id = dupin_util_generate_id (&error);
 
       json_array_add_string_element (array, id);
 

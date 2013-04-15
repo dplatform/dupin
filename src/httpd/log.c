@@ -92,12 +92,19 @@ log_write_before (DSGlobal * data)
   if (data->httpd_socket_source)
     {
 #if GLIB_CHECK_VERSION (2, 27, 3)
-    gint64 timestamp;
-    timestamp = g_source_get_time (data->httpd_socket_source);
-    tv.tv_sec = timestamp / G_USEC_PER_SEC;
-    tv.tv_usec = timestamp % G_USEC_PER_SEC;
+
+#if 0 /* TODO - the following returns wrong dates in 1970 on Ubuntu Linux - so we stick
+                to g_get_current_time() for the moment */
+      gint64 timestamp;
+      timestamp = g_source_get_time (data->httpd_socket_source);
+      tv.tv_sec = timestamp / G_USEC_PER_SEC;
+      tv.tv_usec = timestamp % G_USEC_PER_SEC;
+#endif
+
+      g_get_current_time (&tv);
+
 #else
-    g_source_get_current_time (data->httpd_socket_source, &tv);
+      g_source_get_current_time (data->httpd_socket_source, &tv);
 #endif
     }
   else

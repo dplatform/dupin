@@ -404,6 +404,8 @@ dupin_database_get_creation_time (DupinDB * db, gsize * creation_time)
 static void
 dupin_database_generate_id_create (DupinDB * db, gchar id[DUPIN_ID_MAX_LEN])
 {
+  g_return_if_fail (db != NULL);
+
   do
     {
       dupin_util_generate_id (id);
@@ -414,6 +416,8 @@ dupin_database_generate_id_create (DupinDB * db, gchar id[DUPIN_ID_MAX_LEN])
 gchar *
 dupin_database_generate_id_real (DupinDB * db, GError ** error, gboolean lock)
 {
+  g_return_val_if_fail (db != NULL, NULL);
+
   gchar id[DUPIN_ID_MAX_LEN];
 
   if (lock == TRUE)
@@ -439,6 +443,8 @@ dupin_database_generate_id (DupinDB * db, GError ** error)
 void
 dupin_db_disconnect (DupinDB * db)
 {
+  g_return_if_fail (db != NULL);
+
 #if DEBUG
   g_message("dupin_db_disconnect: total number of changes for '%s' database: %d\n", db->name, (gint)sqlite3_total_changes (db->db));
 #endif

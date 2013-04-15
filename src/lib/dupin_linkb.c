@@ -547,6 +547,8 @@ dupin_linkbase_get_creation_time (DupinLinkB * linkb, gsize * creation_time)
 static void
 dupin_linkbase_generate_id_create (DupinLinkB * linkb, gchar id[DUPIN_ID_MAX_LEN])
 {
+  g_return_if_fail (linkb != NULL);
+
   do
     {
       dupin_util_generate_id (id);
@@ -557,6 +559,8 @@ dupin_linkbase_generate_id_create (DupinLinkB * linkb, gchar id[DUPIN_ID_MAX_LEN
 gchar *
 dupin_linkbase_generate_id_real (DupinLinkB * linkb, GError ** error, gboolean lock)
 {
+  g_return_val_if_fail (linkb != NULL, NULL);
+
   gchar id[DUPIN_ID_MAX_LEN];
 
   if (lock == TRUE)
@@ -599,6 +603,8 @@ void
 dupin_linkb_disconnect (DupinLinkB * linkb)
 {
   GError * error = NULL;
+
+  g_return_if_fail (linkb != NULL);
 
 #if DEBUG
   g_message("dupin_linkb_disconnect: total number of changes for '%s' linkbase: %d\n", linkb->name, (gint)sqlite3_total_changes (linkb->db));

@@ -959,6 +959,8 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
 static void
 dupin_view_generate_id_create (DupinView * view, gchar id[DUPIN_ID_MAX_LEN])
 {
+  g_return_if_fail (view != NULL);
+
   do
     {
       dupin_util_generate_id (id);
@@ -969,6 +971,8 @@ dupin_view_generate_id_create (DupinView * view, gchar id[DUPIN_ID_MAX_LEN])
 static gchar *
 dupin_view_generate_id (DupinView * view)
 {
+  g_return_val_if_fail (view != NULL, NULL);
+
   gchar id[DUPIN_ID_MAX_LEN];
 
   dupin_view_generate_id_create (view, id);
@@ -1369,6 +1373,8 @@ void
 dupin_view_disconnect (DupinView * view)
 {
   GError * error = NULL;
+
+  g_return_if_fail (view != NULL);
 
 #if DUPIN_VIEW_DEBUG
   g_message("dupin_view_disconnect: total number of changes for '%s' view database: %d\n", view->name, (gint)sqlite3_total_changes (view->db));

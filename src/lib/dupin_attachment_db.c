@@ -482,6 +482,8 @@ dupin_attachment_db_get_creation_time (DupinAttachmentDB * attachment_db, gsize 
 void
 dupin_attachment_db_disconnect (DupinAttachmentDB * attachment_db)
 {
+  g_return_if_fail (attachment_db != NULL);
+
 #if DEBUG
   g_message("dupin_attachment_db_disconnect: total number of changes for '%s' attachments database: %d\n", attachment_db->name, (gint)sqlite3_total_changes (attachment_db->db));
 #endif

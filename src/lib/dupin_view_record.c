@@ -151,7 +151,11 @@ dupin_view_record_get_list_total (DupinView * view,
             str = g_string_append (str, " OR ");
         }
 
-      key_range = g_string_free (str, FALSE);
+      gchar * kr = g_string_free (str, FALSE);
+
+      key_range = sqlite3_mprintf ("%s", kr);
+
+      g_free (kr);
     }
   else if (start_key!=NULL && end_key!=NULL)
     if (!g_utf8_collate (start_key, end_key) && inclusive_end == TRUE)
@@ -533,7 +537,11 @@ dupin_view_record_get_list (DupinView * view, guint count, guint offset,
             str = g_string_append (str, " OR ");
         }
 
-      key_range = g_string_free (str, FALSE);
+      gchar * kr = g_string_free (str, FALSE);
+
+      key_range = sqlite3_mprintf ("%s", kr);
+
+      g_free (kr);
     }
   else if (start_key!=NULL && end_key!=NULL)
     if (!g_utf8_collate (start_key, end_key) && inclusive_end == TRUE)

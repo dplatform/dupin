@@ -1790,19 +1790,18 @@ dupin_view_count (DupinView * view)
 /* NOTE - we always bulk insert using the latest revision and update the records only if modified (so we reduce revisions too) */
 
 JsonNode *
-dupin_view_output_insert_bulk (DupinView * view, JsonNode * bulk_node)
+dupin_view_output_insert (DupinView * view, JsonNode * node)
 {
   g_return_val_if_fail (view != NULL, NULL);
-  g_return_val_if_fail (bulk_node != NULL, NULL);
-  g_return_val_if_fail (json_node_get_node_type (bulk_node) == JSON_NODE_OBJECT, NULL);
+  g_return_val_if_fail (node != NULL, NULL);
+  g_return_val_if_fail (json_node_get_node_type (node) == JSON_NODE_OBJECT, NULL);
 
   GList * response_list=NULL;
   JsonNode * response_node = NULL;
 
   if (dupin_view_get_output_is_db (view) == TRUE)
     {
-      if (json_object_has_member (json_node_get_object (bulk_node), REQUEST_POST_BULK_DOCS_DOCS) == FALSE)
-        return NULL;
+      gboolean is_bulk = (json_object_has_member (json_node_get_object (node), REQUEST_POST_BULK_DOCS_DOCS) == FALSE) ? FALSE : TRUE;
 
       DupinDB * db = NULL;
       if (! (db = dupin_database_open (view->d, (gchar *)dupin_view_get_output (view), NULL)))
@@ -1810,17 +1809,35 @@ dupin_view_output_insert_bulk (DupinView * view, JsonNode * bulk_node)
                     
       GError * error = NULL;
 
-      if (dupin_record_insert_bulk (db, bulk_node, &response_list, TRUE, TRUE, &error) == TRUE)
+      if (is_bulk == TRUE)
         {
-          response_node = json_node_new (JSON_NODE_ARRAY);
-          JsonArray * response_array = json_array_new ();
-          json_node_take_array (response_node, response_array);
-              
-          GList * l = NULL;
-          for (l=response_list; l; l = l->next)
+          if (dupin_record_insert_bulk (db, node, &response_list, TRUE, TRUE, &error) == TRUE)
             {
-              JsonNode * r_node = (JsonNode *)l->data;
-              json_array_add_element (response_array, json_node_copy (r_node));
+              response_node = json_node_new (JSON_NODE_ARRAY);
+              JsonArray * response_array = json_array_new ();
+              json_node_take_array (response_node, response_array);
+              
+              GList * l = NULL;
+              for (l=response_list; l; l = l->next)
+                {
+                  JsonNode * r_node = (JsonNode *)l->data;
+                  json_array_add_element (response_array, json_node_copy (r_node));
+                }
+            }
+        }
+      else
+        {
+	  if (dupin_record_insert (db, node, NULL, NULL, &response_list, TRUE, TRUE, &error) == TRUE)
+            {
+	      if (g_list_length (response_list) == 1)
+                {
+      		  JsonNode * r = (JsonNode *) response_list->data;
+
+      		  response_node = json_node_copy (r);
+
+      		  if (json_object_has_member (json_node_get_object (response_node), RESPONSE_STATUS_ERROR) == FALSE)
+        	    json_object_set_boolean_member (json_node_get_object (response_node), "ok", TRUE);
+                }
             }
         }
 
@@ -1834,7 +1851,7 @@ dupin_view_output_insert_bulk (DupinView * view, JsonNode * bulk_node)
     }
   else if (dupin_view_get_output_is_linkb (view) == TRUE)
     {
-      g_warning("dupin_view_output_insert_bulk: output to linkbase not implemented yet\n");
+      g_warning("dupin_view_output_insert: output to linkbase not implemented yet\n");
 
       return NULL;
     }
@@ -1900,7 +1917,7 @@ dupin_view_sync_thread_real_map (DupinView * view, GList * list)
 	      if (dupin_view_engine_get_reduce_code (view->engine) == NULL
 		  && dupin_view_get_output (view) != NULL)
 	        {
-	          if (! (response_node = dupin_view_output_insert_bulk (view, node)))
+	          if (! (response_node = dupin_view_output_insert (view, node)))
 	            {
 		      continue; // TODO - shall we fail instead?
 		    }
@@ -2956,7 +2973,7 @@ dupin_view_sync_thread_reduce (DupinView * view, gsize count, gboolean rereduce,
 	  JsonNode * response_node = NULL;
           if (dupin_view_get_output (view) != NULL)
             {
-              if (! (response_node = dupin_view_output_insert_bulk (view, result)))
+              if (! (response_node = dupin_view_output_insert (view, result)))
                 {
 	          json_node_free (result);
 	          json_node_free (pid_node);

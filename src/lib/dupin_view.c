@@ -473,12 +473,12 @@ dupin_view_p_update (DupinView * view, GError ** error)
   struct dupin_view_db_record_t db_record;
   memset (&db_record, 0, sizeof (struct dupin_view_db_record_t));
 
-  g_rw_lock_writer_lock (view->d->rwlock);
+  g_rw_lock_reader_lock (view->rwlock);
 
   if (sqlite3_exec (view->db, DUPIN_VIEW_SQL_GET_RECORD, dupin_view_p_update_cb, &db_record, &errmsg)
       != SQLITE_OK)
     {
-      g_rw_lock_writer_unlock (view->d->rwlock);
+      g_rw_lock_reader_unlock (view->rwlock);
 
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
 		   errmsg);
@@ -486,7 +486,7 @@ dupin_view_p_update (DupinView * view, GError ** error)
       return FALSE;
     }
 
-  g_rw_lock_writer_unlock (view->d->rwlock);
+  g_rw_lock_reader_unlock (view->rwlock);
 
   if (!db_record.parent)
     {

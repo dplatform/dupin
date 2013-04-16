@@ -118,9 +118,13 @@ dupin_linkbase_open (Dupin * d, gchar * linkb, GError ** error)
   g_rw_lock_reader_lock (d->rwlock);
 
   if (!(ret = g_hash_table_lookup (d->linkbs, linkb)) || ret->todelete == TRUE)
-    g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
+    {
+      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
 		 "Linkbase '%s' doesn't exist.", linkb);
 
+      g_rw_lock_reader_unlock (d->rwlock);
+      return NULL;
+    }
   else
     {
       ret->ref++;
@@ -280,7 +284,7 @@ dupin_linkbase_p_update_real (DupinLinkBP * p, DupinLinkB * linkb)
                 { 
                   linkbs[p->numb] = p->linkbs[i];
                   p->numb++;
-                } 
+                }
             } 
           g_free (p->linkbs);
           p->linkbs = linkbs;
@@ -314,12 +318,12 @@ dupin_linkbase_p_update (DupinLinkB * linkb, GError ** error)
 
   memset (&update, 0, sizeof (struct dupin_linkbase_p_update_t));
 
-  g_rw_lock_writer_lock (linkb->d->rwlock);
+  g_rw_lock_reader_lock (linkb->rwlock);
 
   if (sqlite3_exec (linkb->db, query, dupin_linkbase_p_update_cb, &update, &errmsg)
       != SQLITE_OK)
     {
-      g_rw_lock_writer_unlock (linkb->d->rwlock);
+      g_rw_lock_reader_unlock (linkb->rwlock);
 
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
                    errmsg);
@@ -327,7 +331,7 @@ dupin_linkbase_p_update (DupinLinkB * linkb, GError ** error)
       return FALSE;
     }
 
-  g_rw_lock_writer_unlock (linkb->d->rwlock);
+  g_rw_lock_reader_unlock (linkb->rwlock);
 
   if (!update.parent)
     {

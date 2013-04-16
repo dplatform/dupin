@@ -287,12 +287,12 @@ dupin_attachment_db_p_update (DupinAttachmentDB * attachment_db, GError ** error
 
   memset (&update, 0, sizeof (struct dupin_attachment_db_p_update_t));
 
-  g_rw_lock_writer_lock (attachment_db->d->rwlock);
+  g_rw_lock_reader_lock (attachment_db->rwlock);
 
   if (sqlite3_exec (attachment_db->db, query, dupin_attachment_db_p_update_cb, &update, &errmsg)
       != SQLITE_OK)
     {
-      g_rw_lock_writer_unlock (attachment_db->d->rwlock);
+      g_rw_lock_reader_unlock (attachment_db->rwlock);
 
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
 		   errmsg);
@@ -300,7 +300,7 @@ dupin_attachment_db_p_update (DupinAttachmentDB * attachment_db, GError ** error
       return FALSE;
     }
 
-  g_rw_lock_writer_unlock (attachment_db->d->rwlock);
+  g_rw_lock_reader_unlock (attachment_db->rwlock);
 
   if (!update.parent)
     {
@@ -482,11 +482,20 @@ dupin_attachment_db_get_creation_time (DupinAttachmentDB * attachment_db, gsize 
 void
 dupin_attachment_db_disconnect (DupinAttachmentDB * attachment_db)
 {
+  GError * error = NULL;
+
   g_return_if_fail (attachment_db != NULL);
 
 #if DEBUG
   g_message("dupin_attachment_db_disconnect: total number of changes for '%s' attachments database: %d\n", attachment_db->name, (gint)sqlite3_total_changes (attachment_db->db));
 #endif
+
+  if (dupin_attachment_db_p_update (attachment_db, &error) == FALSE)
+    {
+#if DUPIN_VIEW_DEBUG
+      g_warning("dupin_attachment_db_disconnect: could not remove reference from parent for attachment db '%s'\n", attachment_db->name);
+#endif
+    }
 
   if (attachment_db->db)
     sqlite3_close (attachment_db->db);

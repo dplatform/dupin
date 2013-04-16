@@ -104,9 +104,13 @@ dupin_database_open (Dupin * d, gchar * db, GError ** error)
   g_rw_lock_reader_lock (d->rwlock);
 
   if (!(ret = g_hash_table_lookup (d->dbs, db)) || ret->todelete == TRUE)
-    g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
+    {
+      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
 		 "Database '%s' doesn't exist.", db);
 
+      g_rw_lock_reader_unlock (d->rwlock);
+      return NULL;
+    }
   else
     {
       ret->ref++;

@@ -361,7 +361,13 @@ dupin_link_record_create_with_id_real (DupinLinkB * linkb, JsonNode * obj_node,
   struct dupin_link_record_select_total_t t;
   memset (&t, 0, sizeof (t));
 
+  if (lock == FALSE)
+    g_rw_lock_writer_unlock (linkb->rwlock);
+
   dupin_linkbase_ref (linkb);
+
+  if (lock == FALSE)
+    g_rw_lock_writer_lock (linkb->rwlock);
 
   if (lock == TRUE)
     g_rw_lock_writer_lock (linkb->rwlock);
@@ -556,7 +562,13 @@ dupin_link_record_read_real (DupinLinkB * linkb, gchar * id, GError ** error,
   gchar *errmsg;
   gchar *tmp;
 
+  if (lock == FALSE)
+    g_rw_lock_writer_unlock (linkb->rwlock);
+
   dupin_linkbase_ref (linkb);
+
+  if (lock == FALSE)
+    g_rw_lock_writer_lock (linkb->rwlock);
 
   record = dupin_link_record_new (linkb, id);
 
@@ -1071,9 +1083,9 @@ dupin_link_record_get_list_cb (void *data, int argc, char **argv, char **col)
 
       dupin_linkbase_ref (s->linkb);
 
-      record = dupin_link_record_new (s->linkb, id);
-
       g_rw_lock_reader_lock (s->linkb->rwlock);
+
+      record = dupin_link_record_new (s->linkb, id);
 
       dupin_link_record_add_revision_str (record, rev, hash, -1, obj, -1,
 					  context_id, label, href, rel, tag,

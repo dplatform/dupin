@@ -361,7 +361,13 @@ dupin_view_record_read_real (DupinView * view, gchar * id, GError ** error,
   gchar *errmsg;
   gchar *tmp;
 
+  if (lock == FALSE)
+    g_rw_lock_writer_unlock (view->rwlock);
+
   dupin_view_ref (view);
+
+  if (lock == FALSE)
+    g_rw_lock_writer_lock (view->rwlock);
 
   record = dupin_view_record_new (view, id);
 
@@ -454,9 +460,9 @@ dupin_view_record_get_list_cb (void *data, int argc, char **argv, char **col)
 
       dupin_view_ref (s->view);
 
-      record = dupin_view_record_new (s->view, id);
-
       g_rw_lock_reader_lock (s->view->rwlock);
+
+      record = dupin_view_record_new (s->view, id);
 
       record->pid_serialized = g_strdup (pid_serialized);
       record->pid_serialized_len = strlen (pid_serialized);

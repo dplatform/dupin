@@ -159,7 +159,13 @@ dupin_record_create_with_id_real (DupinDB * db, JsonNode * obj_node,
   struct dupin_record_select_total_t t;
   memset (&t, 0, sizeof (t));
 
+  if (lock == FALSE)
+    g_rw_lock_writer_unlock (db->rwlock);
+
   dupin_database_ref (db);
+
+  if (lock == FALSE)
+    g_rw_lock_writer_lock (db->rwlock);
 
   if (lock == TRUE)
     g_rw_lock_writer_lock (db->rwlock);
@@ -325,7 +331,13 @@ dupin_record_read_real (DupinDB * db, gchar * id, GError ** error,
   gchar *errmsg;
   gchar *tmp;
 
+  if (lock == FALSE)
+    g_rw_lock_writer_unlock (db->rwlock);
+
   dupin_database_ref (db);
+
+  if (lock == FALSE)
+    g_rw_lock_writer_lock (db->rwlock);
 
   record = dupin_record_new (db, id);
 
@@ -667,9 +679,9 @@ dupin_record_get_list_cb (void *data, int argc, char **argv, char **col)
 
       dupin_database_ref (s->db);
 
-      record = dupin_record_new (s->db, id);
-
       g_rw_lock_reader_lock (s->db->rwlock);
+
+      record = dupin_record_new (s->db, id);
 
       dupin_record_add_revision_str (record, rev, hash, type, -1, obj, -1, delete, tm, rowid);
 

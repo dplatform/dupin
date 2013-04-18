@@ -663,9 +663,13 @@ dupin_record_get_list_cb (void *data, int argc, char **argv, char **col)
 
   if (rev && hash !=NULL)
     {
+      g_rw_lock_reader_unlock (s->db->rwlock);
+
       dupin_database_ref (s->db);
 
       record = dupin_record_new (s->db, id);
+
+      g_rw_lock_reader_lock (s->db->rwlock);
 
       dupin_record_add_revision_str (record, rev, hash, type, -1, obj, -1, delete, tm, rowid);
 

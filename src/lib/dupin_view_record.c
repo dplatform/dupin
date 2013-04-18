@@ -450,9 +450,13 @@ dupin_view_record_get_list_cb (void *data, int argc, char **argv, char **col)
 
   if (id != NULL && rowid)
     {
+      g_rw_lock_reader_unlock (s->view->rwlock);
+
       dupin_view_ref (s->view);
 
       record = dupin_view_record_new (s->view, id);
+
+      g_rw_lock_reader_lock (s->view->rwlock);
 
       record->pid_serialized = g_strdup (pid_serialized);
       record->pid_serialized_len = strlen (pid_serialized);

@@ -1067,9 +1067,13 @@ dupin_link_record_get_list_cb (void *data, int argc, char **argv, char **col)
 
   if (rev && hash !=NULL)
     {
+      g_rw_lock_reader_unlock (s->linkb->rwlock);
+
       dupin_linkbase_ref (s->linkb);
 
       record = dupin_link_record_new (s->linkb, id);
+
+      g_rw_lock_reader_lock (s->linkb->rwlock);
 
       dupin_link_record_add_revision_str (record, rev, hash, -1, obj, -1,
 					  context_id, label, href, rel, tag,

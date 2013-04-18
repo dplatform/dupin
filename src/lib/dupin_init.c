@@ -202,6 +202,30 @@ dupin_init (DSGlobal *data, GError ** error)
       g_hash_table_insert (d->linkbs, g_strdup (name), linkb);
       g_free (path);
       g_free (name);
+
+      /* Set default parent linkbase if matching */
+
+      if (g_hash_table_size (d->dbs))
+        {
+	  gpointer key;
+	  gpointer value;
+          GHashTableIter iter;
+
+          g_hash_table_iter_init (&iter, d->dbs);
+          while (g_hash_table_iter_next (&iter, &key, &value) == TRUE)
+	    {
+	      DupinDB * db = (DupinDB*) value;
+	      DupinLinkB * default_linkbase = NULL;
+
+              if ((!g_strcmp0 (dupin_database_get_default_linkbase_name (db), dupin_linkbase_get_name (linkb))) &&
+		  (!(default_linkbase = dupin_database_get_default_linkbase (db))))
+                {
+                  db->default_linkbase = linkb;
+
+                  dupin_linkbase_ref (linkb);
+                } 
+	    }
+	}
     }
 
   g_dir_rewind (dir);
@@ -263,6 +287,30 @@ dupin_init (DSGlobal *data, GError ** error)
       g_hash_table_insert (d->attachment_dbs, g_strdup (name), attachment_db);
       g_free (path);
       g_free (name);
+
+      /* Set default parent attachment database if matching */
+
+      if (g_hash_table_size (d->dbs))
+        {
+          gpointer key;
+          gpointer value;
+          GHashTableIter iter;
+
+          g_hash_table_iter_init (&iter, d->dbs);
+          while (g_hash_table_iter_next (&iter, &key, &value) == TRUE)
+            {
+              DupinDB * db = (DupinDB*) value;
+	      DupinAttachmentDB * default_attachment_db = NULL;
+
+	      if ((!g_strcmp0 (dupin_database_get_default_attachment_db_name (db), dupin_attachment_db_get_name (attachment_db))) &&
+		  (!(default_attachment_db = dupin_database_get_default_attachment_db (db))))
+                {
+                  db->default_attachment_db = attachment_db;
+
+		  dupin_attachment_db_ref (attachment_db);
+                }
+            }
+        }
     }
 
   g_dir_rewind (dir);

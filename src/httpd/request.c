@@ -5602,7 +5602,6 @@ request_global_post_doc_link (DSHttpdClient * client,
   GError *error = NULL;
   GList * response_list = NULL;
   DupinDB * db=NULL; 
-  DupinLinkB * linkb=NULL;
   gboolean strict_links = FALSE;
   GList * l=NULL;
 
@@ -5668,17 +5667,8 @@ request_global_post_doc_link (DSHttpdClient * client,
       goto request_global_post_doc_link_end;
     }
 
-  if (!(linkb = dupin_linkbase_open (client->thread->data->dupin, dupin_database_get_default_linkbase_name (db), NULL)))
-    {
-      dupin_database_unref (db);
-      request_set_error (client, "Cannot connect to linkbase");
-      code = HTTP_STATUS_404;
-      goto request_global_post_doc_link_end;
-    }
-
-  dupin_database_unref (db);
-
-  if (dupin_link_record_insert (linkb, node, NULL, NULL, context_id, link_type, &response_list, strict_links, FALSE, FALSE, &error) == TRUE)
+  if (dupin_link_record_insert (dupin_database_get_default_linkbase (db), node, NULL, NULL,
+				context_id, link_type, &response_list, strict_links, FALSE, FALSE, &error) == TRUE)
     {
       if (request_record_response (client, response_list, FALSE) == FALSE)
         {
@@ -5696,7 +5686,7 @@ request_global_post_doc_link (DSHttpdClient * client,
         code = HTTP_STATUS_409;
       else
         code = HTTP_STATUS_400;
-      request_set_error (client, dupin_linkbase_get_error (linkb));
+      request_set_error (client, dupin_linkbase_get_error (dupin_database_get_default_linkbase (db)));
     }
 
   while (response_list)
@@ -5705,7 +5695,7 @@ request_global_post_doc_link (DSHttpdClient * client,
       response_list = g_list_remove (response_list, response_list->data);
     }
 
-  dupin_linkbase_unref (linkb);
+  dupin_database_unref (db);
 
 request_global_post_doc_link_end:
 
@@ -5852,7 +5842,6 @@ request_global_post_bulk_doc_links (DSHttpdClient * client,
   GError *error = NULL;
   GList *response_list=NULL;
   DupinDB * db=NULL; 
-  DupinLinkB * linkb = NULL;
   gboolean strict_links = FALSE;
   GList * l=NULL;
   gboolean use_latest_revision = FALSE;
@@ -5950,17 +5939,8 @@ request_global_post_bulk_doc_links (DSHttpdClient * client,
       goto request_global_post_bulk_doc_links_end;
     }
 
-  if (!(linkb = dupin_linkbase_open (client->thread->data->dupin, dupin_database_get_default_linkbase_name (db), NULL)))
-    {
-      dupin_database_unref (db);
-      request_set_error (client, "Cannot connect to linkbase");
-      code = HTTP_STATUS_404;
-      goto request_global_post_bulk_doc_links_end;
-    }
-
-  dupin_database_unref (db);
-
-  if (dupin_link_record_insert_bulk (linkb, node, context_id, &response_list, strict_links, use_latest_revision, ignore_updates_if_unmodified, &error) == TRUE)
+  if (dupin_link_record_insert_bulk (dupin_database_get_default_linkbase (db), node, context_id, &response_list,
+				     strict_links, use_latest_revision, ignore_updates_if_unmodified, &error) == TRUE)
     {
       if (request_record_response (client, response_list, TRUE) == FALSE)
         {
@@ -5975,7 +5955,7 @@ request_global_post_bulk_doc_links (DSHttpdClient * client,
   else
     {
       code = HTTP_STATUS_400;
-      request_set_error (client, dupin_linkbase_get_error (linkb));
+      request_set_error (client, dupin_linkbase_get_error (dupin_database_get_default_linkbase (db)));
     }
 
   while (response_list)
@@ -5984,7 +5964,7 @@ request_global_post_bulk_doc_links (DSHttpdClient * client,
       response_list = g_list_remove (response_list, response_list->data);
     }
 
-  dupin_linkbase_unref (linkb);
+  dupin_database_unref (db);
 
 request_global_post_bulk_doc_links_end:
 
@@ -6894,7 +6874,6 @@ request_global_put_link_record (DSHttpdClient * client,
   GError *error = NULL;
   GList * response_list = NULL;
   DupinDB * db=NULL;
-  DupinLinkB * linkb=NULL;
   gchar * mvcc=NULL;
   gboolean strict_links = FALSE;
   GList * l=NULL;
@@ -7027,20 +7006,11 @@ request_global_put_link_record (DSHttpdClient * client,
       goto request_global_put_link_record_end;
     }
 
-  if (!(linkb = dupin_linkbase_open (client->thread->data->dupin, dupin_database_get_default_linkbase_name (db), NULL)))
-    {
-      dupin_database_unref (db);
-      request_set_error (client, "Cannot connect to linkbase");
-      code = HTTP_STATUS_404;
-      goto request_global_put_link_record_end;
-    }
-
-  dupin_database_unref (db);
-
   if (request_fields != NULL)
     {
       if (mvcc == NULL)
         {
+          dupin_database_unref (db);
           request_set_error (client, "Link record MVCC revision is missing");
           code = HTTP_STATUS_404;
           goto request_global_put_link_record_end;
@@ -7058,13 +7028,15 @@ request_global_put_link_record (DSHttpdClient * client,
       json_object_set_member (patch_obj, (const gchar *)request_fields, json_node_copy (node));
       json_object_set_boolean_member (patch_obj, REQUEST_OBJ_PATCHED, TRUE);
 
-      res = dupin_link_record_insert (linkb, patch, link_id, mvcc, NULL, DP_LINK_TYPE_ANY, &response_list, strict_links, FALSE, FALSE, &error);
+      res = dupin_link_record_insert (dupin_database_get_default_linkbase (db), patch, link_id, mvcc, 
+				      NULL, DP_LINK_TYPE_ANY, &response_list, strict_links, FALSE, FALSE, &error);
 
       json_node_free (patch);
     }
   else
     {
-      res = dupin_link_record_insert (linkb, node, link_id, mvcc, NULL, DP_LINK_TYPE_ANY, &response_list, strict_links, FALSE, FALSE, &error);
+      res = dupin_link_record_insert (dupin_database_get_default_linkbase (db), node, link_id, mvcc, 
+				      NULL, DP_LINK_TYPE_ANY, &response_list, strict_links, FALSE, FALSE, &error);
     }
 
   if (res == TRUE)
@@ -7085,7 +7057,7 @@ request_global_put_link_record (DSHttpdClient * client,
         code = HTTP_STATUS_409;
       else
         code = HTTP_STATUS_400;
-      request_set_error (client, dupin_linkbase_get_error (linkb));
+      request_set_error (client, dupin_linkbase_get_error (dupin_database_get_default_linkbase (db)));
     }
 
   while (response_list)
@@ -7094,7 +7066,7 @@ request_global_put_link_record (DSHttpdClient * client,
       response_list = g_list_remove (response_list, response_list->data);
     }
 
-  dupin_linkbase_unref (linkb);
+  dupin_database_unref (db);
 
 request_global_put_link_record_end:
 
@@ -7119,7 +7091,6 @@ request_global_put_record_attachment (DSHttpdClient * client,
   GList * title_parts=NULL;
   GList * response_list = NULL;
   DupinDB * db=NULL;
-  DupinAttachmentDB * attachment_db=NULL;
   gchar * mvcc=NULL;
   GList * l=NULL;
   GError *error = NULL;
@@ -7189,19 +7160,9 @@ request_global_put_record_attachment (DSHttpdClient * client,
       goto request_global_put_record_attachment_end;
     }
 
-  if (!  (attachment_db = dupin_attachment_db_open (client->thread->data->dupin, dupin_database_get_default_attachment_db_name (db), NULL)))
-    {
-      dupin_database_unref (db);
-      request_set_error (client, "Cannot connect to attachments database");
-      code = HTTP_STATUS_404;
-      goto request_global_put_record_attachment_end;
-    }
-
-  dupin_database_unref (db);
-
   const void * client_body_ref = (const void *)client->body;
 
-  if (dupin_attachment_record_insert (attachment_db, doc_id, mvcc, title_parts,
+  if (dupin_attachment_record_insert (dupin_database_get_default_attachment_db (db), doc_id, mvcc, title_parts,
 				      client->body_size, client->input_mime,
 				      &client_body_ref, &response_list, &error) == TRUE)
     {
@@ -7216,7 +7177,7 @@ request_global_put_record_attachment (DSHttpdClient * client,
   else
     {
       code = HTTP_STATUS_400;
-      request_set_error (client, dupin_attachment_db_get_error (attachment_db));
+      request_set_error (client, dupin_attachment_db_get_error (dupin_database_get_default_attachment_db (db)));
     }
 
   while (response_list)
@@ -7225,7 +7186,7 @@ request_global_put_record_attachment (DSHttpdClient * client,
       response_list = g_list_remove (response_list, response_list->data);
     }
 
-  dupin_attachment_db_unref (attachment_db);
+  dupin_database_unref (db);
 
 request_global_put_record_attachment_end:
 

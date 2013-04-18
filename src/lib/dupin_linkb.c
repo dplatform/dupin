@@ -96,12 +96,13 @@ dupin_get_linkbases (Dupin * d)
 }
 
 gboolean
-dupin_linkbase_exists (Dupin * d, gchar * linkb)
+dupin_linkbase_exists (Dupin * d, gchar * linkb_name)
 {
   gboolean ret;
 
   g_rw_lock_reader_lock (d->rwlock);
-  ret = g_hash_table_lookup (d->linkbs, linkb) != NULL ? TRUE : FALSE;
+  DupinLinkB * linkb = g_hash_table_lookup (d->linkbs, linkb_name); 
+  ret = ((linkb != NULL) && linkb->todelete == FALSE) ? TRUE : FALSE;
   g_rw_lock_reader_unlock (d->rwlock);
 
   return ret;
@@ -140,8 +141,10 @@ dupin_linkbase_open (Dupin * d, gchar * linkb, GError ** error)
 }
 
 DupinLinkB *
-dupin_linkbase_new (Dupin * d, gchar * linkb,
-		    gchar * parent, gboolean is_db,
+dupin_linkbase_new (Dupin * d,
+		    gchar * linkb,
+		    gchar * parent,
+		    gboolean parent_is_db,
 		    GError ** error)
 {
   DupinLinkB *ret;
@@ -155,10 +158,10 @@ dupin_linkbase_new (Dupin * d, gchar * linkb,
   g_return_val_if_fail (parent != NULL, NULL);
   g_return_val_if_fail (dupin_util_is_valid_linkb_name (linkb) == TRUE, NULL);
 
-  if (is_db == TRUE)
+  if (parent_is_db == TRUE)
     g_return_val_if_fail (dupin_database_exists (d, parent) == TRUE, NULL);
   else
-    g_return_val_if_fail (dupin_linkbase_exists (d, parent) == TRUE, NULL);
+    return NULL;
 
   g_rw_lock_writer_lock (d->rwlock);
 
@@ -184,7 +187,7 @@ dupin_linkbase_new (Dupin * d, gchar * linkb,
   g_free (path);
 
   ret->parent = g_strdup (parent);
-  ret->parent_is_db = is_db;
+  ret->parent_is_db = parent_is_db;
 
   ret->ref++;
 
@@ -203,7 +206,7 @@ dupin_linkbase_new (Dupin * d, gchar * linkb,
 
   str = sqlite3_mprintf ("INSERT OR REPLACE INTO DupinLinkB "
                          "(parent, isdb, compact_id, check_id, creation_time) "
-                         "VALUES('%q', '%s', 0, 0, '%q')", parent, is_db ? "TRUE" : "FALSE", creation_time);
+                         "VALUES('%q', '%s', 0, 0, '%q')", parent, parent_is_db ? "TRUE" : "FALSE", creation_time);
 
   g_free (creation_time);
 
@@ -261,7 +264,8 @@ dupin_linkbase_p_update_cb (void *data, int argc, char **argv, char **col)
 #define DUPIN_LINKBASE_P_SIZE       64
 
 static void
-dupin_linkbase_p_update_real (DupinLinkBP * p, DupinLinkB * linkb)
+dupin_linkbase_p_update_real (DupinLinkBP * p,
+			      DupinLinkB * linkb)
 {
   g_rw_lock_reader_lock (linkb->rwlock);
   gboolean todelete = linkb->todelete;
@@ -271,12 +275,12 @@ dupin_linkbase_p_update_real (DupinLinkBP * p, DupinLinkB * linkb)
     {
       if (p->linkbs != NULL)
         {
-	  /* NOTE - need to remove pointer from parent if linkb is "hot deleted" */
+          /* NOTE - need to remove pointer from parent if linkb is "hot deleted" */
 
-	  DupinLinkB ** linkbs = g_malloc (sizeof (DupinLinkB *) * p->size);
+          DupinLinkB ** linkbs = g_malloc (sizeof (DupinLinkB *) * p->size);
 
-	  gint i;
-	  gint current_numb = p->numb;
+          gint i;
+          gint current_numb = p->numb;
           p->numb = 0;
           for (i=0; i < current_numb ; i++)
             { 
@@ -284,7 +288,7 @@ dupin_linkbase_p_update_real (DupinLinkBP * p, DupinLinkB * linkb)
                 { 
                   linkbs[p->numb] = p->linkbs[i];
                   p->numb++;
-                }
+                } 
             } 
           g_free (p->linkbs);
           p->linkbs = linkbs;
@@ -313,9 +317,9 @@ gboolean
 dupin_linkbase_p_update (DupinLinkB * linkb, GError ** error)
 {
   gchar *errmsg;
-  struct dupin_linkbase_p_update_t update;
   gchar *query = "SELECT parent, isdb FROM DupinLinkB LIMIT 1";
 
+  struct dupin_linkbase_p_update_t update;
   memset (&update, 0, sizeof (struct dupin_linkbase_p_update_t));
 
   g_rw_lock_reader_lock (linkb->rwlock);
@@ -342,35 +346,43 @@ dupin_linkbase_p_update (DupinLinkB * linkb, GError ** error)
 
   if (update.isdb == TRUE)
     {
-      DupinDB *db;
+      g_rw_lock_reader_lock (linkb->rwlock);
+      gboolean todelete = linkb->todelete;
+      g_rw_lock_reader_unlock (linkb->rwlock);
 
-      if (!(db = dupin_database_open (linkb->d, update.parent, error)))
+      gboolean parent_exists = dupin_database_exists (linkb->d, update.parent);
+
+      if (parent_exists == TRUE)
+        {
+          DupinDB * db = NULL;
+
+	  if (!(db = dupin_database_open (linkb->d, update.parent, error)))
+            {
+              g_free (update.parent);
+              return FALSE;
+            }
+
+          g_rw_lock_writer_lock (db->rwlock);
+          dupin_linkbase_p_update_real (&db->linkbs, linkb);
+          g_rw_lock_writer_unlock (db->rwlock);
+
+          dupin_database_unref (db);
+        }
+
+        /* NOTE - effectively ignore if parent has gone before the linkbase due they co-reference */
+
+      else if (todelete == FALSE)
         {
           g_free (update.parent);
           return FALSE;
         }
-
-      g_rw_lock_writer_lock (db->rwlock);
-      dupin_linkbase_p_update_real (&db->linkbs, linkb);
-      g_rw_lock_writer_unlock (db->rwlock);
-
-      dupin_database_unref (db);
     }
   else
     {
-      DupinLinkB *l;
+      g_warning ("dupin_linkbase_p_update() parent type unimplemented");
 
-      if (!(l = dupin_linkbase_open (linkb->d, update.parent, error)))
-        {
-          g_free (update.parent);
-          return FALSE;
-        }
-
-      g_rw_lock_writer_lock (l->rwlock);
-      dupin_linkbase_p_update_real (&l->linkbs, linkb);
-      g_rw_lock_writer_unlock (l->rwlock);
-
-      dupin_linkbase_unref (l);
+      g_free (update.parent);
+      return FALSE;
     }
 
   /* make sure parameters are set after dupin server restart on existing link base */
@@ -386,8 +398,9 @@ dupin_linkbase_p_update (DupinLinkB * linkb, GError ** error)
 }
 
 void
-dupin_linkbase_p_record_insert (DupinLinkBP * p, gchar * id,
-                            JsonObject * obj)
+dupin_linkbase_p_record_insert (DupinLinkBP * p,
+				gchar * id,
+				JsonObject * obj)
 {
   gsize i;
 
@@ -400,7 +413,8 @@ dupin_linkbase_p_record_insert (DupinLinkBP * p, gchar * id,
 }
 
 void
-dupin_linkbase_p_record_delete (DupinLinkBP * p, gchar * pid)
+dupin_linkbase_p_record_delete (DupinLinkBP * p,
+				gchar * pid)
 {
   gsize i;
 
@@ -417,13 +431,9 @@ dupin_linkbase_p_record_delete (DupinLinkBP * p, gchar * pid)
 void
 dupin_linkbase_ref (DupinLinkB * linkb)
 {
-  Dupin *d;
-
   g_return_if_fail (linkb != NULL);
 
-  d = linkb->d;
-
-  g_rw_lock_writer_lock (d->rwlock);
+  g_rw_lock_writer_lock (linkb->rwlock);
 
   linkb->ref++;
 
@@ -431,7 +441,7 @@ dupin_linkbase_ref (DupinLinkB * linkb)
   fprintf(stderr,"dupin_linkbase_ref: (%p) name=%s \t ref++=%d\n", g_thread_self (), linkb->name, (gint) linkb->ref);
 #endif
 
-  g_rw_lock_writer_unlock (d->rwlock);
+  g_rw_lock_writer_unlock (linkb->rwlock);
 }
 
 void
@@ -443,7 +453,7 @@ dupin_linkbase_unref (DupinLinkB * linkb)
 
   d = linkb->d;
 
-  g_rw_lock_writer_lock (d->rwlock);
+  g_rw_lock_writer_lock (linkb->rwlock);
 
   if (linkb->ref > 0)
     {
@@ -454,35 +464,44 @@ dupin_linkbase_unref (DupinLinkB * linkb)
 #endif
     }
 
+  g_rw_lock_writer_unlock (linkb->rwlock);
+
   if (linkb->todelete == TRUE &&
       dupin_linkbase_is_compacting (linkb) == FALSE &&
       dupin_linkbase_is_checking (linkb) == FALSE)
     {
+      g_rw_lock_reader_lock (linkb->rwlock);
+
       if (linkb->ref > 0)
         {
+          g_rw_lock_reader_unlock (linkb->rwlock);
+
           g_warning ("dupin_linkbase_unref: (thread=%p) linkbase %s flagged for deletion but can't free it due ref is %d\n", g_thread_self (), linkb->name, (gint) linkb->ref);
         }
       else
         {
+          g_rw_lock_reader_unlock (linkb->rwlock);
+
+	  if (dupin_linkbase_p_update (linkb, NULL) == FALSE)
+            {
+              g_warning("dupin_linkbase_unref: could not remove reference from parent for linkbase '%s'\n", linkb->name);
+            }
+
+          g_rw_lock_writer_lock (d->rwlock);
           g_hash_table_remove (d->linkbs, linkb->name);
+          g_rw_lock_writer_unlock (d->rwlock);
         }
     }
-
-  g_rw_lock_writer_unlock (d->rwlock);
 }
 
 gboolean
 dupin_linkbase_delete (DupinLinkB * linkb, GError ** error)
 {
-  Dupin *d;
-
   g_return_val_if_fail (linkb != NULL, FALSE);
 
-  d = linkb->d;
-
-  g_rw_lock_writer_lock (d->rwlock);
+  g_rw_lock_writer_lock (linkb->rwlock);
   linkb->todelete = TRUE;
-  g_rw_lock_writer_unlock (d->rwlock);
+  g_rw_lock_writer_unlock (linkb->rwlock);
 
   return TRUE;
 }
@@ -616,18 +635,11 @@ dupin_linkbase_get_parent_is_db (DupinLinkB * linkb)
 void
 dupin_linkb_disconnect (DupinLinkB * linkb)
 {
-  GError * error = NULL;
-
   g_return_if_fail (linkb != NULL);
 
 #if DEBUG
   g_message("dupin_linkb_disconnect: total number of changes for '%s' linkbase: %d\n", linkb->name, (gint)sqlite3_total_changes (linkb->db));
 #endif
-
-  if (dupin_linkbase_p_update (linkb, &error) == FALSE)
-    {
-      g_warning("dupin_linkb_disconnect: could not remove reference from parent for linkbase '%s'\n", linkb->name);
-    }
 
   if (linkb->db)
     sqlite3_close (linkb->db);
@@ -827,7 +839,9 @@ dupin_linkbase_begin_transaction (DupinLinkB * linkb, GError ** error)
 
   if (linkb->d->bulk_transaction == TRUE)
     {
-//g_message ("dupin_linkbase_begin_transaction: linkbase %s transaction ALREADY open", linkb->name);
+#if DEBUG
+      g_message ("dupin_linkbase_begin_transaction: linkbase %s transaction ALREADY open", linkb->name);
+#endif
 
       return 1;
     }
@@ -849,7 +863,9 @@ dupin_linkbase_begin_transaction (DupinLinkB * linkb, GError ** error)
       return -1;
     }
 
-//g_message ("dupin_linkbase_begin_transaction: linkbase %s transaction begin", linkb->name);
+#if DEBUG
+  g_message ("dupin_linkbase_begin_transaction: linkbase %s transaction begin", linkb->name);
+#endif
 
   return 0;
 }
@@ -879,7 +895,9 @@ dupin_linkbase_rollback_transaction (DupinLinkB * linkb, GError ** error)
       return -1;
     }
 
-//g_message ("dupin_linkbase_rollback_transaction: linkbase %s transaction rollback", linkb->name);
+#if DEBUG
+  g_message ("dupin_linkbase_rollback_transaction: linkbase %s transaction rollback", linkb->name);
+#endif
 
   return 0;
 }
@@ -894,7 +912,9 @@ dupin_linkbase_commit_transaction (DupinLinkB * linkb, GError ** error)
 
   if (linkb->d->bulk_transaction == TRUE)
     {
-//g_message ("dupin_linkbase_commit_transaction: linkbase %s transaction commit POSTPONED", linkb->name);
+#if DEBUG
+      g_message ("dupin_linkbase_commit_transaction: linkbase %s transaction commit POSTPONED", linkb->name);
+#endif
 
       return 1;
     }
@@ -916,7 +936,9 @@ dupin_linkbase_commit_transaction (DupinLinkB * linkb, GError ** error)
       return -1;
     }
 
-//g_message ("dupin_linkbase_commit_transaction: linkbase %s transaction commit", linkb->name);
+#if DEBUG
+  g_message ("dupin_linkbase_commit_transaction: linkbase %s transaction commit", linkb->name);
+#endif
 
   return 0;
 }
@@ -1274,7 +1296,9 @@ dupin_linkbase_get_changes_list (DupinLinkB *              linkb,
 
   tmp = g_string_free (str, FALSE);
 
-//g_message("dupin_linkbase_get_changes_list() query=%s\n",tmp);
+#if DEBUG
+  g_message("dupin_linkbase_get_changes_list() query=%s\n",tmp);
+#endif
 
   g_rw_lock_reader_lock (linkb->rwlock);
 
@@ -1461,7 +1485,9 @@ dupin_linkbase_get_total_changes
 
   tmp = g_string_free (str, FALSE);
 
-//g_message("dupin_linkbase_get_total_changes() query=%s\n",tmp);
+#if DEBUG
+  g_message("dupin_linkbase_get_total_changes() query=%s\n",tmp);
+#endif
 
   g_rw_lock_reader_lock (linkb->rwlock);
 
@@ -1630,7 +1656,9 @@ dupin_linkbase_thread_compact (DupinLinkB * linkb, gsize count)
           tmp = sqlite3_mprintf ("DELETE FROM Dupin WHERE id = '%q' AND rev < %d", (gchar *) dupin_link_record_get_id (record), (gint)last_revision);
 	}
 
-//g_message("dupin_linkbase_thread_compact: query=%s\n", tmp);
+#if DEBUG
+      g_message("dupin_linkbase_thread_compact: query=%s\n", tmp);
+#endif
 
       g_rw_lock_writer_lock (linkb->rwlock);
 
@@ -1663,14 +1691,18 @@ dupin_linkbase_thread_compact (DupinLinkB * linkb, gsize count)
 
       compact_id = g_strdup_printf ("%i", (gint)rowid);
 
-//g_message("dupin_linkbase_thread_compact(%p) compact_id=%s as fetched",g_thread_self (), compact_id);
+#if DEBUG
+      g_message("dupin_linkbase_thread_compact(%p) compact_id=%s as fetched",g_thread_self (), compact_id);
+#endif
     }
   
   dupin_link_record_get_list_close (results);
 
-//g_message("dupin_linkbase_thread_compact() compact_id=%s as to be stored",compact_id);
+#if DEBUG
+  g_message("dupin_linkbase_thread_compact() compact_id=%s as to be stored",compact_id);
 
-//g_message("dupin_linkbase_thread_compact(%p)  finished last_compact_rowid=%s - compacted %d\n", g_thread_self (), compact_id, (gint)linkb->compact_processed_count);
+  g_message("dupin_linkbase_thread_compact(%p)  finished last_compact_rowid=%s - compacted %d\n", g_thread_self (), compact_id, (gint)linkb->compact_processed_count);
+#endif
 
   str = sqlite3_mprintf ("UPDATE DupinLinkB SET compact_id = '%q'", compact_id);
 
@@ -1705,7 +1737,9 @@ dupin_linkbase_compact_func (gpointer data, gpointer user_data)
 
   dupin_linkbase_ref (linkb);
 
-//g_message("dupin_linkbase_compact_func(%p) started\n",g_thread_self ());
+#if DEBUG
+  g_message("dupin_linkbase_compact_func(%p) started\n",g_thread_self ());
+#endif
 
   g_rw_lock_writer_lock (linkb->rwlock);
   linkb->tocompact = TRUE;
@@ -1719,7 +1753,9 @@ dupin_linkbase_compact_func (gpointer data, gpointer user_data)
 
       if (compact_operation == FALSE)
         {
-//g_message("dupin_linkbase_compact_func(%p) Compacted TOTAL %d records\n", g_thread_self (), (gint)linkb->compact_processed_count);
+#if DEBUG
+          g_message("dupin_linkbase_compact_func(%p) Compacted TOTAL %d records\n", g_thread_self (), (gint)linkb->compact_processed_count);
+#endif
 
           /* claim disk space back */
 
@@ -1727,7 +1763,9 @@ dupin_linkbase_compact_func (gpointer data, gpointer user_data)
 
           if (linkb->d->bulk_transaction == TRUE)
             {
-//g_message("dupin_linkbase_compact_func(%p) waiting for transaction to finish\n", g_thread_self ());
+#if DEBUG
+              g_message("dupin_linkbase_compact_func(%p) waiting for transaction to finish\n", g_thread_self ());
+#endif
 
               continue;
             }
@@ -1741,7 +1779,9 @@ dupin_linkbase_compact_func (gpointer data, gpointer user_data)
               dupin_linkbase_rollback_transaction (linkb, NULL);
             }
 
-//g_message("dupin_linkbase_compact_func: VACUUM and ANALYZE\n");
+#if DEBUG
+          g_message("dupin_linkbase_compact_func: VACUUM and ANALYZE\n");
+#endif
 
           if (sqlite3_exec (linkb->db, "VACUUM", NULL, NULL, &errmsg) != SQLITE_OK
              || sqlite3_exec (linkb->db, "ANALYZE Dupin", NULL, NULL, &errmsg) != SQLITE_OK)
@@ -1758,7 +1798,9 @@ dupin_linkbase_compact_func (gpointer data, gpointer user_data)
         }
     }
 
-//g_message("dupin_linkbase_compact_func(%p) finished and linkbase is compacted\n",g_thread_self ());
+#if DEBUG
+  g_message("dupin_linkbase_compact_func(%p) finished and linkbase is compacted\n",g_thread_self ());
+#endif
 
   g_rw_lock_writer_lock (linkb->rwlock);
   linkb->tocompact = FALSE;
@@ -1775,11 +1817,15 @@ dupin_linkbase_compact (DupinLinkB * linkb)
 
   if (dupin_linkbase_is_compacting (linkb))
     {
-//g_message("dupin_linkbase_compact(%p): linkbase is still compacting linkb->compact_thread=%p\n", g_thread_self (), linkb->compact_thread);
+#if DEBUG
+      g_message("dupin_linkbase_compact(%p): linkbase is still compacting linkb->compact_thread=%p\n", g_thread_self (), linkb->compact_thread);
+#endif
     }
   else
     {
-//g_message("dupin_linkbase_compact(%p): push to thread pools linkb->compact_thread=%p\n", g_thread_self (), linkb->compact_thread);
+#if DEBUG
+      g_message("dupin_linkbase_compact(%p): push to thread pools linkb->compact_thread=%p\n", g_thread_self (), linkb->compact_thread);
+#endif
 
       GError * error = NULL;
       if (!linkb->compact_thread)
@@ -1909,7 +1955,9 @@ dupin_linkbase_thread_check (DupinLinkB * linkb, gsize count)
       /* STEP A - check if the context_id of the link record has been deleted */
       gchar * context_id = (gchar *)dupin_link_record_get_context_id (record);
 
-//g_message("dupin_linkbase_thread_check(%p) checking STEP A for context_id=%s\n",g_thread_self (), context_id);
+#if DEBUG
+      g_message("dupin_linkbase_thread_check(%p) checking STEP A for context_id=%s\n",g_thread_self (), context_id);
+#endif
 
       if (dupin_linkbase_get_parent_is_db (linkb) == TRUE )
         {
@@ -1948,7 +1996,9 @@ dupin_linkbase_thread_check (DupinLinkB * linkb, gsize count)
 
      /* STEP B - delete (update) the record */
 
-//g_message("dupin_linkbase_thread_check(%p) STEP B for context_id=%s\n",g_thread_self (), context_id);
+#if DEBUG
+     g_message("dupin_linkbase_thread_check(%p) STEP B for context_id=%s\n",g_thread_self (), context_id);
+#endif
 
      /* NOTE - hopefully this will work and will not generate any problems (I.e. modifiying DB while reading from it
 	       with the results cursor - but the ROWID is going to be higher anyway, so we should be safe also for views */
@@ -1959,7 +2009,9 @@ dupin_linkbase_thread_check (DupinLinkB * linkb, gsize count)
           break;
         }
 
-//g_message("dupin_linkbase_thread_check(%p) STEP B DONE for context_id=%s\n",g_thread_self (), context_id);
+#if DEBUG
+     g_message("dupin_linkbase_thread_check(%p) STEP B DONE for context_id=%s\n",g_thread_self (), context_id);
+#endif
 
      linkb->check_processed_count++;
 
@@ -1970,7 +2022,9 @@ dupin_linkbase_thread_check (DupinLinkB * linkb, gsize count)
 
      check_id = g_strdup_printf ("%i", (gint)rowid);
 
-//g_message("dupin_linkbase_thread_check(%p) check_id=%s as fetched",g_thread_self (), check_id);
+#if DEBUG
+      g_message("dupin_linkbase_thread_check(%p) check_id=%s as fetched",g_thread_self (), check_id);
+#endif
     }
   
   dupin_link_record_get_list_close (results);
@@ -1981,9 +2035,11 @@ dupin_linkbase_thread_check (DupinLinkB * linkb, gsize count)
   if (parent_linkb != NULL)
     dupin_linkbase_unref (parent_linkb);
 
-//g_message("dupin_linkbase_thread_check() check_id=%s as to be stored",check_id);
+#if DEBUG
+  g_message("dupin_linkbase_thread_check() check_id=%s as to be stored",check_id);
 
-//g_message("dupin_linkbase_thread_check(%p)  finished last_check_rowid=%s - checked %d\n", g_thread_self (), check_id, (gint)linkb->check_processed_count);
+  g_message("dupin_linkbase_thread_check(%p)  finished last_check_rowid=%s - checked %d\n", g_thread_self (), check_id, (gint)linkb->check_processed_count);
+#endif
 
   str = sqlite3_mprintf ("UPDATE DupinLinkB SET check_id = '%q'", check_id);
 
@@ -2017,7 +2073,9 @@ dupin_linkbase_check_func (gpointer data, gpointer user_data)
 
   dupin_linkbase_ref (linkb);
 
-//g_message("dupin_linkbase_check_func(%p) started\n",g_thread_self ());
+#if DEBUG
+  g_message("dupin_linkbase_check_func(%p) started\n",g_thread_self ());
+#endif
 
   g_rw_lock_writer_lock (linkb->rwlock);
   linkb->tocheck = TRUE;
@@ -2031,7 +2089,9 @@ dupin_linkbase_check_func (gpointer data, gpointer user_data)
 
       if (check_operation == FALSE)
         {
-//g_message("dupin_linkbase_check_func(%p) Checked TOTAL %d records\n", g_thread_self (), (gint)linkb->check_processed_count);
+#if DEBUG
+          g_message("dupin_linkbase_check_func(%p) Checked TOTAL %d records\n", g_thread_self (), (gint)linkb->check_processed_count);
+#endif
 
 /* WE DO NOT DELETE ANYTHING YET with CHECK - add this later eventually if needed */
 #if 0
@@ -2041,7 +2101,9 @@ dupin_linkbase_check_func (gpointer data, gpointer user_data)
 
           if (linkb->d->bulk_transaction == TRUE)
             {
-//g_message("dupin_linkbase_check_func(%p) waiting for transaction to finish\n", g_thread_self ());
+#if DEBUG
+              g_message("dupin_linkbase_check_func(%p) waiting for transaction to finish\n", g_thread_self ());
+#endif
 
               continue;
             }
@@ -2055,7 +2117,9 @@ dupin_linkbase_check_func (gpointer data, gpointer user_data)
               dupin_linkbase_rollback_transaction (linkb, NULL);
             }
 
-//g_message("dupin_linkbase_check_func: VACUUM and ANALYZE\n");
+#if DEBUG
+          g_message("dupin_linkbase_check_func: VACUUM and ANALYZE\n");
+#endif
 
           if (sqlite3_exec (linkb->db, "VACUUM", NULL, NULL, &errmsg) != SQLITE_OK
              || sqlite3_exec (linkb->db, "ANALYZE Dupin", NULL, NULL, &errmsg) != SQLITE_OK)
@@ -2073,7 +2137,9 @@ dupin_linkbase_check_func (gpointer data, gpointer user_data)
         }
     }
 
-//g_message("dupin_linkbase_check_func(%p) finished and linkbase is checked\n",g_thread_self ());
+#if DEBUG
+  g_message("dupin_linkbase_check_func(%p) finished and linkbase is checked\n",g_thread_self ());
+#endif
 
   g_rw_lock_writer_lock (linkb->rwlock);
   linkb->tocheck = FALSE;
@@ -2090,11 +2156,15 @@ dupin_linkbase_check (DupinLinkB * linkb)
 
   if (dupin_linkbase_is_checking (linkb))
     {
-//g_message("dupin_linkbase_check(%p): linkbase is still checking linkb->check_thread=%p\n", g_thread_self (), linkb->check_thread);
+#if DEBUG
+      g_message("dupin_linkbase_check(%p): linkbase is still checking linkb->check_thread=%p\n", g_thread_self (), linkb->check_thread);
+#endif
     }
   else
     {
-//g_message("dupin_linkbase_check(%p): push to thread pools linkb->check_thread=%p\n", g_thread_self (), linkb->check_thread);
+#if DEBUG
+      g_message("dupin_linkbase_check(%p): push to thread pools linkb->check_thread=%p\n", g_thread_self (), linkb->check_thread);
+#endif
 
       GError * error = NULL;
 

@@ -133,12 +133,14 @@ dupin_get_views (Dupin * d)
 }
 
 gboolean
-dupin_view_exists (Dupin * d, gchar * view)
+dupin_view_exists (Dupin * d,
+		   gchar * view_name)
 {
   gboolean ret;
 
   g_rw_lock_reader_lock (d->rwlock);
-  ret = g_hash_table_lookup (d->views, view) != NULL ? TRUE : FALSE;
+  DupinView * view = g_hash_table_lookup (d->views, view_name);
+  ret = ((view != NULL) && view->todelete == FALSE) ? TRUE : FALSE;
   g_rw_lock_reader_unlock (d->rwlock);
 
   return ret;
@@ -180,8 +182,8 @@ DupinView *
 dupin_view_new (Dupin * d,
 		gchar * view,
 		gchar * parent,
-		gboolean is_db,
-		gboolean is_linkb,
+		gboolean parent_is_db,
+		gboolean parent_is_linkb,
 		DupinViewEngineLang language,
 		gchar * map,
 		gchar * reduce,
@@ -202,7 +204,7 @@ dupin_view_new (Dupin * d,
   g_return_val_if_fail (parent != NULL, NULL);
   g_return_val_if_fail (dupin_util_is_valid_view_name (view) == TRUE, NULL);
 
-  if (is_db == TRUE)
+  if (parent_is_db == TRUE)
     {
       if (dupin_database_exists (d, parent) == FALSE)
         {
@@ -211,7 +213,7 @@ dupin_view_new (Dupin * d,
 	  return NULL;
         }
     }
-  else if (is_linkb == TRUE)
+  else if (parent_is_linkb == TRUE)
     {
       if (dupin_linkbase_exists (d, parent) == FALSE)
         {
@@ -288,8 +290,8 @@ dupin_view_new (Dupin * d,
     }
 
   ret->parent = g_strdup (parent);
-  ret->parent_is_db = is_db;
-  ret->parent_is_linkb = is_linkb;
+  ret->parent_is_db = parent_is_db;
+  ret->parent_is_linkb = parent_is_linkb;
   ret->output = g_strdup (output);
   ret->output_is_db = output_is_db;
   ret->output_is_linkb = output_is_linkb;
@@ -307,8 +309,8 @@ dupin_view_new (Dupin * d,
     sqlite3_mprintf ("INSERT OR REPLACE INTO DupinView "
 		           "(parent, isdb, islinkb, language, map, reduce, output, output_isdb, output_islinkb, creation_time) "
 		     "VALUES('%q',   '%s', '%s',    '%q',     '%q','%q',   '%q',   '%s',        '%s',           '%q')", parent,
-		     is_db ? "TRUE" : "FALSE",
-		     is_linkb ? "TRUE" : "FALSE",
+		     parent_is_db ? "TRUE" : "FALSE",
+		     parent_is_linkb ? "TRUE" : "FALSE",
 		     dupin_util_view_engine_lang_to_string (language),
 		     map,
  		     reduce,
@@ -388,16 +390,16 @@ dupin_view_p_update_real (DupinViewP * p, DupinView * view)
     {
       if (p->views != NULL)
         {
-	  /* NOTE - need to remove pointer from parent if view is "hot deleted" */
+          /* NOTE - need to remove pointer from parent if view is "hot deleted" */
 
-	  DupinView ** views = g_malloc (sizeof (DupinView *) * p->size);
+          DupinView ** views = g_malloc (sizeof (DupinView *) * p->size);
 
-	  gint i;
+          gint i;
           gint current_numb = p->numb;
           p->numb = 0;
           for (i=0; i < current_numb ; i++)
             {
-	      if (p->views[i] != view)
+              if (p->views[i] != view)
                 {
                   views[p->numb] = p->views[i];
                   p->numb++;
@@ -467,7 +469,8 @@ dupin_view_p_update_cb (void *data, int argc, char **argv, char **col)
 }
 
 gboolean
-dupin_view_p_update (DupinView * view, GError ** error)
+dupin_view_p_update (DupinView * view,
+		    GError ** error)
 {
   gchar *errmsg;
   struct dupin_view_db_record_t db_record;
@@ -500,7 +503,7 @@ dupin_view_p_update (DupinView * view, GError ** error)
         g_free (db_record.output);
 
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
-		   "Internal error.");
+                   "Internal error.");
       return FALSE;
     }
 
@@ -509,8 +512,8 @@ dupin_view_p_update (DupinView * view, GError ** error)
       DupinDB *db;
 
       if (!(db = dupin_database_open (view->d, db_record.parent, error)))
-	{
-	  g_free (db_record.parent);
+        {
+          g_free (db_record.parent);
 
           if (db_record.map != NULL)
             g_free (db_record.map);
@@ -521,22 +524,22 @@ dupin_view_p_update (DupinView * view, GError ** error)
           if (db_record.output != NULL)
             g_free (db_record.output);
 
-	  return FALSE;
-	}
+          return FALSE;
+        }
 
       g_rw_lock_writer_lock (db->rwlock);
       dupin_view_p_update_real (&db->views, view);
       g_rw_lock_writer_unlock (db->rwlock);
 
       dupin_database_unref (db);
-    }
+      }
   else if (db_record.islinkb == TRUE)
     {
       DupinLinkB *linkb;
 
       if (!(linkb = dupin_linkbase_open (view->d, db_record.parent, error)))
-	{
-	  g_free (db_record.parent);
+        {
+          g_free (db_record.parent);
 
           if (db_record.map != NULL)
             g_free (db_record.map);
@@ -547,8 +550,8 @@ dupin_view_p_update (DupinView * view, GError ** error)
           if (db_record.output != NULL)
             g_free (db_record.output);
 
-	  return FALSE;
-	}
+          return FALSE;
+        }
 
       g_rw_lock_writer_lock (linkb->rwlock);
       dupin_view_p_update_real (&linkb->views, view);
@@ -561,8 +564,8 @@ dupin_view_p_update (DupinView * view, GError ** error)
       DupinView *v;
 
       if (!(v = dupin_view_open (view->d, db_record.parent, error)))
-	{
-	  g_free (db_record.parent);
+        {
+          g_free (db_record.parent);
 
           if (db_record.map != NULL)
             g_free (db_record.map);
@@ -573,8 +576,8 @@ dupin_view_p_update (DupinView * view, GError ** error)
           if (db_record.output != NULL)
             g_free (db_record.output);
 
-	  return FALSE;
-	}
+          return FALSE;
+        }
 
       g_rw_lock_writer_lock (v->rwlock);
       dupin_view_p_update_real (&v->views, view);
@@ -1188,13 +1191,9 @@ dupin_view_record_delete (DupinView * view)
 void
 dupin_view_ref (DupinView * view)
 {
-  Dupin *d;
-
   g_return_if_fail (view != NULL);
 
-  d = view->d;
-
-  g_rw_lock_writer_lock (d->rwlock);
+  g_rw_lock_writer_lock (view->rwlock);
 
   view->ref++;
 
@@ -1202,7 +1201,7 @@ dupin_view_ref (DupinView * view)
   fprintf(stderr,"dupin_view_ref: (%p) name=%s \t ref++=%d\n", g_thread_self (), view->name, (gint) view->ref);
 #endif
 
-  g_rw_lock_writer_unlock (d->rwlock);
+  g_rw_lock_writer_unlock (view->rwlock);
 }
 
 void
@@ -1214,45 +1213,54 @@ dupin_view_unref (DupinView * view)
 
   d = view->d;
 
-  g_rw_lock_writer_lock (d->rwlock);
+  g_rw_lock_writer_lock (view->rwlock);
 
   if (view->ref > 0)
     {
       view->ref--;
 
 #if DEBUG
-      fprintf(stderr,"dupin_view_ref: (%p) name=%s \t ref--=%d\n", g_thread_self (), view->name, (gint) view->ref);
+      fprintf(stderr,"dupin_view_unref: (%p) name=%s \t ref--=%d\n", g_thread_self (), view->name, (gint) view->ref);
 #endif
     }
+
+  g_rw_lock_writer_unlock (view->rwlock);
 
   if (view->todelete == TRUE &&
       dupin_view_is_syncing (view) == FALSE)
     {
+      g_rw_lock_reader_lock (view->rwlock);
+
       if (view->ref > 0)
         {
+          g_rw_lock_reader_unlock (view->rwlock);
+
           g_warning ("dupin_view_unref: (thread=%p) view %s flagged for deletion but can't free it due ref is %d\n", g_thread_self (), view->name, (gint) view->ref);
 	}
       else
         {
+          g_rw_lock_reader_unlock (view->rwlock);
+
+	  if (dupin_view_p_update (view, NULL) == FALSE)
+            {
+              g_warning("dupin_view_unref: could not remove reference from parent for view '%s'\n", view->name);
+            }
+
+          g_rw_lock_writer_lock (d->rwlock);
           g_hash_table_remove (d->views, view->name);
+          g_rw_lock_writer_unlock (d->rwlock);
 	}
     }
-
-  g_rw_lock_writer_unlock (d->rwlock);
 }
 
 gboolean
 dupin_view_delete (DupinView * view, GError ** error)
 {
-  Dupin *d;
-
   g_return_val_if_fail (view != NULL, FALSE);
 
-  d = view->d;
-
-  g_rw_lock_writer_lock (d->rwlock);
+  g_rw_lock_writer_lock (view->rwlock);
   view->todelete = TRUE;
-  g_rw_lock_writer_unlock (d->rwlock);
+  g_rw_lock_writer_unlock (view->rwlock);
 
   return TRUE;
 }
@@ -1260,15 +1268,11 @@ dupin_view_delete (DupinView * view, GError ** error)
 gboolean
 dupin_view_force_quit (DupinView * view, GError ** error)
 {
-  Dupin *d;
-
   g_return_val_if_fail (view != NULL, FALSE);
 
-  d = view->d;
-
-  g_rw_lock_writer_lock (d->rwlock);
+  g_rw_lock_writer_lock (view->rwlock);
   view->sync_toquit = TRUE;
-  g_rw_lock_writer_unlock (d->rwlock);
+  g_rw_lock_writer_unlock (view->rwlock);
 
   return TRUE;
 }
@@ -1393,20 +1397,11 @@ dupin_view_get_creation_time (DupinView * view, gsize * creation_time)
 void
 dupin_view_disconnect (DupinView * view)
 {
-  GError * error = NULL;
-
   g_return_if_fail (view != NULL);
 
 #if DUPIN_VIEW_DEBUG
   g_message("dupin_view_disconnect: total number of changes for '%s' view database: %d\n", view->name, (gint)sqlite3_total_changes (view->db));
 #endif
-
-  if (dupin_view_p_update (view, &error) == FALSE)
-    {
-#if DUPIN_VIEW_DEBUG
-      g_warning("dupin_view_disconnect: could not remove reference from parent for view '%s'\n", view->name);
-#endif
-    }
 
   /* NOTE - empty deletes queue before quitting */
 
@@ -2037,7 +2032,7 @@ dupin_view_sync_thread_map_db (DupinView * view, gsize count)
 
           if (json_object_has_member (obj, "_linkbase") == TRUE)
             json_object_remove_member (obj, "_linkbase"); // ignore any record one if set by user, ever
-          json_object_set_string_member (obj, "_linkbase", dupin_database_get_default_linkbase_name (db));
+          json_object_set_string_member (obj, "_linkbase", dupin_linkbase_get_name (dupin_database_get_default_linkbase (db)));
         }
 
       data->pid = json_node_new (JSON_NODE_ARRAY);

@@ -1667,7 +1667,7 @@ dupin_webkit_dupin_class_links (JSContextRef ctx,
 
               if (json_object_has_member (node_out_obj, "_linkbase") == TRUE)
                 json_object_remove_member (node_out_obj, "_linkbase"); // ignore any record one if set by user, ever
-              json_object_set_string_member (node_out_obj, "_linkbase", dupin_database_get_default_linkbase_name (parent_db));
+              json_object_set_string_member (node_out_obj, "_linkbase", dupin_linkbase_get_name (dupin_database_get_default_linkbase (parent_db)));
 
               dupin_database_unref (parent_db);
 	  }

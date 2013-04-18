@@ -113,8 +113,11 @@ struct dupin_db_t
   DupinAttachmentDBP	attachment_dbs;
   DupinLinkBP	linkbs;
 
-  gchar *	default_attachment_db_name;
-  gchar *	default_linkbase_name;
+  DupinAttachmentDB * default_attachment_db;
+  gchar *	      default_attachment_db_name;
+
+  DupinLinkB *        default_linkbase;
+  gchar * 	      default_linkbase_name;
 
   gboolean	tocompact;
   gboolean	compact_toquit;
@@ -447,8 +450,8 @@ gboolean	dupin_link_record_exists_real
 				 gboolean	lock);
 
 gboolean	dupin_linkbase_p_update
-				(DupinLinkB *	linkb,
-				 GError **	error);
+				(DupinLinkB  *	linkb,
+				 GError **      error);
 
 void		dupin_linkbase_p_record_insert
 				(DupinLinkBP *	p,
@@ -461,7 +464,7 @@ void		dupin_linkbase_p_record_delete
 
 gboolean	dupin_view_p_update
 				(DupinView *	view,
-				 GError **	error);
+				 GError **      error);
 
 void		dupin_view_p_record_insert
 				(DupinViewP *	p,
@@ -489,8 +492,8 @@ gboolean	dupin_view_record_exists_real
 void		dupin_view_sync	(DupinView *	view);
 
 gboolean	dupin_attachment_db_p_update
-				(DupinAttachmentDB *	attachment_db,
-				 GError **	error);
+				(DupinAttachmentDB *  attachment_db,
+				 GError **            error);
 
 #endif
 

@@ -21,7 +21,7 @@ struct dupin_linkbase_get_changes_list_t
 gchar **	dupin_get_linkbases	(Dupin *	d);
 
 gboolean	dupin_linkbase_exists	(Dupin *	d,
-					 gchar *	linkb);
+					 gchar *	linkb_name);
 
 DupinLinkB *	dupin_linkbase_open	(Dupin *	d,
 					 gchar *	linkb,
@@ -30,7 +30,7 @@ DupinLinkB *	dupin_linkbase_open	(Dupin *	d,
 DupinLinkB *	dupin_linkbase_new	(Dupin *	d,
 					 gchar *	linkb,
 					 gchar *        parent,
-                                         gboolean       is_db,
+                                         gboolean       parent_is_db,
 					 GError **	error);
 
 gint        	dupin_linkbase_begin_transaction

@@ -14,7 +14,7 @@ struct dupin_attachment_db_p_update_t
 gchar **	dupin_get_attachment_dbs		(Dupin *	d);
 
 gboolean	dupin_attachment_db_exists		(Dupin *	d,
-					 		 gchar *	attachment_db);
+					 		 gchar *	attachment_db_name);
 
 DupinAttachmentDB *
 		dupin_attachment_db_open		(Dupin *	d,

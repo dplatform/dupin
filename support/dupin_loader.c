@@ -38,8 +38,6 @@
 DSGlobal *d_conf = NULL;
 Dupin *d = NULL;
 DupinDB *db = NULL;
-DupinLinkB *linkb = NULL;
-DupinAttachmentDB *attachment_db = NULL;
 gboolean dp_exit = FALSE;
 gchar * error_msg = NULL;
 gchar * warning_msg = NULL;
@@ -267,12 +265,6 @@ void dupin_loader_close (void)
   if (db)
     dupin_database_unref (db);
 
-  if (linkb)
-    dupin_linkbase_unref (linkb);
-
-  if (attachment_db)
-    dupin_attachment_db_unref (attachment_db);
-
   if (db_name != NULL)
     g_free (db_name);
 
@@ -441,15 +433,6 @@ main (int argc, char *argv[])
         }
     }
  
-  if (options.links == TRUE)
-    {
-      if (!  (linkb = dupin_linkbase_open (d, dupin_database_get_default_linkbase_name (db), NULL)))
-        {
-          dupin_loader_set_error ("Cannot connect to linkbase");
-          goto dupin_loader_end;
-        }
-    }
-
   g_rw_lock_writer_lock (d->rwlock);
   d->super_bulk_transaction = TRUE;
   g_rw_lock_writer_unlock (d->rwlock);
@@ -512,7 +495,7 @@ main (int argc, char *argv[])
 
 //g_message("context_id = %s\n", context_id);
 
-	      res =  dupin_link_record_insert_bulk (linkb, json_object_node, context_id, &response_list,
+	      res =  dupin_link_record_insert_bulk (dupin_database_get_default_linkbase (db), json_object_node, context_id, &response_list,
 						    options.strict_links, options.use_latest_revision, options.ignore_updates_if_unmodified, &error);
 
 	      g_free (context_id); 
@@ -552,7 +535,7 @@ main (int argc, char *argv[])
                   goto dupin_loader_end;
                 }
 
-	      res = dupin_link_record_insert (linkb, json_object_node, NULL, NULL, context_id,
+	      res = dupin_link_record_insert (dupin_database_get_default_linkbase (db), json_object_node, NULL, NULL, context_id,
 					      DP_LINK_TYPE_ANY, &response_list, options.strict_links, options.use_latest_revision, options.ignore_updates_if_unmodified, &error);
 
 	      g_free (context_id); 
@@ -576,7 +559,7 @@ main (int argc, char *argv[])
       else
         {
           if (options.links == TRUE)
-            dupin_loader_set_error (dupin_linkbase_get_error (linkb));
+            dupin_loader_set_error (dupin_linkbase_get_error (dupin_database_get_default_linkbase (db)));
           else
             dupin_loader_set_error (dupin_database_get_error (db));
         }
@@ -597,70 +580,43 @@ main (int argc, char *argv[])
   if (d->bulk_transaction == TRUE
       && bulk_tx_num_count < options.bulk_tx_num)
     {
-      if (! (attachment_db = dupin_attachment_db_open (d, dupin_database_get_default_attachment_db_name (db), NULL)))
-        {
-          dupin_loader_set_error ("Cannot connect to attachment database");
-
-          g_rw_lock_writer_lock (db->rwlock);
-          dupin_database_rollback_transaction (db, NULL);
-          g_rw_lock_writer_unlock (db->rwlock);
-
-          goto dupin_loader_end;
-        }
-
-      if (!linkb
-	  && (! (linkb = dupin_linkbase_open (d, dupin_database_get_default_linkbase_name (db), NULL))))
-        { 
-          dupin_loader_set_error ("Cannot connect to linkbase");
-
-          g_rw_lock_writer_lock (attachment_db->rwlock);
-          dupin_attachment_db_rollback_transaction (attachment_db, NULL);
-          g_rw_lock_writer_unlock (attachment_db->rwlock);
-
-          g_rw_lock_writer_lock (db->rwlock);
-          dupin_database_rollback_transaction (db, NULL);
-          g_rw_lock_writer_unlock (db->rwlock);
-
-          goto dupin_loader_end;
-        }
-
       g_rw_lock_writer_lock (d->rwlock);
       d->bulk_transaction = FALSE;
       g_rw_lock_writer_unlock (d->rwlock);
 
-      g_rw_lock_writer_lock (linkb->rwlock);
-      if (dupin_linkbase_commit_transaction (linkb, NULL) < 0)
+      g_rw_lock_writer_lock (dupin_database_get_default_linkbase (db)->rwlock);
+      if (dupin_linkbase_commit_transaction (dupin_database_get_default_linkbase (db), NULL) < 0)
         {
           g_rw_lock_writer_lock (db->rwlock);
           dupin_database_rollback_transaction (db, NULL);
           g_rw_lock_writer_unlock (db->rwlock);
 
-          g_rw_lock_writer_lock (attachment_db->rwlock);
-          dupin_attachment_db_rollback_transaction (attachment_db, NULL);
-          g_rw_lock_writer_unlock (attachment_db->rwlock);
+          g_rw_lock_writer_lock (dupin_database_get_default_attachment_db (db)->rwlock);
+          dupin_attachment_db_rollback_transaction (dupin_database_get_default_attachment_db (db), NULL);
+          g_rw_lock_writer_unlock (dupin_database_get_default_attachment_db (db)->rwlock);
 
-          dupin_linkbase_rollback_transaction (linkb, NULL);
-          g_rw_lock_writer_unlock (linkb->rwlock);
+          dupin_linkbase_rollback_transaction (dupin_database_get_default_linkbase (db), NULL);
+          g_rw_lock_writer_unlock (dupin_database_get_default_linkbase (db)->rwlock);
 
           dupin_loader_set_error ("Cannot commit linkbase transaction");
           goto dupin_loader_end;
         }
-      g_rw_lock_writer_unlock (linkb->rwlock);
+      g_rw_lock_writer_unlock (dupin_database_get_default_linkbase (db)->rwlock);
 
-      g_rw_lock_writer_lock (attachment_db->rwlock);
-      if (dupin_attachment_db_commit_transaction (attachment_db, NULL) < 0)
+      g_rw_lock_writer_lock (dupin_database_get_default_attachment_db (db)->rwlock);
+      if (dupin_attachment_db_commit_transaction (dupin_database_get_default_attachment_db (db), NULL) < 0)
         {
           g_rw_lock_writer_lock (db->rwlock);
           dupin_database_rollback_transaction (db, NULL);
           g_rw_lock_writer_unlock (db->rwlock);
 
-          dupin_attachment_db_rollback_transaction (attachment_db, NULL);
-          g_rw_lock_writer_unlock (attachment_db->rwlock);
+          dupin_attachment_db_rollback_transaction (dupin_database_get_default_attachment_db (db), NULL);
+          g_rw_lock_writer_unlock (dupin_database_get_default_attachment_db (db)->rwlock);
 
           dupin_loader_set_error ("Cannot commit attachment database transaction");
           goto dupin_loader_end;
         }
-      g_rw_lock_writer_unlock (attachment_db->rwlock);
+      g_rw_lock_writer_unlock (dupin_database_get_default_attachment_db (db)->rwlock);
 
       g_rw_lock_writer_lock (db->rwlock);
       if (dupin_database_commit_transaction (db, NULL) < 0)
@@ -865,7 +821,7 @@ dupin_loader_init (DSGlobal *data, GError ** error)
 
       /* NOTE - connect database */
 
-      DupinDB *db;
+      DupinDB * db = NULL;
       gchar *path;
       gchar *name;
 
@@ -923,6 +879,21 @@ g_message("dupin_loader_init: connected linkbase %s\n", db_name);
       g_free (path);
       g_free (name);
 
+      /* Set default parent linkbase if matching */
+     
+      if (db != NULL && linkb != NULL)
+        {
+          DupinLinkB * default_linkbase = NULL;
+
+          if ((!g_strcmp0 (dupin_database_get_default_linkbase_name (db), dupin_linkbase_get_name (linkb))) &&
+              (!(default_linkbase = dupin_database_get_default_linkbase (db))))
+            {
+              db->default_linkbase = linkb;
+
+              dupin_linkbase_ref (linkb);
+            }
+	}
+
       /* NOTE - connect attachments database */
 
       DupinAttachmentDB *attachment_db;
@@ -955,6 +926,21 @@ g_message("dupin_loader_init: connected attachment database %s\n", db_name);
 
       g_free (path);
       g_free (name);
+
+      /* Set default parent attachment database if matching */
+
+      if (db != NULL && attachment_db != NULL)
+        {
+          DupinAttachmentDB * default_attachment_db = NULL;
+
+          if ((!g_strcmp0 (dupin_database_get_default_attachment_db_name (db), dupin_attachment_db_get_name (attachment_db))) &&
+              (!(default_attachment_db = dupin_database_get_default_attachment_db (db))))
+            {
+              db->default_attachment_db = attachment_db;
+
+              dupin_attachment_db_ref (attachment_db);
+            }
+        }
     }
 
   return d;

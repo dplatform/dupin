@@ -38,7 +38,7 @@ struct dupin_view_sync_total_rereduce_t
 gchar **	dupin_get_views		(Dupin *	d);
 
 gboolean	dupin_view_exists	(Dupin *	d,
-					 gchar *	view);
+					 gchar *	view_name);
 
 DupinView *	dupin_view_open		(Dupin *	d,
 					 gchar *	view,
@@ -47,8 +47,8 @@ DupinView *	dupin_view_open		(Dupin *	d,
 DupinView *	dupin_view_new		(Dupin *	d,
 					 gchar *	view,
 					 gchar *	parent,
-					 gboolean	is_db,
-					 gboolean	is_linkb,
+					 gboolean	parent_is_db,
+					 gboolean	parent_is_linkb,
 					 DupinViewEngineLang language,
 					 gchar *	map,
 					 gchar *	reduce,

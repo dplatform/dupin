@@ -15,7 +15,7 @@ struct dupin_database_get_changes_list_t
 gchar **	dupin_get_databases	(Dupin *	d);
 
 gboolean	dupin_database_exists	(Dupin *	d,
-					 gchar *	db);
+					 gchar *	db_name);
 
 DupinDB *	dupin_database_open	(Dupin *	d,
 					 gchar *	db,
@@ -65,18 +65,16 @@ DupinView *	dupin_database_get_view	(DupinDB *	db,
 gsize		dupin_database_count	(DupinDB *	db,
 					 DupinCountType	type);
 
-gboolean	dupin_database_set_default_attachment_db_name
-					(DupinDB *	db,
-					 gchar *	attachment_db_name);
-
 gchar *		dupin_database_get_default_attachment_db_name
+                                        (DupinDB * db);
+DupinAttachmentDB *
+		dupin_database_get_default_attachment_db
 					(DupinDB *	db);
 
-gboolean	dupin_database_set_default_linkbase_name
-					(DupinDB *	db,
-					 gchar *	linkbase_name);
-
 gchar *		dupin_database_get_default_linkbase_name
+					(DupinDB * db);
+
+DupinLinkB *	dupin_database_get_default_linkbase
 					(DupinDB *	db);
 
 gboolean	dupin_database_get_max_rowid	(DupinDB *	db,

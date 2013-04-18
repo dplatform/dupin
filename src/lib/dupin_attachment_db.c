@@ -69,12 +69,13 @@ dupin_get_attachment_dbs (Dupin * d)
 }
 
 gboolean
-dupin_attachment_db_exists (Dupin * d, gchar * attachment_db)
+dupin_attachment_db_exists (Dupin * d, gchar * attachment_db_name)
 {
   gboolean ret;
 
   g_rw_lock_reader_lock (d->rwlock);
-  ret = g_hash_table_lookup (d->attachment_dbs, attachment_db) != NULL ? TRUE : FALSE;
+  DupinAttachmentDB * attachment_db = g_hash_table_lookup (d->attachment_dbs, attachment_db_name);
+  ret = ((attachment_db != NULL) && attachment_db->todelete == FALSE) ? TRUE : FALSE;
   g_rw_lock_reader_unlock (d->rwlock);
 
   return ret;
@@ -113,7 +114,8 @@ dupin_attachment_db_open (Dupin * d, gchar * attachment_db, GError ** error)
 }
 
 DupinAttachmentDB *
-dupin_attachment_db_new (Dupin * d, gchar * attachment_db,
+dupin_attachment_db_new (Dupin * d,
+			 gchar * attachment_db,
                          gchar * parent,
 		         GError ** error)
 {
@@ -230,7 +232,8 @@ dupin_attachment_db_p_update_cb (void *data, int argc, char **argv, char **col)
 #define DUPIN_ATTACHMENT_DB_P_SIZE	64
 
 static void
-dupin_attachment_db_p_update_real (DupinAttachmentDBP * p, DupinAttachmentDB * attachment_db)
+dupin_attachment_db_p_update_real (DupinAttachmentDBP * p,
+				   DupinAttachmentDB *  attachment_db)
 {
   g_rw_lock_reader_lock (attachment_db->rwlock);
   gboolean todelete = attachment_db->todelete;
@@ -279,12 +282,13 @@ dupin_attachment_db_p_update_real (DupinAttachmentDBP * p, DupinAttachmentDB * a
 }
 
 gboolean
-dupin_attachment_db_p_update (DupinAttachmentDB * attachment_db, GError ** error)
+dupin_attachment_db_p_update (DupinAttachmentDB * attachment_db,
+			      GError ** error)
 {
   gchar *errmsg;
-  struct dupin_attachment_db_p_update_t update;
   gchar *query = "SELECT parent FROM DupinAttachmentDB LIMIT 1";
 
+  struct dupin_attachment_db_p_update_t update;
   memset (&update, 0, sizeof (struct dupin_attachment_db_p_update_t));
 
   g_rw_lock_reader_lock (attachment_db->rwlock);
@@ -305,23 +309,42 @@ dupin_attachment_db_p_update (DupinAttachmentDB * attachment_db, GError ** error
   if (!update.parent)
     {
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
-		   "Internal error.");
+                   "Internal error.");
       return FALSE;
     }
 
-  DupinDB *db;
+  g_rw_lock_reader_lock (attachment_db->rwlock);
+  gboolean todelete = attachment_db->todelete;
+  g_rw_lock_reader_unlock (attachment_db->rwlock);
 
-  if (!(db = dupin_database_open (attachment_db->d, update.parent, error)))
+  gboolean parent_exists = dupin_database_exists (attachment_db->d, update.parent);
+
+  if (parent_exists == TRUE)
     {
+      DupinDB * db = NULL;
+  
+      if (!(db = dupin_database_open (attachment_db->d, update.parent, error)))
+        {
+          g_free (update.parent);
+          return FALSE;
+        }
+
+      g_rw_lock_writer_lock (db->rwlock);
+      dupin_attachment_db_p_update_real (&db->attachment_dbs, attachment_db);
+      g_rw_lock_writer_unlock (db->rwlock);
+
+      dupin_database_unref (db);
+    }
+
+    /* NOTE - effectively ignore if parent has gone before the linkbase due they co-reference */
+
+  else if (todelete == FALSE)
+    {
+      g_warning ("dupin_attachment_db_p_update() parent type unimplemented");
+
       g_free (update.parent);
       return FALSE;
-    }
-
-  g_rw_lock_writer_lock (db->rwlock);
-  dupin_attachment_db_p_update_real (&db->attachment_dbs, attachment_db);
-  g_rw_lock_writer_unlock (db->rwlock);
-
-  dupin_database_unref (db);
+    }  
 
   /* make sure parameters are set after dupin server restart on existing attachment database */
 
@@ -336,13 +359,9 @@ dupin_attachment_db_p_update (DupinAttachmentDB * attachment_db, GError ** error
 void
 dupin_attachment_db_ref (DupinAttachmentDB * attachment_db)
 {
-  Dupin *d;
-
   g_return_if_fail (attachment_db != NULL);
 
-  d = attachment_db->d;
-
-  g_rw_lock_writer_lock (d->rwlock);
+  g_rw_lock_writer_lock (attachment_db->rwlock);
 
   attachment_db->ref++;
 
@@ -350,7 +369,7 @@ dupin_attachment_db_ref (DupinAttachmentDB * attachment_db)
   fprintf(stderr,"dupin_attachment_db_ref: (%p) name=%s \t ref++=%d\n", g_thread_self (), attachment_db->name, (gint) attachment_db->ref);
 #endif
 
-  g_rw_lock_writer_unlock (d->rwlock);
+  g_rw_lock_writer_unlock (attachment_db->rwlock);
 }
 
 void
@@ -362,50 +381,53 @@ dupin_attachment_db_unref (DupinAttachmentDB * attachment_db)
 
   d = attachment_db->d;
 
-  g_rw_lock_writer_lock (d->rwlock);
+  g_rw_lock_writer_lock (attachment_db->rwlock);
 
   if (attachment_db->ref > 0)
     {
       attachment_db->ref--;
 
 #if DEBUG
-      fprintf(stderr,"dupin_attachment_db_new: (%p) name=%s \t ref--=%d\n", g_thread_self (), attachment_db->name, (gint) attachment_db->ref);
+      fprintf(stderr,"dupin_attachment_db_unref: (%p) name=%s \t ref--=%d\n", g_thread_self (), attachment_db->name, (gint) attachment_db->ref);
 #endif
     }
 
+  g_rw_lock_writer_unlock (attachment_db->rwlock);
+
   if (attachment_db->todelete == TRUE)
     {
+      g_rw_lock_reader_lock (attachment_db->rwlock);
+
       if (attachment_db->ref > 0)
         {
+          g_rw_lock_reader_unlock (attachment_db->rwlock);
+
           g_warning ("dupin_attachment_db_unref: (thread=%p) attachment database %s flagged for deletion but can't free it due ref is %d\n", g_thread_self (), attachment_db->name, (gint) attachment_db->ref);
         }
       else
         {
+          g_rw_lock_reader_unlock (attachment_db->rwlock);
+
+	  if (dupin_attachment_db_p_update (attachment_db, NULL) == FALSE)
+            {
+              g_warning("dupin_attachment_db_unref: could not remove reference from parent for attachment db '%s'\n", attachment_db->name);
+            }
+
+          g_rw_lock_writer_lock (d->rwlock);
           g_hash_table_remove (d->attachment_dbs, attachment_db->name);
+          g_rw_lock_writer_unlock (d->rwlock);
         }
     }
-
-  g_rw_lock_writer_unlock (d->rwlock);
 }
 
 gboolean
 dupin_attachment_db_delete (DupinAttachmentDB * attachment_db, GError ** error)
 {
-  Dupin *d;
-
   g_return_val_if_fail (attachment_db != NULL, FALSE);
 
-  d = attachment_db->d;
-
-  g_rw_lock_writer_lock (d->rwlock);
+  g_rw_lock_writer_lock (attachment_db->rwlock);
   attachment_db->todelete = TRUE;
-  g_rw_lock_writer_unlock (d->rwlock);
-
-  if (dupin_attachment_db_p_update (attachment_db, error) == FALSE)
-    {
-      dupin_attachment_db_disconnect (attachment_db);
-      return FALSE;
-    }
+  g_rw_lock_writer_unlock (attachment_db->rwlock);
 
   return TRUE;
 }
@@ -482,20 +504,11 @@ dupin_attachment_db_get_creation_time (DupinAttachmentDB * attachment_db, gsize 
 void
 dupin_attachment_db_disconnect (DupinAttachmentDB * attachment_db)
 {
-  GError * error = NULL;
-
   g_return_if_fail (attachment_db != NULL);
 
 #if DEBUG
   g_message("dupin_attachment_db_disconnect: total number of changes for '%s' attachments database: %d\n", attachment_db->name, (gint)sqlite3_total_changes (attachment_db->db));
 #endif
-
-  if (dupin_attachment_db_p_update (attachment_db, &error) == FALSE)
-    {
-#if DUPIN_VIEW_DEBUG
-      g_warning("dupin_attachment_db_disconnect: could not remove reference from parent for attachment db '%s'\n", attachment_db->name);
-#endif
-    }
 
   if (attachment_db->db)
     sqlite3_close (attachment_db->db);
@@ -705,7 +718,9 @@ dupin_attachment_db_begin_transaction (DupinAttachmentDB * attachment_db, GError
 
   if (attachment_db->d->bulk_transaction == TRUE)
     {
-//g_message ("dupin_attachment_db_begin_transaction: attachment database %s transaction ALREADY open", attachment_db->name);
+#if DEBUG
+      g_message ("dupin_attachment_db_begin_transaction: attachment database %s transaction ALREADY open", attachment_db->name);
+#endif
 
       return 1;
     }
@@ -727,7 +742,9 @@ dupin_attachment_db_begin_transaction (DupinAttachmentDB * attachment_db, GError
       return -1;
     }
 
-//g_message ("dupin_attachment_db_begin_transaction: attachment database %s transaction begin", attachment_db->name);
+#if DEBUG
+  g_message ("dupin_attachment_db_begin_transaction: attachment database %s transaction begin", attachment_db->name);
+#endif
 
   return 0;
 }
@@ -757,7 +774,9 @@ dupin_attachment_db_rollback_transaction (DupinAttachmentDB * attachment_db, GEr
       return -1;
     }
 
-//g_message ("dupin_attachment_db_rollback_transaction: attachment database %s transaction rollback", attachment_db->name);
+#if DEBUG
+  g_message ("dupin_attachment_db_rollback_transaction: attachment database %s transaction rollback", attachment_db->name);
+#endif
 
   return 0;
 }
@@ -772,7 +791,9 @@ dupin_attachment_db_commit_transaction (DupinAttachmentDB * attachment_db, GErro
 
   if (attachment_db->d->bulk_transaction == TRUE)
     {
-//g_message ("dupin_attachment_db_commit_transaction: attachment database %s transaction commit POSTPONED", attachment_db->name);
+#if DEBUG
+      g_message ("dupin_attachment_db_commit_transaction: attachment database %s transaction commit POSTPONED", attachment_db->name);
+#endif
 
       return 1;
     }
@@ -794,7 +815,9 @@ dupin_attachment_db_commit_transaction (DupinAttachmentDB * attachment_db, GErro
       return -1;
     }
 
-//g_message ("dupin_attachment_db_commit_transaction: attachment database %s transaction commit", attachment_db->name);
+#if DEBUG
+  g_message ("dupin_attachment_db_commit_transaction: attachment database %s transaction commit", attachment_db->name);
+#endif
 
   return 0;
 }

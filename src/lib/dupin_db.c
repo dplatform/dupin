@@ -82,12 +82,13 @@ dupin_get_databases (Dupin * d)
 }
 
 gboolean
-dupin_database_exists (Dupin * d, gchar * db)
+dupin_database_exists (Dupin * d, gchar * db_name)
 {
   gboolean ret;
 
   g_rw_lock_reader_lock (d->rwlock);
-  ret = g_hash_table_lookup (d->dbs, db) != NULL ? TRUE : FALSE;
+  DupinDB * db = g_hash_table_lookup (d->dbs, db_name);
+  ret = ((db != NULL) && db->todelete == FALSE) ? TRUE : FALSE;
   g_rw_lock_reader_unlock (d->rwlock);
 
   return ret;
@@ -126,11 +127,9 @@ dupin_database_open (Dupin * d, gchar * db, GError ** error)
 }
 
 DupinDB *
-dupin_database_new (Dupin * d, gchar * db, GError ** error)
+dupin_database_new (Dupin * d, gchar * dbname, GError ** error)
 {
   DupinDB *ret;
-  DupinLinkB *linkb;
-  DupinAttachmentDB *attachment_db;
 
   gchar *path;
   gchar *name;
@@ -138,24 +137,24 @@ dupin_database_new (Dupin * d, gchar * db, GError ** error)
   gchar * errmsg;
 
   g_return_val_if_fail (d != NULL, NULL);
-  g_return_val_if_fail (db != NULL, NULL);
-  g_return_val_if_fail (dupin_util_is_valid_db_name (db) == TRUE, NULL);
+  g_return_val_if_fail (dbname != NULL, NULL);
+  g_return_val_if_fail (dupin_util_is_valid_db_name (dbname) == TRUE, NULL);
 
   g_rw_lock_writer_lock (d->rwlock);
 
-  if ((ret = g_hash_table_lookup (d->dbs, db)))
+  if ((ret = g_hash_table_lookup (d->dbs, dbname)))
     {
       g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
-		   "Database '%s' already exist.", db);
+		   "Database '%s' already exist.", dbname);
       g_rw_lock_writer_unlock (d->rwlock);
       return NULL;
     }
 
-  name = g_strdup_printf ("%s%s", db, DUPIN_DB_SUFFIX);
+  name = g_strdup_printf ("%s%s", dbname, DUPIN_DB_SUFFIX);
   path = g_build_path (G_DIR_SEPARATOR_S, d->path, name, NULL);
   g_free (name);
 
-  if (!(ret = dupin_db_connect (d, db, path, DP_SQLITE_OPEN_CREATE, error)))
+  if (!(ret = dupin_db_connect (d, dbname, path, DP_SQLITE_OPEN_CREATE, error)))
     {
       g_rw_lock_writer_unlock (d->rwlock);
       g_free (path);
@@ -167,10 +166,10 @@ dupin_database_new (Dupin * d, gchar * db, GError ** error)
   ret->ref++;
 
 #if DEBUG
-  fprintf(stderr,"dupin_database_new: (%p) name=%s \t ref++=%d\n", g_thread_self (), db, (gint) ret->ref);
+  fprintf(stderr,"dupin_database_new: (%p) name=%s \t ref++=%d\n", g_thread_self (), dbname, (gint) ret->ref);
 #endif
 
-  g_hash_table_insert (d->dbs, g_strdup (db), ret);
+  g_hash_table_insert (d->dbs, g_strdup (dbname), ret);
 
   if (dupin_database_begin_transaction (ret, error) < 0)
     {
@@ -212,16 +211,37 @@ dupin_database_new (Dupin * d, gchar * db, GError ** error)
 
   /* NOTE - create one default link base and attachment database named after the main database */
 
-  if (!  (linkb = dupin_linkbase_new (d, ret->default_linkbase_name, db, TRUE, NULL)))
-    return NULL;
+  /* TODO - default attachement db and linkbase are unchangable at the moment */
 
-  // NOTE: we keep a ref to default linkbase so it can not be accidentally deleted - see dupin_database_delete()
+  /* NOTE - We keep two refs to the parent DB one for the default linkbase and one for the default attachment db
+            so when we delete a database the linkbase and the attachment db are always deleted first
+	    See dupin_database_delete () */
 
-  if (!  (attachment_db =
-       dupin_attachment_db_new (d, ret->default_attachment_db_name, db, NULL)))
-    return NULL;
+  if (ret->default_linkbase == NULL)
+    {
+      if (!(ret->default_linkbase = dupin_linkbase_new (d, ret->default_linkbase_name, dbname, TRUE, error)))
+        {
+          dupin_db_disconnect (ret);
+          return NULL;
+        }
+    }
+  else
+    {
+      g_warning ("dupin_database_new: (thread=%p) default linkbase for database %s already connected to %s\n", g_thread_self (), ret->name, dupin_linkbase_get_name (ret->default_linkbase));
+    }
 
-  // NOTE: we keep a ref to default attachments db so it can not be accidentally deleted - see dupin_database_delete()
+  if (ret->default_attachment_db == NULL)
+    {
+      if (!(ret->default_attachment_db = dupin_attachment_db_new (d, ret->default_attachment_db_name, dbname, error)))
+        {
+          dupin_db_disconnect (ret);
+          return NULL;
+        }
+    }
+  else
+    {
+      g_warning ("dupin_database_new: (thread=%p) default linkbase for database %s already connected to %s\n", g_thread_self (), ret->name, dupin_attachment_db_get_name (ret->default_attachment_db));
+    }
 
   return ret;
 }
@@ -229,13 +249,9 @@ dupin_database_new (Dupin * d, gchar * db, GError ** error)
 void
 dupin_database_ref (DupinDB * db)
 {
-  Dupin *d;
-
   g_return_if_fail (db != NULL);
 
-  d = db->d;
-
-  g_rw_lock_writer_lock (d->rwlock);
+  g_rw_lock_writer_lock (db->rwlock);
 
   db->ref++;
 
@@ -243,7 +259,7 @@ dupin_database_ref (DupinDB * db)
   fprintf(stderr,"dupin_database_ref: (%p) name=%s \t ref++=%d\n", g_thread_self (), db->name, (gint) db->ref);
 #endif
 
-  g_rw_lock_writer_unlock (d->rwlock);
+  g_rw_lock_writer_unlock (db->rwlock);
 }
 
 void
@@ -255,7 +271,7 @@ dupin_database_unref (DupinDB * db)
 
   d = db->d;
 
-  g_rw_lock_writer_lock (d->rwlock);
+  g_rw_lock_writer_lock (db->rwlock);
 
   if (db->ref > 0)
     {
@@ -266,80 +282,59 @@ dupin_database_unref (DupinDB * db)
 #endif
     }
 
+  g_rw_lock_writer_unlock (db->rwlock);
+
   if (db->todelete == TRUE &&
       dupin_database_is_compacting (db) == FALSE)
     {
+      g_rw_lock_reader_lock (db->rwlock);
+
       if (db->ref > 0)
         {
+          g_rw_lock_reader_unlock (db->rwlock);
+
           g_warning ("dupin_database_unref: (thread=%p) database %s flagged for deletion but can't free it due ref is %d\n", g_thread_self (), db->name, (gint) db->ref);
         }
       else
         {
+          g_rw_lock_reader_unlock (db->rwlock);
+
+	  if (db->default_linkbase != NULL)
+	    dupin_linkbase_unref (db->default_linkbase);
+
+          if (db->default_attachment_db != NULL)
+            dupin_attachment_db_unref (db->default_attachment_db);
+
+          g_rw_lock_writer_lock (d->rwlock);
           g_hash_table_remove (d->dbs, db->name);
+          g_rw_lock_writer_unlock (d->rwlock);
         }
     }
-
-  g_rw_lock_writer_unlock (d->rwlock);
 }
 
 gboolean
 dupin_database_delete (DupinDB * db, GError ** error)
 {
-  Dupin *d;
-  DupinLinkB *linkb;
-  DupinAttachmentDB *attachment_db;
-
   g_return_val_if_fail (db != NULL, FALSE);
 
-  d = db->d;
+  /* NOTE - delete default link base and attachment database named after the main database due they have
+	    been created in dupin_database_new () - see above */
 
-  /* NOTE - delete default link base and attachment database named after the main database */
-
-  /* NOTE - the following repeated unrefs must be left due we kept a ref to those since we first created this DB
-            of course, this will not survive stop/start of server - we will need to prob have
-            linkbases and attachment dbs to be only deleted via the main DB 
-	    Note we do the second unref after open to make sure the linkbase and 
-	    attachment dbs can be open, and the later deleted, and garbage collection can be done correctly */
-
-  if (!
-      (linkb =
-       dupin_linkbase_open (d, db->default_linkbase_name, NULL)))
-    {
-      dupin_database_set_error (db, "Cannot connect to default linkbase");
-      return FALSE;
-    }
-
-  dupin_linkbase_unref (linkb); // default ref (see dupin_database_new() above)
-
-  if (dupin_linkbase_delete (linkb, NULL) == FALSE)
+  if (dupin_linkbase_delete (db->default_linkbase, NULL) == FALSE)
     {
       dupin_database_set_error (db, "Cannot delete default linkbase");
       return FALSE;
     }
 
-  dupin_linkbase_unref (linkb);
-
-  if (!
-      (attachment_db =
-       dupin_attachment_db_open (d, db->default_attachment_db_name, NULL)))
-    {
-      dupin_database_set_error (db, "Cannot connect to default attachments database");
-      return FALSE;
-    }
-
-  dupin_attachment_db_unref (attachment_db); // default ref (see dupin_database_new() above)
-
-  if (dupin_attachment_db_delete (attachment_db, NULL) == FALSE)
+  if (dupin_attachment_db_delete (db->default_attachment_db, NULL) == FALSE)
     {
       dupin_database_set_error (db, "Cannot delete default attachments database");
       return FALSE;
     }
 
-  dupin_attachment_db_unref (attachment_db);
-
-  g_rw_lock_writer_lock (d->rwlock);
+  g_rw_lock_writer_lock (db->rwlock);
   db->todelete = TRUE;
-  g_rw_lock_writer_unlock (d->rwlock);
+  g_rw_lock_writer_unlock (db->rwlock);
 
   return TRUE;
 }
@@ -472,14 +467,14 @@ dupin_db_disconnect (DupinDB * db)
   if (db->name)
     g_free (db->name);
 
-  if (db->default_attachment_db_name)
-    g_free (db->default_attachment_db_name);
-
-  if (db->default_linkbase_name)
-    g_free (db->default_linkbase_name);
-
   if (db->path)
     g_free (db->path);
+
+  if (db->default_linkbase_name != NULL)
+    g_free (db->default_linkbase_name);
+
+  if (db->default_attachment_db_name != NULL)
+    g_free (db->default_attachment_db_name);
 
   if (db->rwlock)
     {
@@ -532,12 +527,11 @@ dupin_db_connect (Dupin * d, gchar * name, gchar * path,
   db->name = g_strdup (name);
   db->path = g_strdup (path);
 
-  db->tocompact = FALSE;
-  db->compact_processed_count = 0;
-
-  /* NOTE - default attachement db and linkbase - unchangable at the moment */
   db->default_attachment_db_name = g_strdup (name);
   db->default_linkbase_name = g_strdup (name);
+
+  db->tocompact = FALSE;
+  db->compact_processed_count = 0;
 
   db->rwlock = g_new0 (GRWLock, 1);
   g_rw_lock_init (db->rwlock);
@@ -668,7 +662,9 @@ dupin_database_begin_transaction (DupinDB * db, GError ** error)
 
   if (db->d->bulk_transaction == TRUE)
     {
-//g_message ("dupin_database_begin_transaction: database %s transaction ALREADY open", db->name);
+#if DEBUG
+      g_message ("dupin_database_begin_transaction: database %s transaction ALREADY open", db->name);
+#endif
 
       return 1;
     }
@@ -690,7 +686,9 @@ dupin_database_begin_transaction (DupinDB * db, GError ** error)
       return -1;
     }
 
-//g_message ("dupin_database_begin_transaction: database %s transaction begin", db->name);
+#if DEBUG
+  g_message ("dupin_database_begin_transaction: database %s transaction begin", db->name);
+#endif
 
   return 0;
 }
@@ -720,7 +718,9 @@ dupin_database_rollback_transaction (DupinDB * db, GError ** error)
       return -1;
     }
 
-//g_message ("dupin_database_rollback_transaction: database %s transaction rollback", db->name);
+#if DEBUG
+  g_message ("dupin_database_rollback_transaction: database %s transaction rollback", db->name);
+#endif
 
   return 0;
 }
@@ -735,7 +735,9 @@ dupin_database_commit_transaction (DupinDB * db, GError ** error)
 
   if (db->d->bulk_transaction == TRUE)
     {
-//g_message ("dupin_database_commit_transaction: database %s transaction commit POSTPONED", db->name);
+#if DEBUG
+      g_message ("dupin_database_commit_transaction: database %s transaction commit POSTPONED", db->name);
+#endif
 
       return 1;
     }
@@ -757,7 +759,9 @@ dupin_database_commit_transaction (DupinDB * db, GError ** error)
       return -1;
     }
 
-//g_message ("dupin_database_commit_transaction: database %s transaction commit", db->name);
+#if DEBUG
+  g_message ("dupin_database_commit_transaction: database %s transaction commit", db->name);
+#endif
 
   return 0;
 }
@@ -1061,7 +1065,9 @@ dupin_database_get_changes_list (DupinDB *              db,
 
   tmp = g_string_free (str, FALSE);
 
-//g_message("dupin_database_get_changes_list() query=%s\n",tmp);
+#if DEBUG
+  g_message("dupin_database_get_changes_list() query=%s\n",tmp);
+#endif
 
   g_rw_lock_reader_lock (db->rwlock);
 
@@ -1216,7 +1222,9 @@ dupin_database_get_total_changes
 
   tmp = g_string_free (str, FALSE);
 
-//g_message("dupin_database_get_total_changes() query=%s\n",tmp);
+#if DEBUG
+  g_message("dupin_database_get_total_changes() query=%s\n",tmp);
+#endif
 
   g_rw_lock_reader_lock (db->rwlock);
 
@@ -1267,16 +1275,6 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
 
   gchar *str;
 
-  DupinAttachmentDB *attachment_db;
-
-  if (!
-      (attachment_db =
-       dupin_attachment_db_open (db->d, db->default_attachment_db_name, NULL)))
-    {
-      dupin_database_set_error (db, "Cannot connect to default attachments database");
-      return FALSE;
-    }
-
   /* get last position we reduced and get anything up to count after that */
   gchar * query = "SELECT compact_id as c FROM DupinDB";
 
@@ -1288,8 +1286,6 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
 
       g_error("dupin_database_thread_compact: %s", errmsg);
       sqlite3_free (errmsg);
-
-      dupin_attachment_db_unref (attachment_db);
 
       return FALSE;
     }
@@ -1304,8 +1300,6 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
       if (compact_id != NULL)
         g_free(compact_id);
 
-      dupin_attachment_db_unref (attachment_db);
-
       return FALSE;
     }
 
@@ -1317,8 +1311,6 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
     {
       if (compact_id != NULL)
         g_free(compact_id);
-
-      dupin_attachment_db_unref (attachment_db);
 
       return FALSE;
     }
@@ -1339,7 +1331,7 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
 	  && dupin_record_is_deleted (record, NULL) == TRUE)
         {
 	  /* remove any attachments */
-	  if (dupin_attachment_record_delete_all (attachment_db, (gchar *) dupin_record_get_id (record)) == FALSE)
+	  if (dupin_attachment_record_delete_all (db->default_attachment_db, (gchar *) dupin_record_get_id (record)) == FALSE)
 	    {
 	      g_warning ("dupin_database_thread_compact: Cannot delete all attachments for id %s\n", (gchar *) dupin_record_get_id (record));
 	      continue;
@@ -1359,8 +1351,6 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
               g_error ("dupin_database_thread_compact: %s", errmsg);
               sqlite3_free (errmsg);
 
-	      dupin_attachment_db_unref (attachment_db);
-
               return FALSE;
             }
           else
@@ -1379,8 +1369,6 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
 
                   g_error ("dupin_database_thread_compact: %s", errmsg);
                   sqlite3_free (errmsg);
-
-	          dupin_attachment_db_unref (attachment_db);
 
                   sqlite3_free (tmp);
 
@@ -1402,7 +1390,9 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
           tmp = sqlite3_mprintf ("DELETE FROM Dupin WHERE id = '%q' AND rev < %d", (gchar *) dupin_record_get_id (record), (gint)last_revision);
         }
 
-//g_message("dupin_database_thread_compact: query=%s\n", tmp);
+#if DEBUG
+      g_message("dupin_database_thread_compact: query=%s\n", tmp);
+#endif
 
       g_rw_lock_writer_lock (db->rwlock);
 
@@ -1415,8 +1405,6 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
           g_error ("dupin_database_thread_compact: %s", errmsg);
 
           sqlite3_free (errmsg);
-
-	  dupin_attachment_db_unref (attachment_db);
 
           return FALSE;
         }
@@ -1437,14 +1425,18 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
 
       compact_id = g_strdup_printf ("%i", (gint)rowid);
 
-//g_message("dupin_database_thread_compact(%p) compact_id=%s as fetched",g_thread_self (), compact_id);
+#if DEBUG
+      g_message("dupin_database_thread_compact(%p) compact_id=%s as fetched",g_thread_self (), compact_id);
+#endif
     }
   
   dupin_record_get_list_close (results);
 
-//g_message("dupin_database_thread_compact() compact_id=%s as to be stored",compact_id);
+#if DEBUG
+  g_message("dupin_database_thread_compact() compact_id=%s as to be stored",compact_id);
 
-//g_message("dupin_database_thread_compact(%p)  finished last_compact_rowid=%s - compacted %d\n", g_thread_self (), compact_id, (gint)db->compact_processed_count);
+  g_message("dupin_database_thread_compact(%p)  finished last_compact_rowid=%s - compacted %d\n", g_thread_self (), compact_id, (gint)db->compact_processed_count);
+#endif
 
   str = sqlite3_mprintf ("UPDATE DupinDB SET compact_id = '%q'", compact_id);
 
@@ -1461,16 +1453,12 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
       g_error("dupin_database_thread_compact: %s", errmsg);
       sqlite3_free (errmsg);
 
-      dupin_attachment_db_unref (attachment_db);
-
       return FALSE;
     }
 
   g_rw_lock_writer_unlock (db->rwlock);
 
   sqlite3_free (str);
-
-  dupin_attachment_db_unref (attachment_db);
 
   return ret;
 }
@@ -1483,7 +1471,9 @@ dupin_database_compact_func (gpointer data, gpointer user_data)
 
   dupin_database_ref (db);
 
-//g_message("dupin_database_compact_func(%p) started\n",g_thread_self ());
+#if DEBUG
+  g_message("dupin_database_compact_func(%p) started\n",g_thread_self ());
+#endif
 
   g_rw_lock_writer_lock (db->rwlock);
   db->tocompact = TRUE;
@@ -1497,7 +1487,9 @@ dupin_database_compact_func (gpointer data, gpointer user_data)
 
       if (compact_operation == FALSE)
         {
-//g_message("dupin_database_compact_func(%p) Compacted TOTAL %d records\n", g_thread_self (), (gint)db->compact_processed_count);
+#if DEBUG
+          g_message("dupin_database_compact_func(%p) Compacted TOTAL %d records\n", g_thread_self (), (gint)db->compact_processed_count);
+#endif
 
           /* claim disk space back */
 
@@ -1505,7 +1497,9 @@ dupin_database_compact_func (gpointer data, gpointer user_data)
 
 	  if (db->d->bulk_transaction == TRUE)
             {
-//g_message("dupin_database_compact_func(%p) waiting for transaction to finish\n", g_thread_self ());
+#if DEBUG
+              g_message("dupin_database_compact_func(%p) waiting for transaction to finish\n", g_thread_self ());
+#endif
 
 	      continue;
 	    }
@@ -1524,7 +1518,9 @@ dupin_database_compact_func (gpointer data, gpointer user_data)
 			   see http://www.sqlite.org/lang_vacuum.html
            */
 
-//g_message("dupin_database_compact_func: VACUUM and ANALYZE\n");
+#if DEBUG
+          g_message("dupin_database_compact_func: VACUUM and ANALYZE\n");
+#endif
 
           if (sqlite3_exec (db->db, "VACUUM", NULL, NULL, &errmsg) != SQLITE_OK
              || sqlite3_exec (db->db, "ANALYZE Dupin", NULL, NULL, &errmsg) != SQLITE_OK)
@@ -1537,44 +1533,37 @@ dupin_database_compact_func (gpointer data, gpointer user_data)
 
           g_rw_lock_writer_unlock (db->rwlock);
 
-          DupinAttachmentDB *attachment_db;
-
-          if (!  (attachment_db = dupin_attachment_db_open (db->d, db->default_attachment_db_name, NULL)))
-            {
-              g_error ("dupin_database_compact_func: %s",  "Cannot connect to default attachments database");
-              break;
-            }
-
           /* NOTE - make sure last transaction is commited */
 
-          g_rw_lock_writer_lock (attachment_db->rwlock);
+          g_rw_lock_writer_lock (db->default_attachment_db->rwlock);
 
-          if (dupin_attachment_db_commit_transaction (attachment_db, NULL) < 0)
+          if (dupin_attachment_db_commit_transaction (db->default_attachment_db, NULL) < 0)
             {
-              dupin_attachment_db_rollback_transaction (attachment_db, NULL);
+              dupin_attachment_db_rollback_transaction (db->default_attachment_db, NULL);
             }
 
-//g_message("dupin_database_compact_func: VACUUM and ANALYZE attachments database\n");
+#if DEBUG
+          g_message("dupin_database_compact_func: VACUUM and ANALYZE attachments database\n");
+#endif
 
-          if (sqlite3_exec (attachment_db->db, "VACUUM", NULL, NULL, &errmsg) != SQLITE_OK
-             || sqlite3_exec (attachment_db->db, "ANALYZE Dupin", NULL, NULL, &errmsg) != SQLITE_OK)
+          if (sqlite3_exec (db->default_attachment_db->db, "VACUUM", NULL, NULL, &errmsg) != SQLITE_OK
+             || sqlite3_exec (db->default_attachment_db->db, "ANALYZE Dupin", NULL, NULL, &errmsg) != SQLITE_OK)
             {
-              g_rw_lock_writer_unlock (attachment_db->rwlock);
-              dupin_attachment_db_unref (attachment_db);
+              g_rw_lock_writer_unlock (db->default_attachment_db->rwlock);
               g_error("dupin_database_compact_func: %s while vacuum and analyze attachemtns db", errmsg);
               sqlite3_free (errmsg);
 	      break;
             }
 
-          g_rw_lock_writer_unlock (attachment_db->rwlock);
-
-          dupin_attachment_db_unref (attachment_db);
+          g_rw_lock_writer_unlock (db->default_attachment_db->rwlock);
 
           break;
         }
     }
 
-//g_message("dupin_database_compact_func(%p) finished and database is compacted\n",g_thread_self ());
+#if DEBUG
+  g_message("dupin_database_compact_func(%p) finished and database is compacted\n",g_thread_self ());
+#endif
 
   g_rw_lock_writer_lock (db->rwlock);
   db->tocompact = FALSE;
@@ -1591,11 +1580,15 @@ dupin_database_compact (DupinDB * db)
 
   if (dupin_database_is_compacting (db))
     {
-//g_message("dupin_database_compact(%p): database is still compacting db->compact_thread=%p\n", g_thread_self (), db->compact_thread);
+#if DEBUG
+      g_message("dupin_database_compact(%p): database is still compacting db->compact_thread=%p\n", g_thread_self (), db->compact_thread);
+#endif
     }
   else
     {
-//g_message("dupin_database_compact(%p): push to thread pools db->compact_thread=%p\n", g_thread_self (), db->compact_thread);
+#if DEBUG
+      g_message("dupin_database_compact(%p): push to thread pools db->compact_thread=%p\n", g_thread_self (), db->compact_thread);
+#endif
 
       GError * error=NULL;
 
@@ -1701,47 +1694,39 @@ gchar * dupin_database_get_warning (DupinDB * db)
   return db->warning_msg;
 }
 
-/* TODO - select current attachment db and linkbase to use for insert and retrieve operations
+/* NOTE - the default attachment db and linkbase are used for insert and retrieve operations
           in dupin_record API - we just set and force the dbname as default, full stop */
 
-gboolean        dupin_database_set_default_attachment_db_name
-                                        (DupinDB *      db,
-                                         gchar *        attachment_db_name)
-{
-  g_return_val_if_fail (db != NULL, FALSE);
-  g_return_val_if_fail (!g_strcmp0 (attachment_db_name, db->name), FALSE);
-
-  /* TODO */
- 
-  return TRUE;
-}
-
-gchar *         dupin_database_get_default_attachment_db_name
-                                        (DupinDB *      db)
+gchar *
+dupin_database_get_default_attachment_db_name (DupinDB * db)
 {
   g_return_val_if_fail (db != NULL, NULL);
 
-  return db->default_attachment_db_name;
+  return db->name;
 }
 
-gboolean        dupin_database_set_default_linkbase_name
-                                        (DupinDB *      db,
-                                         gchar *        linkbase_name)
+DupinAttachmentDB *
+dupin_database_get_default_attachment_db (DupinDB * db)
 {
-  g_return_val_if_fail (db != NULL, FALSE);
-  g_return_val_if_fail (!g_strcmp0 (linkbase_name, db->name), FALSE);
+  g_return_val_if_fail (db != NULL, NULL);
 
-  /* TODO */
-
-  return TRUE;
+  return db->default_attachment_db;
 }
 
-gchar *         dupin_database_get_default_linkbase_name
-                                        (DupinDB *      db)
+gchar *
+dupin_database_get_default_linkbase_name (DupinDB * db)
 {
   g_return_val_if_fail (db != NULL, NULL);
 
   return db->default_linkbase_name;
+}
+
+DupinLinkB *
+dupin_database_get_default_linkbase (DupinDB * db)
+{
+  g_return_val_if_fail (db != NULL, NULL);
+
+  return db->default_linkbase;
 }
 
 /* EOF */

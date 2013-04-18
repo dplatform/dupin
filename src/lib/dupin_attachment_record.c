@@ -413,7 +413,13 @@ dupin_attachment_record_read_real (DupinAttachmentDB * attachment_db,
   gchar *errmsg;
   gchar *tmp;
 
+  if (lock == FALSE)
+    g_rw_lock_reader_unlock (attachment_db->rwlock);
+
   dupin_attachment_db_ref (attachment_db);
+
+  if (lock == FALSE)
+    g_rw_lock_reader_lock (attachment_db->rwlock);
 
   record = dupin_attachment_record_new (attachment_db, id, title);
 

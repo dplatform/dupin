@@ -250,7 +250,7 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 #define REQUEST_ALL_CHANGES     "_changes"
 #define REQUEST_ALL_DOCS        "_all_docs"
 #define REQUEST_ATTACH_DBS      "_attach_dbs"
-#define REQUEST_ALL_LINKS       "_all_links"
+#define REQUEST_ALL_LINKS       REQUEST_ALL_DOCS
 #define REQUEST_LINKBS          "_linkbs"
 #define REQUEST_VIEWS           "_views"
 #define REQUEST_SYNC            "_sync"

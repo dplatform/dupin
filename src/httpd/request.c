@@ -417,7 +417,7 @@ static DSHttpStatusCode request_global_get_changes_database (DSHttpdClient * cli
 static DSHttpStatusCode request_global_get_linkbase (DSHttpdClient * client,
 						    GList * paths,
 						    GList * arguments);
-static DSHttpStatusCode request_global_get_all_links_linkbase (DSHttpdClient * client,
+static DSHttpStatusCode request_global_get_all_docs_linkbase (DSHttpdClient * client,
 						    GList * paths,
 						    GList * arguments);
 
@@ -538,9 +538,9 @@ request_global_get (DSHttpdClient * client,
       if (!path->next->next)
 	return request_global_get_linkbase (client, path->next, arguments);
 
-      /* GET /_linkbs/linkbase/_all_links */
+      /* GET /_linkbs/linkbase/_all_docs */
       if (!g_strcmp0 (path->next->next->data, REQUEST_ALL_LINKS))
-        return request_global_get_all_links_linkbase (client, path->next, arguments);
+        return request_global_get_all_docs_linkbase (client, path->next, arguments);
 
       /* GET /_linkbs/linkbase/_changes */
       if (!g_strcmp0 (path->next->next->data, REQUEST_ALL_CHANGES))
@@ -549,7 +549,7 @@ request_global_get (DSHttpdClient * client,
       /* GET /_linkbs/linkbase/id */
       return request_global_get_record_linkbase (client, path->next, arguments);
 
-      request_set_error (client, "Linkbases GET allowed commands: /_linkbs/linkbase, /_linkbs/linkbase/_all_links, /_linkbs/linkbase/_changes or /_linkbs/linkbase/id");
+      request_set_error (client, "Linkbases GET allowed commands: /_linkbs/linkbase, /_linkbs/linkbase/_all_docs, /_linkbs/linkbase/_changes or /_linkbs/linkbase/id");
 
       return HTTP_STATUS_400;
     }
@@ -2039,9 +2039,9 @@ request_global_get_record (DSHttpdClient * client,
                 }
 
 	      /* TODO - check is path should be passed as path->next instead of setting linkbase ?
-	                see also request_global_post_all_links () */
+	                see also request_global_post_all_docs_linkbase () */
 
-	      return request_global_get_all_links_linkbase (client, path, client->request_arguments);
+	      return request_global_get_all_docs_linkbase (client, path, client->request_arguments);
 	    }
 
           /* GET /document_ID/attachment */
@@ -2621,7 +2621,7 @@ request_global_get_linkbase_error:
 }
 
 static DSHttpStatusCode
-request_global_get_all_links_linkbase (DSHttpdClient * client,
+request_global_get_all_docs_linkbase (DSHttpdClient * client,
 				       GList * path,
 			     	       GList * arguments)
 {
@@ -2680,7 +2680,7 @@ request_global_get_all_links_linkbase (DSHttpdClient * client,
     {
       dupin_keyvalue_t *kv = list->data;
 
-//g_message("request_global_get_all_links_linkbase: k=%s v=%s\n", (gchar *)kv->key, (gchar *)kv->value);
+//g_message("request_global_get_all_docs_linkbase: k=%s v=%s\n", (gchar *)kv->key, (gchar *)kv->value);
 
       if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_DESCENDING)
 	  && !g_strcmp0 (kv->value, "true"))
@@ -3033,13 +3033,13 @@ request_global_get_all_links_linkbase (DSHttpdClient * client,
   node = json_node_new (JSON_NODE_OBJECT);
 
   if (node == NULL)
-    goto request_global_get_all_links_linkbase_error;
+    goto request_global_get_all_docs_linkbase_error;
 
   obj = json_object_new ();
 
   if (obj == NULL)
     {
-      goto request_global_get_all_links_linkbase_error;
+      goto request_global_get_all_docs_linkbase_error;
     }
 
   json_node_take_object (node, obj);
@@ -3068,7 +3068,7 @@ request_global_get_all_links_linkbase (DSHttpdClient * client,
   array = json_array_new ();
 
   if (array == NULL)
-    goto request_global_get_all_links_linkbase_error;
+    goto request_global_get_all_docs_linkbase_error;
 
   json_object_set_array_member (obj, "rows", array );
 
@@ -3123,7 +3123,7 @@ request_global_get_all_links_linkbase (DSHttpdClient * client,
             {
               json_node_free (kvd);
               g_string_free (whole_etag_str, TRUE);
-	      goto request_global_get_all_links_linkbase_error;
+	      goto request_global_get_all_docs_linkbase_error;
             }
 
           json_object_set_member (kvd_obj, RESPONSE_LINK_OBJ_DOC, on);
@@ -3183,7 +3183,7 @@ request_global_get_all_links_linkbase (DSHttpdClient * client,
   client->output_size = strlen(client->output.string.string);
 
   if (client->output.string.string == NULL)
-    goto request_global_get_all_links_linkbase_error;
+    goto request_global_get_all_docs_linkbase_error;
 
   if( results )
     dupin_link_record_get_list_close (results);
@@ -3219,7 +3219,7 @@ request_global_get_all_links_linkbase (DSHttpdClient * client,
 
   return HTTP_STATUS_200;
 
-request_global_get_all_links_linkbase_error:
+request_global_get_all_docs_linkbase_error:
 
   if( results )
     dupin_link_record_get_list_close (results);
@@ -5376,7 +5376,7 @@ static DSHttpStatusCode request_global_post_bulk_doc_links (DSHttpdClient * clie
 						            GList * path,
 						            GList * arguments);
 
-static DSHttpStatusCode request_global_post_all_links (DSHttpdClient * client,
+static DSHttpStatusCode request_global_post_all_docs_linkbase (DSHttpdClient * client,
 						       GList * path,
 						       GList * arguments);
 
@@ -5423,12 +5423,12 @@ request_global_post (DSHttpdClient * client,
           if (!g_strcmp0 (path->next->next->data, REQUEST_POST_CHECK_LINKBASE))
             return request_global_post_check_linkbase (client, path->next, arguments);
 
-          /* POST /_linkbs/linkbase/_all_links */
+          /* POST /_linkbs/linkbase/_all_docs */
           if (!g_strcmp0 (path->next->next->data, REQUEST_POST_ALL_LINKS))
-            return request_global_post_all_links (client, path, arguments);
+            return request_global_post_all_docs_linkbase (client, path, arguments);
         }
 
-      request_set_error (client, "POST /_linkbs allowed commands are: /_linkbs/linkbase/_all_links, /_linkbs/linkbase/_compact and /_linkbs/linkbase/_check");
+      request_set_error (client, "POST /_linkbs allowed commands are: /_linkbs/linkbase/_all_docs, /_linkbs/linkbase/_compact and /_linkbs/linkbase/_check");
 
       return HTTP_STATUS_400;
     }
@@ -6097,7 +6097,7 @@ request_global_post_compact_database (DSHttpdClient * client,
 }
 
 static DSHttpStatusCode
-request_global_post_all_links (DSHttpdClient * client,
+request_global_post_all_docs_linkbase (DSHttpdClient * client,
 			       GList * path,
 			       GList * arguments)
 {
@@ -6116,7 +6116,7 @@ request_global_post_all_links (DSHttpdClient * client,
     {
       request_set_error (client, "Cannot parse POST body");
       code = HTTP_STATUS_500;
-      goto request_global_post_all_links_end;
+      goto request_global_post_all_docs_linkbase_end;
     }
 
   if (!json_parser_load_from_data (parser, client->body, client->body_size, &error))
@@ -6127,7 +6127,7 @@ request_global_post_all_links (DSHttpdClient * client,
           g_error_free (error);
         }
       code = HTTP_STATUS_400;
-      goto request_global_post_all_links_end;
+      goto request_global_post_all_docs_linkbase_end;
     }
 
   JsonNode * node = json_parser_get_root (parser);
@@ -6136,21 +6136,21 @@ request_global_post_all_links (DSHttpdClient * client,
     {
       request_set_error (client, "Cannot parse POST body");
       code = HTTP_STATUS_500;
-      goto request_global_post_all_links_end;
+      goto request_global_post_all_docs_linkbase_end;
     }
 
   if (json_node_get_node_type (node) != JSON_NODE_OBJECT)
     {
       request_set_error (client, "Body must be a JSON object");
       code = HTTP_STATUS_500;
-      goto request_global_post_all_links_end;
+      goto request_global_post_all_docs_linkbase_end;
     }
 
   if (json_object_has_member (json_node_get_object (node), REQUEST_POST_ALL_LINKS_KEYS) == FALSE)
     {
       request_set_error (client, "Body does not contain a mandatory " REQUEST_POST_ALL_LINKS_KEYS " object member");
       code = HTTP_STATUS_500;
-      goto request_global_post_all_links_end;
+      goto request_global_post_all_docs_linkbase_end;
     }
 
   JsonNode * keys_node = json_object_get_member (json_node_get_object (node), REQUEST_POST_ALL_LINKS_KEYS);
@@ -6159,7 +6159,7 @@ request_global_post_all_links (DSHttpdClient * client,
     {
       request_set_error (client, "Body object member " REQUEST_POST_ALL_LINKS_KEYS " is not an array");
       code = HTTP_STATUS_500;
-      goto request_global_post_all_links_end;
+      goto request_global_post_all_docs_linkbase_end;
     }
 
   gchar * json_keys = dupin_util_json_serialize (keys_node);
@@ -6178,9 +6178,9 @@ request_global_post_all_links (DSHttpdClient * client,
   if (error)
     g_error_free (error);
 
-  return request_global_get_all_links_linkbase (client, path->next, client->request_arguments);
+  return request_global_get_all_docs_linkbase (client, path->next, client->request_arguments);
 
-request_global_post_all_links_end:
+request_global_post_all_docs_linkbase_end:
 
   if (parser != NULL)
     g_object_unref (parser);

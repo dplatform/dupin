@@ -2741,7 +2741,11 @@ dupin_view_sync_record_update (DupinView * view, gchar * previous_rowid, gint re
 }
 
 static gboolean
-dupin_view_sync_thread_reduce (DupinView * view, gsize count, gboolean rereduce, gchar * matching_key)
+dupin_view_sync_thread_reduce (DupinView * view,
+			       gsize count,
+			       gboolean rereduce,
+			       gchar * matching_key,
+			       gboolean * reduce_error)
 {
   if (dupin_view_engine_get_reduce_code (view->engine) == NULL)
     return FALSE;
@@ -2915,10 +2919,11 @@ dupin_view_sync_thread_reduce (DupinView * view, gsize count, gboolean rereduce,
       json_array_add_array_element (reduce_parameters_obj_key_keys, reduce_parameters_obj_key_keys_i);
 
       /* i-esim value */
-      JsonNode * reduce_parameters_obj_key_values_i = dupin_view_record_get (list->data);
-      if (reduce_parameters_obj_key_values_i)
+      JsonNode * reduce_parameters_obj_key_values_i = NULL;
+      JsonNode * record_obj = dupin_view_record_get (list->data);
+      if (record_obj != NULL)
         {
-          reduce_parameters_obj_key_values_i = json_node_copy (reduce_parameters_obj_key_values_i);
+          reduce_parameters_obj_key_values_i = json_node_copy (record_obj);
         }
       else
         {
@@ -3019,8 +3024,12 @@ dupin_view_sync_thread_reduce (DupinView * view, gsize count, gboolean rereduce,
           sync_reduce_processed_count = view->sync_reduce_processed_count;
           g_rw_lock_writer_unlock (view->rwlock);
         }
-
-      /* just append to the end for the moment - DEBUG */
+      else
+        {
+	  *reduce_error = TRUE;
+	  ret = FALSE;
+          break;
+	}
     }
   g_list_free (nodes);
 
@@ -3343,15 +3352,10 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
       g_message("dupin_view_sync_reduce_func(%p/%s) rereduce=%d\n", g_thread_self (), view->name, rereduce);
 #endif
 
-      g_rw_lock_reader_lock (view->rwlock);
-      sync_map_thread = view->sync_map_thread;
-      g_rw_lock_reader_unlock (view->rwlock);
-
-      if (rereduce == FALSE
-	  && sync_map_thread)
+      if (rereduce == FALSE)
         {
 #if DUPIN_VIEW_DEBUG
-          g_message("dupin_view_sync_reduce_func(%p/%s) Going to wait for signal from map thread (%p)\n", g_thread_self (), view->name, sync_map_thread);
+          g_message("dupin_view_sync_reduce_func(%p/%s) Going to wait for signal from map thread\n", g_thread_self (), view->name);
 #endif
 
 	  /* NOTE - wait for message for a maximum of limit_reduce_timeoutforthread seconds */
@@ -3381,7 +3385,7 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
 	  if (reduce_wait_timed_out == FALSE)
 	    {
 #if DUPIN_VIEW_DEBUG
-              g_message("dupin_view_sync_reduce_func(%p/%s) waiting for signal from %p timeout after %d seconds\n", g_thread_self (), view->name, sync_map_thread, view->d->conf->limit_reduce_timeoutforthread);
+              g_message("dupin_view_sync_reduce_func(%p/%s) waiting for signal from map thread timed out after %d seconds\n", g_thread_self (), view->name, view->d->conf->limit_reduce_timeoutforthread);
 #endif
 	    }
 
@@ -3393,6 +3397,7 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
         }
 
       g_rw_lock_reader_lock (view->rwlock);
+      sync_map_thread = view->sync_map_thread;
       sync_map_processed_count = view->sync_map_processed_count;
       sync_reduce_total_records = view->sync_reduce_total_records;
       sync_reduce_processed_count = view->sync_reduce_processed_count;
@@ -3411,10 +3416,23 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
           g_rw_lock_writer_unlock (view->rwlock);
 
 #if DUPIN_VIEW_DEBUG
-          g_message("dupin_view_sync_reduce_func(%p/%s) got new records to REDUCE (rereduce=%d, sync_reduce_total_records=%d)\n",g_thread_self (), view->name, (gint)sync_reduce_total_records,(gint)rereduce);
+          g_message("dupin_view_sync_reduce_func(%p/%s) got new records to REDUCE (rereduce=%d, sync_reduce_total_records=%d)\n",g_thread_self (), view->name, (gint)rereduce, (gint)sync_reduce_total_records);
 #endif
 
-          while (dupin_view_sync_thread_reduce (view, VIEW_SYNC_COUNT, rereduce, rere_matching.first_matching_key) == TRUE);
+	  gboolean reduce_error = FALSE;
+          while (dupin_view_sync_thread_reduce (view, VIEW_SYNC_COUNT, rereduce, rere_matching.first_matching_key, &reduce_error) == TRUE)
+	    {
+	      if (reduce_error == TRUE)
+	        {
+		  break;
+		}
+	    }
+
+	  if (reduce_error == TRUE)
+	    {
+              // TODO - log something
+              break;
+	    }
 
           g_rw_lock_writer_lock (view->rwlock);
           sync_reduce_processed_count = view->sync_reduce_processed_count;
@@ -3429,7 +3447,7 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
       if (!sync_map_thread) /* map finished */
         {
 #if DUPIN_VIEW_DEBUG
-          g_message("View %s map was finished in meantime\n", view->name);
+          g_message("dupin_view_sync_reduce_func(%p/%s) Map was finished in meantime\n", g_thread_self (), view->name);
 #endif
 
 	  /* check if there is anything to re-reduce */
@@ -3444,7 +3462,7 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
           dupin_view_sync_total_rereduce (view, &rere_matching);
 
 #if DUPIN_VIEW_DEBUG
-          g_message("View %s done first round of reduce but there are still %d record to re-reduce and first key to process is '%s'\n", view->name, (gint)rere_matching.total, rere_matching.first_matching_key);
+          g_message("dupin_view_sync_reduce_func(%p/%s) Done first round of reduce but there are still %d record to re-reduce and first key to process is '%s'\n", g_thread_self (), view->name, (gint)rere_matching.total, rere_matching.first_matching_key);
 #endif
 
           if (rere_matching.total > 0)
@@ -3453,7 +3471,7 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
               rereduce = TRUE;
 
 #if DUPIN_VIEW_DEBUG
-	      g_message("View %s going to re-reduce\n", view->name);
+	      g_message("dupin_view_sync_reduce_func(%p/%s) Going to re-reduce\n", g_thread_self (), view->name);
 #endif
 
               g_rw_lock_writer_lock (view->rwlock);
@@ -3464,6 +3482,9 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
 
                   break;
                 }
+
+	      /* TODO - check if sync_reduce_id can be set to an "higher" value after reduce and before re-reduce
+			considering that the ROWID of the first key to re-reduce may be >>0 (i.e. thousands of ROWIDs higher) */
 
               query = "UPDATE DupinView SET sync_reduce_id = '0', sync_rereduce = 'TRUE'";
 
@@ -3491,7 +3512,7 @@ dupin_view_sync_reduce_func (gpointer data, gpointer user_data)
           else
             {
 #if DUPIN_VIEW_DEBUG
-   	      g_message("View %s done rereduce=%d\n", view->name, (gint)rereduce);
+   	      g_message("dupin_view_sync_reduce_func(%p/%s) Done rereduce=%d\n", g_thread_self (), view->name, (gint)rereduce);
 #endif
               rereduce = FALSE;
 
@@ -3597,7 +3618,7 @@ dupin_view_sync (DupinView * view)
             dependency between map, reduce and re-reduce threads */
 
 #if DUPIN_VIEW_DEBUG
-      g_message("dupin_view_sync(%p/%s): push to thread pools sync_map_thread=%p sync_reduce_thread=%p \n", g_thread_self (), view->name, sync_map_thread, sync_reduce_thread);
+      g_message("dupin_view_sync(%p/%s): push map and reduce threads to respective thread pools\n", g_thread_self (), view->name);
 #endif
 
       GError *error=NULL;

@@ -114,7 +114,8 @@ dupin_database_open (Dupin * d, gchar * db, GError ** error)
 
   if (!(ret = g_hash_table_lookup (d->dbs, db)) || ret->todelete == TRUE)
     {
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
 		 "Database '%s' doesn't exist.", db);
 
       g_rw_lock_reader_unlock (d->rwlock);
@@ -152,7 +153,8 @@ dupin_database_new (Dupin * d, gchar * dbname, GError ** error)
 
   if ((ret = g_hash_table_lookup (d->dbs, dbname)))
     {
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
 		   "Database '%s' already exist.", dbname);
       g_rw_lock_writer_unlock (d->rwlock);
       return NULL;
@@ -195,7 +197,8 @@ dupin_database_new (Dupin * d, gchar * dbname, GError ** error)
   if (sqlite3_exec (ret->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
     {
       g_rw_lock_writer_unlock (d->rwlock);
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
                        errmsg);
 
       sqlite3_free (errmsg);
@@ -546,7 +549,8 @@ dupin_db_connect (Dupin * d, gchar * name, gchar * path,
 
   if (sqlite3_open_v2 (db->path, &db->db, dupin_util_dupin_mode_to_sqlite_mode (mode), NULL) != SQLITE_OK)
     {
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
 		   "Database error.");
       dupin_db_disconnect (db);
       return NULL;
@@ -559,7 +563,8 @@ dupin_db_connect (Dupin * d, gchar * name, gchar * path,
       if (sqlite3_exec (db->db, "PRAGMA journal_mode = WAL", NULL, NULL, &errmsg) != SQLITE_OK
           || sqlite3_exec (db->db, "PRAGMA encoding = \"UTF-8\"", NULL, NULL, &errmsg) != SQLITE_OK)
         {
-          g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot set pragma journal_mode or encoding: %s",
+          if (*error == NULL)
+            g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot set pragma journal_mode or encoding: %s",
 		   errmsg);
           sqlite3_free (errmsg);
           dupin_db_disconnect (db);
@@ -576,7 +581,8 @@ dupin_db_connect (Dupin * d, gchar * name, gchar * path,
           || sqlite3_exec (db->db, DUPIN_DB_SQL_CREATE_INDEX, NULL, NULL, &errmsg) != SQLITE_OK
           || sqlite3_exec (db->db, DUPIN_DB_SQL_DESC_CREATE, NULL, NULL, &errmsg) != SQLITE_OK)
         {
-          g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
+          if (*error == NULL)
+            g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
 		   errmsg);
           sqlite3_free (errmsg);
           dupin_database_rollback_transaction (db, error);
@@ -602,7 +608,8 @@ dupin_db_connect (Dupin * d, gchar * name, gchar * path,
 
   if (user_version > DUPIN_SQLITE_MAX_USER_VERSION)
     {
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "SQLite database user version (%d) is newer than I know how to work with (%d).",
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "SQLite database user version (%d) is newer than I know how to work with (%d).",
 			user_version, DUPIN_SQLITE_MAX_USER_VERSION);
       sqlite3_free (errmsg);
       dupin_db_disconnect (db);
@@ -613,7 +620,8 @@ dupin_db_connect (Dupin * d, gchar * name, gchar * path,
     {
       if (sqlite3_exec (db->db, DUPIN_DB_SQL_DESC_UPGRADE_FROM_VERSION_1, NULL, NULL, &errmsg) != SQLITE_OK)
         {
-          g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
+          if (*error == NULL)
+            g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
 		   errmsg);
           sqlite3_free (errmsg);
           dupin_db_disconnect (db);
@@ -624,7 +632,8 @@ dupin_db_connect (Dupin * d, gchar * name, gchar * path,
     {
       if (sqlite3_exec (db->db, DUPIN_DB_SQL_DESC_UPGRADE_FROM_VERSION_2, NULL, NULL, &errmsg) != SQLITE_OK)
         {
-          g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
+          if (*error == NULL)
+            g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
 		   errmsg);
           sqlite3_free (errmsg);
           dupin_db_disconnect (db);
@@ -645,7 +654,8 @@ dupin_db_connect (Dupin * d, gchar * name, gchar * path,
   if (sqlite3_exec (db->db, "PRAGMA temp_store = memory", NULL, NULL, &errmsg) != SQLITE_OK
       || sqlite3_exec (db->db, cache_size, NULL, NULL, &errmsg) != SQLITE_OK)
     {
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot set pragma temp_store: %s",
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot set pragma temp_store: %s",
 		   errmsg);
       sqlite3_free (errmsg);
       if (cache_size)
@@ -664,7 +674,8 @@ dupin_db_connect (Dupin * d, gchar * name, gchar * path,
 
   if (sqlite3_exec (db->db, "PRAGMA synchronous = NORMAL", NULL, NULL, &errmsg) != SQLITE_OK)
     {
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot set pragma synchronous: %s",
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot set pragma synchronous: %s",
 		   errmsg);
       sqlite3_free (errmsg);
       dupin_db_disconnect (db);
@@ -706,7 +717,7 @@ dupin_database_begin_transaction (DupinDB * db, GError ** error)
 
   if (rc != SQLITE_OK)
     {
-      if (error != NULL)
+      if (*error == NULL)
         g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot begin database %s transaction: %s", db->name, errmsg);
 
       sqlite3_free (errmsg);
@@ -738,7 +749,7 @@ dupin_database_rollback_transaction (DupinDB * db, GError ** error)
 
   if (rc != SQLITE_OK)
     {
-      if (error != NULL)
+      if (*error == NULL)
         g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot rollback database %s transaction: %s", db->name, errmsg);
 
       sqlite3_free (errmsg);
@@ -779,7 +790,7 @@ dupin_database_commit_transaction (DupinDB * db, GError ** error)
 
   if (rc != SQLITE_OK)
     {
-      if (error != NULL)
+      if (*error == NULL)
         g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot commit database %s transaction: %s", db->name, errmsg);
 
       sqlite3_free (errmsg);
@@ -1104,7 +1115,8 @@ dupin_database_get_changes_list (DupinDB *              db,
     {
       g_rw_lock_reader_unlock (db->rwlock);
 
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
                    errmsg);
 
       sqlite3_free (errmsg);
@@ -1263,7 +1275,8 @@ dupin_database_get_total_changes
     {
       g_rw_lock_reader_unlock (db->rwlock);
 
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
                    errmsg);
 
       sqlite3_free (errmsg);

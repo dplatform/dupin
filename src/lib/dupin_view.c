@@ -165,7 +165,8 @@ dupin_view_open (Dupin * d, gchar * view, GError ** error)
 
   if (!(ret = g_hash_table_lookup (d->views, view)) || ret->todelete == TRUE)
     {
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
 		 "View '%s' doesn't exist.", view);
 
       g_rw_lock_reader_unlock (d->rwlock);
@@ -215,7 +216,8 @@ dupin_view_new (Dupin * d,
     {
       if (dupin_database_exists (d, parent) == FALSE)
         {
-          g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
+	  if (*error == NULL)
+            g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
 		       "View '%s' parent database '%s' does not exist.", view, parent);
 	  return NULL;
         }
@@ -224,7 +226,8 @@ dupin_view_new (Dupin * d,
     {
       if (dupin_linkbase_exists (d, parent) == FALSE)
         {
-          g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
+	  if (*error == NULL)
+            g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
 		       "View '%s' parent linkbase '%s' does not exist.", view, parent);
 	  return NULL;
         }
@@ -233,7 +236,8 @@ dupin_view_new (Dupin * d,
     {
       if (dupin_view_exists (d, parent) == FALSE)
         {
-          g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
+	  if (*error == NULL)
+            g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
 		       "View '%s' parent view '%s' does not exist.", view, parent);
 	  return NULL;
         }
@@ -245,14 +249,16 @@ dupin_view_new (Dupin * d,
         {
           if (dupin_database_exists (d, output) == FALSE)
             {
-              g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
+	      if (*error == NULL)
+                g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
 		           "View '%s' output database '%s' does not exist.", view, output);
 	      return NULL;
 	    }
 	}
       else if (output_is_linkb == TRUE)
         {
-          g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
+	  if (*error == NULL)
+            g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
 		       "Output to linkbase is not implemented yet");
 	  return NULL;
         }
@@ -262,7 +268,8 @@ dupin_view_new (Dupin * d,
 
   if ((ret = g_hash_table_lookup (d->views, view)))
     {
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
 		   "View '%s' already exist.", view);
       g_rw_lock_writer_unlock (d->rwlock);
       return NULL;
@@ -332,7 +339,8 @@ dupin_view_new (Dupin * d,
     {
       g_rw_lock_writer_unlock (d->rwlock);
 
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
 		   errmsg);
       sqlite3_free (errmsg);
       sqlite3_free (str);
@@ -349,7 +357,8 @@ dupin_view_new (Dupin * d,
   if (sqlite3_exec (ret->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
     {
       g_rw_lock_writer_unlock (d->rwlock);
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
 		       errmsg);
 
       sqlite3_free (errmsg);
@@ -490,7 +499,8 @@ dupin_view_p_update (DupinView * view,
     {
       g_rw_lock_reader_unlock (view->rwlock);
 
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
 		   errmsg);
       sqlite3_free (errmsg);
       return FALSE;
@@ -509,7 +519,8 @@ dupin_view_p_update (DupinView * view,
       if (db_record.output != NULL)
         g_free (db_record.output);
 
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
                    "Internal error.");
       return FALSE;
     }
@@ -1525,7 +1536,8 @@ dupin_view_connect (Dupin * d, gchar * name, gchar * path,
 
   if (sqlite3_open_v2 (view->path, &view->db, dupin_util_dupin_mode_to_sqlite_mode (mode), NULL) != SQLITE_OK)
     {
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
 		   "View error.");
       dupin_view_disconnect (view);
       return NULL;
@@ -1537,7 +1549,8 @@ dupin_view_connect (Dupin * d, gchar * name, gchar * path,
 
   if (sqlite3_create_collation (view->db, "dupincmp", SQLITE_UTF8,  view->collation_parser, dupin_util_collation) != SQLITE_OK)
     {
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
 		   "View error. Cannot create collation function 'dupincmp'");
       dupin_view_disconnect (view);
       return NULL;
@@ -1548,7 +1561,8 @@ dupin_view_connect (Dupin * d, gchar * name, gchar * path,
       if (sqlite3_exec (view->db, "PRAGMA journal_mode = WAL", NULL, NULL, &errmsg) != SQLITE_OK
           || sqlite3_exec (view->db, "PRAGMA encoding = \"UTF-8\"", NULL, NULL, &errmsg) != SQLITE_OK)
         {
-          g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot set pragma journal_mode or encoding: %s",
+	  if (*error == NULL)
+            g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot set pragma journal_mode or encoding: %s",
 		   errmsg);
           sqlite3_free (errmsg);
           dupin_view_disconnect (view);
@@ -1565,7 +1579,8 @@ dupin_view_connect (Dupin * d, gchar * name, gchar * path,
           || sqlite3_exec (view->db, DUPIN_VIEW_SQL_DESC_CREATE, NULL, NULL, &errmsg) != SQLITE_OK
           || sqlite3_exec (view->db, DUPIN_VIEW_SQL_CREATE_INDEX, NULL, NULL, &errmsg) != SQLITE_OK)
         {
-          g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
+          if (*error == NULL)
+            g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
 		   errmsg);
           sqlite3_free (errmsg);
           dupin_view_disconnect (view);
@@ -1591,7 +1606,8 @@ dupin_view_connect (Dupin * d, gchar * name, gchar * path,
 
   if (user_version > DUPIN_SQLITE_MAX_USER_VERSION)
     {
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "SQLite view user version (%d) is newer than I know how to work with (%d).",
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "SQLite view user version (%d) is newer than I know how to work with (%d).",
                         user_version, DUPIN_SQLITE_MAX_USER_VERSION);
       sqlite3_free (errmsg);
       dupin_view_disconnect (view);
@@ -1602,7 +1618,8 @@ dupin_view_connect (Dupin * d, gchar * name, gchar * path,
     {
       if (sqlite3_exec (view->db, DUPIN_VIEW_SQL_DESC_UPGRADE_FROM_VERSION_1, NULL, NULL, &errmsg) != SQLITE_OK)
         {
-          g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
+          if (*error == NULL)
+            g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
                    errmsg);
           sqlite3_free (errmsg);
           dupin_view_disconnect (view);
@@ -1613,7 +1630,8 @@ dupin_view_connect (Dupin * d, gchar * name, gchar * path,
     {
       if (sqlite3_exec (view->db, DUPIN_VIEW_SQL_DESC_UPGRADE_FROM_VERSION_2, NULL, NULL, &errmsg) != SQLITE_OK)
         {
-          g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
+          if (*error == NULL)
+            g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
                    errmsg);
           sqlite3_free (errmsg);
           dupin_view_disconnect (view);
@@ -1624,7 +1642,8 @@ dupin_view_connect (Dupin * d, gchar * name, gchar * path,
     {
       if (sqlite3_exec (view->db, DUPIN_VIEW_SQL_DESC_UPGRADE_FROM_VERSION_3, NULL, NULL, &errmsg) != SQLITE_OK)
         {
-          g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
+          if (*error == NULL)
+            g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
                    errmsg);
           sqlite3_free (errmsg);
           dupin_view_disconnect (view);
@@ -1635,7 +1654,8 @@ dupin_view_connect (Dupin * d, gchar * name, gchar * path,
     {
       if (sqlite3_exec (view->db, DUPIN_VIEW_SQL_DESC_UPGRADE_FROM_VERSION_4, NULL, NULL, &errmsg) != SQLITE_OK)
         {
-          g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s", errmsg);
+	  if (*error == NULL)
+            g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s", errmsg);
           sqlite3_free (errmsg);
           dupin_view_disconnect (view);
           return NULL;
@@ -1655,7 +1675,8 @@ dupin_view_connect (Dupin * d, gchar * name, gchar * path,
   if (sqlite3_exec (view->db, "PRAGMA temp_store = memory", NULL, NULL, &errmsg) != SQLITE_OK
       || sqlite3_exec (view->db, cache_size, NULL, NULL, &errmsg) != SQLITE_OK) 
     {
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot set pragma temp_store: %s", errmsg);
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot set pragma temp_store: %s", errmsg);
       sqlite3_free (errmsg);
       if (cache_size)
         g_free (cache_size);
@@ -1673,7 +1694,8 @@ dupin_view_connect (Dupin * d, gchar * name, gchar * path,
 
   if (sqlite3_exec (view->db, "PRAGMA synchronous = NORMAL", NULL, NULL, &errmsg) != SQLITE_OK)
     {
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot set pragma synchronous: %s",
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot set pragma synchronous: %s",
                    errmsg);
       sqlite3_free (errmsg);
       dupin_view_disconnect (view);
@@ -1708,7 +1730,7 @@ dupin_view_begin_transaction (DupinView * view, GError ** error)
 
   if (rc != SQLITE_OK)
     {
-      if (error != NULL)
+      if (*error == NULL)
         g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot begin view %s transaction: %s", view->name, errmsg);
       
       sqlite3_free (errmsg);
@@ -1740,7 +1762,7 @@ dupin_view_rollback_transaction (DupinView * view, GError ** error)
 
   if (rc != SQLITE_OK)
     {
-      if (error != NULL)
+      if (*error == NULL)
         g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot rollback view %s transaction: %s", view->name, errmsg);
       
       sqlite3_free (errmsg);
@@ -1772,7 +1794,7 @@ dupin_view_commit_transaction (DupinView * view, GError ** error)
 
   if (rc != SQLITE_OK)
     {
-      if (error != NULL)
+      if (*error == NULL)
         g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot commit view %s transaction: %s", view->name, errmsg);
       
       sqlite3_free (errmsg);

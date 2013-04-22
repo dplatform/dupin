@@ -434,7 +434,8 @@ dupin_attachment_record_read_real (DupinAttachmentDB * attachment_db,
       if (lock == TRUE)
 	g_rw_lock_reader_unlock (attachment_db->rwlock);
 
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
 		   errmsg);
       dupin_attachment_record_close (record);
       sqlite3_free (errmsg);
@@ -451,7 +452,8 @@ dupin_attachment_record_read_real (DupinAttachmentDB * attachment_db,
     {
       dupin_attachment_record_close (record);
 
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD,
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD,
 		   "The record '%s' doesn't exist.", id);
       return NULL;
     }
@@ -545,7 +547,8 @@ dupin_attachment_record_get_list_total (DupinAttachmentDB * attachment_db,
     {
       g_rw_lock_reader_unlock (attachment_db->rwlock);
 
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
 		   errmsg);
 
       sqlite3_free (errmsg);
@@ -684,7 +687,8 @@ dupin_attachment_record_get_list (DupinAttachmentDB * attachment_db, guint count
     {
       g_rw_lock_reader_unlock (attachment_db->rwlock);
 
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
 		   errmsg);
 
       sqlite3_free (errmsg);

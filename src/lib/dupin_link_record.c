@@ -405,7 +405,8 @@ dupin_link_record_create_with_id_real (DupinLinkB * linkb, JsonNode * obj_node,
       if (lock == TRUE)
 	g_rw_lock_writer_unlock (linkb->rwlock);
 
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
 		   errmsg);
 
       dupin_link_record_close (record);
@@ -423,7 +424,8 @@ dupin_link_record_create_with_id_real (DupinLinkB * linkb, JsonNode * obj_node,
       if (lock == TRUE)
         g_rw_lock_writer_unlock (linkb->rwlock);
 
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
                    errmsg);
 
       dupin_link_record_close (record);
@@ -447,7 +449,8 @@ dupin_link_record_create_with_id_real (DupinLinkB * linkb, JsonNode * obj_node,
       if (lock == TRUE)
         g_rw_lock_writer_unlock (linkb->rwlock);
 
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
                    errmsg);
 
       dupin_link_record_close (record);
@@ -583,7 +586,8 @@ dupin_link_record_read_real (DupinLinkB * linkb, gchar * id, GError ** error,
       if (lock == TRUE)
 	g_rw_lock_reader_unlock (linkb->rwlock);
 
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
 		   errmsg);
       dupin_link_record_close (record);
       sqlite3_free (errmsg);
@@ -600,7 +604,8 @@ dupin_link_record_read_real (DupinLinkB * linkb, gchar * id, GError ** error,
     {
       dupin_link_record_close (record);
 
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD,
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD,
 		   "The record '%s' doesn't exist.", id);
       return NULL;
     }
@@ -1510,7 +1515,8 @@ dupin_link_record_get_list (DupinLinkB *       linkb,
     {
       g_rw_lock_reader_unlock (linkb->rwlock);
 
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
 		   errmsg);
 
       sqlite3_free (errmsg);
@@ -1637,7 +1643,8 @@ dupin_link_record_get_revisions_list (DupinLinkRecord * record,
     {
       g_rw_lock_reader_unlock (record->linkb->rwlock);
 
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
 		   errmsg);
 
       sqlite3_free (errmsg);
@@ -1697,7 +1704,8 @@ dupin_link_record_get_total_revisions (DupinLinkRecord * record,
     {
       g_rw_lock_reader_unlock (record->linkb->rwlock);
 
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
 		   errmsg);
 
       sqlite3_free (errmsg);
@@ -1800,7 +1808,8 @@ dupin_link_record_update (DupinLinkRecord * record, JsonNode * obj_node,
     {
       g_rw_lock_writer_unlock (record->linkb->rwlock);
 
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
                    errmsg);
 
       sqlite3_free (errmsg);
@@ -1827,7 +1836,8 @@ dupin_link_record_update (DupinLinkRecord * record, JsonNode * obj_node,
     {
       g_rw_lock_writer_unlock (record->linkb->rwlock);
 
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
 		   errmsg);
 
       sqlite3_free (errmsg);
@@ -1847,7 +1857,8 @@ dupin_link_record_update (DupinLinkRecord * record, JsonNode * obj_node,
             {
               g_rw_lock_writer_unlock (record->linkb->rwlock);
 
-              g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
+	      if (*error == NULL)
+                g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
                    errmsg);
 
               sqlite3_free (errmsg);
@@ -1911,8 +1922,8 @@ dupin_link_record_update (DupinLinkRecord * record, JsonNode * obj_node,
                 {
                   g_rw_lock_writer_unlock (record->linkb->rwlock);
 
-                  g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
-                   errmsg);
+		  if (*error == NULL)
+                    g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s", errmsg);
 
                   sqlite3_free (errmsg);
                   sqlite3_free (tmp);
@@ -1993,7 +2004,8 @@ dupin_link_record_delete (DupinLinkRecord * record, GError ** error)
 
   if (dupin_link_record_is_deleted (record, NULL) == TRUE)
     {
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD,
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD,
 		   "Record already deleted");
       return FALSE;
     }
@@ -2018,7 +2030,8 @@ dupin_link_record_delete (DupinLinkRecord * record, GError ** error)
     {
       g_rw_lock_writer_unlock (record->linkb->rwlock);
 
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
                    errmsg);
 
       sqlite3_free (errmsg);
@@ -2057,7 +2070,8 @@ dupin_link_record_delete (DupinLinkRecord * record, GError ** error)
 
   if (sqlite3_exec (record->linkb->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
     {
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
 		   errmsg);
 
       sqlite3_free (errmsg);
@@ -2074,7 +2088,8 @@ dupin_link_record_delete (DupinLinkRecord * record, GError ** error)
 
       if (sqlite3_exec (record->linkb->db, DUPIN_LINKB_SQL_GET_TOTALS, dupin_link_record_select_total_cb, &t, NULL) != SQLITE_OK)
         {
-          g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
+	  if (*error == NULL)
+            g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
                    errmsg);
 
           sqlite3_free (errmsg);
@@ -2101,8 +2116,8 @@ dupin_link_record_delete (DupinLinkRecord * record, GError ** error)
 
           if (sqlite3_exec (record->linkb->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
             {
-              g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
-                   errmsg);
+	      if (*error == NULL)
+                g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s", errmsg);
 
              sqlite3_free (errmsg);
              ret = FALSE;
@@ -3245,7 +3260,9 @@ dupin_link_record_insert (DupinLinkB * linkb,
 	      if (id)
 		{
                   dupin_linkbase_set_error (linkb, "The link record could not be created, it already exists.");
-                  g_set_error (error, dupin_error_quark (), DUPIN_ERROR_RECORD_CONFLICT, "%s", dupin_linkbase_get_error (linkb));
+
+	          if (*error == NULL)
+                    g_set_error (error, dupin_error_quark (), DUPIN_ERROR_RECORD_CONFLICT, "%s", dupin_linkbase_get_error (linkb));
                 }
               else
                 dupin_linkbase_set_error (linkb, "Cannot insert link record");

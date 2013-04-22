@@ -287,7 +287,8 @@ dupin_view_record_get_list_total (DupinView * view,
 
       g_free (tmp);
 
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
                    errmsg);
 
       sqlite3_free (errmsg);
@@ -382,7 +383,8 @@ dupin_view_record_read_real (DupinView * view, gchar * id, GError ** error,
       if (lock == TRUE)
 	g_rw_lock_reader_unlock (view->rwlock);
 
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
 		   errmsg);
       dupin_view_record_close (record);
       sqlite3_free (errmsg);
@@ -399,7 +401,8 @@ dupin_view_record_read_real (DupinView * view, gchar * id, GError ** error,
     {
       dupin_view_record_close (record);
 
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD,
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD,
 		   "The record '%s' doesn't exist.", id);
       return NULL;
     }
@@ -708,7 +711,8 @@ dupin_view_record_get_list (DupinView * view, guint count, guint offset,
     {
       g_rw_lock_reader_unlock (view->rwlock);
 
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
 		   errmsg);
 
       sqlite3_free (errmsg);

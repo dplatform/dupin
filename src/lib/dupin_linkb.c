@@ -127,7 +127,8 @@ dupin_linkbase_open (Dupin * d, gchar * linkb, GError ** error)
 
   if (!(ret = g_hash_table_lookup (d->linkbs, linkb)) || ret->todelete == TRUE)
     {
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
 		 "Linkbase '%s' doesn't exist.", linkb);
 
       g_rw_lock_reader_unlock (d->rwlock);
@@ -174,7 +175,8 @@ dupin_linkbase_new (Dupin * d,
 
   if ((ret = g_hash_table_lookup (d->linkbs, linkb)))
     {
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
 		   "Linkbase '%s' already exist.", linkb);
       g_rw_lock_writer_unlock (d->rwlock);
       return NULL;
@@ -220,8 +222,9 @@ dupin_linkbase_new (Dupin * d,
   if (sqlite3_exec (ret->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
     {
       g_rw_lock_writer_unlock (d->rwlock);
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
-                       errmsg);
+
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s", errmsg);
 
       sqlite3_free (errmsg);
       sqlite3_free (str);
@@ -336,8 +339,8 @@ dupin_linkbase_p_update (DupinLinkB * linkb, GError ** error)
     {
       g_rw_lock_reader_unlock (linkb->rwlock);
 
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
-                   errmsg);
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s", errmsg);
       sqlite3_free (errmsg);
       return FALSE;
     }
@@ -346,7 +349,8 @@ dupin_linkbase_p_update (DupinLinkB * linkb, GError ** error)
 
   if (!update.parent)
     {
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
                    "Internal error.");
       return FALSE;
     }
@@ -722,7 +726,8 @@ dupin_linkb_connect (Dupin * d, gchar * name, gchar * path,
 
   if (sqlite3_open_v2 (linkb->path, &linkb->db, dupin_util_dupin_mode_to_sqlite_mode (mode), NULL) != SQLITE_OK)
     {
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN,
 		   "Linkbase error.");
       dupin_linkb_disconnect (linkb);
       return NULL;
@@ -735,7 +740,8 @@ dupin_linkb_connect (Dupin * d, gchar * name, gchar * path,
       if (sqlite3_exec (linkb->db, "PRAGMA journal_mode = WAL", NULL, NULL, &errmsg) != SQLITE_OK
           || sqlite3_exec (linkb->db, "PRAGMA encoding = \"UTF-8\"", NULL, NULL, &errmsg) != SQLITE_OK)
         {
-          g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot set pragma journal_mode or encoding: %s",
+          if (*error == NULL)
+            g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot set pragma journal_mode or encoding: %s",
 		   errmsg);
           sqlite3_free (errmsg);
           dupin_linkb_disconnect (linkb);
@@ -752,7 +758,8 @@ dupin_linkb_connect (Dupin * d, gchar * name, gchar * path,
           || sqlite3_exec (linkb->db, DUPIN_LINKB_SQL_CREATE_INDEX, NULL, NULL, &errmsg) != SQLITE_OK
           || sqlite3_exec (linkb->db, DUPIN_LINKB_SQL_DESC_CREATE, NULL, NULL, &errmsg) != SQLITE_OK)
         {
-          g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
+          if (*error == NULL)
+            g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
 		   errmsg);
           sqlite3_free (errmsg);
           dupin_linkbase_rollback_transaction (linkb, error);
@@ -778,7 +785,8 @@ dupin_linkb_connect (Dupin * d, gchar * name, gchar * path,
 
   if (user_version > DUPIN_SQLITE_MAX_USER_VERSION)
     {
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "SQLite linkbase user version (%d) is newer than I know how to work with (%d).",
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "SQLite linkbase user version (%d) is newer than I know how to work with (%d).",
 			user_version, DUPIN_SQLITE_MAX_USER_VERSION);
       sqlite3_free (errmsg);
       dupin_linkb_disconnect (linkb);
@@ -789,7 +797,8 @@ dupin_linkb_connect (Dupin * d, gchar * name, gchar * path,
     {
       if (sqlite3_exec (linkb->db, DUPIN_LINKB_SQL_DESC_UPGRADE_FROM_VERSION_1, NULL, NULL, &errmsg) != SQLITE_OK)
         {
-          g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
+          if (*error == NULL)
+            g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
                    errmsg);
           sqlite3_free (errmsg);
           dupin_linkb_disconnect (linkb);
@@ -800,7 +809,8 @@ dupin_linkb_connect (Dupin * d, gchar * name, gchar * path,
     {
       if (sqlite3_exec (linkb->db, DUPIN_LINKB_SQL_DESC_UPGRADE_FROM_VERSION_2, NULL, NULL, &errmsg) != SQLITE_OK)
         {
-          g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
+	  if (*error == NULL)
+            g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
                    errmsg);
           sqlite3_free (errmsg);
           dupin_linkb_disconnect (linkb);
@@ -821,7 +831,8 @@ dupin_linkb_connect (Dupin * d, gchar * name, gchar * path,
   if (sqlite3_exec (linkb->db, "PRAGMA temp_store = memory", NULL, NULL, &errmsg) != SQLITE_OK
       || sqlite3_exec (linkb->db, cache_size, NULL, NULL, &errmsg) != SQLITE_OK)
     {   
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot set pragma temp_store: %s",
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot set pragma temp_store: %s",
                    errmsg);
       sqlite3_free (errmsg);
       if (cache_size)
@@ -840,7 +851,8 @@ dupin_linkb_connect (Dupin * d, gchar * name, gchar * path,
 
   if (sqlite3_exec (linkb->db, "PRAGMA synchronous = NORMAL", NULL, NULL, &errmsg) != SQLITE_OK)
     {   
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot set pragma synchronous: %s",
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot set pragma synchronous: %s",
                    errmsg);
       sqlite3_free (errmsg);
       dupin_linkb_disconnect (linkb);
@@ -882,7 +894,7 @@ dupin_linkbase_begin_transaction (DupinLinkB * linkb, GError ** error)
 
   if (rc != SQLITE_OK)
     {
-      if (error != NULL)
+      if (*error == NULL)
         g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot begin linkbase %s transaction: %s", linkb->name, errmsg);
 
       sqlite3_free (errmsg);
@@ -914,7 +926,7 @@ dupin_linkbase_rollback_transaction (DupinLinkB * linkb, GError ** error)
 
   if (rc != SQLITE_OK)
     {
-      if (error != NULL)
+      if (*error == NULL)
         g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot rollback linkbase %s transaction: %s", linkb->name, errmsg);
 
       sqlite3_free (errmsg);
@@ -955,7 +967,7 @@ dupin_linkbase_commit_transaction (DupinLinkB * linkb, GError ** error)
 
   if (rc != SQLITE_OK)
     {
-      if (error != NULL)
+      if (*error == NULL)
         g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot commit linkbase %s transaction: %s", linkb->name, errmsg);
 
       sqlite3_free (errmsg);
@@ -1334,7 +1346,8 @@ dupin_linkbase_get_changes_list (DupinLinkB *              linkb,
     {
       g_rw_lock_reader_unlock (linkb->rwlock);
 
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
                    errmsg);
 
       sqlite3_free (errmsg);
@@ -1525,7 +1538,8 @@ dupin_linkbase_get_total_changes
     {
       g_rw_lock_reader_unlock (linkb->rwlock);
 
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
                    errmsg);
 
       sqlite3_free (errmsg);

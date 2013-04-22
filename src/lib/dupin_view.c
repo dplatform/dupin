@@ -1791,6 +1791,10 @@ dupin_view_output_insert (DupinView * view, JsonNode * node)
   g_return_val_if_fail (node != NULL, NULL);
   g_return_val_if_fail (json_node_get_node_type (node) == JSON_NODE_OBJECT, NULL);
 
+#if DUPIN_VIEW_DEBUG
+  DUPIN_UTIL_DUMP_JSON ("dupin_view_output_insert: NODE", node);
+#endif
+
   GList * response_list=NULL;
   JsonNode * response_node = NULL;
 
@@ -1918,13 +1922,13 @@ dupin_view_sync_thread_real_map (DupinView * view, GList * list)
 		    }
 	        }
 
+	      if (response_node != NULL)
+	        json_node_free (response_node);
+
 	      dupin_view_record_save_map (view,
 					  data->pid,
 					  key_node,
-					  (response_node != NULL) ? response_node : node);
-
-	      if (response_node != NULL)
-	        json_node_free (response_node);
+					  node);
 
               g_rw_lock_writer_lock (view->rwlock);
               view->sync_map_processed_count++;
@@ -2982,14 +2986,13 @@ dupin_view_sync_thread_reduce (DupinView * view,
                 }
             }
 
-          /* NOTE - if bulk inserted, store the output IDs tree of docs, links and relationships created */
+          if (response_node != NULL)
+            json_node_free (response_node);
 
-          gchar * value_string = dupin_util_json_serialize ((response_node != NULL) ? response_node : result);
+          gchar * value_string = dupin_util_json_serialize (result);
           if (value_string == NULL)
             {
 	      json_node_free (result);
-              if (response_node != NULL)
-                json_node_free (response_node);
 	      json_node_free (pid_node);
 	      ret = FALSE;
               break;
@@ -3000,9 +3003,6 @@ dupin_view_sync_thread_reduce (DupinView * view,
 	  DUPIN_UTIL_DUMP_JSON ("dupin_view_sync_thread_reduce: PID", pid_node);
 	  DUPIN_UTIL_DUMP_JSON ("dupin_view_sync_thread_reduce: OBJ", result);
 #endif
-
-          if (response_node != NULL)
-            json_node_free (response_node);
 
 	  json_node_free (result);
 

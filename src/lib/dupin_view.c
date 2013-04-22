@@ -20,12 +20,13 @@ See http://wiki.apache.org/couchdb/Introduction_to_CouchDB_views
 
 #define DUPIN_VIEW_SQL_MAIN_CREATE \
   "CREATE TABLE IF NOT EXISTS Dupin (\n" \
+  "  seq         INTEGER PRIMARY KEY AUTOINCREMENT,\n" \
   "  id          CHAR(255) NOT NULL,\n" \
   "  pid         TEXT NOT NULL,\n" \
   "  key         TEXT NOT NULL COLLATE dupincmp,\n" \
   "  obj         TEXT COLLATE dupincmp,\n" \
   "  tm          INTEGER NOT NULL,\n" \
-  "  PRIMARY KEY(id)\n" \
+  "  UNIQUE      (id)\n" \
   ");\n" \
   "CREATE TABLE IF NOT EXISTS DupinPid2Id (\n" \
   "  pid         CHAR(255) NOT NULL,\n" \
@@ -59,22 +60,28 @@ See http://wiki.apache.org/couchdb/Introduction_to_CouchDB_views
   "  last_to_delete_id         CHAR(255) DEFAULT NULL,\n" \
   "  creation_time   	       CHAR(255) NOT NULL DEFAULT '0'\n" \
   ");\n" \
-  "PRAGMA user_version = 4"
+  "PRAGMA user_version = 5"
 
 #define DUPIN_VIEW_SQL_DESC_UPGRADE_FROM_VERSION_1 \
   "ALTER TABLE Dupin     ADD COLUMN tm INTEGER NOT NULL DEFAULT 0;\n" \
   "ALTER TABLE DupinView ADD COLUMN creation_time CHAR(255) NOT NULL DEFAULT '0';\n" \
-  "ALTER TABLE Dupin ADD COLUMN language CHAR(255) NOT NULL DEFAULT 'javascript';\n" \
-  "PRAGMA user_version = 4"
+  "ALTER TABLE Dupin     ADD COLUMN language CHAR(255) NOT NULL DEFAULT 'javascript';\n" \
+  "PRAGMA user_version = 5"
 
 #define DUPIN_VIEW_SQL_DESC_UPGRADE_FROM_VERSION_2 \
   "ALTER TABLE Dupin ADD COLUMN tm INTEGER NOT NULL DEFAULT 0;\n" \
   "ALTER TABLE Dupin ADD COLUMN language CHAR(255) NOT NULL DEFAULT 'javascript';\n" \
-  "PRAGMA user_version = 4"
+  "PRAGMA user_version = 5"
 
 #define DUPIN_VIEW_SQL_DESC_UPGRADE_FROM_VERSION_3 \
   "ALTER TABLE Dupin ADD COLUMN language CHAR(255) NOT NULL DEFAULT 'javascript';\n" \
-  "PRAGMA user_version = 4"
+  "PRAGMA user_version = 5"
+
+#define DUPIN_VIEW_SQL_DESC_UPGRADE_FROM_VERSION_4 \
+  "PRAGMA user_version = 5"
+
+#define DUPIN_VIEW_SQL_USES_OLD_ROWID \
+        "SELECT seq FROM Dupin"
 
 #define DUPIN_VIEW_SQL_INSERT \
 	"INSERT OR REPLACE INTO Dupin (id, pid, key, obj, tm) " \
@@ -1613,13 +1620,42 @@ dupin_view_connect (Dupin * d, gchar * name, gchar * path,
           return NULL;
         }
     }
+  else if (user_version == 3)
+    {
+      if (sqlite3_exec (view->db, DUPIN_VIEW_SQL_DESC_UPGRADE_FROM_VERSION_3, NULL, NULL, &errmsg) != SQLITE_OK)
+        {
+          g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
+                   errmsg);
+          sqlite3_free (errmsg);
+          dupin_view_disconnect (view);
+          return NULL;
+        }
+    }
+  else if (user_version == 4)
+    {
+      if (sqlite3_exec (view->db, DUPIN_VIEW_SQL_DESC_UPGRADE_FROM_VERSION_4, NULL, NULL, &errmsg) != SQLITE_OK)
+        {
+          g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s", errmsg);
+          sqlite3_free (errmsg);
+          dupin_view_disconnect (view);
+          return NULL;
+        }
+    }
+
+  if (sqlite3_exec (view->db, DUPIN_VIEW_SQL_USES_OLD_ROWID, NULL, NULL, &errmsg) != SQLITE_OK)
+    {
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s", errmsg);
+      sqlite3_free (errmsg);
+
+      g_warning ("dupin_view_connect: Consider to recreate your %s SQLite database and reingest your data. Since version 3 the Dupin table uses a seq column INTEGER PRIMARY KEY AUTOINCREMENT as ROWID and UNIQUE (id, rev) constraint rather then PRIMARY KEY(id, rev). See http://www.sqlite.org/autoinc.html for more information.\n", path);
+    }
 
   gchar * cache_size = g_strdup_printf ("PRAGMA cache_size = %d", DUPIN_SQLITE_CACHE_SIZE);
   if (sqlite3_exec (view->db, "PRAGMA temp_store = memory", NULL, NULL, &errmsg) != SQLITE_OK
       || sqlite3_exec (view->db, cache_size, NULL, NULL, &errmsg) != SQLITE_OK) 
     {
-      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot set pragma temp_store: %s",
-                   errmsg);
+      g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "Cannot set pragma temp_store: %s", errmsg);
       sqlite3_free (errmsg);
       if (cache_size)
         g_free (cache_size);

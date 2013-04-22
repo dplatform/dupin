@@ -14,6 +14,7 @@
 
 #define DUPIN_LINKB_SQL_MAIN_CREATE \
   "CREATE TABLE IF NOT EXISTS Dupin (\n" \
+  "  seq         INTEGER PRIMARY KEY AUTOINCREMENT,\n" \
   "  id          CHAR(255) NOT NULL,\n" \
   "  rev         INTEGER NOT NULL DEFAULT 1,\n" \
   "  hash        CHAR(255) NOT NULL,\n" \
@@ -27,7 +28,7 @@
   "  is_weblink  BOOL DEFAULT FALSE,\n" \
   "  tag         TEXT DEFAULT NULL,\n" \
   "  rev_head    BOOL DEFAULT TRUE,\n" \
-  "  PRIMARY     KEY(id, rev)\n" \
+  "  UNIQUE      (id, rev)\n" \
   ");"
 
 #define DUPIN_LINKB_SQL_CREATE_INDEX \
@@ -50,11 +51,17 @@
   "  check_id        CHAR(255) NOT NULL DEFAULT '0',\n" \
   "  creation_time   CHAR(255) NOT NULL DEFAULT '0'\n" \
   ");\n" \
-  "PRAGMA user_version = 2"
+  "PRAGMA user_version = 3"
 
 #define DUPIN_LINKB_SQL_DESC_UPGRADE_FROM_VERSION_1 \
   "ALTER TABLE DupinLinkB ADD COLUMN creation_time CHAR(255) NOT NULL DEFAULT '0';\n" \
-  "PRAGMA user_version = 2"
+  "PRAGMA user_version = 3"
+
+#define DUPIN_LINKB_SQL_DESC_UPGRADE_FROM_VERSION_2 \
+  "PRAGMA user_version = 3"
+
+#define DUPIN_LINKB_SQL_USES_OLD_ROWID \
+        "SELECT seq FROM Dupin"
 
 #define DUPIN_LINKB_SQL_TOTAL \
         "SELECT count(*) AS c FROM Dupin AS d WHERE d.rev_head = 'TRUE' "
@@ -788,6 +795,26 @@ dupin_linkb_connect (Dupin * d, gchar * name, gchar * path,
           dupin_linkb_disconnect (linkb);
           return NULL;
         }
+    }
+  else if (user_version == 2)
+    {
+      if (sqlite3_exec (linkb->db, DUPIN_LINKB_SQL_DESC_UPGRADE_FROM_VERSION_2, NULL, NULL, &errmsg) != SQLITE_OK)
+        {
+          g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
+                   errmsg);
+          sqlite3_free (errmsg);
+          dupin_linkb_disconnect (linkb);
+          return NULL;
+        }
+    }
+
+  if (sqlite3_exec (linkb->db, DUPIN_LINKB_SQL_USES_OLD_ROWID, NULL, NULL, &errmsg) != SQLITE_OK)
+    {   
+      if (*error == NULL)
+        g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s", errmsg);
+      sqlite3_free (errmsg);
+
+      g_warning ("dupin_linkb_connect: Consider to recreate your %s SQLite database and reingest your data. Since version 3 the Dupin table uses a seq column INTEGER PRIMARY KEY AUTOINCREMENT as ROWID and UNIQUE (id, rev) constraint rather then PRIMARY KEY(id, rev). See http://www.sqlite.org/autoinc.html for more information.\n", path);
     }
 
   gchar * cache_size = g_strdup_printf ("PRAGMA cache_size = %d", DUPIN_SQLITE_CACHE_SIZE);

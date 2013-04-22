@@ -18,7 +18,7 @@ dupin_init (DSGlobal *data, GError ** error)
 
   if (g_file_test (data->sqlite_path, G_FILE_TEST_IS_DIR) == FALSE)
     {
-      if (*error == NULL)
+      if (error != NULL && *error != NULL)
         g_set_error (error, dupin_error_quark (), DUPIN_ERROR_INIT,
 		   "Directory '%s' doesn't exist.", data->sqlite_path);
       return NULL;

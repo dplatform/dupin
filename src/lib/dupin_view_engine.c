@@ -47,7 +47,7 @@ dupin_view_engine_new (Dupin * d,
     }
   else
     {
-      if (*error == NULL)
+      if (error != NULL && *error != NULL)
         g_set_error (error, dupin_error_quark (), DUPIN_ERROR_INIT,
                    "View Engine runtime undefined.");
 

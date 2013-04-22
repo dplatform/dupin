@@ -188,7 +188,8 @@ tb_json_parser_object (tb_scanner_t * scanner, tb_json_t * data)
 
   if (tb_json_object_new (&object) == FALSE)
     {
-      g_set_error (tb_scanner_error (scanner), tb_json_error_quark (),
+      if (tb_scanner_error (scanner) != NULL && *tb_scanner_error (scanner) == NULL)
+        g_set_error (tb_scanner_error (scanner), tb_json_error_quark (),
 		   TB_ERROR_JSON,
 		   "Error creating a new object (Line: %d, Position: %d).",
 		   tb_scanner_get_cur_line (scanner),
@@ -207,7 +208,8 @@ tb_json_parser_object (tb_scanner_t * scanner, tb_json_t * data)
 
       if (tb_json_object_has_node (object, tmp) == TRUE)
 	{
-	  g_set_error (tb_scanner_error (scanner), tb_json_error_quark (),
+          if (tb_scanner_error (scanner) != NULL && *tb_scanner_error (scanner) == NULL)
+	    g_set_error (tb_scanner_error (scanner), tb_json_error_quark (),
 		       TB_ERROR_JSON,
 		       "Duplicated the element '%s' (Line: %d, Position: %d).",
 		       tmp, tb_scanner_get_cur_line (scanner),
@@ -219,7 +221,8 @@ tb_json_parser_object (tb_scanner_t * scanner, tb_json_t * data)
 
       if (tb_json_object_add_node (object, tmp, &node) == FALSE)
 	{
-	  g_set_error (tb_scanner_error (scanner), tb_json_error_quark (),
+          if (tb_scanner_error (scanner) != NULL && *tb_scanner_error (scanner) == NULL)
+	    g_set_error (tb_scanner_error (scanner), tb_json_error_quark (),
 		       TB_ERROR_JSON,
 		       "Error creating a new node (Line: %d, Position: %d).",
 		       tb_scanner_get_cur_line (scanner),
@@ -289,7 +292,8 @@ tb_json_parser_array (tb_scanner_t * scanner, tb_json_t * data)
 
   if (tb_json_array_new (&array) == FALSE)
     {
-      g_set_error (tb_scanner_error (scanner), tb_json_error_quark (),
+      if (tb_scanner_error (scanner) != NULL && *tb_scanner_error (scanner) == NULL)
+        g_set_error (tb_scanner_error (scanner), tb_json_error_quark (),
 		   TB_ERROR_JSON,
 		   "Error creating a new array (Line: %d, Position: %d).",
 		   tb_scanner_get_cur_line (scanner),
@@ -1884,7 +1888,8 @@ tb_json_value_evaluate (tb_json_value_t * value, gchar * buffer, gssize size,
 
   if (tb_json_value_duplicate_exists (tb_json_node_get_value (node), value) == FALSE)
     {
-      g_set_error (error, tb_json_error_quark (), TB_ERROR_JSON,
+      if (error != NULL && *error != NULL)
+        g_set_error (error, tb_json_error_quark (), TB_ERROR_JSON,
 		   "Malformat string.");
       tb_json_destroy (data);
       return FALSE;

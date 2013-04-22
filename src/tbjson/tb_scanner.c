@@ -419,7 +419,8 @@ tb_scanner_unexp_token (tb_scanner_t * scanner, tb_scanner_token_type_t type,
   g_string_append_printf (str, " (Line: %d, Position: %d)",
 			  scanner->token.line, scanner->token.position);
 
-  g_set_error ((GError **) scanner->error, tb_scanner_error_quark (),
+  if (scanner->error != NULL && *(scanner->error) == NULL)
+    g_set_error ((GError **) scanner->error, tb_scanner_error_quark (),
 	       TB_ERROR_SCANNER, "%s", str->str);
 
   g_string_free (str, TRUE);

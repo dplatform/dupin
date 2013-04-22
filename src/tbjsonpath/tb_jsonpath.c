@@ -814,7 +814,8 @@ tb_jsonpath_parser_filter_sort (tb_jsonpath_scanner_t * scanner, GList ** items,
 
       if (operation == FALSE && item->is_operation)
 	{
-	  g_set_error (tb_jsonpath_scanner_error (scanner), tb_jsonpath_error_quark (),
+          if (tb_jsonpath_scanner_error (scanner) != NULL && *tb_jsonpath_scanner_error (scanner) == NULL)
+	    g_set_error (tb_jsonpath_scanner_error (scanner), tb_jsonpath_error_quark (),
 		       TB_ERROR_JSONPATH,
 		       "Error in the filter (Line: %d, Position: %d).",
 		       tb_jsonpath_scanner_get_cur_line (scanner),
@@ -824,7 +825,8 @@ tb_jsonpath_parser_filter_sort (tb_jsonpath_scanner_t * scanner, GList ** items,
 
       else if (operation == TRUE && (!item->is_operation || !list->next))
 	{
-	  g_set_error (tb_jsonpath_scanner_error (scanner), tb_jsonpath_error_quark (),
+          if (tb_jsonpath_scanner_error (scanner) != NULL && *tb_jsonpath_scanner_error (scanner) == NULL)
+	    g_set_error (tb_jsonpath_scanner_error (scanner), tb_jsonpath_error_quark (),
 		       TB_ERROR_JSONPATH,
 		       "Error in the filter (Line: %d, Position: %d).",
 		       tb_jsonpath_scanner_get_cur_line (scanner),
@@ -1698,7 +1700,8 @@ tb_jsonpath_exec_script (tb_jsonpath_item_t * item,
 
   if (!(func = tb_jsonpath_function_find (item, script->name)))
     {
-      g_set_error (error, tb_jsonpath_error_quark (),
+      if (error != NULL && *error != NULL)
+        g_set_error (error, tb_jsonpath_error_quark (),
 		   TB_ERROR_JSONPATH, "The function '%s' doesn't exist",
 		   script->name);
       return FALSE;
@@ -1708,7 +1711,8 @@ tb_jsonpath_exec_script (tb_jsonpath_item_t * item,
 
   if (func->numb_args != -1 && func->numb_args != len)
     {
-      g_set_error (error, tb_jsonpath_error_quark (),
+      if (error != NULL && *error != NULL)
+        g_set_error (error, tb_jsonpath_error_quark (),
 		   TB_ERROR_JSONPATH,
 		   "The function '%s' needs %d arguments and not %d",
 		   script->name, func->numb_args, len);

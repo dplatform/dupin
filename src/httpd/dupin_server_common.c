@@ -34,7 +34,8 @@ dupin_server_common_pid_check (DSGlobal * data, GError ** error)
 
   if (!(pid = atoi (buffer)))
     {
-      g_set_error (error, dupin_server_common_error_quark (), 0,
+      if (error != NULL && *error != NULL)
+        g_set_error (error, dupin_server_common_error_quark (), 0,
 		   "Pid file contains strange data. Please, remove or check the file: %s",
 		   data->pidfile);
       g_free (buffer);
@@ -48,7 +49,8 @@ dupin_server_common_pid_check (DSGlobal * data, GError ** error)
 
   if (g_file_test (buffer, G_FILE_TEST_EXISTS | G_FILE_TEST_IS_DIR) == TRUE)
     {
-      g_set_error (error, dupin_server_common_error_quark (), 0,
+      if (error != NULL && *error != NULL)
+        g_set_error (error, dupin_server_common_error_quark (), 0,
 		   "The previous process '%d' is running!", pid);
       g_free (buffer);
       return FALSE;
@@ -87,7 +89,8 @@ dupin_server_common_permission (DSGlobal * data, GError ** error)
 
       if (!(gr = getgrnam (data->group)) || setgid (gr->gr_gid))
 	{
-	  g_set_error (error, dupin_server_common_error_quark (), 0,
+	  if (error != NULL && *error != NULL)
+	    g_set_error (error, dupin_server_common_error_quark (), 0,
 		       "Error setting the GROUP permission of '%s'",
 		       data->group);
 
@@ -101,7 +104,8 @@ dupin_server_common_permission (DSGlobal * data, GError ** error)
 
       if (!(pw = getpwnam (data->user)) || setuid (pw->pw_uid))
 	{
-	  g_set_error (error, dupin_server_common_error_quark (), 0,
+	  if (error != NULL && *error != NULL)
+	    g_set_error (error, dupin_server_common_error_quark (), 0,
 		       "Error setting the USER permission of '%s'",
 		       data->user);
 

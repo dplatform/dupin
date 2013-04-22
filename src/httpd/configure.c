@@ -59,7 +59,8 @@ configure_init (int argc, char **argv, GError ** error)
       g_strfreev (items);
       configure_free (data);
 
-      g_set_error (error, dupin_server_common_error_quark (), 0, "Only one configFile");
+      if (error != NULL && *error != NULL)
+        g_set_error (error, dupin_server_common_error_quark (), 0, "Only one configFile");
       return NULL;
     }
 
@@ -70,7 +71,8 @@ configure_init (int argc, char **argv, GError ** error)
       || !(node = xmlDocGetRootElement (xml))
       || xmlStrcmp (node->name, (xmlChar *) DS_ROOT_TAG))
     {
-      g_set_error (error, dupin_server_common_error_quark (), 0,
+      if (error != NULL && *error != NULL)
+        g_set_error (error, dupin_server_common_error_quark (), 0,
 		   "Error parsing the XML file: %s", data->configfile);
 
       if (xml)
@@ -503,14 +505,16 @@ configure_parser (xmlDocPtr xml, DSGlobal * data, GError ** error)
 
   if (!data->logfile)
     {
-      g_set_error (error, dupin_server_common_error_quark (), 0,
+      if (error != NULL && *error != NULL)
+        g_set_error (error, dupin_server_common_error_quark (), 0,
 		   "No LogFile tag in the config file.");
       return FALSE;
     }
 
   if (!data->pidfile)
     {
-      g_set_error (error, dupin_server_common_error_quark (), 0,
+      if (error != NULL && *error != NULL)
+        g_set_error (error, dupin_server_common_error_quark (), 0,
 		   "No PidFile tag in the config file.");
       return FALSE;
     }
@@ -536,7 +540,8 @@ configure_log_verbose (xmlChar * string, LogVerbose * verbose,
 
   else
     {
-      g_set_error (error, dupin_server_common_error_quark (), 0,
+      if (error != NULL && *error != NULL)
+        g_set_error (error, dupin_server_common_error_quark (), 0,
 		   "LogVerbose can be 'error', 'warning', 'info', 'debug' and not '%s'.",
 		   string);
       return FALSE;
@@ -617,7 +622,8 @@ configure_httpd_parser (xmlDocPtr xml, DSGlobal * data, GError ** error)
 
   if (!data->httpd_port)
     {
-      g_set_error (error, dupin_server_common_error_quark (), 0,
+      if (error != NULL && *error != NULL)
+        g_set_error (error, dupin_server_common_error_quark (), 0,
 		   "No Port tag in the config file.");
       return FALSE;
     }

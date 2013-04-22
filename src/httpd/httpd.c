@@ -162,7 +162,8 @@ httpd_create6 (DSGlobal * data, GError ** error, gint * ret_fd)
 
   if ((fd = socket (AF_INET6, SOCK_STREAM, 0)) < 0)
     {
-      g_set_error (error, dupin_server_common_error_quark (), 0,
+      if (error != NULL && *error != NULL)
+        g_set_error (error, dupin_server_common_error_quark (), 0,
 		   "Error opening the socket: %s\n", g_strerror (errno));
       return NULL;
     }
@@ -170,7 +171,8 @@ httpd_create6 (DSGlobal * data, GError ** error, gint * ret_fd)
   if (setsockopt (fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof (int)))
     {
       close (fd);
-      g_set_error (error, dupin_server_common_error_quark (), 0,
+      if (error != NULL && *error != NULL)
+        g_set_error (error, dupin_server_common_error_quark (), 0,
 		   "Error setting options on the socket: %s\n",
 		   g_strerror (errno));
       return NULL;
@@ -190,7 +192,8 @@ httpd_create6 (DSGlobal * data, GError ** error, gint * ret_fd)
       if (!(hp = gethostbyname2 (data->httpd_interface, AF_INET6)))
 	{
 	  close (fd);
-	  g_set_error (error, dupin_server_common_error_quark (), 0,
+	  if (error != NULL && *error != NULL)
+	    g_set_error (error, dupin_server_common_error_quark (), 0,
 		       "Error resolving the interface '%s': %s\n",
 		       data->httpd_interface, g_strerror (errno));
 	  return NULL;
@@ -203,7 +206,8 @@ httpd_create6 (DSGlobal * data, GError ** error, gint * ret_fd)
   if (bind (fd, (struct sockaddr *) &sock, sizeof (struct sockaddr_in6)) < 0)
     {
       close (fd);
-      g_set_error (error, dupin_server_common_error_quark (), 0,
+      if (error != NULL && *error != NULL)
+        g_set_error (error, dupin_server_common_error_quark (), 0,
 		   "Error binding the socket: %s\n", g_strerror (errno));
       return NULL;
     }
@@ -211,7 +215,8 @@ httpd_create6 (DSGlobal * data, GError ** error, gint * ret_fd)
   if (listen (fd, data->httpd_listen) < 0)
     {
       close (fd);
-      g_set_error (error, dupin_server_common_error_quark (), 0,
+      if (error != NULL && *error != NULL)
+        g_set_error (error, dupin_server_common_error_quark (), 0,
 		   "Error listeining on the socket: %s\n",
 		   g_strerror (errno));
       return NULL;
@@ -239,7 +244,8 @@ httpd_create (DSGlobal * data, GError ** error, gint * ret_fd)
 
   if ((fd = socket (AF_INET, SOCK_STREAM, 0)) < 0)
     {
-      g_set_error (error, dupin_server_common_error_quark (), 0,
+      if (error != NULL && *error != NULL)
+        g_set_error (error, dupin_server_common_error_quark (), 0,
 		   "Error creating the socket: %s", g_strerror (errno));
       return NULL;
     }
@@ -247,7 +253,8 @@ httpd_create (DSGlobal * data, GError ** error, gint * ret_fd)
   if (setsockopt (fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof (int)))
     {
       close (fd);
-      g_set_error (error, dupin_server_common_error_quark (), 0,
+      if (error != NULL && *error != NULL)
+        g_set_error (error, dupin_server_common_error_quark (), 0,
 		   "Error setting options on the socket: %s\n",
 		   g_strerror (errno));
       return NULL;
@@ -267,7 +274,8 @@ httpd_create (DSGlobal * data, GError ** error, gint * ret_fd)
       if (!(hp = gethostbyname (data->httpd_interface)))
 	{
 	  close (fd);
-	  g_set_error (error, dupin_server_common_error_quark (), 0,
+          if (error != NULL && *error != NULL)
+	    g_set_error (error, dupin_server_common_error_quark (), 0,
 		       "Error resolving the interface '%s': %s",
 		       data->httpd_interface, g_strerror (errno));
 	  return NULL;
@@ -280,7 +288,8 @@ httpd_create (DSGlobal * data, GError ** error, gint * ret_fd)
   if (bind (fd, (struct sockaddr *) &sock, sizeof (struct sockaddr_in)) < 0)
     {
       close (fd);
-      g_set_error (error, dupin_server_common_error_quark (), 0,
+      if (error != NULL && *error != NULL)
+        g_set_error (error, dupin_server_common_error_quark (), 0,
 		   "Error binding the socket: %s\n", g_strerror (errno));
       return NULL;
     }
@@ -288,7 +297,8 @@ httpd_create (DSGlobal * data, GError ** error, gint * ret_fd)
   if (listen (fd, data->httpd_listen) < 0)
     {
       close (fd);
-      g_set_error (error, dupin_server_common_error_quark (), 0,
+      if (error != NULL && *error != NULL)
+        g_set_error (error, dupin_server_common_error_quark (), 0,
 		   "Error listeining on the socket: %s\n",
 		   g_strerror (errno));
       return NULL;

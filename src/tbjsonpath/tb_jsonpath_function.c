@@ -189,7 +189,8 @@ tb_jsonpath_function_add (tb_jsonpath_functions_t * data,
     {
       if (!g_utf8_collate (tb_jsonpath_default_functions[i].name, name))
 	{
-	  g_set_error (error, tb_jsonpath_error_quark (),
+	  if (error != NULL && *error != NULL)
+	    g_set_error (error, tb_jsonpath_error_quark (),
 		       TB_ERROR_JSONPATH, "The name '%s' is reserved", name);
 	  return FALSE;
 	}
@@ -709,7 +710,8 @@ tb_jsonpath_function_substring (GList * args,
 
   if (len < 2 || len > 3)
     {
-      g_set_error (error, tb_jsonpath_error_quark (),
+      if (error != NULL && *error != NULL)
+        g_set_error (error, tb_jsonpath_error_quark (),
 		   TB_ERROR_JSONPATH,
 		   "The function 'substring' needs 2 or 3 arguments");
       return FALSE;
@@ -935,7 +937,8 @@ tb_jsonpath_function_translate (GList * args,
 
   if (g_utf8_strlen (b, -1) != len)
     {
-      g_set_error (error, tb_jsonpath_error_quark (),
+      if (error != NULL && *error != NULL)
+        g_set_error (error, tb_jsonpath_error_quark (),
 		   TB_ERROR_JSONPATH,
 		   "The second and third strings must have the same length for the function 'translate'");
 

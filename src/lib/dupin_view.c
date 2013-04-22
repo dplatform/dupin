@@ -683,6 +683,10 @@ dupin_view_p_record_delete (DupinViewP * p, gchar * pid)
 
       /* NOTE - add 'pid' to the deletes queue */
 
+#if DUPIN_VIEW_DEBUG
+      g_message("dupin_view_p_record_delete: %s added pid %s to delete queue\n",view->name, pid);
+#endif
+
       view->deletes_queue = g_list_prepend (view->deletes_queue, g_strdup (pid));
       view->deletes_queue_size++;
 
@@ -1402,10 +1406,6 @@ dupin_view_disconnect (DupinView * view)
 #if DUPIN_VIEW_DEBUG
   g_message("dupin_view_disconnect: total number of changes for '%s' view database: %d\n", view->name, (gint)sqlite3_total_changes (view->db));
 #endif
-
-  /* NOTE - empty deletes queue before quitting */
-
-  dupin_view_record_delete (view);
 
   /* NOTE - make double sure the deletes queue is freed in worse case */
 
@@ -3616,6 +3616,10 @@ dupin_view_sync (DupinView * view)
     {
       /* TODO - have a master sync thread which manage the all three rather than have chain of
             dependency between map, reduce and re-reduce threads */
+
+      /* NOTE - empty deletes queue before quitting */
+
+      dupin_view_record_delete (view);
 
 #if DUPIN_VIEW_DEBUG
       g_message("dupin_view_sync(%p/%s): push map and reduce threads to respective thread pools\n", g_thread_self (), view->name);

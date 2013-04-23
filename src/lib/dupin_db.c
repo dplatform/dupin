@@ -542,6 +542,7 @@ dupin_db_connect (Dupin * d, gchar * name, gchar * path,
   db->default_linkbase_name = g_strdup (name);
 
   db->tocompact = FALSE;
+  db->topurge = FALSE;
   db->compact_processed_count = 0;
 
   db->rwlock = g_new0 (GRWLock, 1);
@@ -1312,6 +1313,10 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
   gchar * errmsg;
   GList *results, *list;
 
+  g_rw_lock_reader_lock (db->rwlock);
+  gboolean topurge = db->topurge;
+  g_rw_lock_reader_unlock (db->rwlock);
+
   gboolean ret = TRUE;
 
   gchar *str;
@@ -1347,15 +1352,6 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
   if (g_list_length (results) != count)
     ret = FALSE;
 
-  gsize max_rowid;
-  if (dupin_database_get_max_rowid (db, &max_rowid) == FALSE)
-    {
-      if (compact_id != NULL)
-        g_free(compact_id);
-
-      return FALSE;
-    }
-
   for (list = results; list; list = list->next)
     {
       DupinRecord * record = list->data;
@@ -1364,70 +1360,75 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
 
       rowid = dupin_record_get_rowid (record);
 
-      /* NOTE - we always keep the last record to avoid SQLite start randomizing ROWIDs
-		and make up a mess with compact and view status ids
-		see http://www.sqlite.org/autoinc.html */
+      guint last_revision = record->last->revision;
 
-      if (rowid != max_rowid
-	  && dupin_record_is_deleted (record, NULL) == TRUE)
+      if (dupin_record_is_deleted (record, NULL) == TRUE)
         {
 	  /* remove any attachments */
+
 	  if (dupin_attachment_record_delete_all (db->default_attachment_db, (gchar *) dupin_record_get_id (record)) == FALSE)
 	    {
 	      g_warning ("dupin_database_thread_compact: Cannot delete all attachments for id %s\n", (gchar *) dupin_record_get_id (record));
 	      continue;
 	    }
 
-	  /* NOTE - need to decrese deleted counter */
-
-	  g_rw_lock_reader_lock (db->rwlock);
-
-          struct dupin_record_select_total_t t;
-          memset (&t, 0, sizeof (t));
-
-          if (sqlite3_exec (db->db, DUPIN_DB_SQL_GET_TOTALS, dupin_record_select_total_cb, &t, &errmsg) != SQLITE_OK)
+          if (topurge == TRUE)
             {
-              g_rw_lock_reader_unlock (db->rwlock);
+	      /* NOTE - need to decrese deleted counter */
 
-              g_error ("dupin_database_thread_compact: %s", errmsg);
-              sqlite3_free (errmsg);
+	      g_rw_lock_reader_lock (db->rwlock);
 
-              return FALSE;
-            }
-          else
-            {
-              g_rw_lock_reader_unlock (db->rwlock);
+              struct dupin_record_select_total_t t;
+              memset (&t, 0, sizeof (t));
 
-              g_rw_lock_writer_lock (db->rwlock);
-
-              t.total_doc_del--;
-
-              tmp = sqlite3_mprintf (DUPIN_DB_SQL_SET_TOTALS, (gint)t.total_doc_ins, (gint)t.total_doc_del);
-
-              if (sqlite3_exec (db->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
+              if (sqlite3_exec (db->db, DUPIN_DB_SQL_GET_TOTALS, dupin_record_select_total_cb, &t, &errmsg) != SQLITE_OK)
                 {
-                  g_rw_lock_writer_unlock (db->rwlock);
+                  g_rw_lock_reader_unlock (db->rwlock);
 
                   g_error ("dupin_database_thread_compact: %s", errmsg);
                   sqlite3_free (errmsg);
 
-                  sqlite3_free (tmp);
-
                   return FALSE;
                 }
+              else
+                {
+                  g_rw_lock_reader_unlock (db->rwlock);
 
-              g_rw_lock_writer_unlock (db->rwlock);
-            }
+                  g_rw_lock_writer_lock (db->rwlock);
 
-          if (tmp != NULL)
-            sqlite3_free (tmp);
+                  t.total_doc_del--;
 
-	  /* wipe anything about ID */
-          tmp = sqlite3_mprintf ("DELETE FROM Dupin WHERE id = '%q'", (gchar *) dupin_record_get_id (record));
+                  tmp = sqlite3_mprintf (DUPIN_DB_SQL_SET_TOTALS, (gint)t.total_doc_ins, (gint)t.total_doc_del);
+
+                  if (sqlite3_exec (db->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
+                    {
+                      g_rw_lock_writer_unlock (db->rwlock);
+
+                      g_error ("dupin_database_thread_compact: %s", errmsg);
+                      sqlite3_free (errmsg);
+
+                      sqlite3_free (tmp);
+
+                      return FALSE;
+                    }
+
+                  g_rw_lock_writer_unlock (db->rwlock);
+                }
+
+              if (tmp != NULL)
+                sqlite3_free (tmp);
+
+	      /* wipe anything about ID */
+
+              tmp = sqlite3_mprintf ("DELETE FROM Dupin WHERE id = '%q'", (gchar *) dupin_record_get_id (record));
+	    }
+	  else
+            {
+              tmp = sqlite3_mprintf ("DELETE FROM Dupin WHERE id = '%q' AND rev < %d", (gchar *) dupin_record_get_id (record), (gint)last_revision);
+	    }
         }
       else
         {
-          guint last_revision = record->last->revision;
           tmp = sqlite3_mprintf ("DELETE FROM Dupin WHERE id = '%q' AND rev < %d", (gchar *) dupin_record_get_id (record), (gint)last_revision);
         }
 
@@ -1455,11 +1456,6 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
       g_rw_lock_writer_unlock (db->rwlock);
 
       sqlite3_free (tmp);
-
-      /* TODO - double check that if we DELETE all about a record ID we can still rely on ROWID - SQLite doc "says no" and above */
-
-      if (dupin_record_is_deleted (record, NULL) == TRUE)
-        rowid--;
 
       if (compact_id != NULL)
         g_free(compact_id);
@@ -1608,6 +1604,7 @@ dupin_database_compact_func (gpointer data, gpointer user_data)
 
   g_rw_lock_writer_lock (db->rwlock);
   db->tocompact = FALSE;
+  db->topurge = FALSE;
   db->compact_thread = NULL;
   g_rw_lock_writer_unlock (db->rwlock);
 
@@ -1615,7 +1612,8 @@ dupin_database_compact_func (gpointer data, gpointer user_data)
 }
 
 void
-dupin_database_compact (DupinDB * db)
+dupin_database_compact (DupinDB * db,
+			gboolean purge)
 {
   g_return_if_fail (db != NULL);
 
@@ -1632,6 +1630,10 @@ dupin_database_compact (DupinDB * db)
 #endif
 
       GError * error=NULL;
+
+      g_rw_lock_writer_lock (db->rwlock);
+      db->topurge = purge;
+      g_rw_lock_writer_unlock (db->rwlock);
 
       if (!db->compact_thread)
         {

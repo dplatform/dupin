@@ -6075,6 +6075,17 @@ request_global_post_compact_database (DSHttpdClient * client,
 				      GList * arguments)
 {
   DupinDB *db;
+  GList * list=NULL;
+  gboolean purge = FALSE;
+
+  for (list = arguments; list; list = list->next)
+    {
+      dupin_keyvalue_t *kv = list->data;
+
+      if (!g_strcmp0 (kv->key, REQUEST_POST_COMPACT_DATABASE_PURGE)
+	  && !g_strcmp0 (kv->value, "true"))
+	purge = TRUE;
+    }
 
   if (!
       (db =
@@ -6084,7 +6095,7 @@ request_global_post_compact_database (DSHttpdClient * client,
       return HTTP_STATUS_404;
     }
 
-  dupin_database_compact (db);
+  dupin_database_compact (db, purge);
 
   if (dupin_database_get_error (db))
     {
@@ -6197,6 +6208,17 @@ request_global_post_compact_linkbase (DSHttpdClient * client,
 				      GList * arguments)
 {
   DupinLinkB *linkb;
+  GList * list=NULL;
+  gboolean purge = FALSE;
+
+  for (list = arguments; list; list = list->next)
+    {
+      dupin_keyvalue_t *kv = list->data;
+
+      if (!g_strcmp0 (kv->key, REQUEST_POST_COMPACT_LINKBASE_PURGE)
+          && !g_strcmp0 (kv->value, "true"))
+        purge = TRUE;
+    }
 
   if (!
       (linkb =
@@ -6206,7 +6228,7 @@ request_global_post_compact_linkbase (DSHttpdClient * client,
       return HTTP_STATUS_404;
     }
 
-  dupin_linkbase_compact (linkb);
+  dupin_linkbase_compact (linkb, purge);
 
   if (dupin_linkbase_get_error (linkb))
     {

@@ -117,7 +117,8 @@ void		dupin_database_compact_func
 					(gpointer data,
 					gpointer user_data);
 
-void		dupin_database_compact 	(DupinDB * db);
+void		dupin_database_compact 	(DupinDB * db,
+					 gboolean purge);
 
 gboolean	dupin_database_is_compacting
 					(DupinDB * db);

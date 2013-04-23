@@ -121,7 +121,8 @@ void		dupin_linkbase_compact_func
 					(gpointer data,
 					gpointer user_data);
 
-void		dupin_linkbase_compact 	(DupinLinkB * linkb);
+void		dupin_linkbase_compact 	(DupinLinkB * linkb,
+					 gboolean purge);
 
 gboolean	dupin_linkbase_is_compacting
 					(DupinLinkB * linkb);

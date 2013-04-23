@@ -124,6 +124,8 @@ struct dupin_db_t
   GThread *	compact_thread;
   gsize		compact_processed_count; /* incremental counter of compacted records */
 
+  gboolean	topurge;
+
   gchar *       error_msg;
   gchar *       warning_msg;
 
@@ -155,6 +157,8 @@ struct dupin_linkb_t
   gboolean	compact_toquit;
   GThread *	compact_thread;
   gsize		compact_processed_count; /* incremental counter of compacted records */
+
+  gboolean	topurge;
 
   gboolean	tocheck;
   gboolean	check_toquit;

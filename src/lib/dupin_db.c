@@ -45,6 +45,8 @@
   "ALTER TABLE DupinDB ADD COLUMN creation_time CHAR(255) NOT NULL DEFAULT '0';\n" \
   "PRAGMA user_version = 3"
 
+/* NOTE - added seq INTEGER PRIMARY KEY AUTOINCREMENT and UNIQUE (id) */
+
 #define DUPIN_DB_SQL_DESC_UPGRADE_FROM_VERSION_2 \
   "PRAGMA user_version = 3"
 

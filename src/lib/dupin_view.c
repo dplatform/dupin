@@ -57,28 +57,34 @@ See http://wiki.apache.org/couchdb/Introduction_to_CouchDB_views
   "  output                    CHAR(255),\n" \
   "  output_isdb               BOOL DEFAULT TRUE,\n" \
   "  output_islinkb            BOOL DEFAULT FALSE,\n" \
-  "  last_to_delete_id         CHAR(255) DEFAULT NULL,\n" \
   "  creation_time   	       CHAR(255) NOT NULL DEFAULT '0'\n" \
   ");\n" \
-  "PRAGMA user_version = 5"
+  "PRAGMA user_version = 6"
 
 #define DUPIN_VIEW_SQL_DESC_UPGRADE_FROM_VERSION_1 \
   "ALTER TABLE Dupin     ADD COLUMN tm INTEGER NOT NULL DEFAULT 0;\n" \
   "ALTER TABLE DupinView ADD COLUMN creation_time CHAR(255) NOT NULL DEFAULT '0';\n" \
   "ALTER TABLE Dupin     ADD COLUMN language CHAR(255) NOT NULL DEFAULT 'javascript';\n" \
-  "PRAGMA user_version = 5"
+  "PRAGMA user_version = 6"
 
 #define DUPIN_VIEW_SQL_DESC_UPGRADE_FROM_VERSION_2 \
   "ALTER TABLE Dupin ADD COLUMN tm INTEGER NOT NULL DEFAULT 0;\n" \
   "ALTER TABLE Dupin ADD COLUMN language CHAR(255) NOT NULL DEFAULT 'javascript';\n" \
-  "PRAGMA user_version = 5"
+  "PRAGMA user_version = 6"
 
 #define DUPIN_VIEW_SQL_DESC_UPGRADE_FROM_VERSION_3 \
   "ALTER TABLE Dupin ADD COLUMN language CHAR(255) NOT NULL DEFAULT 'javascript';\n" \
-  "PRAGMA user_version = 5"
+  "PRAGMA user_version = 6"
+
+/* NOTE - added seq INTEGER PRIMARY KEY AUTOINCREMENT and UNIQUE (id) */
 
 #define DUPIN_VIEW_SQL_DESC_UPGRADE_FROM_VERSION_4 \
-  "PRAGMA user_version = 5"
+  "PRAGMA user_version = 6"
+
+/* NOTE - dropped last_to_delete_id on DupinView */
+
+#define DUPIN_VIEW_SQL_DESC_UPGRADE_FROM_VERSION_5 \
+  "PRAGMA user_version = 6"
 
 #define DUPIN_VIEW_SQL_USES_OLD_ROWID \
         "SELECT seq FROM Dupin"
@@ -673,17 +679,6 @@ dupin_view_p_record_insert (DupinViewP * p, gchar * id,
     }
 }
 
-static int
-dupin_view_p_record_delete_cb (void *data, int argc, char **argv, char **col)
-{
-  gchar **last_to_delete_id = data;
-
-  if (argv[0] && *argv[0])
-    *last_to_delete_id = g_strdup (argv[0]);
-
-  return 0;
-}
-
 void
 dupin_view_p_record_delete (DupinViewP * p, gchar * pid)
 {
@@ -880,88 +875,6 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
       g_list_free (nodes);
     }
 
-  /* NOTE - get last_to_delete if there and delete it - this is necessary to avoid ROWID recycling */
-
-  gchar * query = "SELECT last_to_delete_id as c FROM DupinView LIMIT 1";
-
-  gchar * last_to_delete_id = NULL;
-  if (sqlite3_exec (view->db, query, dupin_view_p_record_delete_cb, &last_to_delete_id, &errmsg) != SQLITE_OK)
-    {
-      g_rw_lock_writer_unlock (view->rwlock);
-
-      g_error("dupin_view_record_save_map: %s", errmsg);
-      sqlite3_free (errmsg);
-
-      g_free ((gchar *)id);
-      g_free (node_serialized);
-      if (key_serialized)
-        g_free (key_serialized);
-      if (pid_serialized)
-        g_free (pid_serialized);
-
-      dupin_view_rollback_transaction (view, NULL);
-
-      return;
-    }
-
-  if (last_to_delete_id != NULL
-      && g_strcmp0(last_to_delete_id,"(NULL)") && g_strcmp0(last_to_delete_id,"null") )
-    {
-      /* DELETE + UPDATE */
-
-      tmp = sqlite3_mprintf ("DELETE FROM Dupin WHERE ROWID = %q", last_to_delete_id);
-
-      if (sqlite3_exec (view->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
-        {
-          g_rw_lock_writer_unlock (view->rwlock);
-
-          g_error("dupin_view_record_save_map: %s", errmsg);
-          sqlite3_free (errmsg);
-
-          g_free ((gchar *)id);
-          g_free (node_serialized);
-          if (key_serialized)
-            g_free (key_serialized);
-          if (pid_serialized)
-            g_free (pid_serialized);
-
-          sqlite3_free (tmp);
-          dupin_view_rollback_transaction (view, NULL);
-
-          g_free (last_to_delete_id);
-
-          return;
-        }
-
-      sqlite3_free (tmp);
-
-      query = "UPDATE DupinView SET last_to_delete_id = NULL";
-
-      if (sqlite3_exec (view->db, query, NULL, NULL, &errmsg) != SQLITE_OK)
-        {
-          g_rw_lock_writer_unlock (view->rwlock);
-
-          g_error("dupin_view_record_save_map: %s", errmsg);
-          sqlite3_free (errmsg);
-
-          g_free ((gchar *)id);
-          g_free (node_serialized);
-          if (key_serialized)
-            g_free (key_serialized);
-          if (pid_serialized)
-            g_free (pid_serialized);
-
-          dupin_view_rollback_transaction (view, NULL);
-
-          g_free (last_to_delete_id);
-
-          return;
-        }
-    }
- 
-  if (last_to_delete_id != NULL)
-    g_free (last_to_delete_id);
-
   if (dupin_view_commit_transaction (view, NULL) < 0)
     {
       g_rw_lock_writer_unlock (view->rwlock);
@@ -1067,14 +980,12 @@ dupin_view_record_delete (DupinView * view)
 
   gchar * max_rowid_str = g_strdup_printf ("%d", (gint)max_rowid);
 
-  /* NOTE - we never delete the last record of the SQLite database to avoid ROWID recycling */
-
   for (list = view->deletes_queue; list != NULL; list = list->next)
     {
       gchar * pid = (gchar *)list->data;
 
-      //query = sqlite3_mprintf ("DELETE FROM Dupin WHERE ROWID < %q AND pid LIKE '%%\"%q\"%%' ;", max_rowid_str, pid);
-      query = sqlite3_mprintf ("DELETE FROM Dupin WHERE ROWID < %q AND id IN (SELECT id FROM DupinPid2Id WHERE pid = '%q') ;", max_rowid_str, pid);
+      //query = sqlite3_mprintf ("DELETE FROM Dupin WHERE ROWID <= %q AND pid LIKE '%%\"%q\"%%' ;", max_rowid_str, pid);
+      query = sqlite3_mprintf ("DELETE FROM Dupin WHERE ROWID <= %q AND id IN (SELECT id FROM DupinPid2Id WHERE pid = '%q') ;", max_rowid_str, pid);
 
 #if DUPIN_VIEW_DEBUG
       g_message("dupin_view_record_delete: view %s query=%s\n",view->name, query);
@@ -1099,65 +1010,6 @@ dupin_view_record_delete (DupinView * view)
         }
 
       sqlite3_free (query);
-
-      /* NOTE - check if last one needs to be deleted after next / future insert */
-      gsize count=0;
-
-      //query = sqlite3_mprintf ("SELECT count(*) FROM Dupin WHERE ROWID = %q AND pid LIKE '%%\"%q\"%%' ;", max_rowid_str, pid);
-      query = sqlite3_mprintf ("SELECT count(*) FROM Dupin WHERE ROWID = %q AND id IN (SELECT id FROM DupinPid2Id WHERE pid = '%q') ;", max_rowid_str, pid);
-
-#if DUPIN_VIEW_DEBUG
-      g_message("dupin_view_record_delete: view %s query=%s\n",view->name, query);
-#endif
-
-      if (sqlite3_exec (view->db, query, dupin_view_record_delete_cb, &count, &errmsg) != SQLITE_OK)
-        {
-          g_rw_lock_writer_unlock (view->rwlock);
-
-          g_error("dupin_view_record_delete: %s for pid %s", errmsg, pid);
-          sqlite3_free (errmsg);
-
-          dupin_view_rollback_transaction (view, NULL);
-          g_free (max_rowid_str);
-          sqlite3_free (query);
-
-   	  g_free (pid);
-          view->deletes_queue = g_list_delete_link (view->deletes_queue, list);
-	  view->deletes_queue_size--;
-
-          return;
-        }
-
-      sqlite3_free (query);
-
-      if (count == 1)
-        {
-          query = sqlite3_mprintf ("UPDATE DupinView SET last_to_delete_id = '%q'", max_rowid_str);
-
-#if DUPIN_VIEW_DEBUG
-          g_message("dupin_view_record_delete: view %s query=%s\n",view->name, query);
-#endif
-
-          if (sqlite3_exec (view->db, query, NULL, NULL, &errmsg) != SQLITE_OK)
-            {
-              g_rw_lock_writer_unlock (view->rwlock);
-
-              g_error("dupin_view_record_delete: %s for pid %s", errmsg, pid);
-              sqlite3_free (errmsg);
-
-              dupin_view_rollback_transaction (view, NULL);
-              g_free (max_rowid_str);
-              sqlite3_free (query);
-
-   	      g_free (pid);
-              view->deletes_queue = g_list_delete_link (view->deletes_queue, list);
-	      view->deletes_queue_size--;
-
-              return;
-            }
-
-          sqlite3_free (query);
-        }
 
       /* NOTE - clean up pid <-> id table too */
 
@@ -1653,6 +1505,17 @@ dupin_view_connect (Dupin * d, gchar * name, gchar * path,
   else if (user_version == 4)
     {
       if (sqlite3_exec (view->db, DUPIN_VIEW_SQL_DESC_UPGRADE_FROM_VERSION_4, NULL, NULL, &errmsg) != SQLITE_OK)
+        {
+	  if (error != NULL && *error != NULL)
+            g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s", errmsg);
+          sqlite3_free (errmsg);
+          dupin_view_disconnect (view);
+          return NULL;
+        }
+    }
+  else if (user_version == 5)
+    {
+      if (sqlite3_exec (view->db, DUPIN_VIEW_SQL_DESC_UPGRADE_FROM_VERSION_5, NULL, NULL, &errmsg) != SQLITE_OK)
         {
 	  if (error != NULL && *error != NULL)
             g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s", errmsg);

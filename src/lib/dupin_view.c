@@ -3789,11 +3789,6 @@ dupin_view_compact_func (gpointer data, gpointer user_data)
       dupin_view_rollback_transaction (view, NULL);
     }
 
-  /*
-    IMPORTANT: rowids may change after a VACUUM, so the cursor of views is reset as well
-               see http://www.sqlite.org/lang_vacuum.html
-   */
-
 #if DUPIN_VIEW_DEBUG
   //g_message("dupin_view_compact_func: VACUUM and ANALYZE\n");
 #endif

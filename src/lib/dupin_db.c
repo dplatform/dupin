@@ -1321,7 +1321,8 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
 
   gchar *str;
 
-  /* get last position we reduced and get anything up to count after that */
+  /* get last position we compacted and get anything up to count after that */
+
   gchar * query = "SELECT compact_id as c FROM DupinDB";
 
   g_rw_lock_reader_lock (db->rwlock);
@@ -1549,11 +1550,6 @@ dupin_database_compact_func (gpointer data, gpointer user_data)
 	    {
       	      dupin_database_rollback_transaction (db, NULL);
     	    }
-
-	  /*
-		IMPORTANT: rowids may change after a VACUUM, so the cursor of views should be reset as well, eventually !
-			   see http://www.sqlite.org/lang_vacuum.html
-           */
 
 #if DEBUG
           g_message("dupin_database_compact_func: VACUUM and ANALYZE\n");

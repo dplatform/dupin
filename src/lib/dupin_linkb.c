@@ -1587,6 +1587,7 @@ dupin_linkbase_thread_compact (DupinLinkB * linkb, gsize count)
   gchar *str;
 
   /* get last position we compacted and get anything up to count after that */
+
   gchar * query = "SELECT compact_id as c FROM DupinLinkB LIMIT 1";
 
   g_rw_lock_reader_lock (linkb->rwlock);
@@ -1937,6 +1938,7 @@ dupin_linkbase_thread_check (DupinLinkB * linkb, gsize count)
   gchar *str;
 
   /* get last position we checked and get anything up to count after that */
+
   gchar * query = "SELECT check_id as c FROM DupinLinkB LIMIT 1";
   g_rw_lock_reader_lock (linkb->rwlock);
 

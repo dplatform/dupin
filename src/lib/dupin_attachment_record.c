@@ -1141,6 +1141,13 @@ dupin_attachment_record_insert (DupinAttachmentDB * attachment_db,
   json_object_set_string_member (record_response_obj, RESPONSE_OBJ_CREATED, created);
   g_free (created);
 
+  if (dupin_record_get_expire (record) != 0)
+    {
+      gchar * expire = dupin_date_timestamp_to_http_date (dupin_record_get_expire (record));
+      json_object_set_string_member (record_response_obj, RESPONSE_OBJ_EXPIRE, expire);
+      g_free (expire);
+    }
+
   dupin_record_close (record);
   
   dupin_database_unref (db);

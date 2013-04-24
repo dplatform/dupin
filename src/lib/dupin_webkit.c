@@ -1658,6 +1658,15 @@ dupin_webkit_dupin_class_links (JSContextRef ctx,
                   json_object_set_string_member (node_out_obj, "_created", created);
                   g_free (created);
 
+                  if (json_object_has_member (node_out_obj, "_expire") == TRUE)
+                    json_object_remove_member (node_out_obj, "_expire"); // ignore any record one if set by user, ever
+		  if (dupin_record_get_expire (doc_id_record) != 0)
+		    {
+                      gchar * expire = dupin_date_timestamp_to_iso8601 (dupin_record_get_expire (doc_id_record));
+                      json_object_set_string_member (node_out_obj, "_expire", expire);
+                      g_free (expire);
+		    }
+
                   if (json_object_has_member (node_out_obj, "_type") == TRUE)
                     json_object_remove_member (node_out_obj, "_type"); // ignore any record one if set by user, ever
                   json_object_set_string_member (node_out_obj, "_type", (gchar *)dupin_record_get_type (doc_id_record));
@@ -1744,6 +1753,15 @@ dupin_webkit_dupin_class_links (JSContextRef ctx,
                 json_object_set_string_member (node_out_obj, "_created", created);
                 g_free (created);
 
+                if (json_object_has_member (node_out_obj, "_expire") == TRUE)
+                  json_object_remove_member (node_out_obj, "_expire"); // ignore any record one if set by user, ever
+		if (dupin_link_record_get_expire (link_id_record) != 0)
+                  {
+		    gchar * expire = dupin_date_timestamp_to_iso8601 (dupin_link_record_get_expire (link_id_record));
+                    json_object_set_string_member (node_out_obj, "_expire", expire);
+                    g_free (expire);
+		  }
+
                 dupin_link_record_close (link_id_record);
               }
 
@@ -1780,6 +1798,13 @@ dupin_webkit_dupin_class_links (JSContextRef ctx,
       gchar * created = dupin_date_timestamp_to_http_date (dupin_link_record_get_created (record));
       json_object_set_string_member (obj, RESPONSE_OBJ_CREATED, created);
       g_free (created);
+
+      if (dupin_link_record_get_expire (record) != 0)
+        {
+          gchar * expire = dupin_date_timestamp_to_http_date (dupin_link_record_get_expire (record));
+          json_object_set_string_member (obj, RESPONSE_OBJ_EXPIRE, expire);
+          g_free (expire);
+	}
 
       gchar * label = (gchar *)dupin_link_record_get_label (record);
 

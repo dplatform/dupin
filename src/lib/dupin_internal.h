@@ -321,6 +321,7 @@ struct dupin_record_rev_t
   gboolean	deleted;
 
   gsize		created;
+  gsize		expire;
 
   gsize		rowid;
 
@@ -361,6 +362,7 @@ struct dupin_link_record_rev_t
   gboolean	deleted;
 
   gsize		created;
+  gsize		expire;
 
   gsize		rowid;
 

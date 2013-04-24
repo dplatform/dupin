@@ -12,15 +12,16 @@
 
 #define DUPIN_DB_SQL_MAIN_CREATE \
   "CREATE TABLE IF NOT EXISTS Dupin (\n" \
-  "  seq      INTEGER PRIMARY KEY AUTOINCREMENT,\n" \
-  "  id       CHAR(255) NOT NULL,\n" \
-  "  rev      INTEGER NOT NULL DEFAULT 1,\n" \
-  "  hash     CHAR(255) NOT NULL,\n" \
-  "  type     CHAR(255) DEFAULT NULL,\n" \
-  "  obj      TEXT,\n" \
-  "  deleted  BOOL DEFAULT FALSE,\n" \
-  "  tm       INTEGER NOT NULL,\n" \
-  "  rev_head BOOL DEFAULT TRUE,\n" \
+  "  seq       INTEGER PRIMARY KEY AUTOINCREMENT,\n" \
+  "  id        CHAR(255) NOT NULL,\n" \
+  "  rev       INTEGER NOT NULL DEFAULT 1,\n" \
+  "  hash      CHAR(255) NOT NULL,\n" \
+  "  type      CHAR(255) DEFAULT NULL,\n" \
+  "  obj       TEXT,\n" \
+  "  deleted   BOOL DEFAULT FALSE,\n" \
+  "  tm        INTEGER NOT NULL,\n" \
+  "  expire_tm INTEGER NOT NULL DEFAULT 0,\n" \
+  "  rev_head  BOOL DEFAULT TRUE,\n" \
   "  UNIQUE   (id, rev)\n" \
   ");"
 
@@ -38,17 +39,25 @@
   "  compact_id      CHAR(255) NOT NULL DEFAULT '0',\n" \
   "  creation_time   CHAR(255) NOT NULL DEFAULT '0'\n" \
   ");\n" \
-  "PRAGMA user_version = 3"
+  "PRAGMA user_version = 4"
 
 #define DUPIN_DB_SQL_DESC_UPGRADE_FROM_VERSION_1 \
   "ALTER TABLE Dupin   ADD COLUMN seq INTEGER PRIMARY KEY AUTOINCREMENT;\n" \
+  "ALTER TABLE Dupin   ADD COLUMN expire_tm INTEGER NOT NULL DEFAULT 0;\n" \
   "ALTER TABLE DupinDB ADD COLUMN creation_time CHAR(255) NOT NULL DEFAULT '0';\n" \
-  "PRAGMA user_version = 3"
+  "PRAGMA user_version = 4"
 
-/* NOTE - added seq INTEGER PRIMARY KEY AUTOINCREMENT and UNIQUE (id) */
+/* NOTE - added seq INTEGER PRIMARY KEY AUTOINCREMENT and UNIQUE (id) but not
+          included in upgrade from version 2 below because its a new way of
+          generating a primary key */
 
 #define DUPIN_DB_SQL_DESC_UPGRADE_FROM_VERSION_2 \
-  "PRAGMA user_version = 3"
+  "ALTER TABLE Dupin   ADD COLUMN expire_tm INTEGER NOT NULL DEFAULT 0;\n" \
+  "PRAGMA user_version = 4"
+
+#define DUPIN_DB_SQL_DESC_UPGRADE_FROM_VERSION_3 \
+  "ALTER TABLE Dupin   ADD COLUMN expire_tm INTEGER NOT NULL DEFAULT 0;\n" \
+  "PRAGMA user_version = 4"
 
 #define DUPIN_DB_SQL_USES_OLD_ROWID \
         "SELECT seq FROM Dupin"
@@ -643,6 +652,18 @@ dupin_db_connect (Dupin * d, gchar * name, gchar * path,
           return NULL;
         }
     }
+  else if (user_version == 3)
+    {
+      if (sqlite3_exec (db->db, DUPIN_DB_SQL_DESC_UPGRADE_FROM_VERSION_3, NULL, NULL, &errmsg) != SQLITE_OK)
+        {
+          if (error != NULL && *error != NULL)
+            g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
+		   errmsg);
+          sqlite3_free (errmsg);
+          dupin_db_disconnect (db);
+          return NULL;
+        }
+    }
 
   if (sqlite3_exec (db->db, DUPIN_DB_SQL_USES_OLD_ROWID, NULL, NULL, &errmsg) != SQLITE_OK)
     {
@@ -894,6 +915,7 @@ dupin_database_get_changes_list_cb (void *data, int argc, char **argv, char **co
 
   guint rev = 0;
   gsize tm = 0;
+  gsize expire_tm = 0;
   gchar *id = NULL;
   gchar *hash = NULL;
   gchar *type = NULL;
@@ -910,6 +932,9 @@ dupin_database_get_changes_list_cb (void *data, int argc, char **argv, char **co
 
       else if (!g_strcmp0 (col[i], "tm"))
         tm = (gsize) g_ascii_strtoll (argv[i], NULL, 10);
+
+      else if (!g_strcmp0 (col[i], "expire_tm"))
+        expire_tm = (gsize) g_ascii_strtoll (argv[i], NULL, 10);
 
       else if (!g_strcmp0 (col[i], "type"))
         type = argv[i];
@@ -959,6 +984,12 @@ dupin_database_get_changes_list_cb (void *data, int argc, char **argv, char **co
       gchar * created = dupin_date_timestamp_to_http_date (tm);
       json_object_set_string_member (node_obj, RESPONSE_OBJ_CREATED, created);
       g_free (created);
+      if (expire_tm != 0)
+        {
+	  gchar * expire = dupin_date_timestamp_to_http_date (expire_tm);
+          json_object_set_string_member (node_obj, RESPONSE_OBJ_EXPIRE, expire);
+          g_free (expire);
+	}
       if (type != NULL)
         json_object_set_string_member (node_obj,RESPONSE_OBJ_TYPE, type);
 
@@ -1013,7 +1044,7 @@ dupin_database_get_changes_list (DupinDB *              db,
   memset (&s, 0, sizeof (s));
   s.style = changes_type;
 
-  str = g_string_new ("SELECT id, rev, hash, type, obj, deleted, tm, ROWID AS rowid FROM Dupin as d WHERE d.rev_head = 'TRUE' ");
+  str = g_string_new ("SELECT id, rev, hash, type, obj, deleted, tm, expire_tm, ROWID AS rowid FROM Dupin as d WHERE d.rev_head = 'TRUE' ");
 
   if (count_type == DP_COUNT_EXIST)
     check_deleted = " d.deleted = 'FALSE' ";
@@ -1358,6 +1389,14 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
   for (list = results; list; list = list->next)
     {
       DupinRecord * record = list->data;
+
+      /* NOTE - check if record expired and "passively" delete it eventually */
+
+      if (dupin_record_is_expired (record, NULL) == TRUE)
+        {
+          if (!(dupin_record_delete (record, NULL)))
+            continue;
+        }
 
       gchar *tmp;
 

@@ -28,11 +28,12 @@ static gboolean dupin_record_add_revision_obj (DupinRecord * record, guint rev,
 					       JsonNode * obj_node,
 					       gboolean delete,
 					       gsize created,
+					       gsize * expire,
 			       		       gboolean ignore_updates_if_unmodified);
 static void dupin_record_add_revision_str (DupinRecord * record, guint rev,
 					   gchar * hash, gchar * type, gssize hash_size,
 					   gchar * obj, gssize size,
-					   gboolean delete, gsize created, gsize rowid);
+					   gboolean delete, gsize created, gsize expire, gsize rowid);
 static gboolean
 	   dupin_record_generate_hash	(DupinRecord * record,
                             		 gchar * obj_serialized, gssize obj_serialized_len,
@@ -174,12 +175,14 @@ dupin_record_create_with_id_real (DupinDB * db, JsonNode * obj_node,
 
   gsize created = dupin_date_timestamp_now (0);
 
-  dupin_record_add_revision_obj (record, 1, &md5, obj_node, FALSE, created, FALSE);
+  gsize expire = 0;
+
+  dupin_record_add_revision_obj (record, 1, &md5, obj_node, FALSE, created, &expire, FALSE);
 
   tmp =
     sqlite3_mprintf (DUPIN_DB_SQL_INSERT, id, 1, md5,
 		     record->last->type,
-		     record->last->obj_serialized, created);
+		     record->last->obj_serialized, created, expire);
 //g_message("dupin_record_create_with_id_real: query=%s\n", tmp);
 
   if (dupin_database_begin_transaction (db, error) < 0)
@@ -278,6 +281,7 @@ dupin_record_read_cb (void *data, int argc, char **argv, char **col)
 {
   guint rev = 0;
   gsize tm = 0;
+  gsize expire_tm = 0;
   gchar *hash = NULL;
   gchar *type = NULL;
   gchar *obj = NULL;
@@ -293,6 +297,9 @@ dupin_record_read_cb (void *data, int argc, char **argv, char **col)
 
       else if (!g_strcmp0 (col[i], "tm"))
 	tm = (gsize) g_ascii_strtoll (argv[i], NULL, 10);
+
+      else if (!g_strcmp0 (col[i], "expire_tm"))
+	expire_tm = (gsize) g_ascii_strtoll (argv[i], NULL, 10);
 
       else if (!g_strcmp0 (col[i], "hash"))
 	hash = argv[i];
@@ -311,7 +318,7 @@ dupin_record_read_cb (void *data, int argc, char **argv, char **col)
     }
 
   if (rev && hash !=NULL)
-    dupin_record_add_revision_str (data, rev, hash, type, -1, obj, -1, delete, tm, rowid);
+    dupin_record_add_revision_str (data, rev, hash, type, -1, obj, -1, delete, tm, expire_tm, rowid);
 
   return 0;
 }
@@ -376,6 +383,22 @@ dupin_record_read_real (DupinDB * db, gchar * id, GError ** error,
       if (error != NULL && *error != NULL)
         g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD,
 		   "The record '%s' doesn't exist.", id);
+      return NULL;
+    }
+
+  /* NOTE - check if record expired and "actively" delete it eventually */
+
+  if (dupin_record_is_expired (record, NULL) == TRUE)
+    {
+      if (!(dupin_record_delete (record, NULL)))
+	{
+          if (error != NULL && *error != NULL)
+            g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD,
+		   "The record '%s' is expired but can not be deleted. Try to compact the database.", id);
+	}
+
+      dupin_record_close (record);
+
       return NULL;
     }
 
@@ -644,6 +667,7 @@ dupin_record_get_list_cb (void *data, int argc, char **argv, char **col)
   gchar *id = NULL;
   guint rev = 0;
   gsize tm = 0;
+  gsize expire_tm = 0;
   gchar *hash = NULL;
   gchar *type = NULL;
   gchar *obj = NULL;
@@ -659,6 +683,9 @@ dupin_record_get_list_cb (void *data, int argc, char **argv, char **col)
 
       else if (!g_strcmp0 (col[i], "tm"))
         tm = (gsize) g_ascii_strtoll (argv[i], NULL, 10);
+
+      else if (!g_strcmp0 (col[i], "expire_tm"))
+        expire_tm = (gsize) g_ascii_strtoll (argv[i], NULL, 10);
 
       else if (!g_strcmp0 (col[i], "hash"))
         hash = argv[i];
@@ -689,7 +716,7 @@ dupin_record_get_list_cb (void *data, int argc, char **argv, char **col)
 
       record = dupin_record_new (s->db, id);
 
-      dupin_record_add_revision_str (record, rev, hash, type, -1, obj, -1, delete, tm, rowid);
+      dupin_record_add_revision_str (record, rev, hash, type, -1, obj, -1, delete, tm, expire_tm, rowid);
 
       s->list = g_list_append (s->list, record);
     }
@@ -1187,7 +1214,9 @@ dupin_record_update (DupinRecord * record, JsonNode * obj_node,
 
   gsize created = dupin_date_timestamp_now (0);
 
-  if (dupin_record_add_revision_obj (record, rev, &md5, obj_node, FALSE, created, ignore_updates_if_unmodified) == FALSE)
+  gsize expire = 0;
+
+  if (dupin_record_add_revision_obj (record, rev, &md5, obj_node, FALSE, created, &expire, ignore_updates_if_unmodified) == FALSE)
     {
       g_rw_lock_writer_unlock (record->db->rwlock);
 
@@ -1229,7 +1258,7 @@ dupin_record_update (DupinRecord * record, JsonNode * obj_node,
   tmp =
     sqlite3_mprintf (DUPIN_DB_SQL_INSERT, record->id, rev, md5,
 		     record->last->type,
-		     record->last->obj_serialized, created);
+		     record->last->obj_serialized, created, expire);
 
 //g_message("dupin_record_update: record->last->revision = %d - new rev=%d - query=%s\n", (gint) record->last->revision, (gint) rev, tmp);
 
@@ -1317,6 +1346,14 @@ dupin_record_update (DupinRecord * record, JsonNode * obj_node,
 			      (gchar *) dupin_record_get_id (record),
 			      json_node_get_object (dupin_record_get_revision_node (record, NULL)));
 
+  /* NOTE - check if record expired and "actively" delete it eventually */
+
+  if (dupin_record_is_expired (record, NULL) == TRUE)
+    {
+      if (!(dupin_record_delete (record, NULL)))
+	return FALSE;
+    }
+
   return TRUE;
 }
 
@@ -1378,7 +1415,9 @@ dupin_record_delete (DupinRecord * record, GError ** error)
 
   gsize created = dupin_date_timestamp_now (0);
 
-  dupin_record_add_revision_obj (record, rev, &md5, NULL, TRUE, created, FALSE);
+  gsize expire = 0;
+
+  dupin_record_add_revision_obj (record, rev, &md5, NULL, TRUE, created, &expire, FALSE);
 
   /* NOTE - flag any previous revision as non head - we need this to optimise searches
             and avoid slowness of max(rev) as rev or even nested select like
@@ -1410,7 +1449,7 @@ dupin_record_delete (DupinRecord * record, GError ** error)
 
   sqlite3_free (tmp);
 
-  tmp = sqlite3_mprintf (DUPIN_DB_SQL_DELETE, record->id, rev, md5, record->last->type, created);
+  tmp = sqlite3_mprintf (DUPIN_DB_SQL_DELETE, record->id, rev, md5, record->last->type, created, expire);
 
   if (sqlite3_exec (record->db->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
     {
@@ -1531,6 +1570,14 @@ dupin_record_get_created (DupinRecord * record)
   return record->last->created;
 }
 
+gsize
+dupin_record_get_expire (DupinRecord * record)
+{
+  g_return_val_if_fail (record != NULL, 0);
+
+  return record->last->expire;
+}
+
 gchar *
 dupin_record_get_last_revision (DupinRecord * record)
 {
@@ -1624,6 +1671,33 @@ dupin_record_is_deleted (DupinRecord * record, gchar * mvcc)
   return r->deleted;
 }
 
+gboolean
+dupin_record_is_expired (DupinRecord * record, gchar * mvcc)
+{
+  DupinRecordRev *r;
+
+  g_return_val_if_fail (record != NULL, FALSE);
+
+  if (mvcc != NULL)
+    g_return_val_if_fail (dupin_util_is_valid_mvcc (mvcc) == TRUE, FALSE);
+
+  if (mvcc == NULL || (!dupin_util_mvcc_revision_cmp (mvcc, record->last->mvcc)))
+    r = record->last;
+  else
+    {
+      /* TODO - check if the following check does make any sense ? */
+      if (dupin_util_mvcc_revision_cmp (mvcc,record->last->mvcc) > 0)
+	g_return_val_if_fail (dupin_util_mvcc_revision_cmp (dupin_record_get_last_revision (record), mvcc) >= 0 , FALSE);
+
+      if (!(r = g_hash_table_lookup (record->revisions, mvcc)))
+	return FALSE;
+    }
+
+  gsize now = dupin_date_timestamp_now (0);
+
+  return (r->expire != 0 && r->expire <= now) ? TRUE : FALSE;
+}
+
 /* Internal: */
 static DupinRecord *
 dupin_record_new (DupinDB * db, gchar * id)
@@ -1663,10 +1737,13 @@ dupin_record_rev_close (DupinRecordRev * rev)
 }
 
 static gboolean
-dupin_record_add_revision_obj (DupinRecord * record, guint rev,
+dupin_record_add_revision_obj (DupinRecord * record,
+			       guint rev,
 			       gchar ** hash,
-			       JsonNode * obj_node, gboolean delete,
+			       JsonNode * obj_node,
+			       gboolean delete,
 			       gsize created,
+			       gsize * expire,
 			       gboolean ignore_updates_if_unmodified)
 {
   DupinRecordRev *r;
@@ -1674,6 +1751,7 @@ dupin_record_add_revision_obj (DupinRecord * record, guint rev,
   JsonNode * obj_node_copy = NULL;
   JsonObject * obj = NULL;
   JsonNode * type_node = NULL;
+  JsonNode * expire_node = NULL;
   gchar * type = NULL;
   gchar * obj_serialized = NULL;
   gsize obj_serialized_len = 0;
@@ -1684,7 +1762,8 @@ dupin_record_add_revision_obj (DupinRecord * record, guint rev,
     {
       obj_node_copy = json_node_copy (obj_node);
 
-      /* NOTE - check if JSON object has _type and store it separately */
+      /* NOTE - check if JSON object has _type, _expire_at or _expire_after and store them separately */
+
       obj = json_node_get_object (obj_node_copy);
 
       if (json_object_has_member (obj, REQUEST_OBJ_TYPE) == TRUE)
@@ -1696,6 +1775,35 @@ dupin_record_add_revision_obj (DupinRecord * record, guint rev,
 	      type = g_strdup (json_node_get_string (type_node));
             }
 	  json_object_remove_member (obj, REQUEST_OBJ_TYPE);
+	}
+
+      /* NOTE - REQUEST_OBJ_EXPIRE_AT can override the value set with REQUEST_OBJ_EXPIRE_AFTER */
+
+      if (json_object_has_member (obj, REQUEST_OBJ_EXPIRE_AT) == TRUE)
+        {
+          expire_node = json_object_get_member (obj, REQUEST_OBJ_EXPIRE_AT);
+	  if (json_node_get_node_type (expire_node) == JSON_NODE_VALUE
+	      && json_node_get_value_type (expire_node) == G_TYPE_STRING)
+            {
+	      *expire = 0;
+              dupin_date_string_to_timestamp ((gchar *)json_node_get_string (expire_node), expire);
+            }
+	  json_object_remove_member (obj, REQUEST_OBJ_EXPIRE_AT);
+	}
+
+      if (json_object_has_member (obj, REQUEST_OBJ_EXPIRE_AFTER) == TRUE)
+        {
+          expire_node = json_object_get_member (obj, REQUEST_OBJ_EXPIRE_AFTER);
+	  if (json_node_get_node_type (expire_node) == JSON_NODE_VALUE
+	      && (json_node_get_value_type (expire_node) == G_TYPE_INT
+                  || json_node_get_value_type (expire_node) == G_TYPE_INT64
+                  || json_node_get_value_type (expire_node) == G_TYPE_UINT))
+            {
+	      /* TODO - add check we do not overflow */
+
+	      *expire = created + (gsize) (((gint) json_node_get_int (expire_node)) * G_USEC_PER_SEC);
+            }
+	  json_object_remove_member (obj, REQUEST_OBJ_EXPIRE_AFTER);
 	}
 
       JsonGenerator * gen = json_generator_new();
@@ -1753,6 +1861,7 @@ dupin_record_add_revision_obj (DupinRecord * record, guint rev,
   r->mvcc_len = strlen (mvcc);
   r->deleted = delete;
   r->created = created;
+  r->expire = *expire;
 
   /* TODO - double check that the revision record 'r' is freeded properly when hash table disposed */
 
@@ -1766,7 +1875,7 @@ dupin_record_add_revision_obj (DupinRecord * record, guint rev,
 
 static void
 dupin_record_add_revision_str (DupinRecord * record, guint rev, gchar * hash, gchar * type, gssize hash_size,
- 			       gchar * str, gssize size, gboolean delete, gsize created, gsize rowid)
+ 			       gchar * str, gssize size, gboolean delete, gsize created, gsize expire, gsize rowid)
 {
   DupinRecordRev *r;
   gchar mvcc[DUPIN_ID_MAX_LEN];
@@ -1796,6 +1905,7 @@ dupin_record_add_revision_str (DupinRecord * record, guint rev, gchar * hash, gc
 
   r->deleted = delete;
   r->created = created;
+  r->expire = expire;
   r->rowid = rowid;
 
   dupin_util_mvcc_new (rev, r->hash, mvcc);
@@ -2714,6 +2824,13 @@ dupin_record_insert (DupinDB * db,
   gchar * created = dupin_date_timestamp_to_http_date (dupin_record_get_created (record));
   json_object_set_string_member (record_response_obj, RESPONSE_OBJ_CREATED, created);
   g_free (created);
+
+  if (dupin_record_get_expire (record) != 0)
+    {
+      gchar * expire = dupin_date_timestamp_to_http_date (dupin_record_get_expire (record));
+      json_object_set_string_member (record_response_obj, RESPONSE_OBJ_EXPIRE, expire);
+      g_free (expire);
+    }
 
   dupin_record_close (record);
   

@@ -175,6 +175,7 @@ static gboolean dupin_link_record_add_revision_obj (DupinLinkRecord * record, gu
                                                     gchar * tag,
 					            gboolean delete,
 					            gsize created,
+					            gsize * expire,
 					            gboolean is_weblink,
 					            gboolean ignore_updates_if_unmodified);
 
@@ -188,6 +189,7 @@ static void dupin_link_record_add_revision_str (DupinLinkRecord * record, guint 
                                                 gchar * tag,
 					        gboolean delete,
 					        gsize created,
+					        gsize expire,
 					        gsize rowid,
 					        gboolean is_weblink);
 
@@ -376,15 +378,17 @@ dupin_link_record_create_with_id_real (DupinLinkB * linkb, JsonNode * obj_node,
 
   gsize created = dupin_date_timestamp_now (0);
 
+  gsize expire = 0;
+
   dupin_link_record_add_revision_obj (record, 1, &md5, obj_node,
 				      context_id, label, href, rel, tag,
-				      FALSE, created,
+				      FALSE, created, &expire,
 				      dupin_util_is_valid_absolute_uri (href),
 				      FALSE);
 
   tmp =
     sqlite3_mprintf (DUPIN_LINKB_SQL_INSERT, id, 1, md5,
-		     record->last->obj_serialized, created,
+		     record->last->obj_serialized, created, expire,
 		     context_id, label, href, rel, tag,
 		     dupin_util_is_valid_absolute_uri (href) ? "TRUE" : "FALSE");
 
@@ -487,6 +491,7 @@ dupin_link_record_read_cb (void *data, int argc, char **argv, char **col)
 {
   guint rev = 0;
   gsize tm = 0;
+  gsize expire_tm = 0;
   gchar *hash = NULL;
   gchar *obj = NULL;
   gboolean delete = FALSE;
@@ -507,6 +512,9 @@ dupin_link_record_read_cb (void *data, int argc, char **argv, char **col)
 
       else if (!g_strcmp0 (col[i], "tm"))
 	tm = (gsize) g_ascii_strtoll (argv[i], NULL, 10);
+
+      else if (!g_strcmp0 (col[i], "expire_tm"))
+	expire_tm = (gsize) g_ascii_strtoll (argv[i], NULL, 10);
 
       else if (!g_strcmp0 (col[i], "hash"))
 	hash = argv[i];
@@ -542,7 +550,7 @@ dupin_link_record_read_cb (void *data, int argc, char **argv, char **col)
   if (rev && hash !=NULL)
     dupin_link_record_add_revision_str (data, rev, hash, -1, obj, -1,
 					context_id, label, href, rel, tag,
-					delete, tm, rowid, is_weblink);
+					delete, tm, expire_tm, rowid, is_weblink);
 
   return 0;
 }
@@ -606,7 +614,23 @@ dupin_link_record_read_real (DupinLinkB * linkb, gchar * id, GError ** error,
 
       if (error != NULL && *error != NULL)
         g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD,
-		   "The record '%s' doesn't exist.", id);
+		   "The link record '%s' doesn't exist.", id);
+      return NULL;
+    }
+
+  /* NOTE - check if record expired and "actively" delete it eventually */
+
+  if (dupin_link_record_is_expired (record, NULL) == TRUE)
+    {
+      if (!(dupin_link_record_delete (record, NULL)))
+        {
+          if (error != NULL && *error != NULL)
+            g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD,
+                   "The link record '%s' is expired but can not be deleted. Try to compact the linkbase.", id); 
+        }
+
+      dupin_link_record_close (record);
+
       return NULL;
     }
 
@@ -1026,6 +1050,7 @@ dupin_link_record_get_list_cb (void *data, int argc, char **argv, char **col)
 
   guint rev = 0;
   gsize tm = 0;
+  gsize expire_tm = 0;
   gchar *hash = NULL;
   gchar *obj = NULL;
   gboolean delete = FALSE;
@@ -1047,6 +1072,9 @@ dupin_link_record_get_list_cb (void *data, int argc, char **argv, char **col)
 
       else if (!g_strcmp0 (col[i], "tm"))
 	tm = (gsize) g_ascii_strtoll (argv[i], NULL, 10);
+
+      else if (!g_strcmp0 (col[i], "expire_tm"))
+	expire_tm = (gsize) g_ascii_strtoll (argv[i], NULL, 10);
 
       else if (!g_strcmp0 (col[i], "hash"))
 	hash = argv[i];
@@ -1094,7 +1122,7 @@ dupin_link_record_get_list_cb (void *data, int argc, char **argv, char **col)
 
       dupin_link_record_add_revision_str (record, rev, hash, -1, obj, -1,
 					  context_id, label, href, rel, tag,
-					  delete, tm, rowid, is_weblink);
+					  delete, tm, expire_tm, rowid, is_weblink);
 
       s->list = g_list_append (s->list, record);
     }
@@ -1778,10 +1806,12 @@ dupin_link_record_update (DupinLinkRecord * record, JsonNode * obj_node,
 
   gsize created = dupin_date_timestamp_now (0);
 
+  gsize expire = 0;
+
   if (dupin_link_record_add_revision_obj (record, rev, &md5, obj_node,
 				          (gchar *)dupin_link_record_get_context_id (record),
 				          label, href, rel, tag,
-				          FALSE, created,
+				          FALSE, created, &expire,
 				          dupin_util_is_valid_absolute_uri (href),
 			  	          ignore_updates_if_unmodified) == FALSE)
     {
@@ -1825,7 +1855,7 @@ dupin_link_record_update (DupinLinkRecord * record, JsonNode * obj_node,
 
   tmp =
     sqlite3_mprintf (DUPIN_LINKB_SQL_INSERT, record->id, rev, md5,
-		     record->last->obj_serialized, created,
+		     record->last->obj_serialized, created, expire,
 		     (gchar *)dupin_link_record_get_context_id (record),
 		     label, href, rel, tag,
 		     dupin_util_is_valid_absolute_uri (href) ? "TRUE" : "FALSE");
@@ -1952,6 +1982,15 @@ dupin_link_record_update (DupinLinkRecord * record, JsonNode * obj_node,
 			      (gchar *) dupin_link_record_get_id (record),
 			      json_node_get_object (dupin_link_record_get_revision_node (record, NULL)));
 
+
+  /* NOTE - check if record expired and "actively" delete it eventually */
+
+  if (dupin_link_record_is_expired (record, NULL) == TRUE)
+    {
+      if (!(dupin_link_record_delete (record, NULL)))
+        return FALSE;
+    }
+
   return TRUE;
 }
 
@@ -2048,17 +2087,19 @@ dupin_link_record_delete (DupinLinkRecord * record, GError ** error)
 
   gsize created = dupin_date_timestamp_now (0);
 
+  gsize expire = 0;
+
   dupin_link_record_add_revision_obj (record, rev, &md5, NULL,
 				      (gchar *)dupin_link_record_get_context_id (record),
 				      (gchar *)dupin_link_record_get_label (record),
 				      (gchar *)dupin_link_record_get_href (record),
 				      (gchar *)dupin_link_record_get_rel (record),
 				      (gchar *)dupin_link_record_get_tag (record),
- 				      TRUE, created,
+ 				      TRUE, created, &expire,
 				      dupin_link_record_is_weblink (record),
 				      FALSE);
 
-  tmp = sqlite3_mprintf (DUPIN_LINKB_SQL_DELETE, record->id, rev, md5, created,	
+  tmp = sqlite3_mprintf (DUPIN_LINKB_SQL_DELETE, record->id, rev, md5, created,	expire,
 				      (gchar *)dupin_link_record_get_context_id (record),
 				      (gchar *)dupin_link_record_get_label (record),
 				      (gchar *)dupin_link_record_get_href (record),
@@ -2185,6 +2226,14 @@ dupin_link_record_get_created (DupinLinkRecord * record)
   g_return_val_if_fail (record != NULL, 0);
 
   return record->last->created;
+}
+
+gsize
+dupin_link_record_get_expire (DupinLinkRecord * record)
+{
+  g_return_val_if_fail (record != NULL, 0);
+
+  return record->last->expire;
 }
 
 const gchar *
@@ -2337,6 +2386,33 @@ dupin_link_record_is_deleted (DupinLinkRecord * record, gchar * mvcc)
   return r->deleted;
 }
 
+gboolean
+dupin_link_record_is_expired (DupinLinkRecord * record, gchar * mvcc)
+{
+  DupinLinkRecordRev *r;
+
+  g_return_val_if_fail (record != NULL, FALSE);
+
+  if (mvcc != NULL)
+    g_return_val_if_fail (dupin_util_is_valid_mvcc (mvcc) == TRUE, FALSE);
+
+  if (mvcc == NULL || (!dupin_util_mvcc_revision_cmp (mvcc, record->last->mvcc)))
+    r = record->last;
+  else
+    {
+      /* TODO - check if the following check does make any sense ? */
+      if (dupin_util_mvcc_revision_cmp (mvcc,record->last->mvcc) > 0)
+	g_return_val_if_fail (dupin_util_mvcc_revision_cmp (dupin_link_record_get_last_revision (record), mvcc) >= 0 , FALSE);
+
+      if (!(r = g_hash_table_lookup (record->revisions, mvcc)))
+	return FALSE;
+    }
+
+  gsize now = dupin_date_timestamp_now (0);
+  
+  return (r->expire != 0 && r->expire <= now) ? TRUE : FALSE;
+}
+
 /* Internal: */
 static DupinLinkRecord *
 dupin_link_record_new (DupinLinkB * linkb, gchar * id)
@@ -2399,12 +2475,15 @@ dupin_link_record_add_revision_obj (DupinLinkRecord * record,
                                     gchar * tag,
 			            gboolean delete,
 			            gsize created,
+			            gsize * expire,
 			            gboolean is_weblink,
 			            gboolean ignore_updates_if_unmodified)
 {
   DupinLinkRecordRev *r;
   gchar mvcc[DUPIN_ID_MAX_LEN];
   JsonNode * obj_node_copy = NULL;
+  JsonObject * obj = NULL;
+  JsonNode * expire_node = NULL;
   gchar * obj_serialized = NULL;
   gsize obj_serialized_len = 0;
   gchar * obj_hash;
@@ -2413,6 +2492,39 @@ dupin_link_record_add_revision_obj (DupinLinkRecord * record,
   if (obj_node)
     {
       obj_node_copy = json_node_copy (obj_node);
+
+      /* NOTE - check if JSON object has _expire_at or _expire_after and store them separately */
+
+      obj = json_node_get_object (obj_node_copy);
+
+      /* NOTE - REQUEST_OBJ_EXPIRE_AT can override the value set with REQUEST_OBJ_EXPIRE_AFTER */
+
+      if (json_object_has_member (obj, REQUEST_OBJ_EXPIRE_AT) == TRUE)
+        {
+          expire_node = json_object_get_member (obj, REQUEST_OBJ_EXPIRE_AT);
+          if (json_node_get_node_type (expire_node) == JSON_NODE_VALUE
+              && json_node_get_value_type (expire_node) == G_TYPE_STRING)
+            {
+              *expire = 0;
+              dupin_date_string_to_timestamp ((gchar *)json_node_get_string (expire_node), expire);
+            }
+          json_object_remove_member (obj, REQUEST_OBJ_EXPIRE_AT);
+        }
+
+      if (json_object_has_member (obj, REQUEST_OBJ_EXPIRE_AFTER) == TRUE)
+        {
+          expire_node = json_object_get_member (obj, REQUEST_OBJ_EXPIRE_AFTER);
+          if (json_node_get_node_type (expire_node) == JSON_NODE_VALUE
+              && (json_node_get_value_type (expire_node) == G_TYPE_INT
+                  || json_node_get_value_type (expire_node) == G_TYPE_INT64
+                  || json_node_get_value_type (expire_node) == G_TYPE_UINT))
+            {
+              /* TODO - add check we do not overflow */
+
+	      *expire = created + (gsize) (((gint) json_node_get_int (expire_node)) * G_USEC_PER_SEC);
+            }
+          json_object_remove_member (obj, REQUEST_OBJ_EXPIRE_AFTER);
+        }
 
       JsonGenerator * gen = json_generator_new();
 
@@ -2467,6 +2579,7 @@ dupin_link_record_add_revision_obj (DupinLinkRecord * record,
 
   r->deleted = delete;
   r->created = created;
+  r->expire = *expire;
   r->is_weblink = is_weblink;
 
   r->context_id = g_strdup (context_id);
@@ -2495,6 +2608,7 @@ dupin_link_record_add_revision_str (DupinLinkRecord * record, guint rev, gchar *
                                     gchar * tag,
 				    gboolean delete,
 				    gsize created,
+				    gsize expire,
 				    gsize rowid,
 				    gboolean is_weblink)
 {
@@ -2524,6 +2638,7 @@ dupin_link_record_add_revision_str (DupinLinkRecord * record, guint rev, gchar *
 
   r->deleted = delete;
   r->created = created;
+  r->expire = expire;
   r->is_weblink = is_weblink;
   r->rowid = rowid;
 
@@ -3286,6 +3401,13 @@ dupin_link_record_insert (DupinLinkB * linkb,
   gchar * created = dupin_date_timestamp_to_http_date (dupin_link_record_get_created (record));
   json_object_set_string_member (record_response_obj, RESPONSE_OBJ_CREATED, created);
   g_free (created);
+
+  if (dupin_link_record_get_expire (record) != 0)
+    {
+      gchar * expire = dupin_date_timestamp_to_http_date (dupin_link_record_get_expire (record));
+      json_object_set_string_member (record_response_obj, RESPONSE_OBJ_EXPIRE, expire);
+      g_free (expire);
+    }
 
   dupin_link_record_close (record);
   

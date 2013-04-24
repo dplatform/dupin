@@ -164,6 +164,8 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 #define REQUEST_OBJ_DELETED             "_deleted"
 #define REQUEST_OBJ_PATCHED		"_patched"
 #define REQUEST_OBJ_PATCHED_FIELDS	"_patched_fields"
+#define REQUEST_OBJ_EXPIRE_AFTER        "_expire_after"
+#define REQUEST_OBJ_EXPIRE_AT           "_expire_at"
 
 #define REQUEST_LINK_OBJ_ID           	REQUEST_OBJ_ID
 #define REQUEST_LINK_OBJ_REV        	REQUEST_OBJ_REV 
@@ -173,6 +175,8 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 #define REQUEST_LINK_OBJ_TAG            "_tag"
 #define REQUEST_LINK_OBJ_LABEL          "_label"
 #define REQUEST_LINK_OBJ_CONTEXT_ID     "_context_id"
+#define REQUEST_LINK_OBJ_EXPIRE_AFTER   REQUEST_OBJ_EXPIRE_AFTER
+#define REQUEST_LINK_OBJ_EXPIRE_AT      REQUEST_OBJ_EXPIRE_AT
 
 #define REQUEST_OBJ_INLINE_ATTACHMENTS_STUB     "_stub"
 #define REQUEST_OBJ_INLINE_ATTACHMENTS_DATA     "_data"
@@ -185,6 +189,7 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 #define RESPONSE_OBJ_ID                 "id"
 #define RESPONSE_OBJ_REV                "rev"
 #define RESPONSE_OBJ_CREATED            "created"
+#define RESPONSE_OBJ_EXPIRE             "expire"
 #define RESPONSE_OBJ_TYPE		"type"
 #define RESPONSE_OBJ_ATTACHMENTS        REQUEST_OBJ_ATTACHMENTS
 #define RESPONSE_OBJ_LINKS              REQUEST_OBJ_LINKS

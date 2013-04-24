@@ -1650,9 +1650,18 @@ request_global_get_all_docs (DSHttpdClient * client,
 
       JsonObject *value_obj = json_object_new ();
       json_object_set_string_member (value_obj, RESPONSE_OBJ_REV, (gchar *)dupin_record_get_last_revision (record));
+
       gchar * created = dupin_date_timestamp_to_http_date (dupin_record_get_created (record));
       json_object_set_string_member (value_obj, RESPONSE_OBJ_CREATED, created);
       g_free (created);
+
+      if (dupin_record_get_expire (record) != 0)
+        {
+	  gchar * expire = dupin_date_timestamp_to_http_date (dupin_record_get_expire (record));
+          json_object_set_string_member (value_obj, RESPONSE_OBJ_EXPIRE, expire);
+          g_free (expire);
+	}
+
       gchar * type = (gchar *)dupin_record_get_type (record);
       if (type != NULL)
         json_object_set_string_member (value_obj, RESPONSE_OBJ_TYPE, type);
@@ -3110,6 +3119,13 @@ request_global_get_all_docs_linkbase (DSHttpdClient * client,
       gchar * created = dupin_date_timestamp_to_http_date (dupin_link_record_get_created (record));
       json_object_set_string_member (value_obj, RESPONSE_OBJ_CREATED, created);
       g_free (created);
+
+      if (dupin_link_record_get_expire (record) != 0)
+        {
+	  gchar * expire = dupin_date_timestamp_to_http_date (dupin_link_record_get_expire (record));
+          json_object_set_string_member (value_obj, RESPONSE_OBJ_CREATED, expire);
+          g_free (expire);
+	}
 
       json_object_set_object_member (kvd_obj, RESPONSE_VIEW_OBJ_VALUE, value_obj);
 
@@ -7639,6 +7655,13 @@ request_global_delete_record (DSHttpdClient * client,
   json_object_set_string_member (record_response_obj, RESPONSE_OBJ_CREATED, created);
   g_free (created);
 
+  if (dupin_record_get_expire (record) != 0)
+    {
+      gchar * expire = dupin_date_timestamp_to_http_date (dupin_record_get_expire (record));
+      json_object_set_string_member (record_response_obj, RESPONSE_OBJ_EXPIRE, expire);
+      g_free (expire);
+    }
+
   GList * response_list = NULL;
   response_list = g_list_prepend (response_list, record_response_node);
 
@@ -7865,6 +7888,13 @@ request_global_delete_link_record (DSHttpdClient * client,
   gchar * created = dupin_date_timestamp_to_http_date (dupin_link_record_get_created (record));
   json_object_set_string_member (record_response_obj, RESPONSE_OBJ_CREATED, created);
   g_free (created);
+
+  if (dupin_link_record_get_expire (record) != 0)
+    {
+      gchar * expire = dupin_date_timestamp_to_http_date (dupin_link_record_get_expire (record));
+      json_object_set_string_member (record_response_obj, RESPONSE_OBJ_EXPIRE, expire);
+      g_free (expire);
+    }
 
   GList * response_list = NULL;
   response_list = g_list_prepend (response_list, record_response_node);
@@ -9889,6 +9919,8 @@ request_global_get_portable_listings (DSHttpdClient * client,
           g_free (created);
         }
 
+      /* TODO - alternativeDate type="expire_date" */
+
       if (json_object_has_member (on_obj, "objectType") == FALSE)
         {
           gchar * type = (gchar *)dupin_record_get_type (record);
@@ -9945,6 +9977,8 @@ request_global_get_portable_listings (DSHttpdClient * client,
       			      json_object_set_string_member (d, "updated", json_object_get_string_member (d,"_created"));
       			      json_object_remove_member (d, "_created");
         		    }
+
+      			  /* TODO - alternativeDate type="expire_date" */
 
       			  if (json_object_has_member (d, "objectType") == FALSE
 			      && json_object_has_member (d, REQUEST_OBJ_TYPE) == TRUE)
@@ -10262,6 +10296,8 @@ request_global_get_portable_listings_record (DSHttpdClient * client,
       g_free (created);
     }
 
+  /* TODO - alternativeDate type="expire_date" */
+
   if (json_object_has_member (on_obj, "objectType") == FALSE)
     {
       gchar * type = (gchar *)dupin_record_get_type (record);
@@ -10318,6 +10354,8 @@ request_global_get_portable_listings_record (DSHttpdClient * client,
     			  json_object_set_string_member (d, "updated", json_object_get_string_member (d,"_created"));
     			  json_object_remove_member (d, "_created");
       		        }
+
+  		      /* TODO - alternativeDate type="expire_date" */
 
     		      if (json_object_has_member (d, "objectType") == FALSE
 			  && json_object_has_member (d, REQUEST_OBJ_TYPE) == TRUE)
@@ -10805,6 +10843,8 @@ request_global_get_portable_listings_record_relationship (DSHttpdClient * client
           json_object_remove_member (on_obj, "_created");
         }
 
+      /* TODO - alternativeDate type="expire_date" */
+
       if (json_object_has_member (on_obj, "objectType") == FALSE
           && json_object_has_member (on_obj, REQUEST_OBJ_TYPE) == TRUE)
         {
@@ -10861,6 +10901,8 @@ request_global_get_portable_listings_record_relationship (DSHttpdClient * client
       			      json_object_set_string_member (d, "updated", json_object_get_string_member (d,"_created"));
       			      json_object_remove_member (d, "_created");
         		    }
+
+      		 	  /* TODO - alternativeDate type="expire_date" */
 
       			  if (json_object_has_member (d, "objectType") == FALSE
 			      && json_object_has_member (d, REQUEST_OBJ_TYPE) == TRUE)

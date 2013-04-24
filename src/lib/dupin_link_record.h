@@ -30,19 +30,19 @@ int		dupin_link_record_select_total_cb
         "SELECT count(id) FROM Dupin WHERE id = '%q' "
 
 #define DUPIN_LINKB_SQL_INSERT \
-        "INSERT INTO Dupin (id, rev, hash, obj, tm, context_id, label, href, rel, tag, is_weblink) " \
-        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%q', %Q, %Q, '%q')"
+        "INSERT INTO Dupin (id, rev, hash, obj, tm, expire_tm, context_id, label, href, rel, tag, is_weblink) " \
+        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%" G_GSIZE_FORMAT "', '%" G_GSIZE_FORMAT "', '%q', '%q', '%q', %Q, %Q, '%q')"
 
 #define DUPIN_LINKB_SQL_UPDATE \
-        "INSERT OR REPLACE INTO Dupin (id, rev, hash, obj, tm, context_id, label, href, rel, tag, is_weblink) " \
-        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%q', %Q, %Q, '%q')"
+        "INSERT OR REPLACE INTO Dupin (id, rev, hash, obj, tm, expire_tm, context_id, label, href, rel, tag, is_weblink) " \
+        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%" G_GSIZE_FORMAT "', '%" G_GSIZE_FORMAT "', '%q', '%q', '%q', %Q, %Q, '%q')"
 
 #define DUPIN_LINKB_SQL_READ \
-        "SELECT rev, hash, obj, deleted, tm, ROWID AS rowid, context_id, label, href, rel, tag, is_weblink FROM Dupin WHERE id='%q'"
+        "SELECT rev, hash, obj, deleted, tm, expire_tm, ROWID AS rowid, context_id, label, href, rel, tag, is_weblink FROM Dupin WHERE id='%q'"
 
 #define DUPIN_LINKB_SQL_DELETE \
-        "INSERT OR REPLACE INTO Dupin (id, rev, deleted, hash, obj, tm, context_id, label, href, rel, tag, is_weblink) " \
-        "VALUES('%q', '%" G_GSIZE_FORMAT "', 'TRUE', '%q', '{}', '%" G_GSIZE_FORMAT "', '%q', '%q', '%q', %Q, %Q, '%q')"
+        "INSERT OR REPLACE INTO Dupin (id, rev, deleted, hash, obj, tm, expire_tm, context_id, label, href, rel, tag, is_weblink) " \
+        "VALUES('%q', '%" G_GSIZE_FORMAT "', 'TRUE', '%q', '{}', '%" G_GSIZE_FORMAT "', '%" G_GSIZE_FORMAT "', '%q', '%q', '%q', %Q, %Q, '%q')"
 
 #define DUPIN_LINKB_SQL_UPDATE_REV_HEAD \
         "UPDATE Dupin SET rev_head = 'FALSE' WHERE id = '%q' "
@@ -267,6 +267,9 @@ gsize 	        dupin_link_record_get_rowid
 gsize		dupin_link_record_get_created
 					(DupinLinkRecord * record);
 
+gsize		dupin_link_record_get_expire
+					(DupinLinkRecord * record);
+
 /* Public Revision API of DupinLinkRecord: */
 
 gchar *		dupin_link_record_get_last_revision
@@ -298,6 +301,10 @@ void		dupin_link_record_get_revisions_list_close
 					(GList *		list);
 
 gboolean	dupin_link_record_is_deleted
+					(DupinLinkRecord *	record,
+					 gchar *		mvcc);
+
+gboolean	dupin_link_record_is_expired
 					(DupinLinkRecord *	record,
 					 gchar *		mvcc);
 

@@ -1949,6 +1949,15 @@ dupin_view_sync_thread_map_db (DupinView * view, gsize count)
           json_object_set_string_member (obj, "_created", created);
           g_free (created);
 
+	  if (json_object_has_member (obj, "_expire") == TRUE)
+            json_object_remove_member (obj, "_expire"); // ignore any record one if set by user, ever
+ 	  if (dupin_record_get_expire (list->data) != 0)
+	    {
+              gchar * expire = dupin_date_timestamp_to_iso8601 (dupin_record_get_expire (list->data));
+              json_object_set_string_member (obj, "_expire", expire);
+              g_free (expire);
+	    }
+
 	  if (json_object_has_member (obj, "_type") == TRUE)
             json_object_remove_member (obj, "_type"); // ignore any record one if set by user, ever
           json_object_set_string_member (obj, "_type", (gchar *)dupin_record_get_type (list->data));
@@ -2131,6 +2140,15 @@ dupin_view_sync_thread_map_linkb (DupinView * view, gsize count)
 	  gchar * created = dupin_date_timestamp_to_iso8601 (dupin_link_record_get_created (list->data));
           json_object_set_string_member (obj, "_created", created);
           g_free (created);
+
+          if (json_object_has_member (obj, "_expire") == TRUE)
+            json_object_remove_member (obj, "_expire"); // ignore any record one if set by user, ever
+	  if (dupin_link_record_get_expire (list->data) != 0)
+            {
+	      gchar * expire = dupin_date_timestamp_to_iso8601 (dupin_link_record_get_expire (list->data));
+              json_object_set_string_member (obj, "_expire", expire);
+              g_free (expire);
+	    }
 
 	  if (json_object_has_member (obj, "_context_id") == TRUE)
             json_object_remove_member (obj, "_context_id"); // ignore any record one if set by user, ever

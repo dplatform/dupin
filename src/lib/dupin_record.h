@@ -27,19 +27,19 @@ int		dupin_record_select_total_cb
         "SELECT count(id) FROM Dupin WHERE id = '%q' "
 
 #define DUPIN_DB_SQL_INSERT \
-        "INSERT INTO Dupin (id, rev, hash, type, obj, tm) " \
-        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', %Q, '%q', '%" G_GSIZE_FORMAT "')"
+        "INSERT INTO Dupin (id, rev, hash, type, obj, tm, expire_tm) " \
+        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', %Q, '%q', '%" G_GSIZE_FORMAT "', '%" G_GSIZE_FORMAT "')"
 
 #define DUPIN_DB_SQL_UPDATE \
-        "INSERT OR REPLACE INTO Dupin (id, rev, hash, type, obj, tm) " \
-        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', %Q, '%q', '%" G_GSIZE_FORMAT "')"
+        "INSERT OR REPLACE INTO Dupin (id, rev, hash, type, obj, tm, expire_tm) " \
+        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', %Q, '%q', '%" G_GSIZE_FORMAT "', '%" G_GSIZE_FORMAT "')"
 
 #define DUPIN_DB_SQL_READ \
-        "SELECT rev, hash, type, obj, deleted, tm, ROWID AS rowid FROM Dupin WHERE id='%q'"
+        "SELECT rev, hash, type, obj, deleted, tm, expire_tm, ROWID AS rowid FROM Dupin WHERE id='%q'"
 
 #define DUPIN_DB_SQL_DELETE \
-        "INSERT OR REPLACE INTO Dupin (id, rev, deleted, hash, type, obj, tm) " \
-        "VALUES('%q', '%" G_GSIZE_FORMAT "', 'TRUE', '%q', %Q, '{}', '%" G_GSIZE_FORMAT "')"
+        "INSERT OR REPLACE INTO Dupin (id, rev, deleted, hash, type, obj, tm, expire_tm) " \
+        "VALUES('%q', '%" G_GSIZE_FORMAT "', 'TRUE', '%q', %Q, '{}', '%" G_GSIZE_FORMAT "', '%" G_GSIZE_FORMAT "')"
 
 #define DUPIN_DB_SQL_UPDATE_REV_HEAD \
         "UPDATE Dupin SET rev_head = 'FALSE' WHERE id = '%q' "
@@ -135,6 +135,9 @@ gsize 	        dupin_record_get_rowid	(DupinRecord *		record);
 gsize		dupin_record_get_created
 					(DupinRecord * record);
 
+gsize		dupin_record_get_expire
+					(DupinRecord * record);
+
 /* Public Revision API of DupinRecord: */
 
 gchar *		dupin_record_get_last_revision
@@ -166,6 +169,9 @@ void		dupin_record_get_revisions_list_close
 					(GList *		list);
 
 gboolean	dupin_record_is_deleted	(DupinRecord *		record,
+					 gchar *		mvcc);
+
+gboolean	dupin_record_is_expired	(DupinRecord *		record,
 					 gchar *		mvcc);
 
 /* insert = create or update */

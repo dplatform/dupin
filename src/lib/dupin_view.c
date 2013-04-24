@@ -110,8 +110,6 @@ See http://wiki.apache.org/couchdb/Introduction_to_CouchDB_views
 
 static gchar *dupin_view_generate_id (DupinView * view, GError ** error, gboolean lock);
 
-static int dupin_view_record_delete_cb (void *data, int argc, char **argv, char **col);
-
 gchar **
 dupin_get_views (Dupin * d)
 {
@@ -936,17 +934,6 @@ dupin_view_generate_id (DupinView * view,
    g_rw_lock_writer_unlock (view->rwlock);
 
   return NULL;
-}
-
-static int
-dupin_view_record_delete_cb (void *data, int argc, char **argv, char **col)
-{
-  gsize *numb = data;
-
-  if (argv[0] && *argv[0])
-    *numb = (gsize) g_ascii_strtoll (argv[0], NULL, 10);
-
-  return 0;
 }
 
 void

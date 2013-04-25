@@ -228,12 +228,12 @@ dupin_webkit_map (DupinWebKit *  js,
   buffer = g_string_append (buffer, ");\n");
   b = g_string_free (buffer, FALSE);
 
-/*
-  g_message("MAP:\n");
+#if DUPIN_VIEW_DEBUG
+  g_message("dupin_webkit_map():\n");
   g_message("\tscript is: %s\n",js_code);
   g_message("\tjs_json_doc is: %s\n",js_json_doc);
   g_message("\twhole is: %s\n",b);
-*/
+#endif
 
   str = JSStringCreateWithUTF8CString (b);
   result = JSEvaluateScript (js->ctx, str, NULL, NULL, 0, &js_exception);
@@ -312,9 +312,10 @@ dupin_webkit_map (DupinWebKit *  js,
 
 	  JsonNode * result_node = json_node_new (JSON_NODE_ARRAY);
           json_node_set_array (result_node, mapResults);
-/*
-	  g_message("mapResults: %s\n", dupin_util_json_serialize (result_node));
-*/
+
+#if DUPIN_VIEW_DEBUG
+	  g_message("dupin_webkit_map(): mapResults: %s\n", dupin_util_json_serialize (result_node));
+#endif
 
           JSPropertyNameArrayRelease (maps_names);
 
@@ -406,14 +407,14 @@ dupin_webkit_reduce (DupinWebKit *  js,
   buffer = g_string_append (buffer, ");\n");
   b = g_string_free (buffer, FALSE);
 
-/*
-  g_message("REDUCE:\n");
+#if DUPIN_VIEW_DEBUG
+  g_message("dupin_webkit_reduce():\n");
   g_message("\tscript is: %s\n",js_code);
   g_message("\tjs_json_keys is: %s\n",js_json_keys);
   g_message("\tjs_json_values is: %s\n",js_json_values);
   g_message("\trereduce is: %s\n",rereduce_param);
   g_message("\twhole is: %s\n",b);
-*/
+#endif
 
   str = JSStringCreateWithUTF8CString (b);
   result = JSEvaluateScript (js->ctx, str, NULL, NULL, 0, &js_exception);
@@ -458,9 +459,10 @@ dupin_webkit_reduce (DupinWebKit *  js,
       dupin_webkit_value (js->ctx, reduce_results, &result_node);
 
       /* debug print what's there */
-/*
-      g_message("reduceResult: %s\n", dupin_util_json_serialize (result_node));
-*/
+
+#if DUPIN_VIEW_DEBUG
+      g_message("dupin_webkit_reduce(): reduceResult: %s\n", dupin_util_json_serialize (result_node));
+#endif
 
       return result_node;
     }

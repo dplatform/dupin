@@ -1827,11 +1827,91 @@ dupin_view_sync_thread_real_map (DupinView * view, GList * list)
     }
 }
 
+static int
+dupin_view_remap_cb (void *data, int argc, char **argv, char **col)
+{
+  JsonNode  * pids_to_remap = data;
+  JsonArray * pids_to_remap_array = json_node_get_array (pids_to_remap);
+
+  if (argv[0] && *argv[0])
+    {
+      JsonNode * pid = json_node_new (JSON_NODE_VALUE);
+      json_node_set_string (pid, argv[0]);
+
+      json_array_add_element (pids_to_remap_array, pid);
+    }
+
+  return 0;
+}
+
+/* NOTE - Check if we have any record to remap as part of a reduced view where one of the
+	  pids has been deleted i.e. need to regenerate the end result with remaing parts */
+
+JsonNode *
+dupin_view_remap (DupinView * view,
+		  gsize count)
+{
+  g_return_val_if_fail (view != NULL, NULL);
+
+  gchar * errmsg;
+
+  if (dupin_view_engine_get_reduce_code (view->engine) != NULL)
+    {
+      JsonNode * pids_to_remap = json_node_new (JSON_NODE_ARRAY);
+      JsonArray * pids_to_remap_array = json_array_new ();
+      json_node_take_array (pids_to_remap, pids_to_remap_array);
+
+      gchar * query = sqlite3_mprintf ("SELECT pid, id AS vid FROM DupinPid2Id WHERE id IS NOT (SELECT id FROM Dupin WHERE id=vid) LIMIT %" G_GSIZE_FORMAT, count);
+
+      g_rw_lock_reader_lock (view->rwlock);
+
+      if (sqlite3_exec (view->db, query, dupin_view_remap_cb, pids_to_remap, &errmsg) != SQLITE_OK)
+        {
+          g_rw_lock_reader_unlock (view->rwlock);
+
+          g_error ("dupin_view_remap: %s", errmsg);
+          sqlite3_free (errmsg);
+
+          sqlite3_free (query);
+
+	  if (pids_to_remap != NULL)
+	    json_node_free (pids_to_remap);
+
+          return NULL;
+        }
+
+      g_rw_lock_reader_unlock (view->rwlock);
+
+      sqlite3_free (query);
+
+      if (json_array_get_length (pids_to_remap_array) != 0)
+        {
+
+#if DUPIN_VIEW_DEBUG
+          DUPIN_UTIL_DUMP_JSON ("Found the following PIDs to remap", pids_to_remap);
+#endif
+
+	  return pids_to_remap;
+        }
+      else
+        {
+          if (pids_to_remap != NULL)
+            json_node_free (pids_to_remap);
+
+          return NULL;
+        }
+    }
+  else
+    {
+      return NULL;
+    }
+}
+
 static gboolean
-dupin_view_sync_thread_map_db (DupinView * view, gsize count)
+dupin_view_sync_thread_map_db (DupinView * view,
+			       gsize count)
 {
   gchar * sync_map_id = NULL;
-  gsize rowid;
   gchar * errmsg;
   DupinDB *db;
   GList *results, *list;
@@ -1840,41 +1920,81 @@ dupin_view_sync_thread_map_db (DupinView * view, gsize count)
   gboolean ret = TRUE;
 
   gchar *str;
+  gchar * query = NULL;
+
+  JsonNode * pids_to_remap = dupin_view_remap (view, count);
+
+  gsize start_rowid = 1;
 
   if (!(db = dupin_database_open (view->d, view->parent, NULL)))
-    return FALSE;
-
-  /* get last position we reduced and get anything up to count after that */
-  gchar * query = "SELECT sync_map_id as c FROM DupinView LIMIT 1";
-
-  g_rw_lock_reader_lock (view->rwlock);
-
-  if (sqlite3_exec (view->db, query, dupin_view_sync_cb, &sync_map_id, &errmsg) != SQLITE_OK)
     {
+      if (pids_to_remap != NULL)
+        json_node_free (pids_to_remap);
+
+      return FALSE;
+    }
+
+  if (pids_to_remap != NULL)
+    { 
+      GList * keys = NULL;
+
+      if ((!(keys = json_array_get_elements (json_node_get_array (pids_to_remap)))) ||
+	  (dupin_record_get_list (db, count, 0, start_rowid, 0, keys, NULL, NULL, TRUE, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE, NULL, DP_FILTERBY_EQUALS,
+				NULL, DP_FIELDS_FORMAT_DOTTED, DP_FILTERBY_EQUALS, NULL, &results, NULL) == FALSE) ||
+	  (!results))
+        {
+          json_node_free (pids_to_remap);
+
+          if (keys != NULL)
+            g_list_free (keys);
+
+          dupin_database_unref (db);
+
+          return FALSE;
+        }
+
+      if (keys != NULL)
+        g_list_free (keys);
+    }
+  else
+    {
+      /* get last position we reduced and get anything up to count after that */
+
+      query = "SELECT sync_map_id as c FROM DupinView LIMIT 1";
+
+      g_rw_lock_reader_lock (view->rwlock);
+
+      if (sqlite3_exec (view->db, query, dupin_view_sync_cb, &sync_map_id, &errmsg) != SQLITE_OK)
+        {
+          g_rw_lock_reader_unlock (view->rwlock);
+
+          g_error("dupin_view_sync_thread_map_db: %s", errmsg);
+          sqlite3_free (errmsg);
+
+          dupin_database_unref (db);
+
+          return FALSE;
+        }
+
       g_rw_lock_reader_unlock (view->rwlock);
 
-      g_error("dupin_view_sync_thread_map_db: %s", errmsg);
-      sqlite3_free (errmsg);
-
-      dupin_database_unref (db);
-      return FALSE;
-    }
-
-  g_rw_lock_reader_unlock (view->rwlock);
-
-  gsize start_rowid = (sync_map_id != NULL) ? (gsize) g_ascii_strtoll (sync_map_id, NULL, 10)+1 : 1;
-
-  if (dupin_record_get_list (db, count, 0, start_rowid, 0, NULL, NULL, NULL, TRUE, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE, NULL, DP_FILTERBY_EQUALS,
-				NULL, DP_FIELDS_FORMAT_DOTTED, DP_FILTERBY_EQUALS, NULL, &results, NULL) == FALSE || !results)
-    {
       if (sync_map_id != NULL)
-        g_free(sync_map_id);
-      dupin_database_unref (db);
-      return FALSE;
-    }
+        start_rowid = (gsize) g_ascii_strtoll (sync_map_id, NULL, 10)+1;
 
-  if (g_list_length (results) != count)
-    ret = FALSE;
+      if (dupin_record_get_list (db, count, 0, start_rowid, 0, NULL, NULL, NULL, TRUE, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE, NULL, DP_FILTERBY_EQUALS,
+				NULL, DP_FIELDS_FORMAT_DOTTED, DP_FILTERBY_EQUALS, NULL, &results, NULL) == FALSE || !results)
+        {
+          if (sync_map_id != NULL)
+            g_free(sync_map_id);
+
+          dupin_database_unref (db);
+
+          return FALSE;
+        }
+
+      if (g_list_length (results) != count)
+        ret = FALSE;
+    }
 
 #if DUPIN_VIEW_DEBUG
   g_rw_lock_reader_lock (view->rwlock);
@@ -1931,16 +2051,19 @@ dupin_view_sync_thread_map_db (DupinView * view, gsize count)
       data->pid = json_node_new (JSON_NODE_ARRAY);
       JsonArray *pid_array=json_array_new ();
 
-      rowid = dupin_record_get_rowid (list->data);
+      if (pids_to_remap == NULL)
+        {
+          gsize rowid = dupin_record_get_rowid (list->data);
 
-      if (sync_map_id != NULL)
-        g_free(sync_map_id);
+          if (sync_map_id != NULL)
+            g_free(sync_map_id);
         
-      sync_map_id = g_strdup_printf ("%i", (gint)rowid);
+          sync_map_id = g_strdup_printf ("%i", (gint)rowid);
 
 #if DUPIN_VIEW_DEBUG
-      //g_message("dupin_view_sync_thread_map_db(%p/%s) sync_map_id=%s as fetched",g_thread_self (), view->name, sync_map_id);
+          g_message("dupin_view_sync_thread_map_db(%p/%s) sync_map_id=%s as fetched",g_thread_self (), view->name, sync_map_id);
 #endif
+        }
 
       json_array_add_string_element (pid_array, (gchar *) dupin_record_get_id (list->data));
       json_node_take_array (data->pid, pid_array);
@@ -1963,58 +2086,72 @@ dupin_view_sync_thread_map_db (DupinView * view, gsize count)
   g_list_free (l);
   dupin_record_get_list_close (results);
 
+  if (pids_to_remap == NULL)
+    {
+
 #if DUPIN_VIEW_DEBUG
-  g_message("dupin_view_sync_thread_map_db() view %s sync_map_id=%s as to be stored",view->name, sync_map_id);
-  g_message("dupin_view_sync_thread_map_db(%p/%s)  finished last_map_rowid=%s - mapped %d\n", g_thread_self (), view->name, sync_map_id, (gint)sync_map_processed_count);
+      g_message("dupin_view_sync_thread_map_db() view %s sync_map_id=%s as to be stored",view->name, sync_map_id);
+      g_message("dupin_view_sync_thread_map_db(%p/%s)  finished last_map_rowid=%s - mapped %d\n", g_thread_self (), view->name, sync_map_id, (gint)sync_map_processed_count);
 #endif
 
-  str = sqlite3_mprintf ("UPDATE DupinView SET sync_map_id = '%q'", sync_map_id);
+      str = sqlite3_mprintf ("UPDATE DupinView SET sync_map_id = '%q'", sync_map_id);
 
-  if (sync_map_id != NULL)
-    g_free (sync_map_id);
+      if (sync_map_id != NULL)
+        g_free (sync_map_id);
 
-  g_rw_lock_writer_lock (view->rwlock);
+      g_rw_lock_writer_lock (view->rwlock);
 
-  if (dupin_view_begin_transaction (view, NULL) < 0)
-    {
+      if (dupin_view_begin_transaction (view, NULL) < 0)
+        {
+          g_rw_lock_writer_unlock (view->rwlock);
+          sqlite3_free (str);
+
+          dupin_database_unref (db);
+
+          return FALSE;
+        }
+
+      if (sqlite3_exec (view->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
+        {
+          g_rw_lock_writer_unlock (view->rwlock);
+          sqlite3_free (str);
+
+          dupin_database_unref (db);
+
+          g_error("dupin_view_sync_thread_map_db: %s", errmsg);
+          sqlite3_free (errmsg);
+
+          dupin_view_rollback_transaction (view, NULL);
+
+          return FALSE;
+        }
+
+      if (dupin_view_commit_transaction (view, NULL) < 0)
+        {
+          g_rw_lock_writer_unlock (view->rwlock);
+          sqlite3_free (str);
+
+          dupin_database_unref (db);
+
+          return FALSE;
+        }
+
       g_rw_lock_writer_unlock (view->rwlock);
+
       sqlite3_free (str);
-
-      dupin_database_unref (db);
-
-      return FALSE;
     }
-
-  if (sqlite3_exec (view->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
+  else
     {
-      g_rw_lock_writer_unlock (view->rwlock);
-      sqlite3_free (str);
 
-      dupin_database_unref (db);
+#if DUPIN_VIEW_DEBUG
+      g_message("dupin_view_sync_thread_map_db(%p/%s)  remapped %d\n", g_thread_self (), view->name, (gint)sync_map_processed_count);
+#endif
 
-      g_error("dupin_view_sync_thread_map_db: %s", errmsg);
-      sqlite3_free (errmsg);
-
-      dupin_view_rollback_transaction (view, NULL);
-
-      return FALSE;
+      json_node_free (pids_to_remap);
     }
-
-  if (dupin_view_commit_transaction (view, NULL) < 0)
-    {
-      g_rw_lock_writer_unlock (view->rwlock);
-      sqlite3_free (str);
-
-      dupin_database_unref (db);
-
-      return FALSE;
-    }
-
-  g_rw_lock_writer_unlock (view->rwlock);
-
-  sqlite3_free (str);
 
   dupin_database_unref (db);
+
   return ret;
 }
 
@@ -2022,7 +2159,6 @@ static gboolean
 dupin_view_sync_thread_map_linkb (DupinView * view, gsize count)
 {
   gchar * sync_map_id = NULL;
-  gsize rowid;
   gchar * errmsg;
   DupinLinkB *linkb;
   GList *results, *list;
@@ -2031,42 +2167,83 @@ dupin_view_sync_thread_map_linkb (DupinView * view, gsize count)
   gboolean ret = TRUE;
 
   gchar *str;
+  gchar * query = NULL;
+
+  JsonNode * pids_to_remap = dupin_view_remap (view, count);
+
+  gsize start_rowid = 1;
 
   if (!(linkb = dupin_linkbase_open (view->d, view->parent, NULL)))
-    return FALSE;
-
-  /* get last position we reduced and get anything up to count after that */
-  gchar * query = "SELECT sync_map_id as c FROM DupinView LIMIT 1";
-  g_rw_lock_reader_lock (view->rwlock);
-
-  if (sqlite3_exec (view->db, query, dupin_view_sync_cb, &sync_map_id, &errmsg) != SQLITE_OK)
     {
+      if (pids_to_remap != NULL)
+        json_node_free (pids_to_remap);
+
+      return FALSE;
+    }
+
+  if (pids_to_remap != NULL)
+    { 
+      GList * keys = NULL;
+
+      if ((!(keys = json_array_get_elements (json_node_get_array (pids_to_remap)))) ||
+	  (dupin_link_record_get_list (linkb, count, 0, start_rowid, 0, DP_LINK_TYPE_ANY, keys, NULL, NULL, TRUE, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE,
+                                  NULL, NULL, DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS,
+                                  NULL, DP_FILTERBY_EQUALS, NULL, DP_FIELDS_FORMAT_DOTTED, DP_FILTERBY_EQUALS, NULL, &results, NULL) == FALSE) ||
+	  (!results))
+        {
+          json_node_free (pids_to_remap);
+
+          if (keys != NULL)
+            g_list_free (keys);
+
+          dupin_linkbase_unref (linkb);
+
+          return FALSE;
+        }
+
+      if (keys != NULL)
+        g_list_free (keys);
+    }
+  else
+    {
+      /* get last position we reduced and get anything up to count after that */
+
+      query = "SELECT sync_map_id as c FROM DupinView LIMIT 1";
+
+      g_rw_lock_reader_lock (view->rwlock);
+
+      if (sqlite3_exec (view->db, query, dupin_view_sync_cb, &sync_map_id, &errmsg) != SQLITE_OK)
+        {
+          g_rw_lock_reader_unlock (view->rwlock);
+
+          g_error("dupin_view_sync_thread_map_linkb: %s", errmsg);
+          sqlite3_free (errmsg);
+
+          dupin_linkbase_unref (linkb);
+
+          return FALSE;
+        }
+
       g_rw_lock_reader_unlock (view->rwlock);
 
-      g_error("dupin_view_sync_thread_map_linkb: %s", errmsg);
-      sqlite3_free (errmsg);
-
-      dupin_linkbase_unref (linkb);
-      return FALSE;
-    }
-
-  g_rw_lock_reader_unlock (view->rwlock);
-
-  gsize start_rowid = (sync_map_id != NULL) ? (gsize) g_ascii_strtoll (sync_map_id, NULL, 10)+1 : 1;
-
-  if (dupin_link_record_get_list (linkb, count, 0, start_rowid, 0, DP_LINK_TYPE_ANY, NULL, NULL, NULL, TRUE, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE,
-				  NULL, NULL, DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS,
-				  NULL, DP_FILTERBY_EQUALS, NULL, DP_FIELDS_FORMAT_DOTTED, DP_FILTERBY_EQUALS, NULL, &results, NULL) ==
-      FALSE || !results)
-    {
       if (sync_map_id != NULL)
-        g_free(sync_map_id);
-      dupin_linkbase_unref (linkb);
-      return FALSE;
-    }
+        start_rowid = (gsize) g_ascii_strtoll (sync_map_id, NULL, 10)+1;
 
-  if (g_list_length (results) != count)
-    ret = FALSE;
+      if (dupin_link_record_get_list (linkb, count, 0, start_rowid, 0, DP_LINK_TYPE_ANY, NULL, NULL, NULL, TRUE, DP_COUNT_EXIST, DP_ORDERBY_ROWID, FALSE,
+				  NULL, NULL, DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS, NULL, DP_FILTERBY_EQUALS,
+				  NULL, DP_FILTERBY_EQUALS, NULL, DP_FIELDS_FORMAT_DOTTED, DP_FILTERBY_EQUALS, NULL, &results, NULL) == FALSE || !results)
+        {
+          if (sync_map_id != NULL)
+            g_free(sync_map_id);
+
+          dupin_linkbase_unref (linkb);
+
+          return FALSE;
+        }
+
+      if (g_list_length (results) != count)
+        ret = FALSE;
+    }
 
 #if DUPIN_VIEW_DEBUG
   g_rw_lock_reader_lock (view->rwlock);
@@ -2137,16 +2314,19 @@ dupin_view_sync_thread_map_linkb (DupinView * view, gsize count)
       data->pid = json_node_new (JSON_NODE_ARRAY);
       JsonArray *pid_array=json_array_new ();
 
-      rowid = dupin_link_record_get_rowid (list->data);
+      if (pids_to_remap == NULL)
+        {
+          gsize rowid = dupin_link_record_get_rowid (list->data);
 
-      if (sync_map_id != NULL)
-        g_free(sync_map_id);
+          if (sync_map_id != NULL)
+            g_free(sync_map_id);
         
-      sync_map_id = g_strdup_printf ("%i", (gint)rowid);
+          sync_map_id = g_strdup_printf ("%i", (gint)rowid);
 
 #if DUPIN_VIEW_DEBUG
-      //g_message("dupin_view_sync_thread_map_linkb(%p/%s) sync_map_id=%s as fetched", g_thread_self (), view->name, sync_map_id);
+          g_message("dupin_view_sync_thread_map_linkb(%p/%s) sync_map_id=%s as fetched", g_thread_self (), view->name, sync_map_id);
 #endif
+        }
 
       json_array_add_string_element (pid_array, (gchar *) dupin_link_record_get_id (list->data));
       json_node_take_array (data->pid, pid_array);
@@ -2169,58 +2349,72 @@ dupin_view_sync_thread_map_linkb (DupinView * view, gsize count)
   g_list_free (l);
   dupin_link_record_get_list_close (results);
 
+  if (pids_to_remap == NULL)
+    {
+
 #if DUPIN_VIEW_DEBUG
-  g_message("dupin_view_sync_thread_map_linkb() view %s sync_map_id=%s as to be stored",view->name, sync_map_id);
-  g_message("dupin_view_sync_thread_map_linkb(%p/%s)  finished last_map_rowid=%s - mapped %d\n", g_thread_self (), view->name, sync_map_id, (gint)sync_map_processed_count);
+      g_message("dupin_view_sync_thread_map_linkb() view %s sync_map_id=%s as to be stored",view->name, sync_map_id);
+      g_message("dupin_view_sync_thread_map_linkb(%p/%s)  finished last_map_rowid=%s - mapped %d\n", g_thread_self (), view->name, sync_map_id, (gint)sync_map_processed_count);
 #endif
 
-  str = sqlite3_mprintf ("UPDATE DupinView SET sync_map_id = '%q'", sync_map_id);
+      str = sqlite3_mprintf ("UPDATE DupinView SET sync_map_id = '%q'", sync_map_id);
 
-  if (sync_map_id != NULL)
-    g_free (sync_map_id);
+      if (sync_map_id != NULL)
+        g_free (sync_map_id);
 
-  g_rw_lock_writer_lock (view->rwlock);
+      g_rw_lock_writer_lock (view->rwlock);
 
-  if (dupin_view_begin_transaction (view, NULL) < 0)
-    {
+      if (dupin_view_begin_transaction (view, NULL) < 0)
+        {
+          g_rw_lock_writer_unlock (view->rwlock);
+          sqlite3_free (str);
+
+          dupin_linkbase_unref (linkb);
+
+          return FALSE;
+        }
+
+      if (sqlite3_exec (view->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
+        {
+          g_rw_lock_writer_unlock (view->rwlock);
+          sqlite3_free (str);
+
+          dupin_linkbase_unref (linkb);
+
+          g_error("dupin_view_sync_thread_map_linkb: %s", errmsg);
+          sqlite3_free (errmsg);
+
+          dupin_view_rollback_transaction (view, NULL);
+
+          return FALSE;
+        }
+
+      if (dupin_view_commit_transaction (view, NULL) < 0)
+        {
+          g_rw_lock_writer_unlock (view->rwlock);
+          sqlite3_free (str);
+
+          dupin_linkbase_unref (linkb);
+
+          return FALSE;
+        }
+
       g_rw_lock_writer_unlock (view->rwlock);
+
       sqlite3_free (str);
-
-      dupin_linkbase_unref (linkb);
-
-      return FALSE;
     }
-
-  if (sqlite3_exec (view->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
+  else
     {
-      g_rw_lock_writer_unlock (view->rwlock);
-      sqlite3_free (str);
 
-      dupin_linkbase_unref (linkb);
+#if DUPIN_VIEW_DEBUG
+      g_message("dupin_view_sync_thread_map_linkb(%p/%s)  remapped %d\n", g_thread_self (), view->name, (gint)sync_map_processed_count);
+#endif
 
-      g_error("dupin_view_sync_thread_map_linkb: %s", errmsg);
-      sqlite3_free (errmsg);
-
-      dupin_view_rollback_transaction (view, NULL);
-
-      return FALSE;
+      json_node_free (pids_to_remap);
     }
-
-  if (dupin_view_commit_transaction (view, NULL) < 0)
-    {
-      g_rw_lock_writer_unlock (view->rwlock);
-      sqlite3_free (str);
-
-      dupin_linkbase_unref (linkb);
-
-      return FALSE;
-    }
-
-  g_rw_lock_writer_unlock (view->rwlock);
-
-  sqlite3_free (str);
 
   dupin_linkbase_unref (linkb);
+
   return ret;
 }
 
@@ -2228,52 +2422,95 @@ static gboolean
 dupin_view_sync_thread_map_view (DupinView * view, gsize count)
 {
   DupinView *v;
+  gchar *errmsg;
   GList *results, *list;
   gchar * sync_map_id = NULL;
-  gsize rowid;
 
   GList *l = NULL;
   gboolean ret = TRUE;
 
   gchar *str;
-  gchar *errmsg;
+  gchar * query = NULL;
+
+  JsonNode * pids_to_remap = dupin_view_remap (view, count);
+
+  gsize start_rowid = 1;
 
   if (!(v = dupin_view_open (view->d, view->parent, NULL)))
-    return FALSE;
-
-  /* get last position we reduced and get anything up to count after that */
-  gchar * query = "SELECT sync_map_id as c FROM DupinView LIMIT 1";
-  g_rw_lock_reader_lock (view->rwlock);
-
-  if (sqlite3_exec (view->db, query, dupin_view_sync_cb, &sync_map_id, &errmsg) != SQLITE_OK)
     {
+      if (pids_to_remap != NULL)
+        json_node_free (pids_to_remap);
+
+      return FALSE;
+    }
+
+  if (pids_to_remap != NULL)
+    { 
+      GList * keys = NULL;
+
+      if ((!(keys = json_array_get_elements (json_node_get_array (pids_to_remap)))) ||
+          (dupin_view_record_get_list (v, count, 0, start_rowid, 0, DP_ORDERBY_ROWID, FALSE, keys, NULL, NULL, TRUE, NULL, NULL, TRUE,
+					NULL, DP_FIELDS_FORMAT_DOTTED, DP_FILTERBY_EQUALS, NULL, &results, NULL) == FALSE) ||
+	  (!results))
+        {
+          json_node_free (pids_to_remap);
+
+          if (keys != NULL)
+            g_list_free (keys);
+
+          dupin_view_unref (v);
+
+          return FALSE;
+        }
+
+      if (keys != NULL)
+        g_list_free (keys);
+    }
+  else
+    {
+      /* get last position we reduced and get anything up to count after that */
+
+      query = "SELECT sync_map_id as c FROM DupinView LIMIT 1";
+
+      g_rw_lock_reader_lock (view->rwlock);
+
+      if (sqlite3_exec (view->db, query, dupin_view_sync_cb, &sync_map_id, &errmsg) != SQLITE_OK)
+        {
+          g_rw_lock_reader_unlock (view->rwlock);
+
+          g_error("dupin_view_sync_thread_map_view: %s", errmsg);
+          sqlite3_free (errmsg);
+
+          dupin_view_unref (v);
+
+          return FALSE;
+        }
+
       g_rw_lock_reader_unlock (view->rwlock);
 
-      g_error("dupin_view_sync_thread_map_view: %s", errmsg);
-      sqlite3_free (errmsg);
-
-      dupin_view_unref (v);
-      return FALSE;
-    }
-
-  g_rw_lock_reader_unlock (view->rwlock);
-
-  gsize start_rowid = (sync_map_id != NULL) ? (gsize) g_ascii_strtoll (sync_map_id, NULL, 10)+1 : 1;
-
-  if (dupin_view_record_get_list (v, count, 0, start_rowid, 0, DP_ORDERBY_ROWID, FALSE, NULL, NULL, NULL, TRUE, NULL, NULL, TRUE,
-					NULL, DP_FIELDS_FORMAT_DOTTED, DP_FILTERBY_EQUALS, NULL, &results, NULL) ==
-      FALSE || !results)
-    {
       if (sync_map_id != NULL)
-        g_free(sync_map_id);
-      dupin_view_unref (v);
-      return FALSE;
-    }
+        start_rowid = (gsize) g_ascii_strtoll (sync_map_id, NULL, 10)+1;
 
-  if (g_list_length (results) != count)
-    ret = FALSE;
+      if (dupin_view_record_get_list (v, count, 0, start_rowid, 0, DP_ORDERBY_ROWID, FALSE, NULL, NULL, NULL, TRUE, NULL, NULL, TRUE,
+					NULL, DP_FIELDS_FORMAT_DOTTED, DP_FILTERBY_EQUALS, NULL, &results, NULL) == FALSE || !results)
+        {
+          if (sync_map_id != NULL)
+            g_free(sync_map_id);
+
+          dupin_view_unref (v);
+
+          return FALSE;
+        }
+
+      if (g_list_length (results) != count)
+        ret = FALSE;
+    }
 
 #if DUPIN_VIEW_DEBUG
+  g_rw_lock_reader_lock (view->rwlock);
+  gsize sync_map_processed_count = view->sync_map_processed_count;
+  g_rw_lock_reader_unlock (view->rwlock);
+
   g_message("dupin_view_sync_thread_map_view(%p/%s)    g_list_length (results) = %d\n", g_thread_self (), view->name, (gint) g_list_length (results) );
 #endif
 
@@ -2299,26 +2536,29 @@ dupin_view_sync_thread_map_view (DupinView * view, gsize count)
       data->pid = json_node_new (JSON_NODE_ARRAY);
       JsonArray *pid_array=json_array_new ();
 
-      /* NOTE - key not set for dupin_view_sync_thread_map_db() - see dupin_view_sync_thread_map_view() instead */
+      if (pids_to_remap == NULL)
+        {
+          gsize rowid = dupin_view_record_get_rowid (list->data);
 
-      rowid = dupin_record_get_rowid (list->data);
-
-      if (sync_map_id != NULL)
-        g_free(sync_map_id);
+          if (sync_map_id != NULL)
+            g_free(sync_map_id);
         
-      sync_map_id = g_strdup_printf ("%i", (gint)rowid);
+          sync_map_id = g_strdup_printf ("%i", (gint)rowid);
+
+#if DUPIN_VIEW_DEBUG
+          g_message("dupin_view_sync_thread_map_view(%p/%s) sync_map_id=%s as fetched",g_thread_self (), view->name, sync_map_id);
+#endif
+        }
 
       json_array_add_string_element (pid_array, (gchar *) dupin_view_record_get_id (list->data));
       json_node_take_array (data->pid, pid_array);
-
-#if DUPIN_VIEW_DEBUG
-      //g_message("dupin_view_sync_thread_map_view() view %s sync_map_id=%s as fetched",view->name, sync_map_id);
-#endif
 
       JsonNode * key = dupin_view_record_get_key (list->data);
 
       if (key)
         data->key = json_node_copy (key);
+
+      /* NOTE - key not set for dupin_view_sync_thread_map_db() - see dupin_view_sync_thread_map_view() instead */
 
       l = g_list_append (l, data);
     }
@@ -2338,61 +2578,75 @@ dupin_view_sync_thread_map_view (DupinView * view, gsize count)
   g_list_free (l);
   dupin_view_record_get_list_close (results);
 
+  if (pids_to_remap == NULL)
+    {
+
 #if DUPIN_VIEW_DEBUG
   g_message("dupin_view_sync_thread_map_view() view %s sync_map_id=%s as to be stored",view->name, sync_map_id);
 #endif
 
-  str = sqlite3_mprintf ("UPDATE DupinView SET sync_map_id = '%q'", sync_map_id);
+      str = sqlite3_mprintf ("UPDATE DupinView SET sync_map_id = '%q'", sync_map_id);
 
-  if (sync_map_id != NULL)
-    g_free (sync_map_id);
+      if (sync_map_id != NULL)
+        g_free (sync_map_id);
 
 #if DUPIN_VIEW_DEBUG
-  g_message("dupin_view_sync_thread_map_view() view %s query=%s\n",view->name, str);
+      g_message("dupin_view_sync_thread_map_view() view %s query=%s\n",view->name, str);
 #endif
 
-  g_rw_lock_writer_lock (view->rwlock);
+      g_rw_lock_writer_lock (view->rwlock);
 
-  if (dupin_view_begin_transaction (view, NULL) < 0)
-    {
+      if (dupin_view_begin_transaction (view, NULL) < 0)
+        {
+          g_rw_lock_writer_unlock (view->rwlock);
+          sqlite3_free (str);
+
+          dupin_view_unref (v);
+
+          return FALSE;
+        }
+
+      if (sqlite3_exec (view->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
+        {
+          g_rw_lock_writer_unlock (view->rwlock);
+          sqlite3_free (str);
+
+          dupin_view_unref (v);
+
+          g_error("dupin_view_sync_thread_map_view: %s", errmsg);
+          sqlite3_free (errmsg);
+
+          dupin_view_rollback_transaction (view, NULL);
+
+          return FALSE;
+        }
+
+      if (dupin_view_commit_transaction (view, NULL) < 0)
+        {
+          g_rw_lock_writer_unlock (view->rwlock);
+          sqlite3_free (str);
+
+          dupin_view_unref (v);
+
+          return FALSE;
+        }
+
       g_rw_lock_writer_unlock (view->rwlock);
+
       sqlite3_free (str);
-
-      dupin_view_unref (v);
-
-      return FALSE;
     }
-
-  if (sqlite3_exec (view->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
+  else
     {
-      g_rw_lock_writer_unlock (view->rwlock);
-      sqlite3_free (str);
 
-      dupin_view_unref (v);
+#if DUPIN_VIEW_DEBUG
+      g_message("dupin_view_sync_thread_map_view(%p/%s)  remapped %d\n", g_thread_self (), view->name, (gint)sync_map_processed_count);
+#endif
 
-      g_error("dupin_view_sync_thread_map_view: %s", errmsg);
-      sqlite3_free (errmsg);
-
-      dupin_view_rollback_transaction (view, NULL);
-
-      return FALSE;
+      json_node_free (pids_to_remap);
     }
-
-  if (dupin_view_commit_transaction (view, NULL) < 0)
-    {
-      g_rw_lock_writer_unlock (view->rwlock);
-      sqlite3_free (str);
-
-      dupin_view_unref (v);
-
-      return FALSE;
-    }
-
-  g_rw_lock_writer_unlock (view->rwlock);
-
-  sqlite3_free (str);
 
   dupin_view_unref (v);
+
   return ret;
 }
 

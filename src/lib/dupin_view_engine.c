@@ -154,11 +154,20 @@ dupin_view_engine_record_map (DupinViewEngine * engine,
 
 	/* TODO - we should really make sure escaping from JSON to Javascript structures is transferred right - and returned clean JSON too */
 
+#if DUPIN_VIEW_DEBUG
+	DUPIN_UTIL_DUMP_JSON ("dupin_view_engine_record_map(): OBJ", obj);
+        g_message ("dupin_view_engine_record_map(): buffer=%s\n", buffer);
+#endif
+
 	result = dupin_webkit_map (engine->runtime.javascript.webkit,
 				   buffer,
 			           dupin_view_engine_get_map_code (engine),
 				   NULL);
 	g_free (buffer);
+
+#if DUPIN_VIEW_DEBUG
+	DUPIN_UTIL_DUMP_JSON ("dupin_view_engine_record_map(): result", result);
+#endif
 
 	return result;
       }
@@ -214,6 +223,14 @@ dupin_view_engine_record_reduce (DupinViewEngine * engine,
             return NULL;
           }
 
+#if DUPIN_VIEW_DEBUG
+	DUPIN_UTIL_DUMP_JSON ("dupin_view_engine_record_reduce(): keys", keys);
+        g_message ("dupin_view_engine_record_reduce(): buffer_keys=%s\n", buffer_keys);
+
+	DUPIN_UTIL_DUMP_JSON ("dupin_view_engine_record_reduce(): values", values);
+        g_message ("dupin_view_engine_record_reduce(): buffer_values=%s\n", buffer_values);
+#endif
+
 	/* TODO - check that keys and values are plural here */
 
 	/* TODO - we should really make sure escaping from JSON to Javascript structures is transferred right - and returned clean JSON too */
@@ -229,6 +246,10 @@ dupin_view_engine_record_reduce (DupinViewEngine * engine,
           g_free (buffer_keys);
 
         g_free (buffer_values);
+
+#if DUPIN_VIEW_DEBUG
+	DUPIN_UTIL_DUMP_JSON ("dupin_view_engine_record_reduce(): result", result);
+#endif
 
 	return result;
       }

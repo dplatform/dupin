@@ -685,21 +685,10 @@ dupin_view_p_record_delete (DupinViewP * p, gchar * pid)
   for (i = 0; i < p->numb; i++)
     {
       DupinView *view = p->views[i];
+
       dupin_view_p_record_delete (&view->views, pid);
 
-      /* NOTE - check if deletes queue is full and need to be flushed first */
-
-      if (view->deletes_queue_size >= DUPIN_VIEW_DELETES_QUEUE_MAXSIZE)
-        dupin_view_record_delete (view);
-
-      /* NOTE - add 'pid' to the deletes queue */
-
-#if DUPIN_VIEW_DEBUG
-      g_message("dupin_view_p_record_delete: %s added pid %s to delete queue\n",view->name, pid);
-#endif
-
-      view->deletes_queue = g_list_prepend (view->deletes_queue, g_strdup (pid));
-      view->deletes_queue_size++;
+      dupin_view_record_delete (view, pid);
 
       /* TODO - delete any PID where 'pid' is context_id or href of links; and viceversa */
     }
@@ -937,12 +926,15 @@ dupin_view_generate_id (DupinView * view,
 }
 
 void
-dupin_view_record_delete (DupinView * view)
+dupin_view_record_delete (DupinView * view,
+			  gchar * pid)
 {
+  g_return_if_fail (view != NULL);
+  g_return_if_fail (pid != NULL);
+
   gchar *query;
   gchar *errmsg;
   gsize max_rowid;
-  GList *list;
   
   /* NOTE - we get max_rowid in a separate transaction, in worse case it will be incremented
 	    since last fetch, pretty safe */
@@ -967,74 +959,54 @@ dupin_view_record_delete (DupinView * view)
 
   gchar * max_rowid_str = g_strdup_printf ("%d", (gint)max_rowid);
 
-  for (list = view->deletes_queue; list != NULL; list = list->next)
+  //query = sqlite3_mprintf ("DELETE FROM Dupin WHERE ROWID <= %q AND pid LIKE '%%\"%q\"%%' ;", max_rowid_str, pid);
+  query = sqlite3_mprintf ("DELETE FROM Dupin WHERE ROWID <= %q AND id IN (SELECT id FROM DupinPid2Id WHERE pid = '%q') ;", max_rowid_str, pid);
+
+#if DUPIN_VIEW_DEBUG
+  g_message("dupin_view_record_delete: view %s query=%s\n",view->name, query);
+#endif
+
+  if (sqlite3_exec (view->db, query, NULL, NULL, &errmsg) != SQLITE_OK)
     {
-      gchar * pid = (gchar *)list->data;
+      g_rw_lock_writer_unlock (view->rwlock);
 
-      //query = sqlite3_mprintf ("DELETE FROM Dupin WHERE ROWID <= %q AND pid LIKE '%%\"%q\"%%' ;", max_rowid_str, pid);
-      query = sqlite3_mprintf ("DELETE FROM Dupin WHERE ROWID <= %q AND id IN (SELECT id FROM DupinPid2Id WHERE pid = '%q') ;", max_rowid_str, pid);
+      g_error("dupin_view_record_delete: %s for pid %s", errmsg, pid);
+      sqlite3_free (errmsg);
 
-#if DUPIN_VIEW_DEBUG
-      g_message("dupin_view_record_delete: view %s query=%s\n",view->name, query);
-#endif
-
-      if (sqlite3_exec (view->db, query, NULL, NULL, &errmsg) != SQLITE_OK)
-        {
-          g_rw_lock_writer_unlock (view->rwlock);
-
-          g_error("dupin_view_record_delete: %s for pid %s", errmsg, pid);
-          sqlite3_free (errmsg);
-
-          dupin_view_rollback_transaction (view, NULL);
-          g_free (max_rowid_str);
-          sqlite3_free (query);
-
-   	  g_free (pid);
-          view->deletes_queue = g_list_delete_link (view->deletes_queue, list);
-	  view->deletes_queue_size--;
-
-          return;
-        }
-
+      dupin_view_rollback_transaction (view, NULL);
+      g_free (max_rowid_str);
       sqlite3_free (query);
 
-      /* NOTE - clean up pid <-> id table too */
-
-      query = sqlite3_mprintf ("DELETE FROM DupinPid2Id WHERE pid = '%q' ;", pid);
-
-#if DUPIN_VIEW_DEBUG
-      g_message("dupin_view_record_delete: view %s query=%s\n",view->name, query);
-#endif
-
-      if (sqlite3_exec (view->db, query, NULL, NULL, &errmsg) != SQLITE_OK)
-        {
-          g_rw_lock_writer_unlock (view->rwlock);
-
-          g_error("dupin_view_record_delete: %s for pid %s", errmsg, pid);
-          sqlite3_free (errmsg);
-
-          dupin_view_rollback_transaction (view, NULL);
-          g_free (max_rowid_str);
-          sqlite3_free (query);
-
-   	  g_free (pid);
-          view->deletes_queue = g_list_delete_link (view->deletes_queue, list);
-	  view->deletes_queue_size--;
-
-          return;
-        }
-
-      sqlite3_free (query);
+      return;
     }
 
+  sqlite3_free (query);
+
+  /* NOTE - clean up pid <-> id table too */
+
+  query = sqlite3_mprintf ("DELETE FROM DupinPid2Id WHERE pid = '%q' ;", pid);
+
+#if DUPIN_VIEW_DEBUG
+  g_message("dupin_view_record_delete: view %s query=%s\n",view->name, query);
+#endif
+
+  if (sqlite3_exec (view->db, query, NULL, NULL, &errmsg) != SQLITE_OK)
+    {
+      g_rw_lock_writer_unlock (view->rwlock);
+
+      g_error("dupin_view_record_delete: %s for pid %s", errmsg, pid);
+      sqlite3_free (errmsg);
+
+      dupin_view_rollback_transaction (view, NULL);
+      g_free (max_rowid_str);
+      sqlite3_free (query);
+
+      return;
+    }
+
+  sqlite3_free (query);
+
   g_free (max_rowid_str);
-
-  /* NOTE - clean up and reset the deletes queue */
-
-  g_list_foreach (view->deletes_queue, (GFunc) g_free, NULL);
-  g_list_free (view->deletes_queue);
-  view->deletes_queue = NULL;
-  view->deletes_queue_size = 0;
 
   if (dupin_view_commit_transaction (view, NULL) < 0)
     {
@@ -1046,7 +1018,7 @@ dupin_view_record_delete (DupinView * view)
   g_rw_lock_writer_unlock (view->rwlock);
 
   /* NOTE - delete operations do not need re-index and call map/reduce due we use PIDs of DB
-            or views to delete record in view which where accefted by record delete */
+            or views to delete record in view which where accepted by record delete */
 }
 
 void
@@ -1264,17 +1236,6 @@ dupin_view_disconnect (DupinView * view)
   g_message("dupin_view_disconnect: total number of changes for '%s' view database: %d\n", view->name, (gint)sqlite3_total_changes (view->db));
 #endif
 
-  /* NOTE - make double sure the deletes queue is freed in worse case */
-
-  if (view->deletes_queue != NULL
-      || view->deletes_queue_size > 0)
-    {
-      g_list_foreach (view->deletes_queue, (GFunc) g_free, NULL);
-      g_list_free (view->deletes_queue);
-      view->deletes_queue = NULL;
-      view->deletes_queue_size = 0;
-    }
-
   if (view->db)
     sqlite3_close (view->db);
 
@@ -1363,9 +1324,6 @@ dupin_view_connect (Dupin * d, gchar * name, gchar * path,
   view->path = g_strdup (path);
 
   view->collation_parser = json_parser_new ();
-
-  view->deletes_queue = NULL;
-  view->deletes_queue_size = 0;
 
   view->mutex = g_new0 (GMutex, 1);
   g_mutex_init (view->mutex);
@@ -3542,10 +3500,6 @@ dupin_view_sync (DupinView * view)
     {
       /* TODO - have a master sync thread which manage the all three rather than have chain of
             dependency between map, reduce and re-reduce threads */
-
-      /* NOTE - empty deletes queue before quitting */
-
-      dupin_view_record_delete (view);
 
 #if DUPIN_VIEW_DEBUG
       g_message("dupin_view_sync(%p/%s): push map and reduce threads to respective thread pools\n", g_thread_self (), view->name);

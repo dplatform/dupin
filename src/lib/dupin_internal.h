@@ -9,9 +9,6 @@
 /* see dupin_link_record.c */
 #define DUPIN_LINKS_PATH_CACHE	100000
 
-/* see dupin_view.c dupin_view_record_delete() */
-#define DUPIN_VIEW_DELETES_QUEUE_MAXSIZE	1000
-
 #include "dupin.h"
 
 #include <glib/gstdio.h>
@@ -219,9 +216,6 @@ struct dupin_view_t
 
   gchar *       error_msg;
   gchar *       warning_msg;
-
-  GList *	deletes_queue;
-  guint		deletes_queue_size;
 
   gsize		creation_time;
 };
@@ -488,7 +482,8 @@ void		dupin_view_record_save_map
 				 JsonNode     * obj);
 
 void		dupin_view_record_delete
-				(DupinView *	view);
+				(DupinView *	view,
+				 gchar * pid);
 
 gboolean	dupin_view_record_exists_real
 				(DupinView *	view,

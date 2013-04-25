@@ -29,7 +29,7 @@ See http://wiki.apache.org/couchdb/Introduction_to_CouchDB_views
   "  UNIQUE      (id)\n" \
   ");\n" \
   "CREATE TABLE IF NOT EXISTS DupinPid2Id (\n" \
-  "  pid         CHAR(255) NOT NULL,\n" \
+  "  pid         CHAR(255) NOT NULL PRIMARY KEY,\n" \
   "  id          TEXT NOT NULL\n" \
   ");"
 
@@ -40,7 +40,6 @@ See http://wiki.apache.org/couchdb/Introduction_to_CouchDB_views
   "CREATE INDEX IF NOT EXISTS DupinKey ON Dupin (key);\n" \
   "CREATE INDEX IF NOT EXISTS DupinObj ON Dupin (obj);\n" \
   "CREATE INDEX IF NOT EXISTS DupinKeyObj ON Dupin (key, obj);\n" \
-  "CREATE INDEX IF NOT EXISTS DupinPid2IdPid ON DupinPid2Id (pid);\n" \
   "CREATE INDEX IF NOT EXISTS DupinPid2IdId ON DupinPid2Id (id);"
 
 #define DUPIN_VIEW_SQL_DESC_CREATE \
@@ -59,32 +58,36 @@ See http://wiki.apache.org/couchdb/Introduction_to_CouchDB_views
   "  output_islinkb            BOOL DEFAULT FALSE,\n" \
   "  creation_time   	       CHAR(255) NOT NULL DEFAULT '0'\n" \
   ");\n" \
-  "PRAGMA user_version = 6"
+  "PRAGMA user_version = 7"
 
 #define DUPIN_VIEW_SQL_DESC_UPGRADE_FROM_VERSION_1 \
   "ALTER TABLE Dupin     ADD COLUMN tm INTEGER NOT NULL DEFAULT 0;\n" \
   "ALTER TABLE DupinView ADD COLUMN creation_time CHAR(255) NOT NULL DEFAULT '0';\n" \
   "ALTER TABLE Dupin     ADD COLUMN language CHAR(255) NOT NULL DEFAULT 'javascript';\n" \
-  "PRAGMA user_version = 6"
+  "PRAGMA user_version = 7"
 
 #define DUPIN_VIEW_SQL_DESC_UPGRADE_FROM_VERSION_2 \
   "ALTER TABLE Dupin ADD COLUMN tm INTEGER NOT NULL DEFAULT 0;\n" \
   "ALTER TABLE Dupin ADD COLUMN language CHAR(255) NOT NULL DEFAULT 'javascript';\n" \
-  "PRAGMA user_version = 6"
+  "PRAGMA user_version = 7"
 
 #define DUPIN_VIEW_SQL_DESC_UPGRADE_FROM_VERSION_3 \
   "ALTER TABLE Dupin ADD COLUMN language CHAR(255) NOT NULL DEFAULT 'javascript';\n" \
-  "PRAGMA user_version = 6"
+  "PRAGMA user_version = 7"
 
 /* NOTE - added seq INTEGER PRIMARY KEY AUTOINCREMENT and UNIQUE (id) */
 
 #define DUPIN_VIEW_SQL_DESC_UPGRADE_FROM_VERSION_4 \
-  "PRAGMA user_version = 6"
+  "PRAGMA user_version = 7"
 
 /* NOTE - dropped last_to_delete_id on DupinView */
 
 #define DUPIN_VIEW_SQL_DESC_UPGRADE_FROM_VERSION_5 \
-  "PRAGMA user_version = 6"
+  "PRAGMA user_version = 7"
+
+/* NOTE - set pid as PRIMARY KEY in DupinPid2Id and dropped index DupinPid2IdPid */
+#define DUPIN_VIEW_SQL_DESC_UPGRADE_FROM_VERSION_6 \
+  "PRAGMA user_version = 7"
 
 #define DUPIN_VIEW_SQL_USES_OLD_ROWID \
         "SELECT seq FROM Dupin"
@@ -1461,6 +1464,17 @@ dupin_view_connect (Dupin * d, gchar * name, gchar * path,
   else if (user_version == 5)
     {
       if (sqlite3_exec (view->db, DUPIN_VIEW_SQL_DESC_UPGRADE_FROM_VERSION_5, NULL, NULL, &errmsg) != SQLITE_OK)
+        {
+	  if (error != NULL && *error != NULL)
+            g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s", errmsg);
+          sqlite3_free (errmsg);
+          dupin_view_disconnect (view);
+          return NULL;
+        }
+    }
+  else if (user_version == 6)
+    {
+      if (sqlite3_exec (view->db, DUPIN_VIEW_SQL_DESC_UPGRADE_FROM_VERSION_6, NULL, NULL, &errmsg) != SQLITE_OK)
         {
 	  if (error != NULL && *error != NULL)
             g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s", errmsg);

@@ -628,6 +628,12 @@ dupin_link_record_read_real (DupinLinkB * linkb, gchar * id, GError ** error,
             g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD,
                    "The link record '%s' is expired but can not be deleted. Try to compact the linkbase.", id); 
         }
+      else
+        {
+          if (error != NULL && *error != NULL)
+            g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD,
+                   "The link record '%s' is expired.", id);
+        }
 
       dupin_link_record_close (record);
 
@@ -1987,6 +1993,8 @@ dupin_link_record_update (DupinLinkRecord * record, JsonNode * obj_node,
 
   if (dupin_link_record_is_expired (record, NULL) == TRUE)
     {
+      /* TODO - check if we need to log something or return more meaningful status */
+
       if (!(dupin_link_record_delete (record, NULL)))
         return FALSE;
     }
@@ -2409,6 +2417,10 @@ dupin_link_record_is_expired (DupinLinkRecord * record, gchar * mvcc)
     }
 
   gsize now = dupin_date_timestamp_now (0);
+
+#if DUPIN_DEBUG
+  g_message ("dupin_link_record_is_expired(): r->expire=%" G_GSIZE_FORMAT " <= now=%" G_GSIZE_FORMAT " = %d\n", r->expire, now, (r->expire != 0 && r->expire <= now));
+#endif
   
   return (r->expire != 0 && r->expire <= now) ? TRUE : FALSE;
 }
@@ -2521,10 +2533,14 @@ dupin_link_record_add_revision_obj (DupinLinkRecord * record,
             {
               /* TODO - add check we do not overflow */
 
-	      *expire = created + (gsize) (((gint) json_node_get_int (expire_node)) * G_USEC_PER_SEC);
+	      *expire = created + (gsize) (json_node_get_int (expire_node) * G_USEC_PER_SEC);
             }
           json_object_remove_member (obj, REQUEST_OBJ_EXPIRE_AFTER);
         }
+
+#if DUPIN_DEBUG
+      g_message ("dupin_link_record_add_revision_obj(): created=%" G_GSIZE_FORMAT " expire=%" G_GSIZE_FORMAT "\n", created, *expire);
+#endif
 
       JsonGenerator * gen = json_generator_new();
 

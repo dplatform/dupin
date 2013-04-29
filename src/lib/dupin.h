@@ -405,8 +405,8 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 #define REQUEST_POST_ALL_LINKS          	    REQUEST_ALL_LINKS 
 #define REQUEST_POST_ALL_LINKS_KEYS                 "keys"
 #define REQUEST_POST_BULK_DOCS_DOCS     	    "docs"
-#define REQUEST_POST_BULK_DOCS_USE_LATEST_REVISION  "use_latest_revision"
-#define REQUEST_POST_BULK_DOCS_IGNORE_IF_UNMODIFIED "ignore_updates_if_unmodified"
+#define REQUEST_POST_BULK_DOCS_USE_LATEST_REVISION  "_use_latest_revision"
+#define REQUEST_POST_BULK_DOCS_IGNORE_IF_UNMODIFIED "_ignore_updates_if_unmodified"
 #define REQUEST_POST_COMPACT_DATABASE		    "_compact"
 #define REQUEST_POST_COMPACT_DATABASE_PURGE	    "purge"
 

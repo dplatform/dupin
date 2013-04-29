@@ -202,6 +202,7 @@ static gboolean dupin_link_record_generate_hash	(DupinLinkRecord * record,
                                                  gchar * tag,
 			    		         gboolean delete,
 					         gboolean is_weblink,
+			    			 gsize expire,
 			    		         gchar ** hash, gsize * hash_len);
 
 gboolean
@@ -2560,6 +2561,7 @@ dupin_link_record_add_revision_obj (DupinLinkRecord * record,
 			           tag,
 			           delete,
 			           is_weblink,
+				   *expire,
 			           &obj_hash, &obj_hash_len);
 
   /* NOTE - ignore updates if they are containing exactly the same object data */
@@ -2691,6 +2693,7 @@ dupin_link_record_generate_hash (DupinLinkRecord * record,
                             gchar * tag,
 			    gboolean delete,
 			    gboolean is_weblink,
+			    gsize expire,
 			    gchar ** hash, gsize * hash_len)
 {
   g_return_val_if_fail (record != NULL, FALSE);
@@ -2706,6 +2709,9 @@ dupin_link_record_generate_hash (DupinLinkRecord * record,
 
   /* is web link flag */
   g_string_append_printf (str, "%d", (gint)is_weblink);
+
+  /* expire */
+  g_string_append_printf (str, "%" G_GSIZE_FORMAT, expire);
 
   g_string_append_printf (str, "%s", context_id);
   g_string_append_printf (str, "%s", label);

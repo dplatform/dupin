@@ -39,6 +39,7 @@ static gboolean
                             		 gchar * obj_serialized, gssize obj_serialized_len,
 			    		 gboolean delete,
 			    		 gchar * type,
+			    		 gsize expire,
 			    		 gchar ** hash, gsize * hash_len);
 
 int
@@ -1835,6 +1836,7 @@ dupin_record_add_revision_obj (DupinRecord * record,
 			      obj_serialized, obj_serialized_len,
 			      delete,
 			      type,
+			      *expire,
 			      &obj_hash, &obj_hash_len);
 
   /* NOTE - ignore updates if they are containing exactly the same object data */
@@ -1944,6 +1946,7 @@ dupin_record_generate_hash (DupinRecord * record,
                             gchar * obj_serialized, gssize obj_serialized_len,
 			    gboolean delete,
 			    gchar * type,
+			    gsize expire,
 			    gchar ** hash, gsize * hash_len)
 {
   g_return_val_if_fail (record != NULL, FALSE);
@@ -1959,6 +1962,9 @@ dupin_record_generate_hash (DupinRecord * record,
 
   /* type */
   g_string_append_printf (str, "%s", type);
+
+  /* expire */
+  g_string_append_printf (str, "%" G_GSIZE_FORMAT, expire);
 
   /* attachment hashes for any connected attachment DB */
   DupinAttachmentDBP * p = &record->db->attachment_dbs;

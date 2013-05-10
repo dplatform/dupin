@@ -120,6 +120,11 @@ DSWeblinkingRelationRegistry DSWeblinkingRelationRegistryList[] = {
   {WEBLINKING_RELNAME_TAG, "tag", "Gives a tag (identified by the given address) that applies to the current document."}
   ,
 
+  /* RFC6906 - The 'profile' Link Relation Type */
+
+  {WEBLINKING_RELNAME_PROFILE, "profile", "Identifying that a resource representation conforms to a certain profile, without affecting the non-profile semantics of the resource representation."}
+  ,
+
   {WEBLINKING_RELNAME__END, NULL, NULL}
 };
 

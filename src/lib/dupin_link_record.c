@@ -125,6 +125,19 @@ DSWeblinkingRelationRegistry DSWeblinkingRelationRegistryList[] = {
   {WEBLINKING_RELNAME_PROFILE, "profile", "Identifying that a resource representation conforms to a certain profile, without affecting the non-profile semantics of the resource representation."}
   ,
 
+  /* RFC6903 - Additional Link Relation Types */
+
+  {WEBLINKING_RELNAME_ABOUT, "about", "Refers to a resource that is the subject of the link's context."}
+  ,
+  {WEBLINKING_RELNAME_PREVIEW, "preview", "Refers to a resource that provides a preview of the link's context."}
+  ,
+  {WEBLINKING_RELNAME_PRIVACY_POLICY, "privacy-policy", "Refers to a privacy policy associated with the link's context."}
+  ,
+  {WEBLINKING_RELNAME_TERMS_OF_SERVICE, "terms-of-service", "Refers to the terms of service associated with the link's context."}
+  ,
+  {WEBLINKING_RELNAME_TYPE, "type", "Refers to a resource identifying the abstract semantic type of which the link's context is considered to be an instance."}
+  ,
+
   {WEBLINKING_RELNAME__END, NULL, NULL}
 };
 

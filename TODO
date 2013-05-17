@@ -57,3 +57,7 @@
   - Add Connection: keep-alive and Transfer-Encoding: chunked on input
 - Bulk API
   - Add "all_or_nothing" to rollback/commit super transaction
+- Add dot-notation parsing to linkbase "rel" so we can define "nested relationships"; incuding serialisation.
+- PortableListings
+  - Rename updated to entryUpdated
+  - Implement listFields, listWeblinks and listRelationships

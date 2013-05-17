@@ -138,6 +138,13 @@ DSWeblinkingRelationRegistry DSWeblinkingRelationRegistryList[] = {
   {WEBLINKING_RELNAME_TYPE, "type", "Refers to a resource identifying the abstract semantic type of which the link's context is considered to be an instance."}
   ,
 
+  /* RFC6573 - The Item and Collection Link Relations */
+
+  {WEBLINKING_RELNAME_COLLECTION, "collection", "The target IRI points to a resource which represents the collection resource for the context IRI."}
+  ,
+  {WEBLINKING_RELNAME_ITEM, "item", "The target IRI points to a resource that is a member of the collection represented by the context IRI."}
+  ,
+
   {WEBLINKING_RELNAME__END, NULL, NULL}
 };
 

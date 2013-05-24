@@ -59,5 +59,11 @@
   - Add "all_or_nothing" to rollback/commit super transaction
 - Add dot-notation parsing to linkbase "rel" so we can define "nested relationships"; incuding serialisation.
 - PortableListings
-  - Rename updated to entryUpdated
   - Implement listFields, listWeblinks and listRelationships
+  - Add filtered: true/false and ordered: true/false
+  - Add support for ?id={id}
+- Add SQLite ATTACH/DETACH to linkbase and attachment database so can run queries cross docs, links and attachments.
+- Add support / check for multiple CGI query parameters i.e. AND; while comma separated are ORs
+- Add _provider { lang:, priority:, authority: ... } and update ID generator if set
+- Add new ID generator and shortener base36 assigining 3 digits to lang, 1 digit to priority, 6 digits to authority, 3 digits for type and j-digits for ID e.g.
+- Add some kind of 'application/database+sqlite+dupin' mimetype to return a DB bundle/backup/dump useful for reimport, export and replication

@@ -2396,7 +2396,7 @@ request_global_get_record (DSHttpdClient * client,
 	      dupin_database_unref (db);
               dupin_attachment_db_unref (attachment_db);
               g_free (doc_id);
-              request_set_error (client, "Cannot get record revision field");
+              request_set_error (client, "Cannot get requested record field");
 	      return HTTP_STATUS_404;
             }
 
@@ -3886,7 +3886,7 @@ request_global_get_record_linkbase (DSHttpdClient * client,
 	      dupin_link_record_close (record);
 	      dupin_linkbase_unref (linkb);
               g_free (link_id);
-	      request_set_error (client, "Cannot get link record revision field");
+	      request_set_error (client, "Cannot get requested link record field");
 	      return HTTP_STATUS_404;
             }
 

@@ -3558,7 +3558,7 @@ dupin_link_record_insert_bulk (DupinLinkB * linkb,
 
       if (json_node_get_node_type (element_node) != JSON_NODE_OBJECT)
         {
-          dupin_linkbase_set_error (linkb, "Bulk body " REQUEST_POST_BULK_LINKS_LINKS " array memebr is not a valid JSON object");
+          dupin_linkbase_set_error (linkb, "Bulk body " REQUEST_POST_BULK_LINKS_LINKS " array member is not a valid JSON object");
           g_list_free (nodes);
 
           g_rw_lock_writer_lock (linkb->rwlock);

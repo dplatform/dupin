@@ -2977,7 +2977,7 @@ dupin_record_insert_bulk (DupinDB * db,
 
       if (json_node_get_node_type (element_node) != JSON_NODE_OBJECT)
         {
-          dupin_database_set_error (db, "Bulk body " REQUEST_POST_BULK_DOCS_DOCS " array memebr is not a valid JSON object");
+          dupin_database_set_error (db, "Bulk body " REQUEST_POST_BULK_DOCS_DOCS " array member is not a valid JSON object");
           g_list_free (nodes);
 
           g_rw_lock_writer_lock (dupin_database_get_default_linkbase (db)->rwlock);

@@ -67,3 +67,11 @@
 - Add _provider { lang:, priority:, authority: ... } and update ID generator if set
 - Add new ID generator and shortener base36 assigining 3 digits to lang, 1 digit to priority, 6 digits to authority, 3 digits for type and j-digits for ID e.g.
 - Add some kind of 'application/database+sqlite+dupin' mimetype to return a DB bundle/backup/dump useful for reimport, export and replication
+- Linkbases
+  - Add "_role" to disambiguate role of target in context for same entity; or rename "_tag" to "_role" due it is empty by default
+  - Add "_hreflang"
+  - Add "_primary" flag
+  - Add check that same href+rel+role+hreflang can be set between two entities when rel="alternate" (default)
+  - Add missing rel types from IANA registry http://www.iana.org/assignments/link-relations/link-relations.xml
+- Attachments
+  - Add ?attachments=true support

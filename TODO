@@ -39,7 +39,7 @@
   - use libcurl instead of libsoup for HTTP/S client requests in src/lib/dupin_js.c
   - remove libxml dependency and stick to JSON config (or INI/TXT).
 - Caching:
-  - Add ETag and If-None-Match headers and negotiation to methods
+  - Fix _all_docs when passing "include_links" and links are changed/added; so ETag should reflect that
 - Add simple triggers/handlers at start view map/reduce and finish to generate SQLite indexes
   or proper INSERT/DELETE/UPDATE statements to be used by API E.g. Portable Listings.
 - Look into using json-glib Serializable Interface to build a configurable layer on top of
@@ -75,3 +75,5 @@
   - Add missing rel types from IANA registry http://www.iana.org/assignments/link-relations/link-relations.xml
 - Attachments
   - Add ?attachments=true support
+- Record expiring
+  - How to revoke expiring? Set expire to zero? or delete field/s? What about if expire at and expir after are both set?

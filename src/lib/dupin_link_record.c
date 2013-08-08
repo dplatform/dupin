@@ -2559,6 +2559,12 @@ dupin_link_record_add_revision_obj (DupinLinkRecord * record,
             {
               /* TODO - add check we do not overflow */
 
+	      if (ignore_updates_if_unmodified == TRUE &&
+                  record->last)
+                {
+                  created = record->last->created;
+                }
+
 	      *expire = created + (gsize) (json_node_get_int (expire_node) * G_USEC_PER_SEC);
             }
           json_object_remove_member (obj, REQUEST_OBJ_EXPIRE_AFTER);

@@ -3177,12 +3177,12 @@ dupin_link_record_insert (DupinLinkB * linkb,
   DupinLinkRecord *record=NULL;
 
   gchar * mvcc=NULL;
-  gchar * json_record_id;
-  gchar * json_record_label;
-  gchar * json_record_href;
-  gchar * json_record_rel;
-  gchar * json_record_tag;
-  gchar * json_record_context_id;
+  gchar * json_record_id=NULL;
+  gchar * json_record_label=NULL;
+  gchar * json_record_href=NULL;
+  gchar * json_record_rel=NULL;
+  gchar * json_record_tag=NULL;
+  gchar * json_record_context_id=NULL;
 
   if (caller_mvcc != NULL)
     {

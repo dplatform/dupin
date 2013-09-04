@@ -2927,6 +2927,54 @@ dupin_link_record_insert_extract_tag (DupinLinkB * linkb, JsonNode * obj_node)
 }
 
 static gchar *
+dupin_link_record_insert_extract_context_id (DupinLinkB * linkb, JsonNode * obj_node)
+{
+  g_return_val_if_fail (linkb != NULL, FALSE);
+
+  gchar *ret = NULL;
+  JsonNode *node;
+  JsonObject *obj;
+
+  g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, NULL);
+
+  obj = json_node_get_object (obj_node);
+
+  if (json_object_has_member (obj, REQUEST_LINK_OBJ_CONTEXT_ID) == FALSE)
+    return NULL;
+
+  node = json_object_get_member (obj, REQUEST_LINK_OBJ_CONTEXT_ID);
+
+  if (node == NULL)
+    return NULL;
+
+  if (json_node_get_value_type (node) == G_TYPE_STRING) /* check this is correct type */
+    {
+      if (dupin_link_record_util_is_valid_context_id ((gchar *)json_node_get_string (node)) == TRUE)
+        ret = g_strdup (json_node_get_string (node));
+      else
+        {
+          GString * str = g_string_new (NULL);
+          g_string_append_printf (str, "Context Identifier %s is invalid.", json_node_get_string (node));
+          gchar * tmp = g_string_free (str, FALSE);
+          dupin_linkbase_set_warning (linkb, tmp);
+          g_free (tmp);
+        }
+    }
+  else
+    {
+      GString * str = g_string_new (NULL);
+      g_string_append_printf (str, "Context Identifier is of type %s and not string.", json_node_type_name (node));
+      gchar * tmp = g_string_free (str, FALSE);
+      dupin_linkbase_set_warning (linkb, tmp);
+      g_free (tmp);
+    }
+
+  json_object_remove_member (obj, REQUEST_LINK_OBJ_CONTEXT_ID); 
+
+  return ret;
+}
+
+static gchar *
 dupin_link_record_insert_extract_rev (DupinLinkB * linkb, JsonNode * obj_node)
 {
   g_return_val_if_fail (linkb != NULL, FALSE);
@@ -3116,8 +3164,8 @@ dupin_link_record_insert_check_context_id (DupinLinkB * linkb,
 
   if (document_exists == FALSE )
     {
-      //dupin_linkbase_set_warning (linkb, "request_global_post_doc_link: adding a link to a non existing document");
-      return TRUE;
+      dupin_linkbase_set_error (linkb,  "Cannot add a link to a non existing document.");
+      return FALSE;
     }
   else if (document_deleted == TRUE )
     {
@@ -3145,6 +3193,9 @@ dupin_link_record_insert (DupinLinkB * linkb,
 {
   g_return_val_if_fail (linkb != NULL, FALSE);
 
+  if (context_id != NULL)
+    g_return_val_if_fail (dupin_link_record_util_is_valid_context_id (context_id) == TRUE, FALSE);
+
   DupinLinkRecord *record=NULL;
 
   gchar * mvcc=NULL;
@@ -3153,6 +3204,7 @@ dupin_link_record_insert (DupinLinkB * linkb,
   gchar * json_record_href;
   gchar * json_record_rel;
   gchar * json_record_tag;
+  gchar * json_record_context_id;
 
   if (caller_mvcc != NULL)
     {
@@ -3165,6 +3217,14 @@ dupin_link_record_insert (DupinLinkB * linkb,
       return FALSE;
     }
 
+  if (context_id == NULL)
+    {
+      json_record_context_id = dupin_link_record_insert_extract_context_id (linkb, obj_node);
+      context_id = json_record_context_id;
+    }
+
+  g_return_val_if_fail (context_id != NULL, FALSE);
+
   if (strict_links == TRUE)
     {
 //g_message("dupin_link_record_insert: checking context_id=%s\n", context_id);
@@ -3172,7 +3232,12 @@ dupin_link_record_insert (DupinLinkB * linkb,
       gboolean link_ok = dupin_link_record_insert_check_context_id (linkb, context_id);
 
       if (link_ok == FALSE )
-        return FALSE;
+        {
+          if (json_record_context_id)
+            g_free (json_record_context_id);
+
+          return FALSE;
+        }
     }
 
   gboolean to_delete = dupin_link_record_insert_extract_deleted (linkb, obj_node);
@@ -3195,6 +3260,8 @@ dupin_link_record_insert (DupinLinkB * linkb,
           && is_weblink == FALSE)
         {
           g_free (json_record_href);
+	  if (json_record_context_id)
+            g_free (json_record_context_id);
           dupin_linkbase_set_error (linkb, "Expected a web link but a relationship was passed");
           return FALSE;
         }
@@ -3202,6 +3269,8 @@ dupin_link_record_insert (DupinLinkB * linkb,
                && is_weblink == TRUE)
         {
           g_free (json_record_href);
+	  if (json_record_context_id)
+            g_free (json_record_context_id);
           dupin_linkbase_set_error (linkb, "Expected a relationship but a web link was passed");
           return FALSE;
         }
@@ -3232,6 +3301,8 @@ dupin_link_record_insert (DupinLinkB * linkb,
             json_node_free (record_response_node);
           if (json_record_href)
             g_free (json_record_href);
+	  if (json_record_context_id)
+            g_free (json_record_context_id);
           return FALSE;
         }
 
@@ -3250,6 +3321,8 @@ dupin_link_record_insert (DupinLinkB * linkb,
         json_node_free (record_response_node);
       if (json_record_href)
         g_free (json_record_href);
+      if (json_record_context_id)
+        g_free (json_record_context_id);
       return FALSE;
     }
 
@@ -3262,6 +3335,7 @@ dupin_link_record_insert (DupinLinkB * linkb,
 //g_message("dupin_link_record_insert: json_record_href=%s\n", json_record_href);
 //g_message("dupin_link_record_insert: json_record_rel=%s\n", json_record_rel);
 //g_message("dupin_link_record_insert: json_record_tag=%s\n", json_record_tag);
+//g_message("dupin_link_record_insert: json_record_context_id=%s\n", json_record_context_id);
 
   if (mvcc != NULL
       || (id && use_latest_revision == TRUE))
@@ -3358,11 +3432,15 @@ dupin_link_record_insert (DupinLinkB * linkb,
               if (json_record_tag)
                 g_free (json_record_tag);
 
+              if (json_record_context_id)
+                g_free (json_record_context_id);
+
               if (mvcc != NULL)
                 g_free (mvcc);
 
               if (record_response_node != NULL)
                 json_node_free (record_response_node);
+
               if (json_record_href)
                 g_free (json_record_href);
 
@@ -3405,6 +3483,9 @@ dupin_link_record_insert (DupinLinkB * linkb,
   if (json_record_tag)
     g_free (json_record_tag);
 
+  if (json_record_context_id)
+    g_free (json_record_context_id);
+
   if (json_record_id)
     g_free (json_record_id);
 
@@ -3442,6 +3523,7 @@ dupin_link_record_insert (DupinLinkB * linkb,
 
       if (record_response_node != NULL)
         json_node_free (record_response_node);
+
       return FALSE;
     }
 
@@ -3469,8 +3551,6 @@ dupin_link_record_insert (DupinLinkB * linkb,
   return TRUE;
 }
 
-/* NOTE - we do insert links only and always if a context_id is set ahead (passed to function) and not read from the JSON ever */
-
 /* NOTE - receive an object containing an array of objects, and return an array of objects as result */
 
 gboolean
@@ -3484,8 +3564,9 @@ dupin_link_record_insert_bulk (DupinLinkB * linkb,
   			       GError ** error)
 {
   g_return_val_if_fail (linkb != NULL, FALSE);
-  g_return_val_if_fail (context_id != NULL, FALSE);
-  g_return_val_if_fail (dupin_link_record_util_is_valid_context_id (context_id) == TRUE, FALSE);
+
+  if (context_id != NULL)
+    g_return_val_if_fail (dupin_link_record_util_is_valid_context_id (context_id) == TRUE, FALSE);
 
   JsonObject *obj;
   JsonNode *node;
@@ -3494,7 +3575,7 @@ dupin_link_record_insert_bulk (DupinLinkB * linkb,
 
   /* NOTE - check links once per bulk if requested */
 
-  if (strict_links == TRUE)
+  if (context_id != NULL && strict_links == TRUE)
     {
 //g_message("dupin_link_record_insert_bulk: checking context_id=%s\n", context_id);
 
@@ -3584,7 +3665,7 @@ dupin_link_record_insert_bulk (DupinLinkB * linkb,
       if (json_object_has_member (json_node_get_object (element_node), REQUEST_OBJ_REV) == TRUE)
         rev = g_strdup ((gchar *)json_object_get_string_member (json_node_get_object (element_node), REQUEST_OBJ_REV));
 
-      if (dupin_link_record_insert (linkb, element_node, NULL, NULL, context_id, DP_LINK_TYPE_ANY, response_list, FALSE, use_latest_revision, ignore_updates_if_unmodified, error) == FALSE)
+      if (dupin_link_record_insert (linkb, element_node, NULL, NULL, context_id, DP_LINK_TYPE_ANY, response_list, strict_links, use_latest_revision, ignore_updates_if_unmodified, error) == FALSE)
         {
           /* NOTE - we report errors inline in the JSON response */
 

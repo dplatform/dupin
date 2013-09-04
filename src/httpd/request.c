@@ -5392,6 +5392,10 @@ static DSHttpStatusCode request_global_post_bulk_doc_links (DSHttpdClient * clie
 						            GList * path,
 						            GList * arguments);
 
+static DSHttpStatusCode request_global_post_bulk_links (DSHttpdClient * client,
+						        GList * path,
+						        GList * arguments);
+
 static DSHttpStatusCode request_global_post_all_docs_linkbase (DSHttpdClient * client,
 						       GList * path,
 						       GList * arguments);
@@ -5441,10 +5445,14 @@ request_global_post (DSHttpdClient * client,
 
           /* POST /_linkbs/linkbase/_all_docs */
           if (!g_strcmp0 (path->next->next->data, REQUEST_POST_ALL_LINKS))
-            return request_global_post_all_docs_linkbase (client, path, arguments);
+            return request_global_post_all_docs_linkbase (client, path->next, arguments);
+
+          /* POST /_linkbs/linkbase/_bulk_docs */
+          if (!g_strcmp0 (path->next->next->data, REQUEST_POST_BULK_DOCS))
+            return request_global_post_bulk_links (client, path->next, arguments);
         }
 
-      request_set_error (client, "POST /_linkbs allowed commands are: /_linkbs/linkbase/_all_docs, /_linkbs/linkbase/_compact and /_linkbs/linkbase/_check");
+      request_set_error (client, "POST /_linkbs allowed commands are: /_linkbs/linkbase/_all_docs, /_linkbs/linkbase/_bulk_docs, /_linkbs/linkbase/_compact and /_linkbs/linkbase/_check");
 
       return HTTP_STATUS_400;
     }
@@ -5983,6 +5991,146 @@ request_global_post_bulk_doc_links (DSHttpdClient * client,
   dupin_database_unref (db);
 
 request_global_post_bulk_doc_links_end:
+
+  if (parser != NULL)
+    g_object_unref (parser);
+
+  return code;
+}
+
+static DSHttpStatusCode
+request_global_post_bulk_links (DSHttpdClient * client,
+				GList * path,
+			        GList * arguments)
+{
+  JsonNode *node;
+  JsonNode * sub_node = NULL;
+  GError *error = NULL;
+  GList *response_list=NULL;
+  DupinLinkB * linkb=NULL; 
+  gboolean strict_links = FALSE;
+  GList * l=NULL;
+  gboolean use_latest_revision = FALSE;
+  gboolean ignore_updates_if_unmodified = FALSE;
+
+  DSHttpStatusCode code;
+
+  if (!client->body
+      || !path->next)
+    {
+      request_set_error (client, "POST body or path missing");
+      return HTTP_STATUS_400;
+    }
+
+  for (l = arguments; l; l = l->next)
+    {
+      dupin_keyvalue_t *kv = l->data;
+
+      if (!g_strcmp0 (kv->key, REQUEST_STRICT))
+        {
+          if (!g_strcmp0 (kv->value, REQUEST_STRICT_LINKS))
+            {
+              strict_links = true;
+            }
+        }
+
+      else if (!g_strcmp0 (kv->key, REQUEST_POST_BULK_LINKS_USE_LATEST_REVISION)
+	       && !g_strcmp0 (kv->value, "true"))
+	use_latest_revision = TRUE;
+
+      else if (!g_strcmp0 (kv->key, REQUEST_POST_BULK_LINKS_IGNORE_IF_UNMODIFIED)
+	       && !g_strcmp0 (kv->value, "true"))
+	ignore_updates_if_unmodified = TRUE;
+    }
+
+  JsonParser *parser = json_parser_new ();
+
+  if (parser == NULL)
+    {
+      request_set_error (client, "Cannot parse POST body");
+      code = HTTP_STATUS_400;
+      goto request_global_post_bulk_links_end;
+    }
+
+  /* TODO - check any parsing error */
+  if (!json_parser_load_from_data (parser, client->body, client->body_size, &error))
+    {
+      if (error)
+        {
+          request_set_error (client, error->message);
+          g_error_free (error);
+        }
+      code = HTTP_STATUS_400;
+      goto request_global_post_bulk_links_end;
+    }
+
+  node = json_parser_get_root (parser);
+
+  if (node == NULL)
+    {
+      request_set_error (client, "Cannot parse POST body");
+      code = HTTP_STATUS_400;
+      goto request_global_post_bulk_links_end;
+    }
+
+  /* NOTE - posted doc override URL parameters eventually */
+
+  if ((json_node_get_node_type (node) == JSON_NODE_OBJECT) &&
+      (json_object_has_member (json_node_get_object (node), REQUEST_POST_BULK_LINKS_USE_LATEST_REVISION) == TRUE) &&
+      (sub_node = json_object_get_member (json_node_get_object (node), REQUEST_POST_BULK_LINKS_USE_LATEST_REVISION)) &&
+      (json_node_get_node_type (sub_node) == JSON_NODE_VALUE) &&
+      json_node_get_value_type (sub_node) == G_TYPE_BOOLEAN)
+    {
+      use_latest_revision = json_node_get_boolean (sub_node);
+    }
+
+  sub_node = NULL;
+
+  if ((json_node_get_node_type (node) == JSON_NODE_OBJECT) &&
+      (json_object_has_member (json_node_get_object (node), REQUEST_POST_BULK_LINKS_IGNORE_IF_UNMODIFIED) == TRUE) &&
+      (sub_node = json_object_get_member (json_node_get_object (node), REQUEST_POST_BULK_LINKS_IGNORE_IF_UNMODIFIED)) &&
+      (json_node_get_node_type (sub_node) == JSON_NODE_VALUE) &&
+      json_node_get_value_type (sub_node) == G_TYPE_BOOLEAN)
+    {
+      ignore_updates_if_unmodified = json_node_get_boolean (sub_node);
+    }
+
+  /* NOTE - need to get the right linkbase to post to */
+  if (!  (linkb = dupin_linkbase_open (client->thread->data->dupin, path->data, NULL)))
+    {
+      request_set_error (client, "Cannot connect to linkbase");
+      code = HTTP_STATUS_404;
+      goto request_global_post_bulk_links_end;
+    }
+
+  if (dupin_link_record_insert_bulk (linkb, node, NULL, &response_list,
+				     strict_links, use_latest_revision, ignore_updates_if_unmodified, &error) == TRUE)
+    {
+      if (request_record_response (client, response_list, TRUE) == FALSE)
+        {
+	  code = HTTP_STATUS_500;
+          request_set_error (client, "Cannot generate JSON output response");
+        }
+      else
+        {
+	  code = HTTP_STATUS_201;
+        }
+    }
+  else
+    {
+      code = HTTP_STATUS_400;
+      request_set_error (client, dupin_linkbase_get_error (linkb));
+    }
+
+  while (response_list)
+    {
+      json_node_free (response_list->data);
+      response_list = g_list_remove (response_list, response_list->data);
+    }
+
+  dupin_linkbase_unref (linkb);
+
+request_global_post_bulk_links_end:
 
   if (parser != NULL)
     g_object_unref (parser);

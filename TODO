@@ -77,3 +77,4 @@
   - Add ?attachments=true support
 - Record expiring
   - How to revoke expiring? Set expire to zero? or delete field/s? What about if expire at and expir after are both set?
+- On database deletion make sure any changes continuous thread is stopped to avoid "database XXXX flagged for deletion but can't free it due ref is 1"

@@ -3298,7 +3298,7 @@ request_global_get_changes_linkbase (DSHttpdClient * client,
   gsize since = 0;
   DupinChangesType style = DP_CHANGES_MAIN_ONLY;
   DupinChangesFeedType feed = DP_CHANGES_FEED_POLL;
-  gboolean include_links = FALSE;
+  gboolean include_docs = FALSE;
 
   JsonObject * obj;
   JsonNode * node = NULL;
@@ -3377,16 +3377,16 @@ request_global_get_changes_linkbase (DSHttpdClient * client,
               return HTTP_STATUS_400;
             }
         }
-      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_INCLUDE_LINKS))
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_INCLUDE_DOCS))
         {
           if (g_strcmp0 (kv->value,"false") && g_strcmp0 (kv->value,"FALSE") &&
               g_strcmp0 (kv->value,"true") && g_strcmp0 (kv->value,"TRUE"))
             {
-              request_set_error (client, "Invalid " REQUEST_GET_ALL_CHANGES_INCLUDE_LINKS " parameter. Allowed values are: true, false");
+              request_set_error (client, "Invalid " REQUEST_GET_ALL_CHANGES_INCLUDE_DOCS " parameter. Allowed values are: true, false");
               return HTTP_STATUS_400;
             }
 
-          include_links = (!g_strcmp0 (kv->value,"false") || !g_strcmp0 (kv->value,"FALSE")) ? FALSE : TRUE;
+          include_docs = (!g_strcmp0 (kv->value,"false") || !g_strcmp0 (kv->value,"FALSE")) ? FALSE : TRUE;
         }
     }
 
@@ -3428,7 +3428,7 @@ request_global_get_changes_linkbase (DSHttpdClient * client,
 
       client->output.changes_comet.param_limit = count;
       client->output.changes_comet.param_feed = feed;
-      client->output.changes_comet.param_include_links = include_links;
+      client->output.changes_comet.param_include_docs = include_docs;
       client->output.changes_comet.param_context_id = context_id;
       client->output.changes_comet.param_tags = tags;
       client->output.changes_comet.param_tags_op = tags_op;
@@ -3513,7 +3513,7 @@ request_global_get_changes_linkbase (DSHttpdClient * client,
     {
       JsonNode * change = json_node_copy (list->data);
 
-      if (include_links == TRUE)
+      if (include_docs == TRUE)
         {
           JsonObject * on_obj = json_node_get_object (change);
 
@@ -9545,7 +9545,7 @@ request_get_changes_comet_linkbase_next:
               change = list->data;
               on_obj = json_node_get_object (change);
 
-              if (client->output.changes_comet.param_include_links == TRUE)
+              if (client->output.changes_comet.param_include_docs == TRUE)
                 {
                   gchar * record_id   = (gchar *) json_object_get_string_member (on_obj, "id");
                   gchar * record_mvcc = (gchar *) json_object_get_string_member (

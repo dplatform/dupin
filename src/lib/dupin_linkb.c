@@ -1343,7 +1343,6 @@ dupin_linkbase_get_changes_list (DupinLinkB *              linkb,
           str = g_string_append (str, tmp2);
           sqlite3_free (tmp2);
         }
-      /* NOTE - when querying links though if the tag is not passed we do not show them because is a special field */
     }
 
   //str = g_string_append (str, " GROUP BY d.id "); 
@@ -1551,7 +1550,6 @@ dupin_linkbase_get_total_changes
           str = g_string_append (str, tmp2);
           sqlite3_free (tmp2);
         }
-      /* NOTE - when querying links though if the tag is not passed we do not show them because is a special field */
     }
 
   // TODO - check if we need this group by - see above dupin_linkbase_get_changes_list()

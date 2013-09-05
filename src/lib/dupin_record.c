@@ -27,7 +27,7 @@ static gboolean dupin_record_add_revision_obj (DupinRecord * record, guint rev,
 					       gchar ** hash,
 					       JsonNode * obj_node,
 					       gboolean delete,
-					       gsize created,
+					       gsize * created,
 					       gsize * expire,
 			       		       gboolean ignore_updates_if_unmodified);
 static void dupin_record_add_revision_str (DupinRecord * record, guint rev,
@@ -178,7 +178,7 @@ dupin_record_create_with_id_real (DupinDB * db, JsonNode * obj_node,
 
   gsize expire = 0;
 
-  dupin_record_add_revision_obj (record, 1, &md5, obj_node, FALSE, created, &expire, FALSE);
+  dupin_record_add_revision_obj (record, 1, &md5, obj_node, FALSE, &created, &expire, FALSE);
 
   tmp =
     sqlite3_mprintf (DUPIN_DB_SQL_INSERT, id, 1, md5,
@@ -1223,7 +1223,7 @@ dupin_record_update (DupinRecord * record, JsonNode * obj_node,
 
   gsize expire = 0;
 
-  if (dupin_record_add_revision_obj (record, rev, &md5, obj_node, FALSE, created, &expire, ignore_updates_if_unmodified) == FALSE)
+  if (dupin_record_add_revision_obj (record, rev, &md5, obj_node, FALSE, &created, &expire, ignore_updates_if_unmodified) == FALSE)
     {
       g_rw_lock_writer_unlock (record->db->rwlock);
 
@@ -1426,7 +1426,7 @@ dupin_record_delete (DupinRecord * record, GError ** error)
 
   gsize expire = 0;
 
-  dupin_record_add_revision_obj (record, rev, &md5, NULL, TRUE, created, &expire, FALSE);
+  dupin_record_add_revision_obj (record, rev, &md5, NULL, TRUE, &created, &expire, FALSE);
 
   /* NOTE - flag any previous revision as non head - we need this to optimise searches
             and avoid slowness of max(rev) as rev or even nested select like
@@ -1749,13 +1749,17 @@ dupin_record_rev_close (DupinRecordRev * rev)
   g_free (rev);
 }
 
+/* NOTE - the created field passed by the caller may be overriden to the last revision one
+	  when setting _expire_after and if the ignore_updates_if_unmodified flag is set.
+	  So we do not generate a new hash when _expire_after is unchanged. */
+
 static gboolean
 dupin_record_add_revision_obj (DupinRecord * record,
 			       guint rev,
 			       gchar ** hash,
 			       JsonNode * obj_node,
 			       gboolean delete,
-			       gsize created,
+			       gsize * created,
 			       gsize * expire,
 			       gboolean ignore_updates_if_unmodified)
 {
@@ -1817,16 +1821,16 @@ dupin_record_add_revision_obj (DupinRecord * record,
               if (ignore_updates_if_unmodified == TRUE &&
                   record->last)
 	        {
-		  created = record->last->created;
+		  *created = record->last->created;
 		}
 
-	      *expire = created + (gsize) (json_node_get_int (expire_node) * G_USEC_PER_SEC);
+	      *expire = *created + (gsize) (json_node_get_int (expire_node) * G_USEC_PER_SEC);
             }
 	  json_object_remove_member (obj, REQUEST_OBJ_EXPIRE_AFTER);
 	}
 
 #if DUPIN_DEBUG
-      g_message ("dupin_record_add_revision_obj(): created=%" G_GSIZE_FORMAT " expire=%" G_GSIZE_FORMAT "\n", created, *expire);
+      g_message ("dupin_record_add_revision_obj(): created=%" G_GSIZE_FORMAT " expire=%" G_GSIZE_FORMAT "\n", *created, *expire);
 #endif
 
       JsonGenerator * gen = json_generator_new();
@@ -1884,7 +1888,7 @@ dupin_record_add_revision_obj (DupinRecord * record,
   r->mvcc = g_strdup (mvcc);
   r->mvcc_len = strlen (mvcc);
   r->deleted = delete;
-  r->created = created;
+  r->created = *created;
   r->expire = *expire;
 
   /* TODO - double check that the revision record 'r' is freeded properly when hash table disposed */

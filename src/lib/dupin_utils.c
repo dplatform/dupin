@@ -1273,7 +1273,8 @@ dupin_util_poli_get_primary_fields_list_close (GList * primary_fields)
 {
   while (primary_fields)
     {
-      g_free (primary_fields->data);  
+      if (primary_fields->data != NULL) 
+        g_free (primary_fields->data);  
       primary_fields = g_list_remove (primary_fields, primary_fields->data);
     }
 }

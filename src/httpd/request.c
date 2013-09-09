@@ -9352,7 +9352,6 @@ request_get_changes_comet_database_next:
                   DupinRecord * db_record=NULL;
                   if (!(db_record = dupin_record_read (client->output.changes_comet.db, record_id, NULL)))
                     {
-                      json_node_free (change);
                       goto request_get_changes_comet_database_error;
                     }
 
@@ -9362,7 +9361,6 @@ request_get_changes_comet_database_next:
 							    db_record, record_id, record_mvcc,
 							    FALSE)))
                     {
-                      json_node_free (change);
                       goto request_get_changes_comet_database_error;
                     }
 
@@ -9557,7 +9555,6 @@ request_get_changes_comet_linkbase_next:
                   DupinLinkRecord * linkb_record=NULL;
                   if (!(linkb_record = dupin_link_record_read (client->output.changes_comet.linkb, record_id, NULL)))
                     {
-                      json_node_free (change);
                       goto request_get_changes_comet_linkbase_error;
                     }
 
@@ -9567,7 +9564,6 @@ request_get_changes_comet_linkbase_next:
 								  linkb_record, record_id, record_mvcc,
 								  FALSE)))
                     {
-                      json_node_free (change);
                       goto request_get_changes_comet_linkbase_error;
                     }
 

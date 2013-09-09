@@ -644,28 +644,6 @@ dupin_link_record_read_real (DupinLinkB * linkb, gchar * id, GError ** error,
       return NULL;
     }
 
-  /* NOTE - check if record expired and "actively" delete it eventually */
-
-  if (dupin_link_record_is_expired (record, NULL) == TRUE)
-    {
-      if (!(dupin_link_record_delete (record, NULL)))
-        {
-          if (error != NULL && *error != NULL)
-            g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD,
-                   "The link record '%s' is expired but can not be deleted. Try to compact the linkbase.", id); 
-        }
-      else
-        {
-          if (error != NULL && *error != NULL)
-            g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD,
-                   "The link record '%s' is expired.", id);
-        }
-
-      dupin_link_record_close (record);
-
-      return NULL;
-    }
-
   return record;
 }
 
@@ -1992,16 +1970,6 @@ dupin_link_record_update (DupinLinkRecord * record, JsonNode * obj_node,
 			      (gchar *) dupin_link_record_get_id (record),
 			      json_node_get_object (dupin_link_record_get_revision_node (record, NULL)));
 
-
-  /* NOTE - check if record expired and "actively" delete it eventually */
-
-  if (dupin_link_record_is_expired (record, NULL) == TRUE)
-    {
-      /* TODO - check if we need to log something or return more meaningful status */
-
-      if (!(dupin_link_record_delete (record, NULL)))
-        return FALSE;
-    }
 
   return TRUE;
 }

@@ -1722,7 +1722,8 @@ dupin_view_output_insert (DupinView * view, JsonNode * node)
 
       while (response_list)
         {
-          json_node_free (response_list->data);
+	  if (response_list->data != NULL)
+            json_node_free (response_list->data);
           response_list = g_list_remove (response_list, response_list->data);
         } 
 

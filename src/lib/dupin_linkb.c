@@ -1402,7 +1402,8 @@ dupin_linkbase_get_changes_list_close
 {
   while (list)
     {
-      json_node_free (list->data);
+      if (list->data != NULL)
+        json_node_free (list->data);
       list = g_list_remove (list, list->data);
     }
 }
@@ -1654,7 +1655,7 @@ dupin_linkbase_thread_compact (DupinLinkB * linkb, gsize count)
     {
       DupinLinkRecord * record = list->data;
 
-      /* NOTE - check if record expired and "passively" delete it eventually */
+      /* NOTE - check if record expired and delete it eventually */
 
       if (dupin_link_record_is_expired (record, NULL) == TRUE)
         {

@@ -387,28 +387,6 @@ dupin_record_read_real (DupinDB * db, gchar * id, GError ** error,
       return NULL;
     }
 
-  /* NOTE - check if record expired and "actively" delete it eventually */
-
-  if (dupin_record_is_expired (record, NULL) == TRUE)
-    {
-      if (!(dupin_record_delete (record, NULL)))
-	{
-          if (error != NULL && *error != NULL)
-            g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD,
-		   "The record '%s' is expired but can not be deleted. Try to compact the database.", id);
-	}
-      else
-	{
-          if (error != NULL && *error != NULL)
-            g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD,
-		   "The record '%s' is expired.", id);
-	}
-
-      dupin_record_close (record);
-
-      return NULL;
-    }
-
   return record;
 }
 
@@ -1195,7 +1173,8 @@ dupin_record_get_revisions_list_close (GList * list)
 {
   while (list)
     {
-      g_free (list->data);
+      if (list->data != NULL)
+        g_free (list->data);
       list = g_list_remove (list, list->data);
     }
 }
@@ -1352,16 +1331,6 @@ dupin_record_update (DupinRecord * record, JsonNode * obj_node,
   dupin_view_p_record_insert (&record->db->views,
 			      (gchar *) dupin_record_get_id (record),
 			      json_node_get_object (dupin_record_get_revision_node (record, NULL)));
-
-  /* NOTE - check if record expired and "actively" delete it eventually */
-
-  if (dupin_record_is_expired (record, NULL) == TRUE)
-    {
-      /* TODO - check if we need to log something or return more meaningful status */
-
-      if (!(dupin_record_delete (record, NULL)))
-	return FALSE;
-    }
 
   return TRUE;
 }
@@ -2658,7 +2627,8 @@ dupin_record_insert (DupinDB * db,
 
                           while (links_response_list)
                             {
-                              json_node_free (links_response_list->data);
+			      if (links_response_list->data != NULL)
+                                json_node_free (links_response_list->data);
                               links_response_list = g_list_remove (links_response_list, links_response_list->data);
                             }
 
@@ -2798,7 +2768,8 @@ dupin_record_insert (DupinDB * db,
 
                           while (relationships_response_list)
                             {
-                              json_node_free (relationships_response_list->data);
+			      if (relationships_response_list->data != NULL)
+                                json_node_free (relationships_response_list->data);
                               relationships_response_list = g_list_remove (relationships_response_list, relationships_response_list->data);
                             }
 

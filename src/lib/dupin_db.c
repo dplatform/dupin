@@ -1172,7 +1172,8 @@ dupin_database_get_changes_list_close
 {
   while (list)
     {
-      json_node_free (list->data);
+      if (list->data != NULL)
+        json_node_free (list->data);
       list = g_list_remove (list, list->data);
     }
 }
@@ -1390,7 +1391,7 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
     {
       DupinRecord * record = list->data;
 
-      /* NOTE - check if record expired and "passively" delete it eventually */
+      /* NOTE - check if record expired and delete it eventually */
 
       if (dupin_record_is_expired (record, NULL) == TRUE)
         {

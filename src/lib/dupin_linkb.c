@@ -77,8 +77,8 @@
 #define DUPIN_LINKB_SQL_TOTAL \
         "SELECT count(*) AS c FROM Dupin AS d WHERE d.rev_head = 'TRUE' "
 
-#define DUPIN_LINKB_COMPACT_COUNT 100
-#define DUPIN_LINKB_CHECK_COUNT   100
+#define DUPIN_LINKB_COMPACT_COUNT 1000
+#define DUPIN_LINKB_CHECK_COUNT   1000
 
 gchar **
 dupin_get_linkbases (Dupin * d)

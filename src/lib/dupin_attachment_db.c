@@ -294,21 +294,15 @@ dupin_attachment_db_p_update (DupinAttachmentDB * attachment_db,
   struct dupin_attachment_db_p_update_t update;
   memset (&update, 0, sizeof (struct dupin_attachment_db_p_update_t));
 
-  g_rw_lock_reader_lock (attachment_db->rwlock);
-
   if (sqlite3_exec (attachment_db->db, query, dupin_attachment_db_p_update_cb, &update, &errmsg)
       != SQLITE_OK)
     {
-      g_rw_lock_reader_unlock (attachment_db->rwlock);
-
       if (error != NULL && *error != NULL)
         g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
 		   errmsg);
       sqlite3_free (errmsg);
       return FALSE;
     }
-
-  g_rw_lock_reader_unlock (attachment_db->rwlock);
 
   if (!update.parent)
     {
@@ -401,18 +395,12 @@ dupin_attachment_db_unref (DupinAttachmentDB * attachment_db)
 
   if (attachment_db->todelete == TRUE)
     {
-      g_rw_lock_reader_lock (attachment_db->rwlock);
-
       if (attachment_db->ref > 0)
         {
-          g_rw_lock_reader_unlock (attachment_db->rwlock);
-
           g_warning ("dupin_attachment_db_unref: (thread=%p) attachment database %s flagged for deletion but can't free it due ref is %d\n", g_thread_self (), attachment_db->name, (gint) attachment_db->ref);
         }
       else
         {
-          g_rw_lock_reader_unlock (attachment_db->rwlock);
-
 	  if (dupin_attachment_db_p_update (attachment_db, NULL) == FALSE)
             {
               g_warning("dupin_attachment_db_unref: could not remove reference from parent for attachment db '%s'\n", attachment_db->name);
@@ -488,19 +476,14 @@ dupin_attachment_db_get_creation_time (DupinAttachmentDB * attachment_db, gsize 
 
   /* get creation time out of attachment db */
   query = "SELECT creation_time as creation_time FROM DupinAttachmentDB";
-  g_rw_lock_reader_lock (attachment_db->rwlock);
 
   if (sqlite3_exec (attachment_db->db, query, dupin_attachment_db_get_creation_time_cb, creation_time, &errmsg) != SQLITE_OK)
     {
-      g_rw_lock_reader_unlock (attachment_db->rwlock);
-
       g_error("dupin_attachment_db_get_creation_time: %s", errmsg);
       sqlite3_free (errmsg);
 
       return FALSE;
     }
-
-  g_rw_lock_reader_unlock (attachment_db->rwlock);
 
   return TRUE;
 }
@@ -856,16 +839,12 @@ dupin_attachment_db_count (DupinAttachmentDB * attachment_db)
 
   query = "SELECT count(*) as c FROM Dupin";
 
-  g_rw_lock_reader_lock (attachment_db->rwlock);
-
   if (sqlite3_exec (attachment_db->db, query, dupin_attachment_db_count_cb, &size, NULL) !=
       SQLITE_OK)
     {
-      g_rw_lock_reader_unlock (attachment_db->rwlock);
       return 0;
     }
 
-  g_rw_lock_reader_unlock (attachment_db->rwlock);
   return size;
 }
 

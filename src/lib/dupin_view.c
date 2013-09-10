@@ -317,9 +317,10 @@ dupin_view_new (Dupin * d,
   ret->output_is_db = output_is_db;
   ret->output_is_linkb = output_is_linkb;
 
+  g_rw_lock_writer_unlock (d->rwlock);
+
   if (dupin_view_begin_transaction (ret, error) < 0)
     {
-      g_rw_lock_writer_unlock (d->rwlock);
       dupin_view_disconnect (ret);
       return NULL;
     }
@@ -344,8 +345,6 @@ dupin_view_new (Dupin * d,
 
   if (sqlite3_exec (ret->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
     {
-      g_rw_lock_writer_unlock (d->rwlock);
-
       if (error != NULL && *error != NULL)
         g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
 		   errmsg);
@@ -363,7 +362,6 @@ dupin_view_new (Dupin * d,
 
   if (sqlite3_exec (ret->db, str, NULL, NULL, &errmsg) != SQLITE_OK)
     {
-      g_rw_lock_writer_unlock (d->rwlock);
       if (error != NULL && *error != NULL)
         g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
 		       errmsg);
@@ -379,12 +377,9 @@ dupin_view_new (Dupin * d,
 
   if (dupin_view_commit_transaction (ret, error) < 0)
     {
-      g_rw_lock_writer_unlock (d->rwlock);
       dupin_view_disconnect (ret);
       return NULL;
     }
-
-  g_rw_lock_writer_unlock (d->rwlock);
 
   if (dupin_view_p_update (ret, error) == FALSE)
     {
@@ -499,21 +494,15 @@ dupin_view_p_update (DupinView * view,
   struct dupin_view_db_record_t db_record;
   memset (&db_record, 0, sizeof (struct dupin_view_db_record_t));
 
-  g_rw_lock_reader_lock (view->rwlock);
-
   if (sqlite3_exec (view->db, DUPIN_VIEW_SQL_GET_RECORD, dupin_view_p_update_cb, &db_record, &errmsg)
       != SQLITE_OK)
     {
-      g_rw_lock_reader_unlock (view->rwlock);
-
       if (error != NULL && *error != NULL)
         g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
 		   errmsg);
       sqlite3_free (errmsg);
       return FALSE;
     }
-
-  g_rw_lock_reader_unlock (view->rwlock);
 
   if (!db_record.parent)
     {
@@ -711,12 +700,8 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
 
   GError * error = NULL;
 
-  g_rw_lock_writer_lock (view->rwlock);
-
   if (!(id = dupin_view_generate_id (view, &error, FALSE)))
     {
-      g_rw_lock_writer_unlock (view->rwlock);
-
       return;
     }
 
@@ -732,7 +717,6 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
 
   if (node_serialized == NULL)
     {
-      g_rw_lock_writer_unlock (view->rwlock);
       g_free ((gchar *)id);
       return;
     }
@@ -745,7 +729,6 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
 
       if (key_serialized == NULL)
         {
-          g_rw_lock_writer_unlock (view->rwlock);
           g_free ((gchar *)id);
           g_free (node_serialized);
           return;
@@ -758,7 +741,6 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
 
       if (pid_serialized == NULL)
         {
-          g_rw_lock_writer_unlock (view->rwlock);
           g_free ((gchar *)id);
           g_free (node_serialized);
           if (key_serialized)
@@ -778,7 +760,6 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
 
   if (dupin_view_begin_transaction (view, NULL) < 0)
     {
-      g_rw_lock_writer_unlock (view->rwlock);
       g_free ((gchar *)id);
       g_free (node_serialized);
       if (key_serialized)
@@ -793,8 +774,6 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
 
   if (sqlite3_exec (view->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
     {
-      g_rw_lock_writer_unlock (view->rwlock);
-
       g_error("dupin_view_record_save_map: %s", errmsg);
       sqlite3_free (errmsg);
 
@@ -840,8 +819,6 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
 
           if (sqlite3_exec (view->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
             {
-              g_rw_lock_writer_unlock (view->rwlock);
-
               g_error("dupin_view_record_save_map: %s", errmsg);
               sqlite3_free (errmsg);
 
@@ -867,7 +844,6 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
 
   if (dupin_view_commit_transaction (view, NULL) < 0)
     {
-      g_rw_lock_writer_unlock (view->rwlock);
       g_free ((gchar *)id);
       g_free (node_serialized);
       if (key_serialized)
@@ -877,8 +853,6 @@ dupin_view_record_save_map (DupinView * view, JsonNode * pid_node, JsonNode * ke
 
       return;
     }
-
-  g_rw_lock_writer_unlock (view->rwlock);
 
   g_free (node_serialized);
   if (key_serialized)
@@ -895,9 +869,6 @@ dupin_view_generate_id (DupinView * view,
 {
   g_return_val_if_fail (view != NULL, NULL);
 
-  if (lock == TRUE)
-    g_rw_lock_writer_lock (view->rwlock);
-
   while (TRUE)
     { 
       gchar * id = NULL;
@@ -912,18 +883,12 @@ dupin_view_generate_id (DupinView * view,
             }
           else
             { 
-	      if (lock == TRUE)
-                g_rw_lock_writer_unlock (view->rwlock);
-
               return id;
             }
         }
       else
         break;
     }
-
-  if (lock == TRUE)
-   g_rw_lock_writer_unlock (view->rwlock);
 
   return NULL;
 }
@@ -942,19 +907,13 @@ dupin_view_record_delete (DupinView * view,
   /* NOTE - we get max_rowid in a separate transaction, in worse case it will be incremented
 	    since last fetch, pretty safe */
 
-  g_rw_lock_writer_lock (view->rwlock);
-
   if (dupin_view_begin_transaction (view, NULL) < 0)
     {
-      g_rw_lock_writer_unlock (view->rwlock);
-
       return;
     }
 
   if (dupin_view_record_get_max_rowid (view, &max_rowid, FALSE) == FALSE)
     {
-      g_rw_lock_writer_unlock (view->rwlock);
-
       dupin_view_rollback_transaction (view, NULL);
 
       return;
@@ -971,8 +930,6 @@ dupin_view_record_delete (DupinView * view,
 
   if (sqlite3_exec (view->db, query, NULL, NULL, &errmsg) != SQLITE_OK)
     {
-      g_rw_lock_writer_unlock (view->rwlock);
-
       g_error("dupin_view_record_delete: %s for pid %s", errmsg, pid);
       sqlite3_free (errmsg);
 
@@ -995,8 +952,6 @@ dupin_view_record_delete (DupinView * view,
 
   if (sqlite3_exec (view->db, query, NULL, NULL, &errmsg) != SQLITE_OK)
     {
-      g_rw_lock_writer_unlock (view->rwlock);
-
       g_error("dupin_view_record_delete: %s for pid %s", errmsg, pid);
       sqlite3_free (errmsg);
 
@@ -1013,12 +968,8 @@ dupin_view_record_delete (DupinView * view,
 
   if (dupin_view_commit_transaction (view, NULL) < 0)
     {
-      g_rw_lock_writer_unlock (view->rwlock);
-
       return;
     }
-
-  g_rw_lock_writer_unlock (view->rwlock);
 
   /* NOTE - delete operations do not need re-index and call map/reduce due we use PIDs of DB
             or views to delete record in view which where accepted by record delete */

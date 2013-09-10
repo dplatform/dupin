@@ -85,14 +85,8 @@ dupin_record_exists_real (DupinDB * db, gchar * id, gboolean lock)
 
   tmp = sqlite3_mprintf (DUPIN_DB_SQL_EXISTS, id);
 
-  if (lock == TRUE)
-    g_rw_lock_reader_lock (db->rwlock);
-
   if (sqlite3_exec (db->db, tmp, dupin_record_exists_real_cb, &numb, &errmsg) != SQLITE_OK)
     {
-      if (lock == TRUE)
-        g_rw_lock_reader_unlock (db->rwlock);
-
       sqlite3_free (tmp);
 
       g_error ("dupin_record_exists_real: %s", errmsg);
@@ -101,9 +95,6 @@ dupin_record_exists_real (DupinDB * db, gchar * id, gboolean lock)
 
       return FALSE;
     }
-
-  if (lock == TRUE)
-    g_rw_lock_reader_unlock (db->rwlock);
 
   sqlite3_free (tmp);
 
@@ -120,17 +111,13 @@ dupin_record_create (DupinDB * db, JsonNode * obj_node, GError ** error)
   g_return_val_if_fail (obj_node != NULL, NULL);
   g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, NULL);
 
-  g_rw_lock_writer_lock (db->rwlock);
-
   if (!(id = dupin_database_generate_id_real (db, error, FALSE)))
     {
-      g_rw_lock_writer_unlock (db->rwlock);
       return NULL;
     }
 
   record = dupin_record_create_with_id_real (db, obj_node, id, error, FALSE);
 
-  g_rw_lock_writer_unlock (db->rwlock);
   g_free (id);
 
   return record;
@@ -161,16 +148,7 @@ dupin_record_create_with_id_real (DupinDB * db, JsonNode * obj_node,
   struct dupin_record_select_total_t t;
   memset (&t, 0, sizeof (t));
 
-  if (lock == FALSE)
-    g_rw_lock_writer_unlock (db->rwlock);
-
   dupin_database_ref (db);
-
-  if (lock == FALSE)
-    g_rw_lock_writer_lock (db->rwlock);
-
-  if (lock == TRUE)
-    g_rw_lock_writer_lock (db->rwlock);
 
   record = dupin_record_new (db, id);
 
@@ -188,9 +166,6 @@ dupin_record_create_with_id_real (DupinDB * db, JsonNode * obj_node,
 
   if (dupin_database_begin_transaction (db, error) < 0)
     {
-      if (lock == TRUE)
-	g_rw_lock_writer_unlock (db->rwlock);
-
       dupin_record_close (record);
       sqlite3_free (tmp);
       return NULL;
@@ -198,9 +173,6 @@ dupin_record_create_with_id_real (DupinDB * db, JsonNode * obj_node,
 
   if (sqlite3_exec (db->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
     {
-      if (lock == TRUE)
-	g_rw_lock_writer_unlock (db->rwlock);
-
       if (error != NULL && *error != NULL)
         g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
 		   errmsg);
@@ -218,9 +190,6 @@ dupin_record_create_with_id_real (DupinDB * db, JsonNode * obj_node,
 
   if (sqlite3_exec (db->db, DUPIN_DB_SQL_GET_TOTALS, dupin_record_select_total_cb, &t, NULL) != SQLITE_OK)
     {
-      if (lock == TRUE)
-	g_rw_lock_writer_unlock (db->rwlock);
-
       if (error != NULL && *error != NULL)
         g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
 		   errmsg);
@@ -237,9 +206,6 @@ dupin_record_create_with_id_real (DupinDB * db, JsonNode * obj_node,
 
   if (sqlite3_exec (db->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
     {
-      if (lock == TRUE)
-	g_rw_lock_writer_unlock (db->rwlock);
-
       if (error != NULL && *error != NULL)
         g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
 		   errmsg);
@@ -253,16 +219,10 @@ dupin_record_create_with_id_real (DupinDB * db, JsonNode * obj_node,
 
   if (dupin_database_commit_transaction (db, error) < 0)
     {
-      if (lock == TRUE)
-        g_rw_lock_writer_unlock (db->rwlock);
-
       dupin_record_close (record);
       sqlite3_free (tmp);
       return NULL;
     }
-
-  if (lock == TRUE)
-    g_rw_lock_writer_unlock (db->rwlock);
 
   sqlite3_free (tmp);
 
@@ -342,27 +302,15 @@ dupin_record_read_real (DupinDB * db, gchar * id, GError ** error,
   gchar *errmsg;
   gchar *tmp;
 
-  if (lock == FALSE)
-    g_rw_lock_writer_unlock (db->rwlock);
-
   dupin_database_ref (db);
-
-  if (lock == FALSE)
-    g_rw_lock_writer_lock (db->rwlock);
 
   record = dupin_record_new (db, id);
 
   tmp = sqlite3_mprintf (DUPIN_DB_SQL_READ, id);
 
-  if (lock == TRUE)
-    g_rw_lock_reader_lock (db->rwlock);
-
   if (sqlite3_exec (db->db, tmp, dupin_record_read_cb, record, &errmsg) !=
       SQLITE_OK)
     {
-      if (lock == TRUE)
-	g_rw_lock_reader_unlock (db->rwlock);
-
       if (error != NULL && *error != NULL)
         g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
 		   errmsg);
@@ -371,9 +319,6 @@ dupin_record_read_real (DupinDB * db, gchar * id, GError ** error,
       sqlite3_free (tmp);
       return NULL;
     }
-
-  if (lock == TRUE)
-    g_rw_lock_reader_unlock (db->rwlock);
 
   sqlite3_free (tmp);
 
@@ -613,13 +558,9 @@ dupin_record_get_list_total (DupinDB *         db,
 
 //g_message("dupin_record_get_list_total: query=%s\n", query);
 
-  g_rw_lock_reader_lock (db->rwlock);
-
   if (sqlite3_exec (db->db, query, dupin_record_get_list_total_cb, &count, &errmsg) !=
       SQLITE_OK)
     {
-      g_rw_lock_reader_unlock (db->rwlock);
-
       if (error != NULL && *error != NULL)
         g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
                    errmsg);
@@ -629,8 +570,6 @@ dupin_record_get_list_total (DupinDB *         db,
 
       return 0;
     }
-
-  g_rw_lock_reader_unlock (db->rwlock);
 
   g_free (query);
 
@@ -693,11 +632,7 @@ dupin_record_get_list_cb (void *data, int argc, char **argv, char **col)
 
   if (rev && hash !=NULL)
     {
-      g_rw_lock_reader_unlock (s->db->rwlock);
-
       dupin_database_ref (s->db);
-
-      g_rw_lock_reader_lock (s->db->rwlock);
 
       record = dupin_record_new (s->db, id);
 
@@ -954,13 +889,9 @@ dupin_record_get_list (DupinDB * db,
 
 //g_message("dupin_record_get_list() query=%s\n",tmp);
 
-  g_rw_lock_reader_lock (db->rwlock);
-
   if (sqlite3_exec (db->db, tmp, dupin_record_get_list_cb, &s, &errmsg) !=
       SQLITE_OK)
     {
-      g_rw_lock_reader_unlock (db->rwlock);
-
       if (error != NULL && *error != NULL)
         g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
 		   errmsg);
@@ -969,8 +900,6 @@ dupin_record_get_list (DupinDB * db,
       g_free (tmp);
       return FALSE;
     }
-
-  g_rw_lock_reader_unlock (db->rwlock);
 
   g_free (tmp);
 
@@ -1082,13 +1011,9 @@ dupin_record_get_revisions_list (DupinRecord * record,
 
 //g_message("dupin_record_get_revisions_list() query=%s\n",tmp);
 
-  g_rw_lock_reader_lock (record->db->rwlock);
-
   if (sqlite3_exec (record->db->db, tmp, dupin_record_get_revisions_list_cb, &s, &errmsg) !=
       SQLITE_OK)
     {
-      g_rw_lock_reader_unlock (record->db->rwlock);
-
       if (error != NULL && *error != NULL)
         g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
 		   errmsg);
@@ -1097,8 +1022,6 @@ dupin_record_get_revisions_list (DupinRecord * record,
       g_free (tmp);
       return FALSE;
     }
-
-  g_rw_lock_reader_unlock (record->db->rwlock);
 
   g_free (tmp);
 
@@ -1143,13 +1066,9 @@ dupin_record_get_total_revisions (DupinRecord * record,
 
 //g_message("dupin_record_get_total_revisions() query=%s\n",tmp);
 
-  g_rw_lock_reader_lock (record->db->rwlock);
-
   if (sqlite3_exec (record->db->db, tmp, dupin_record_get_total_revisions_cb, &total_revisions, &errmsg) !=
       SQLITE_OK)
     {
-      g_rw_lock_reader_unlock (record->db->rwlock);
-
       if (error != NULL && *error != NULL)
         g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
 		   errmsg);
@@ -1158,8 +1077,6 @@ dupin_record_get_total_revisions (DupinRecord * record,
       g_free (tmp);
       return FALSE;
     }
-
-  g_rw_lock_reader_unlock (record->db->rwlock);
 
   g_free (tmp);
 
@@ -1194,8 +1111,6 @@ dupin_record_update (DupinRecord * record, JsonNode * obj_node,
   g_return_val_if_fail (obj_node != NULL, FALSE);
   g_return_val_if_fail (json_node_get_node_type (obj_node) == JSON_NODE_OBJECT, FALSE);
 
-  g_rw_lock_writer_lock (record->db->rwlock);
-
   rev = record->last->revision + 1;
 
   gsize created = dupin_date_timestamp_now (0);
@@ -1204,8 +1119,6 @@ dupin_record_update (DupinRecord * record, JsonNode * obj_node,
 
   if (dupin_record_add_revision_obj (record, rev, &md5, obj_node, FALSE, &created, &expire, ignore_updates_if_unmodified) == FALSE)
     {
-      g_rw_lock_writer_unlock (record->db->rwlock);
-
       return TRUE; // or return FALSE with error like "unchanged" ?
     }
 
@@ -1217,16 +1130,12 @@ dupin_record_update (DupinRecord * record, JsonNode * obj_node,
 
   if (dupin_database_begin_transaction (record->db, error) < 0)
     {
-      g_rw_lock_writer_unlock (record->db->rwlock);
-
       sqlite3_free (tmp);
       return FALSE;
     }
 
   if (sqlite3_exec (record->db->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
     {
-      g_rw_lock_writer_unlock (record->db->rwlock);
-
       if (error != NULL && *error != NULL)
         g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
 		   errmsg);
@@ -1250,8 +1159,6 @@ dupin_record_update (DupinRecord * record, JsonNode * obj_node,
 
   if (sqlite3_exec (record->db->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
     {
-      g_rw_lock_writer_unlock (record->db->rwlock);
-
       if (error != NULL && *error != NULL)
         g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
 		   errmsg);
@@ -1272,8 +1179,6 @@ dupin_record_update (DupinRecord * record, JsonNode * obj_node,
 
           if (sqlite3_exec (record->db->db, DUPIN_DB_SQL_GET_TOTALS, dupin_record_select_total_cb, &t, NULL) != SQLITE_OK)
             {
-              g_rw_lock_writer_unlock (record->db->rwlock);
-
 	      if (error != NULL && *error != NULL)
                 g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
                    errmsg);
@@ -1294,8 +1199,6 @@ dupin_record_update (DupinRecord * record, JsonNode * obj_node,
 
               if (sqlite3_exec (record->db->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
                 {
-                  g_rw_lock_writer_unlock (record->db->rwlock);
-
 		  if (error != NULL && *error != NULL)
                     g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s", errmsg);
 
@@ -1310,13 +1213,9 @@ dupin_record_update (DupinRecord * record, JsonNode * obj_node,
 
   if (dupin_database_commit_transaction (record->db, error) < 0)
     {
-      g_rw_lock_writer_unlock (record->db->rwlock);
-
       sqlite3_free (tmp);
       return FALSE;
     }
-
-  g_rw_lock_writer_unlock (record->db->rwlock);
 
   sqlite3_free (tmp);
 
@@ -1387,8 +1286,6 @@ dupin_record_delete (DupinRecord * record, GError ** error)
       return FALSE;
     }
 
-  g_rw_lock_writer_lock (record->db->rwlock);
-
   rev = record->last->revision + 1;
 
   gsize created = dupin_date_timestamp_now (0);
@@ -1405,16 +1302,12 @@ dupin_record_delete (DupinRecord * record, GError ** error)
 
   if (dupin_database_begin_transaction (record->db, error) < 0)
     {
-      g_rw_lock_writer_unlock (record->db->rwlock);
-
       sqlite3_free (tmp);
       return FALSE;
     }
 
   if (sqlite3_exec (record->db->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
     {
-      g_rw_lock_writer_unlock (record->db->rwlock);
-
       if (error != NULL && *error != NULL)
         g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
                    errmsg);
@@ -1483,13 +1376,9 @@ dupin_record_delete (DupinRecord * record, GError ** error)
   if (ret != FALSE
       && dupin_database_commit_transaction (record->db, error) < 0)
     {
-      g_rw_lock_writer_unlock (record->db->rwlock);
-
       sqlite3_free (tmp);
       return FALSE;
     }
-
-  g_rw_lock_writer_unlock (record->db->rwlock);
 
   sqlite3_free (tmp);
 
@@ -2901,50 +2790,32 @@ dupin_record_insert_bulk (DupinDB * db,
   /* TODO - for further efficency we may avoid the following linkbase and attachment database begin/commit if no
 	    links or attachments are added or deleted */
 
-  g_rw_lock_writer_lock (db->rwlock);
   if (dupin_database_begin_transaction (db, NULL) < 0)
     {
-      g_rw_lock_writer_unlock (db->rwlock);
-
       dupin_database_set_error (db, "dupin_record_insert_bulk: Cannot begin database transaction");
 
       return FALSE;
     }
-  g_rw_lock_writer_unlock (db->rwlock);
 
-  g_rw_lock_writer_lock (dupin_database_get_default_attachment_db (db)->rwlock);
   if (dupin_attachment_db_begin_transaction (dupin_database_get_default_attachment_db (db), NULL) < 0)
     {
-      g_rw_lock_writer_lock (db->rwlock);
       dupin_database_rollback_transaction (db, NULL);
-      g_rw_lock_writer_unlock (db->rwlock);
-
-      g_rw_lock_writer_unlock (dupin_database_get_default_attachment_db (db)->rwlock);
 
       dupin_database_set_error (db, "dupin_record_insert_bulk: Cannot begin attachment database transaction");
 
       return FALSE;
     }
-  g_rw_lock_writer_unlock (dupin_database_get_default_attachment_db (db)->rwlock);
 
-  g_rw_lock_writer_lock (dupin_database_get_default_linkbase (db)->rwlock);
   if (dupin_linkbase_begin_transaction (dupin_database_get_default_linkbase (db), NULL) < 0)
     {
-      g_rw_lock_writer_lock (db->rwlock);
       dupin_database_rollback_transaction (db, NULL);
-      g_rw_lock_writer_unlock (db->rwlock);
 
-      g_rw_lock_writer_lock (dupin_database_get_default_attachment_db (db)->rwlock);
       dupin_attachment_db_rollback_transaction (dupin_database_get_default_attachment_db (db), NULL);
-      g_rw_lock_writer_unlock (dupin_database_get_default_attachment_db (db)->rwlock);
-
-      g_rw_lock_writer_unlock (dupin_database_get_default_linkbase (db)->rwlock);
 
       dupin_database_set_error (db, "dupin_record_insert_bulk: Cannot begin linkbase transaction");
 
       return FALSE;
     }
-  g_rw_lock_writer_unlock (dupin_database_get_default_linkbase (db)->rwlock);
 
   g_rw_lock_writer_lock (db->d->rwlock);
   db->d->bulk_transaction = TRUE;
@@ -2961,17 +2832,11 @@ dupin_record_insert_bulk (DupinDB * db,
           dupin_database_set_error (db, "Bulk body " REQUEST_POST_BULK_DOCS_DOCS " array member is not a valid JSON object");
           g_list_free (nodes);
 
-          g_rw_lock_writer_lock (dupin_database_get_default_linkbase (db)->rwlock);
           dupin_linkbase_rollback_transaction (dupin_database_get_default_linkbase (db), NULL);
-          g_rw_lock_writer_unlock (dupin_database_get_default_linkbase (db)->rwlock);
 
-          g_rw_lock_writer_lock (dupin_database_get_default_attachment_db (db)->rwlock);
           dupin_attachment_db_rollback_transaction (dupin_database_get_default_attachment_db (db), NULL);
-          g_rw_lock_writer_unlock (dupin_database_get_default_attachment_db (db)->rwlock);
 
-          g_rw_lock_writer_lock (db->rwlock);
           dupin_database_rollback_transaction (db, NULL);
-          g_rw_lock_writer_unlock (db->rwlock);
 
           g_rw_lock_writer_lock (db->d->rwlock);
           db->d->bulk_transaction = FALSE;
@@ -3027,56 +2892,41 @@ dupin_record_insert_bulk (DupinDB * db,
       g_rw_lock_writer_unlock (db->d->rwlock);
     }
 
-  g_rw_lock_writer_lock (dupin_database_get_default_linkbase (db)->rwlock);
   if (dupin_linkbase_commit_transaction (dupin_database_get_default_linkbase (db), NULL) < 0)
     {
       dupin_linkbase_rollback_transaction (dupin_database_get_default_linkbase (db), NULL);
-      g_rw_lock_writer_unlock (dupin_database_get_default_linkbase (db)->rwlock);
 
-      g_rw_lock_writer_lock (dupin_database_get_default_attachment_db (db)->rwlock);
       dupin_attachment_db_rollback_transaction (dupin_database_get_default_attachment_db (db), NULL);
-      g_rw_lock_writer_unlock (dupin_database_get_default_attachment_db (db)->rwlock);
 
-      g_rw_lock_writer_lock (db->rwlock);
       dupin_database_rollback_transaction (db, NULL);
-      g_rw_lock_writer_unlock (db->rwlock);
 
       dupin_database_set_error (db, "dupin_record_insert_bulk: Cannot commit linkbase transaction");
       g_list_free (nodes);
 
       return FALSE;
     }
-  g_rw_lock_writer_unlock (dupin_database_get_default_linkbase (db)->rwlock);
 
-  g_rw_lock_writer_lock (dupin_database_get_default_attachment_db (db)->rwlock);
   if (dupin_attachment_db_commit_transaction (dupin_database_get_default_attachment_db (db), NULL) < 0)
     {
       dupin_attachment_db_rollback_transaction (dupin_database_get_default_attachment_db (db), NULL);
-      g_rw_lock_writer_unlock (dupin_database_get_default_attachment_db (db)->rwlock);
 
-      g_rw_lock_writer_lock (db->rwlock);
       dupin_database_rollback_transaction (db, NULL);
-      g_rw_lock_writer_unlock (db->rwlock);
 
       dupin_database_set_error (db, "dupin_record_insert_bulk: Cannot commit attachment database transaction");
       g_list_free (nodes);
 
       return FALSE;
     }
-  g_rw_lock_writer_unlock (dupin_database_get_default_attachment_db (db)->rwlock);
 
-  g_rw_lock_writer_lock (db->rwlock);
   if (dupin_database_commit_transaction (db, NULL) < 0)
     {
       dupin_database_rollback_transaction (db, NULL);
-      g_rw_lock_writer_unlock (db->rwlock);
 
       dupin_database_set_error (db, "dupin_record_insert_bulk: Cannot commit database transaction");
       g_list_free (nodes);
 
       return FALSE;
     }
-  g_rw_lock_writer_unlock (db->rwlock);
 
 //g_message("dupin_record_insert_bulk: inserted %d records into database %s\n", (gint)g_list_length (nodes), db->name);
 

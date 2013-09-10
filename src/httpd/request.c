@@ -4001,7 +4001,7 @@ request_global_get_view (DSHttpdClient * client,
   if (subobj1 == NULL)
     goto request_global_get_view_error;
 
-  //json_object_set_string_member (subobj1, "name", (gchar *) dupin_view_get_parent (view));
+  json_object_set_string_member (subobj1, "name", (gchar *) dupin_view_get_parent (view));
   json_object_set_boolean_member (subobj1, "is_db", dupin_view_get_parent_is_db (view));
   json_object_set_boolean_member (subobj1, "is_linkb", dupin_view_get_parent_is_linkb (view));
   json_object_set_object_member (obj, "parent", subobj1 );

@@ -75,13 +75,10 @@ dupin_attachment_record_create (DupinAttachmentDB * attachment_db,
   sqlite3_stmt *insertstmt;
   gchar * md5=NULL;
 
-  g_rw_lock_writer_lock (attachment_db->rwlock);
-
   query = sqlite3_mprintf (DUPIN_ATTACHMENT_DB_SQL_INSERT);
 
   if (sqlite3_prepare(attachment_db->db, query, strlen(query), &insertstmt, NULL) != SQLITE_OK)
     {
-      g_rw_lock_writer_unlock (attachment_db->rwlock);
       g_error("dupin_attachment_record_create: %s", sqlite3_errmsg (attachment_db->db));
       sqlite3_free (query);
       return FALSE;
@@ -97,7 +94,6 @@ dupin_attachment_record_create (DupinAttachmentDB * attachment_db,
 
   if (sqlite3_step (insertstmt) != SQLITE_DONE)
     {
-      g_rw_lock_writer_unlock (attachment_db->rwlock);
       g_error("dupin_attachment_record_create: %s", sqlite3_errmsg (attachment_db->db));
       sqlite3_free (query);
       g_free (md5);
@@ -105,8 +101,6 @@ dupin_attachment_record_create (DupinAttachmentDB * attachment_db,
     }
 
   sqlite3_finalize (insertstmt);
-
-  g_rw_lock_writer_unlock (attachment_db->rwlock);
 
   sqlite3_free (query);
   g_free (md5);
@@ -129,19 +123,14 @@ dupin_attachment_record_delete (DupinAttachmentDB * attachment_db,
 
 //g_message("dupin_attachment_record_delete: query=%s\n",query);
 
-  g_rw_lock_writer_lock (attachment_db->rwlock);
-
   if (dupin_attachment_db_begin_transaction (attachment_db, NULL) < 0)
     {
-      g_rw_lock_writer_unlock (attachment_db->rwlock);
-
       sqlite3_free (query);
       return FALSE;
     }
 
   if (sqlite3_exec (attachment_db->db, query, NULL, NULL, &errmsg) != SQLITE_OK)
     {
-      g_rw_lock_writer_unlock (attachment_db->rwlock);
       g_error("dupin_attachment_record_delete: %s", errmsg);
       sqlite3_free (errmsg);
       sqlite3_free (query);
@@ -151,13 +140,9 @@ dupin_attachment_record_delete (DupinAttachmentDB * attachment_db,
 
   if (dupin_attachment_db_commit_transaction (attachment_db, NULL) < 0)
     {
-      g_rw_lock_writer_unlock (attachment_db->rwlock);
-
       sqlite3_free (query);
       return FALSE;
     }
-
-  g_rw_lock_writer_unlock (attachment_db->rwlock);
 
   sqlite3_free (query);
 
@@ -177,19 +162,14 @@ dupin_attachment_record_delete_all (DupinAttachmentDB * attachment_db,
 
 //g_message("dupin_attachment_record_delete_all: query=%s\n",query);
 
-  g_rw_lock_writer_lock (attachment_db->rwlock);
-
   if (dupin_attachment_db_begin_transaction (attachment_db, NULL) < 0)
     {
-      g_rw_lock_writer_unlock (attachment_db->rwlock);
-
       sqlite3_free (query);
       return FALSE;
     }
 
   if (sqlite3_exec (attachment_db->db, query, NULL, NULL, &errmsg) != SQLITE_OK)
     {
-      g_rw_lock_writer_unlock (attachment_db->rwlock);
       g_error("dupin_attachment_record_delete_all: %s", errmsg);
       sqlite3_free (errmsg);
       sqlite3_free (query);
@@ -199,13 +179,9 @@ dupin_attachment_record_delete_all (DupinAttachmentDB * attachment_db,
 
   if (dupin_attachment_db_commit_transaction (attachment_db, NULL) < 0)
     {
-      g_rw_lock_writer_unlock (attachment_db->rwlock);
-
       sqlite3_free (query);
       return FALSE;
     }
-
-  g_rw_lock_writer_unlock (attachment_db->rwlock);
 
   sqlite3_free (query);
 
@@ -248,14 +224,8 @@ dupin_attachment_record_exists_real (DupinAttachmentDB *    attachment_db,
 
   tmp = sqlite3_mprintf (DUPIN_ATTACHMENT_DB_SQL_EXISTS, id, title);
 
-  if (lock == TRUE)
-    g_rw_lock_reader_lock (attachment_db->rwlock);
-
   if (sqlite3_exec (attachment_db->db, tmp, dupin_attachment_record_exists_real_cb, &numb, &errmsg) != SQLITE_OK)
     {
-      if (lock == TRUE)
-        g_rw_lock_reader_unlock (attachment_db->rwlock);
-
       sqlite3_free (tmp);
 
       g_error ("dupin_attachment_record_exists_real: %s", errmsg);
@@ -264,9 +234,6 @@ dupin_attachment_record_exists_real (DupinAttachmentDB *    attachment_db,
 
       return FALSE;
     }
-
-  if (lock == TRUE)
-    g_rw_lock_reader_unlock (attachment_db->rwlock);
 
   sqlite3_free (tmp);
 
@@ -316,14 +283,8 @@ dupin_attachment_record_get_aggregated_hash_real (DupinAttachmentDB * attachment
 
 //g_message("dupin_attachment_record_get_aggregated_hash_real() query=%s\n",tmp);
 
-  if (lock == TRUE)
-    g_rw_lock_reader_lock (attachment_db->rwlock);
-
   if (sqlite3_exec (attachment_db->db, tmp, dupin_attachment_record_get_aggregated_hash_real_cb, &concatenated_hash, &errmsg) != SQLITE_OK)
     {
-      if (lock == TRUE)
-        g_rw_lock_reader_unlock (attachment_db->rwlock);
-
       sqlite3_free (tmp);
 
       g_error ("dupin_attachment_record_get_hashes_real: %s", errmsg);
@@ -335,9 +296,6 @@ dupin_attachment_record_get_aggregated_hash_real (DupinAttachmentDB * attachment
 
       return FALSE;
     }
-
-  if (lock == TRUE)
-    g_rw_lock_reader_unlock (attachment_db->rwlock);
 
   sqlite3_free (tmp);
 
@@ -413,27 +371,15 @@ dupin_attachment_record_read_real (DupinAttachmentDB * attachment_db,
   gchar *errmsg;
   gchar *tmp;
 
-  if (lock == FALSE)
-    g_rw_lock_reader_unlock (attachment_db->rwlock);
-
   dupin_attachment_db_ref (attachment_db);
-
-  if (lock == FALSE)
-    g_rw_lock_reader_lock (attachment_db->rwlock);
 
   record = dupin_attachment_record_new (attachment_db, id, title);
 
   tmp = sqlite3_mprintf (DUPIN_ATTACHMENT_DB_SQL_READ, id, title);
 
-  if (lock == TRUE)
-    g_rw_lock_reader_lock (attachment_db->rwlock);
-
   if (sqlite3_exec (attachment_db->db, tmp, dupin_attachment_record_read_cb, record, &errmsg)
       != SQLITE_OK)
     {
-      if (lock == TRUE)
-	g_rw_lock_reader_unlock (attachment_db->rwlock);
-
       if (error != NULL && *error != NULL)
         g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
 		   errmsg);
@@ -442,9 +388,6 @@ dupin_attachment_record_read_real (DupinAttachmentDB * attachment_db,
       sqlite3_free (tmp);
       return NULL;
     }
-
-  if (lock == TRUE)
-    g_rw_lock_reader_unlock (attachment_db->rwlock);
 
   sqlite3_free (tmp);
 
@@ -540,13 +483,9 @@ dupin_attachment_record_get_list_total (DupinAttachmentDB * attachment_db,
 
 //g_message("dupin_attachment_record_get_list_total() query=%s\n",tmp);
 
-  g_rw_lock_reader_lock (attachment_db->rwlock);
-
   if (sqlite3_exec (attachment_db->db, tmp, dupin_attachment_record_get_list_total_cb, &count, &errmsg)
       != SQLITE_OK)
     {
-      g_rw_lock_reader_unlock (attachment_db->rwlock);
-
       if (error != NULL && *error != NULL)
         g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
 		   errmsg);
@@ -555,8 +494,6 @@ dupin_attachment_record_get_list_total (DupinAttachmentDB * attachment_db,
       g_free (tmp);
       return 0;
     }
-
-  g_rw_lock_reader_unlock (attachment_db->rwlock);
 
   g_free (tmp);
 
@@ -680,13 +617,9 @@ dupin_attachment_record_get_list (DupinAttachmentDB * attachment_db, guint count
 
 //g_message("dupin_attachment_record_get_list() query=%s\n",tmp);
 
-  g_rw_lock_reader_lock (attachment_db->rwlock);
-
   if (sqlite3_exec (attachment_db->db, tmp, dupin_attachment_record_get_list_cb, &s, &errmsg)
       != SQLITE_OK)
     {
-      g_rw_lock_reader_unlock (attachment_db->rwlock);
-
       if (error != NULL && *error != NULL)
         g_set_error (error, dupin_error_quark (), DUPIN_ERROR_CRUD, "%s",
 		   errmsg);
@@ -695,8 +628,6 @@ dupin_attachment_record_get_list (DupinAttachmentDB * attachment_db, guint count
       g_free (tmp);
       return FALSE;
     }
-
-  g_rw_lock_reader_unlock (attachment_db->rwlock);
 
   g_free (tmp);
 
@@ -864,19 +795,13 @@ dupin_attachment_record_get_max_rowid (DupinAttachmentDB * attachment_db, gsize 
 
   query = "SELECT max(ROWID) as max_rowid FROM Dupin";
 
-  g_rw_lock_reader_lock (attachment_db->rwlock);
-
   if (sqlite3_exec (attachment_db->db, query, dupin_attachment_record_get_max_rowid_cb, max_rowid, &errmsg) != SQLITE_OK)
     {
-      g_rw_lock_reader_unlock (attachment_db->rwlock);
-
       g_error("dupin_attachment_record_get_max_rowid: %s", errmsg);
       sqlite3_free (errmsg);
 
       return FALSE;
     }
-
-  g_rw_lock_reader_unlock (attachment_db->rwlock);
 
   return TRUE;
 }
@@ -888,19 +813,14 @@ dupin_attachment_record_blob_open (DupinAttachmentRecord * record,
   g_return_val_if_fail (record != NULL, FALSE);
   g_return_val_if_fail (record->blob == NULL, FALSE);
 
-  g_rw_lock_reader_lock (record->attachment_db->rwlock);
-
   if (sqlite3_blob_open(record->attachment_db->db, "main", "Dupin", "content",
 			dupin_attachment_record_get_rowid (record),
 			(read_write == TRUE) ? 1 : 0, /* TODO - when 1 write blob from src/httpd/httpd.c */
 			&record->blob) != SQLITE_OK)
     {
-      g_rw_lock_reader_unlock (record->attachment_db->rwlock);
       g_error("dupin_attachment_record_blob_open: %s", sqlite3_errmsg (record->attachment_db->db));
       return FALSE;
     }
-
-  g_rw_lock_reader_unlock (record->attachment_db->rwlock);
 
   return TRUE;
 }
@@ -911,16 +831,11 @@ dupin_attachment_record_blob_close (DupinAttachmentRecord * record)
   g_return_val_if_fail (record != NULL, FALSE);
   g_return_val_if_fail (record->blob != NULL, FALSE);
 
-  g_rw_lock_reader_lock (record->attachment_db->rwlock);
-
   if (sqlite3_blob_close(record->blob) != SQLITE_OK)
     {
-      g_rw_lock_reader_unlock (record->attachment_db->rwlock);
       g_error("dupin_attachment_record_blob_close: %s", sqlite3_errmsg (record->attachment_db->db));
       return FALSE;
     }
-
-  g_rw_lock_reader_unlock (record->attachment_db->rwlock);
 
   record->blob = NULL;
 
@@ -942,16 +857,11 @@ dupin_attachment_record_blob_read (DupinAttachmentRecord * record,
   if (left > 0 && left < count)
     count = left;
 
-  g_rw_lock_reader_lock (record->attachment_db->rwlock);
-
   if (sqlite3_blob_read (record->blob, buf, count, offset) != SQLITE_OK)
     {
-      g_rw_lock_reader_unlock (record->attachment_db->rwlock);
       *bytes_read = 0;
       return FALSE;
     }
-
-  g_rw_lock_reader_unlock (record->attachment_db->rwlock);
 
   *bytes_read = count;
 
@@ -969,15 +879,10 @@ dupin_attachment_record_blob_write (DupinAttachmentRecord * record,
   g_return_val_if_fail (record != NULL, FALSE);
   g_return_val_if_fail (buf != NULL, FALSE);
 
-  g_rw_lock_writer_lock (record->attachment_db->rwlock);
-
   if (sqlite3_blob_write(record->blob, buf, count, offset) != SQLITE_OK)
     {
-      g_rw_lock_writer_unlock (record->attachment_db->rwlock);
       return FALSE;
     }
-
-  g_rw_lock_writer_unlock (record->attachment_db->rwlock);
 
   return TRUE;
 }

@@ -584,50 +584,35 @@ main (int argc, char *argv[])
       d->bulk_transaction = FALSE;
       g_rw_lock_writer_unlock (d->rwlock);
 
-      g_rw_lock_writer_lock (dupin_database_get_default_linkbase (db)->rwlock);
       if (dupin_linkbase_commit_transaction (dupin_database_get_default_linkbase (db), NULL) < 0)
         {
-          g_rw_lock_writer_lock (db->rwlock);
           dupin_database_rollback_transaction (db, NULL);
-          g_rw_lock_writer_unlock (db->rwlock);
 
-          g_rw_lock_writer_lock (dupin_database_get_default_attachment_db (db)->rwlock);
           dupin_attachment_db_rollback_transaction (dupin_database_get_default_attachment_db (db), NULL);
-          g_rw_lock_writer_unlock (dupin_database_get_default_attachment_db (db)->rwlock);
 
           dupin_linkbase_rollback_transaction (dupin_database_get_default_linkbase (db), NULL);
-          g_rw_lock_writer_unlock (dupin_database_get_default_linkbase (db)->rwlock);
 
           dupin_loader_set_error ("Cannot commit linkbase transaction");
           goto dupin_loader_end;
         }
-      g_rw_lock_writer_unlock (dupin_database_get_default_linkbase (db)->rwlock);
 
-      g_rw_lock_writer_lock (dupin_database_get_default_attachment_db (db)->rwlock);
       if (dupin_attachment_db_commit_transaction (dupin_database_get_default_attachment_db (db), NULL) < 0)
         {
-          g_rw_lock_writer_lock (db->rwlock);
           dupin_database_rollback_transaction (db, NULL);
-          g_rw_lock_writer_unlock (db->rwlock);
 
           dupin_attachment_db_rollback_transaction (dupin_database_get_default_attachment_db (db), NULL);
-          g_rw_lock_writer_unlock (dupin_database_get_default_attachment_db (db)->rwlock);
 
           dupin_loader_set_error ("Cannot commit attachment database transaction");
           goto dupin_loader_end;
         }
-      g_rw_lock_writer_unlock (dupin_database_get_default_attachment_db (db)->rwlock);
 
-      g_rw_lock_writer_lock (db->rwlock);
       if (dupin_database_commit_transaction (db, NULL) < 0)
         {
           dupin_database_rollback_transaction (db, NULL);
-          g_rw_lock_writer_unlock (db->rwlock);
 
           dupin_loader_set_error ("Cannot commit database transaction");
           goto dupin_loader_end;
         }
-      g_rw_lock_writer_unlock (db->rwlock);
     }
 
 dupin_loader_end:

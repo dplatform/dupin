@@ -145,6 +145,61 @@ DSWeblinkingRelationRegistry DSWeblinkingRelationRegistryList[] = {
   {WEBLINKING_RELNAME_ITEM, "item", "The target IRI points to a resource that is a member of the collection represented by the context IRI."}
   ,
 
+  /* Portable Listings Working Draft 05 - http://www.portablelistings.net/spec/draft-portable-listings-spec-05.html#IANA */
+
+  {WEBLINKING_RELNAME_POLI_PROMOTIONAL_INFORMATION, "promotional-information", "Refers to a resource devised to publicize or advertise a resource or associated product about the link's context."}
+  ,
+  {WEBLINKING_RELNAME_POLI_SUPPLEMENTAL_INFORMATION, "supplemental-information", "Refers to a resource containing supplemental information about the link's context."}
+  ,
+  {WEBLINKING_RELNAME_POLI_REVIEW, "review", "Refers to a resource containings a critical article or report concerning the link's context."}
+  ,
+  {WEBLINKING_RELNAME_POLI_HIGHLIGHTS, "highlights", "Refers to a resource that represents striking, noticeable aspects of the link's context."}
+  ,
+  {WEBLINKING_RELNAME_POLI_SCREENPLAY, "screenplay", "Refers to a resource that represents the text specifying content of a production or performance, used as a guide to the link's context."}
+  ,
+  {WEBLINKING_RELNAME_POLI_TRANSCRIPT, "transcript", "Refers to an exact copy or reproduction of the link's context."}
+  ,
+  {WEBLINKING_RELNAME_POLI_SHOT, "shot", "Refers to a resource that represents a shot."}
+  ,
+  {WEBLINKING_RELNAME_POLI_SHOT_LIST, "shot-list", "Refers to a resource that represents a list of shots."}
+  ,
+  {WEBLINKING_RELNAME_POLI_EDIT_DECISION_LIST, "edit-decision-list", "Refers to a resource that represents an Edit Decision List (EDL) expressed as handwritten or computer-generated compilation of all edits (marked by their time code in points and out points) to be executed in a video production."}
+  ,
+  {WEBLINKING_RELNAME_POLI_RUNDOWN, "rundown", "Refers to a resource containing a simple review of the script for the with directions for the various crew members."}
+  ,
+  {WEBLINKING_RELNAME_POLI_DOPESHEET, "dopesheet", "Refers to a resource that represents an exposure sheet which allows an animator to organize his thinking and give instructions to the cameraman on how the animation is to be shot."}
+  ,
+  {WEBLINKING_RELNAME_POLI_TRAILER, "trailer", "Refers to trailer of the link's context."}
+  ,
+  {WEBLINKING_RELNAME_POLI_SIMULCAST, "simulcast", "Refers to an alternative version of the link's context that is being shown simultaneously with the link's context."}
+  ,
+  {WEBLINKING_RELNAME_POLI_ONDEMAND, "ondemand", "Refers to an alternative version of link's context that is available for consumption on demand."}
+  ,
+  {WEBLINKING_RELNAME_POLI_CATCHUP, "catchup", "Refers to an alternative version of link's context that is available for consumption on demand from a catch-up TV service."}
+  ,
+  {WEBLINKING_RELNAME_POLI_RECOMMENDATION, "recommendation", "Refers to a resource recommended by the provider of the link's context."}
+  ,
+  {WEBLINKING_RELNAME_POLI_INSERTION_POINTS, "insertion-points", "Refers to a resource containing a list of insertion-points related to the link's context."}
+  ,
+  {WEBLINKING_RELNAME_POLI_ADVERT, "advert", "Refers to an advert for a product or service featured in the link's context."}
+  ,
+  {WEBLINKING_RELNAME_POLI_TELESCOPED_ADVERT, "telescoped-advert", "Refers to a telescoped advert for a product or service featured in the link's context."}
+  ,
+  {WEBLINKING_RELNAME_POLI_SPEEDBUMP, "speedbump", "Refers to superimposed related or unrelated content about a product or service featured in the link's context."}
+  ,
+  {WEBLINKING_RELNAME_POLI_PRODUCT_PURCHASE, "product-purchase", "Refers to a product or service directly linked to the link's context, which can be purchased directly from this linked resource."}
+  ,
+  {WEBLINKING_RELNAME_POLI_RECAP, "recap", "Refers to a text or AV recap of the link's context."}
+  ,
+  {WEBLINKING_RELNAME_POLI_MAKING_OF, "making-of", "Refers to the making-of of the link's context."}
+  ,
+  {WEBLINKING_RELNAME_POLI_CONTENT_PACKAGE, "content-package", "Refers to a content package associated to the link's context."}
+  ,
+  {WEBLINKING_RELNAME_POLI_BEST_OF, "best-of", "Refers to a resource collecting best-of selections from the link's context."}
+  ,
+  {WEBLINKING_RELNAME_POLI_EXTRACT, "extract", "Refers to a resource representing an extract of the link's context."}
+  ,
+
   {WEBLINKING_RELNAME__END, NULL, NULL}
 };
 

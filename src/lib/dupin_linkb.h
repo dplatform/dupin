@@ -88,8 +88,8 @@ gboolean        dupin_linkbase_get_total_changes
 					 DupinCountType         count_type,
                                          gboolean               inclusive_end,
  					 gchar *                context_id,
-					 gchar **               tags,
-                                         DupinFilterByType      tags_type,
+					 gchar **               authorities,
+                                         DupinFilterByType      authorities_type,
                                          GError **              error);
 
 gboolean        dupin_linkbase_get_changes_list
@@ -103,8 +103,8 @@ gboolean        dupin_linkbase_get_changes_list
                                          DupinOrderByType       orderby_type,
                                          gboolean               descending,
  					 gchar *                context_id,
-					 gchar **               tags,
-                                         DupinFilterByType      tags_type,
+					 gchar **               authorities,
+                                         DupinFilterByType      authorities_type,
                                          GList **               list,
                                          GError **              error);
 

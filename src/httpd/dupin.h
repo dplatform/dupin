@@ -171,8 +171,8 @@ struct ds_httpd_client_t
       DupinChangesType	   param_style;
       gboolean		   param_include_docs;
       gchar *		   param_context_id;
-      gchar **		   param_tags;
-      DupinFilterByType	   param_tags_op;
+      gchar **		   param_authorities;
+      DupinFilterByType	   param_authorities_op;
       gchar **		   param_types;
       DupinFilterByType	   param_types_op;
     } changes_comet;

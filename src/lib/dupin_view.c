@@ -2254,9 +2254,9 @@ dupin_view_sync_thread_map_linkb (DupinView * view, gsize count)
             json_object_remove_member (obj, "_rel"); // ignore any record one if set by user, ever
           json_object_set_string_member (obj, "_rel", (gchar *)dupin_link_record_get_rel (list->data));
 
-	  if (json_object_has_member (obj, "_tag") == TRUE)
-            json_object_remove_member (obj, "_tag"); // ignore any record one if set by user, ever
-          json_object_set_string_member (obj, "_tag", (gchar *)dupin_link_record_get_tag (list->data));
+	  if (json_object_has_member (obj, "_authority") == TRUE)
+            json_object_remove_member (obj, "_authority"); // ignore any record one if set by user, ever
+          json_object_set_string_member (obj, "_authority", (gchar *)dupin_link_record_get_authority (list->data));
 
 	  if (json_object_has_member (obj, "_is_weblink") == TRUE)
             json_object_remove_member (obj, "_is_weblink"); // ignore any record one if set by user, ever

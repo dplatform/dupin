@@ -235,7 +235,7 @@ static DupinLinkRecord *dupin_link_record_create_with_id_real (DupinLinkB * link
 						      gchar * label,
                                          	      gchar * href,
                                          	      gchar * rel,
-                                         	      gchar * tag,
+                                         	      gchar * authority,
 						      GError ** error,
 						      gboolean lock);
 static DupinLinkRecord *dupin_link_record_read_real (DupinLinkB * linkb, gchar * id,
@@ -252,7 +252,7 @@ static gboolean dupin_link_record_add_revision_obj (DupinLinkRecord * record, gu
 					            gchar * label,
                                                     gchar * href,
                                                     gchar * rel,
-                                                    gchar * tag,
+                                                    gchar * authority,
 					            gboolean delete,
 					            gsize created,
 					            gsize * expire,
@@ -266,7 +266,7 @@ static void dupin_link_record_add_revision_str (DupinLinkRecord * record, guint 
 					        gchar * label,
                                                 gchar * href,
                                                 gchar * rel,
-                                                gchar * tag,
+                                                gchar * authority,
 					        gboolean delete,
 					        gsize created,
 					        gsize expire,
@@ -279,7 +279,7 @@ static gboolean dupin_link_record_generate_hash	(DupinLinkRecord * record,
 					         gchar * label,
                                                  gchar * href,
                                                  gchar * rel,
-                                                 gchar * tag,
+                                                 gchar * authority,
 			    		         gboolean delete,
 					         gboolean is_weblink,
 			    			 gsize expire,
@@ -336,7 +336,7 @@ dupin_link_record_create (DupinLinkB * linkb, JsonNode * obj_node,
 			  gchar * label,
                           gchar * href,
                           gchar * rel,
-                          gchar * tag,
+                          gchar * authority,
 			  GError ** error)
 {
   gchar *id;
@@ -368,7 +368,7 @@ dupin_link_record_create (DupinLinkB * linkb, JsonNode * obj_node,
     }
 
   record = dupin_link_record_create_with_id_real (linkb, obj_node, id,
-						  context_id, label, href, rel, tag,
+						  context_id, label, href, rel, authority,
 						  error, FALSE);
 
   g_free (id);
@@ -383,7 +383,7 @@ dupin_link_record_create_with_id (DupinLinkB * linkb, JsonNode * obj_node,
 				  gchar * label,
                                   gchar * href,
                                   gchar * rel,
-                                  gchar * tag,
+                                  gchar * authority,
 			          GError ** error)
 {
   g_return_val_if_fail (linkb != NULL, NULL);
@@ -409,7 +409,7 @@ dupin_link_record_create_with_id (DupinLinkB * linkb, JsonNode * obj_node,
     g_return_val_if_fail (dupin_link_record_util_is_valid_rel (rel) == TRUE, NULL);
 
   return dupin_link_record_create_with_id_real (linkb, obj_node, id,
-						context_id, label, href, rel, tag,
+						context_id, label, href, rel, authority,
 						error, TRUE);
 }
 
@@ -420,7 +420,7 @@ dupin_link_record_create_with_id_real (DupinLinkB * linkb, JsonNode * obj_node,
 				       gchar * label,
                                        gchar * href,
                                        gchar * rel,
-                                       gchar * tag,
+                                       gchar * authority,
 				       GError ** error, gboolean lock)
 {
   DupinLinkRecord *record;
@@ -440,7 +440,7 @@ dupin_link_record_create_with_id_real (DupinLinkB * linkb, JsonNode * obj_node,
   gsize expire = 0;
 
   dupin_link_record_add_revision_obj (record, 1, &md5, obj_node,
-				      context_id, label, href, rel, tag,
+				      context_id, label, href, rel, authority,
 				      FALSE, created, &expire,
 				      dupin_util_is_valid_absolute_uri (href),
 				      FALSE);
@@ -448,7 +448,7 @@ dupin_link_record_create_with_id_real (DupinLinkB * linkb, JsonNode * obj_node,
   tmp =
     sqlite3_mprintf (DUPIN_LINKB_SQL_INSERT, id, 1, md5,
 		     record->last->obj_serialized, created, expire,
-		     context_id, label, href, rel, tag,
+		     context_id, label, href, rel, authority,
 		     dupin_util_is_valid_absolute_uri (href) ? "TRUE" : "FALSE");
 
   if (dupin_linkbase_begin_transaction (linkb, error) < 0)
@@ -542,7 +542,7 @@ dupin_link_record_read_cb (void *data, int argc, char **argv, char **col)
   gchar *label = NULL;
   gchar *href = NULL;
   gchar *rel = NULL;
-  gchar *tag = NULL;
+  gchar *authority = NULL;
   gboolean is_weblink = FALSE;
 
   for (i = 0; i < argc; i++)
@@ -581,8 +581,8 @@ dupin_link_record_read_cb (void *data, int argc, char **argv, char **col)
       else if (!g_strcmp0 (col[i], "rel"))
 	rel = argv[i];
 
-      else if (!g_strcmp0 (col[i], "tag"))
-	tag = argv[i];
+      else if (!g_strcmp0 (col[i], "authority"))
+	authority = argv[i];
 
       else if (!g_strcmp0 (col[i], "is_weblink"))
 	is_weblink = !g_strcmp0 (argv[i], "TRUE") ? TRUE : FALSE;
@@ -590,7 +590,7 @@ dupin_link_record_read_cb (void *data, int argc, char **argv, char **col)
 
   if (rev && hash !=NULL)
     dupin_link_record_add_revision_str (data, rev, hash, -1, obj, -1,
-					context_id, label, href, rel, tag,
+					context_id, label, href, rel, authority,
 					delete, tm, expire_tm, rowid, is_weblink);
 
   return 0;
@@ -675,8 +675,8 @@ dupin_link_record_get_list_total (DupinLinkB * 		linkb,
                                   DupinFilterByType     labels_type,
                                   gchar **              hrefs,
                                   DupinFilterByType     hrefs_type,
-                                  gchar **              tags,
-                                  DupinFilterByType     tags_type,
+                                  gchar **              authorities,
+                                  DupinFilterByType     authorities_type,
 				  gchar *                filter_by,
 				  DupinFieldsFormatType  filter_by_format,
                                   DupinFilterByType      filter_op,
@@ -896,43 +896,43 @@ dupin_link_record_get_list_total (DupinLinkB * 		linkb,
       op = "AND";
     }
 
-  if (tags != NULL
-      && tags_type != DP_FILTERBY_PRESENT)
+  if (authorities != NULL
+      && authorities_type != DP_FILTERBY_PRESENT)
     {
-      if (tags[0])
+      if (authorities[0])
         {
           gchar * tmp2 = sqlite3_mprintf (" %s ( ", op);
           str = g_string_append (str, tmp2);
           sqlite3_free (tmp2);
         }
 
-      for (i = 0; tags[i]; i++)
+      for (i = 0; authorities[i]; i++)
         {
           gchar * tmp2;
 
-	  if (tags_type == DP_FILTERBY_EQUALS)
-            tmp2 = sqlite3_mprintf (" d.tag = '%q' ", tags[i]);
-	  else if (tags_type == DP_FILTERBY_CONTAINS)
-            tmp2 = sqlite3_mprintf (" d.tag LIKE '%%%q%%' ", tags[i]);
-	  else if (tags_type == DP_FILTERBY_STARTS_WITH)
-            tmp2 = sqlite3_mprintf (" d.tag LIKE '%q%%' ", tags[i]);
+	  if (authorities_type == DP_FILTERBY_EQUALS)
+            tmp2 = sqlite3_mprintf (" d.authority = '%q' ", authorities[i]);
+	  else if (authorities_type == DP_FILTERBY_CONTAINS)
+            tmp2 = sqlite3_mprintf (" d.authority LIKE '%%%q%%' ", authorities[i]);
+	  else if (authorities_type == DP_FILTERBY_STARTS_WITH)
+            tmp2 = sqlite3_mprintf (" d.authority LIKE '%q%%' ", authorities[i]);
 
           str = g_string_append (str, tmp2);
           sqlite3_free (tmp2);
-          if (tags[i+1])
+          if (authorities[i+1])
             str = g_string_append (str, " OR ");
         }
 
-      if (tags[0])
+      if (authorities[0])
         str = g_string_append (str, " ) ");
 
       op = "AND";
     }
   else
     {
-      if (tags_type == DP_FILTERBY_PRESENT)
+      if (authorities_type == DP_FILTERBY_PRESENT)
         {
-          gchar * tmp2 = tmp2 = sqlite3_mprintf (" %s ( d.tag IS NOT NULL OR d.tag != '' ) ", op);
+          gchar * tmp2 = tmp2 = sqlite3_mprintf (" %s ( d.authority IS NOT NULL OR d.authority != '' ) ", op);
           str = g_string_append (str, tmp2);
           sqlite3_free (tmp2);
 
@@ -1053,7 +1053,7 @@ dupin_link_record_get_list_cb (void *data, int argc, char **argv, char **col)
   gchar *label = NULL;
   gchar *href = NULL;
   gchar *rel = NULL;
-  gchar *tag = NULL;
+  gchar *authority = NULL;
   gboolean is_weblink = FALSE;
   gchar *id = NULL;
 
@@ -1093,8 +1093,8 @@ dupin_link_record_get_list_cb (void *data, int argc, char **argv, char **col)
       else if (!g_strcmp0 (col[i], "rel"))
 	rel = argv[i];
 
-      else if (!g_strcmp0 (col[i], "tag"))
-	tag = argv[i];
+      else if (!g_strcmp0 (col[i], "authority"))
+	authority = argv[i];
 
       else if (!g_strcmp0 (col[i], "is_weblink"))
 	is_weblink = !g_strcmp0 (argv[i], "TRUE") ? TRUE : FALSE;
@@ -1110,7 +1110,7 @@ dupin_link_record_get_list_cb (void *data, int argc, char **argv, char **col)
       record = dupin_link_record_new (s->linkb, id);
 
       dupin_link_record_add_revision_str (record, rev, hash, -1, obj, -1,
-					  context_id, label, href, rel, tag,
+					  context_id, label, href, rel, authority,
 					  delete, tm, expire_tm, rowid, is_weblink);
 
       s->list = g_list_append (s->list, record);
@@ -1140,8 +1140,8 @@ dupin_link_record_get_list (DupinLinkB *       linkb,
                             DupinFilterByType  labels_type,
                             gchar **           hrefs,
                             DupinFilterByType  hrefs_type,
-                            gchar **           tags,
-                            DupinFilterByType  tags_type,
+                            gchar **           authorities,
+                            DupinFilterByType  authorities_type,
 			    gchar *            filter_by,
                             DupinFieldsFormatType  filter_by_format,
                             DupinFilterByType  filter_op,
@@ -1372,43 +1372,43 @@ dupin_link_record_get_list (DupinLinkB *       linkb,
       op = "AND";
     }
 
-  if (tags != NULL
-      && tags_type != DP_FILTERBY_PRESENT)
+  if (authorities != NULL
+      && authorities_type != DP_FILTERBY_PRESENT)
     {
-      if (tags[0])
+      if (authorities[0])
         {
           gchar * tmp2 = sqlite3_mprintf (" %s ( ", op);
           str = g_string_append (str, tmp2);
           sqlite3_free (tmp2);
         }
 
-      for (i = 0; tags[i]; i++)
+      for (i = 0; authorities[i]; i++)
         {
           gchar * tmp2;
 
-	  if (tags_type == DP_FILTERBY_EQUALS)
-            tmp2 = sqlite3_mprintf (" d.tag = '%q' ", tags[i]);
-	  else if (tags_type == DP_FILTERBY_CONTAINS)
-            tmp2 = sqlite3_mprintf (" d.tag LIKE '%%%q%%' ", tags[i]);
-	  else if (tags_type == DP_FILTERBY_STARTS_WITH)
-            tmp2 = sqlite3_mprintf (" d.tag LIKE '%q%%' ", tags[i]);
+	  if (authorities_type == DP_FILTERBY_EQUALS)
+            tmp2 = sqlite3_mprintf (" d.authority = '%q' ", authorities[i]);
+	  else if (authorities_type == DP_FILTERBY_CONTAINS)
+            tmp2 = sqlite3_mprintf (" d.authority LIKE '%%%q%%' ", authorities[i]);
+	  else if (authorities_type == DP_FILTERBY_STARTS_WITH)
+            tmp2 = sqlite3_mprintf (" d.authority LIKE '%q%%' ", authorities[i]);
 
           str = g_string_append (str, tmp2);
           sqlite3_free (tmp2);
-          if (tags[i+1])
+          if (authorities[i+1])
             str = g_string_append (str, " OR ");
         }
 
-      if (tags[0])
+      if (authorities[0])
         str = g_string_append (str, " ) ");
 
       op = "AND";
     }
   else
     {
-      if (tags_type == DP_FILTERBY_PRESENT)
+      if (authorities_type == DP_FILTERBY_PRESENT)
         {
-          gchar * tmp2 = tmp2 = sqlite3_mprintf (" %s ( d.tag IS NOT NULL OR d.tag != '' ) ", op);
+          gchar * tmp2 = tmp2 = sqlite3_mprintf (" %s ( d.authority IS NOT NULL OR d.authority != '' ) ", op);
           str = g_string_append (str, tmp2);
           sqlite3_free (tmp2);
 
@@ -1725,7 +1725,7 @@ dupin_link_record_update (DupinLinkRecord * record, JsonNode * obj_node,
                           gchar * label,
                           gchar * href,
                           gchar * rel,
-                          gchar * tag,
+                          gchar * authority,
 			  gboolean ignore_updates_if_unmodified,
 			  GError ** error)
 {
@@ -1768,7 +1768,7 @@ dupin_link_record_update (DupinLinkRecord * record, JsonNode * obj_node,
 
   if (dupin_link_record_add_revision_obj (record, rev, &md5, obj_node,
 				          (gchar *)dupin_link_record_get_context_id (record),
-				          label, href, rel, tag,
+				          label, href, rel, authority,
 				          FALSE, created, &expire,
 				          dupin_util_is_valid_absolute_uri (href),
 			  	          ignore_updates_if_unmodified) == FALSE)
@@ -1809,7 +1809,7 @@ dupin_link_record_update (DupinLinkRecord * record, JsonNode * obj_node,
     sqlite3_mprintf (DUPIN_LINKB_SQL_INSERT, record->id, rev, md5,
 		     record->last->obj_serialized, created, expire,
 		     (gchar *)dupin_link_record_get_context_id (record),
-		     label, href, rel, tag,
+		     label, href, rel, authority,
 		     dupin_util_is_valid_absolute_uri (href) ? "TRUE" : "FALSE");
 
 //g_message("dupin_link_record_update: record->last->revision = %d - new rev=%d - query=%s\n", (gint) record->last->revision, (gint) rev, tmp);
@@ -1933,7 +1933,7 @@ dupin_link_record_patch (DupinLinkRecord * record, JsonNode * obj_node,
                          gchar * label,
                          gchar * href,
                          gchar * rel,
-                         gchar * tag,
+                         gchar * authority,
 			 gboolean ignore_updates_if_unmodified,
 			 GError ** error)
 {
@@ -1949,7 +1949,7 @@ dupin_link_record_patch (DupinLinkRecord * record, JsonNode * obj_node,
   if (patched_revision == NULL)
     return FALSE;
 
-  if (dupin_link_record_update (record, patched_revision, label, href, rel, tag, ignore_updates_if_unmodified, error) == FALSE)
+  if (dupin_link_record_update (record, patched_revision, label, href, rel, authority, ignore_updates_if_unmodified, error) == FALSE)
     {
       if (patched_revision != NULL)
         json_node_free (patched_revision);
@@ -2022,7 +2022,7 @@ dupin_link_record_delete (DupinLinkRecord * record, GError ** error)
 				      (gchar *)dupin_link_record_get_label (record),
 				      (gchar *)dupin_link_record_get_href (record),
 				      (gchar *)dupin_link_record_get_rel (record),
-				      (gchar *)dupin_link_record_get_tag (record),
+				      (gchar *)dupin_link_record_get_authority (record),
  				      TRUE, created, &expire,
 				      dupin_link_record_is_weblink (record),
 				      FALSE);
@@ -2032,7 +2032,7 @@ dupin_link_record_delete (DupinLinkRecord * record, GError ** error)
 				      (gchar *)dupin_link_record_get_label (record),
 				      (gchar *)dupin_link_record_get_href (record),
 				      (gchar *)dupin_link_record_get_rel (record),
-				      (gchar *)dupin_link_record_get_tag (record),
+				      (gchar *)dupin_link_record_get_authority (record),
 				      dupin_link_record_is_weblink (record) ? "TRUE" : "FALSE");
 
 //g_message("dupin_link_record_delete: query=%s\n", tmp);
@@ -2192,11 +2192,11 @@ dupin_link_record_get_rel (DupinLinkRecord * record)
 }
 
 const gchar *
-dupin_link_record_get_tag (DupinLinkRecord * record)
+dupin_link_record_get_authority (DupinLinkRecord * record)
 {
   g_return_val_if_fail (record != NULL, 0);
 
-  return record->last->tag;
+  return record->last->authority;
 }
 
 gboolean
@@ -2385,8 +2385,8 @@ dupin_link_record_rev_close (DupinLinkRecordRev * rev)
   if (rev->rel)
     g_free (rev->rel);
 
-  if (rev->tag)
-    g_free (rev->tag);
+  if (rev->authority)
+    g_free (rev->authority);
 
   g_free (rev);
 }
@@ -2400,7 +2400,7 @@ dupin_link_record_add_revision_obj (DupinLinkRecord * record,
 			            gchar * label,
                                     gchar * href,
                                     gchar * rel,
-                                    gchar * tag,
+                                    gchar * authority,
 			            gboolean delete,
 			            gsize created,
 			            gsize * expire,
@@ -2479,7 +2479,7 @@ dupin_link_record_add_revision_obj (DupinLinkRecord * record,
 			           label,
                                    href,
                                    rel,
-			           tag,
+			           authority,
 			           delete,
 			           is_weblink,
 				   *expire,
@@ -2525,7 +2525,7 @@ dupin_link_record_add_revision_obj (DupinLinkRecord * record,
   r->label = g_strdup (label);
   r->href = g_strdup (href);
   r->rel = g_strdup (rel);
-  r->tag = g_strdup (tag);
+  r->authority = g_strdup (authority);
 
   /* TODO - double check that the revision record 'r' is freeded properly when hash table disposed */
 
@@ -2544,7 +2544,7 @@ dupin_link_record_add_revision_str (DupinLinkRecord * record, guint rev, gchar *
 		                    gchar * label,
                                     gchar * href,
                                     gchar * rel,
-                                    gchar * tag,
+                                    gchar * authority,
 				    gboolean delete,
 				    gsize created,
 				    gsize expire,
@@ -2590,7 +2590,7 @@ dupin_link_record_add_revision_str (DupinLinkRecord * record, guint rev, gchar *
   r->label = g_strdup (label);
   r->href = g_strdup (href);
   r->rel = g_strdup (rel);
-  r->tag = g_strdup (tag);
+  r->authority = g_strdup (authority);
 
   /* TODO - double check that the revision record 'r' is freeded properly when hash table disposed */
 
@@ -2602,7 +2602,7 @@ dupin_link_record_add_revision_str (DupinLinkRecord * record, guint rev, gchar *
 
 /* Utility functions */
 
-/* NOTE - compute DUPIN_ID_HASH_ALGO hash of JSON + deleted flag + context_id + label + href + rel + tag + is_weblink */
+/* NOTE - compute DUPIN_ID_HASH_ALGO hash of JSON + deleted flag + context_id + label + href + rel + authority + is_weblink */
 
 static gboolean
 dupin_link_record_generate_hash (DupinLinkRecord * record,
@@ -2611,7 +2611,7 @@ dupin_link_record_generate_hash (DupinLinkRecord * record,
 			    gchar * label,
                             gchar * href,
                             gchar * rel,
-                            gchar * tag,
+                            gchar * authority,
 			    gboolean delete,
 			    gboolean is_weblink,
 			    gsize expire,
@@ -2638,7 +2638,7 @@ dupin_link_record_generate_hash (DupinLinkRecord * record,
   g_string_append_printf (str, "%s", label);
   g_string_append_printf (str, "%s", href);
   g_string_append_printf (str, "%s", rel);
-  g_string_append_printf (str, "%s", tag);
+  g_string_append_printf (str, "%s", authority);
 
   tmp = g_string_free (str, FALSE);
 
@@ -2788,7 +2788,7 @@ dupin_link_record_insert_extract_rel (DupinLinkB * linkb, JsonNode * obj_node)
 }
 
 static gchar *
-dupin_link_record_insert_extract_tag (DupinLinkB * linkb, JsonNode * obj_node)
+dupin_link_record_insert_extract_authority (DupinLinkB * linkb, JsonNode * obj_node)
 {
   g_return_val_if_fail (linkb != NULL, FALSE);
 
@@ -2800,10 +2800,10 @@ dupin_link_record_insert_extract_tag (DupinLinkB * linkb, JsonNode * obj_node)
 
   obj = json_node_get_object (obj_node);
 
-  if (json_object_has_member (obj, REQUEST_LINK_OBJ_TAG) == FALSE)
+  if (json_object_has_member (obj, REQUEST_LINK_OBJ_AUTHORITY) == FALSE)
     return NULL;
 
-  node = json_object_get_member (obj, REQUEST_LINK_OBJ_TAG);
+  node = json_object_get_member (obj, REQUEST_LINK_OBJ_AUTHORITY);
 
   if (node == NULL)
     return NULL;
@@ -2811,7 +2811,7 @@ dupin_link_record_insert_extract_tag (DupinLinkB * linkb, JsonNode * obj_node)
   if (json_node_get_value_type (node) == G_TYPE_STRING) /* check this is correct type */
     ret = g_strdup (json_node_get_string (node));
 
-  json_object_remove_member (obj, REQUEST_LINK_OBJ_TAG); 
+  json_object_remove_member (obj, REQUEST_LINK_OBJ_AUTHORITY); 
 
   return ret;
 }
@@ -3093,7 +3093,7 @@ dupin_link_record_insert (DupinLinkB * linkb,
   gchar * json_record_label=NULL;
   gchar * json_record_href=NULL;
   gchar * json_record_rel=NULL;
-  gchar * json_record_tag=NULL;
+  gchar * json_record_authority=NULL;
   gchar * json_record_context_id=NULL;
 
   if (caller_mvcc != NULL)
@@ -3218,13 +3218,13 @@ dupin_link_record_insert (DupinLinkB * linkb,
 
   json_record_label = dupin_link_record_insert_extract_label (linkb, obj_node);
   json_record_rel = dupin_link_record_insert_extract_rel (linkb, obj_node);
-  json_record_tag = dupin_link_record_insert_extract_tag (linkb, obj_node);
+  json_record_authority = dupin_link_record_insert_extract_authority (linkb, obj_node);
 
 //g_message("dupin_link_record_insert: context_id=%s\n", context_id);
 //g_message("dupin_link_record_insert: json_record_label=%s\n", json_record_label);
 //g_message("dupin_link_record_insert: json_record_href=%s\n", json_record_href);
 //g_message("dupin_link_record_insert: json_record_rel=%s\n", json_record_rel);
-//g_message("dupin_link_record_insert: json_record_tag=%s\n", json_record_tag);
+//g_message("dupin_link_record_insert: json_record_authority=%s\n", json_record_authority);
 //g_message("dupin_link_record_insert: json_record_context_id=%s\n", json_record_context_id);
 
   if (mvcc != NULL
@@ -3258,7 +3258,7 @@ dupin_link_record_insert (DupinLinkB * linkb,
           if (dupin_link_record_exists (linkb, id) == FALSE)
             record = dupin_link_record_create_with_id (linkb, obj_node, id,
  						       context_id, json_record_label, json_record_href,
-						       json_record_rel, json_record_tag, error);
+						       json_record_rel, json_record_authority, error);
           else
             record = NULL;
         }
@@ -3266,7 +3266,7 @@ dupin_link_record_insert (DupinLinkB * linkb,
         {
           if (!record || dupin_util_mvcc_revision_cmp (mvcc, dupin_link_record_get_last_revision (record))
               || dupin_link_record_patch (record, obj_node, json_record_label, json_record_href,
-						json_record_rel, json_record_tag, ignore_updates_if_unmodified, error) == FALSE)
+						json_record_rel, json_record_authority, ignore_updates_if_unmodified, error) == FALSE)
             {
               if (record)
                 dupin_link_record_close (record);
@@ -3277,7 +3277,7 @@ dupin_link_record_insert (DupinLinkB * linkb,
         {
           if (!record || dupin_util_mvcc_revision_cmp (mvcc, dupin_link_record_get_last_revision (record))
               || dupin_link_record_update (record, obj_node, 
-                                       json_record_label, json_record_href, json_record_rel, json_record_tag,
+                                       json_record_label, json_record_href, json_record_rel, json_record_authority,
 				       ignore_updates_if_unmodified, error) == FALSE)
             {
               if (record)
@@ -3319,8 +3319,8 @@ dupin_link_record_insert (DupinLinkB * linkb,
               if (json_record_rel)
                 g_free (json_record_rel);
 
-              if (json_record_tag)
-                g_free (json_record_tag);
+              if (json_record_authority)
+                g_free (json_record_authority);
 
               if (json_record_context_id)
                 g_free (json_record_context_id);
@@ -3338,7 +3338,7 @@ dupin_link_record_insert (DupinLinkB * linkb,
             }
 
           record = dupin_link_record_create (linkb, obj_node, context_id,
-                                         json_record_label, json_record_href, json_record_rel, json_record_tag,
+                                         json_record_label, json_record_href, json_record_rel, json_record_authority,
                                          error);
         }
     }
@@ -3355,7 +3355,7 @@ dupin_link_record_insert (DupinLinkB * linkb,
           if (dupin_link_record_exists (linkb, id) == FALSE)
             record = dupin_link_record_create_with_id (linkb, obj_node, id,
  						       context_id, json_record_label, json_record_href,
-						       json_record_rel, json_record_tag, error);
+						       json_record_rel, json_record_authority, error);
           else
             record = NULL;
         }
@@ -3370,8 +3370,8 @@ dupin_link_record_insert (DupinLinkB * linkb,
   if (json_record_rel)
     g_free (json_record_rel);
 
-  if (json_record_tag)
-    g_free (json_record_tag);
+  if (json_record_authority)
+    g_free (json_record_authority);
 
   if (json_record_context_id)
     g_free (json_record_context_id);

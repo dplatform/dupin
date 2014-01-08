@@ -351,7 +351,7 @@ struct dupin_link_record_rev_t
   gchar	*	href;
   gchar	*	rel;
   gboolean	is_weblink;
-  gchar	*	tag; /* E.g. to tag named hierarchies */
+  gchar	*	authority;
 
   gboolean	deleted;
 

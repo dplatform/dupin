@@ -2659,8 +2659,8 @@ request_global_get_all_docs_linkbase (DSHttpdClient * client,
   DupinFilterByType link_labels_op = DP_FILTERBY_EQUALS;
   gchar ** link_hrefs = NULL;
   DupinFilterByType link_hrefs_op = DP_FILTERBY_EQUALS;
-  gchar ** link_tags = NULL;
-  DupinFilterByType link_tags_op = DP_FILTERBY_EQUALS;
+  gchar ** link_authorities = NULL;
+  DupinFilterByType link_authorities_op = DP_FILTERBY_EQUALS;
   DupinLinksType link_type = DP_LINK_TYPE_ANY;
 
   gchar * filter_by = NULL;
@@ -2771,21 +2771,21 @@ request_global_get_all_docs_linkbase (DSHttpdClient * client,
             link_hrefs_op = DP_FILTERBY_PRESENT;
         }
 
-      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_TAGS))
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_AUTHORITIES))
         {
-          link_tags = g_strsplit (kv->value, ",", -1);
+          link_authorities = g_strsplit (kv->value, ",", -1);
         }
 
-      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_TAGS_OP))
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_AUTHORITIES_OP))
         {
           if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_OP_EQUALS))
-            link_tags_op = DP_FILTERBY_EQUALS;
+            link_authorities_op = DP_FILTERBY_EQUALS;
           else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_OP_CONTAINS))
-            link_tags_op = DP_FILTERBY_CONTAINS;
+            link_authorities_op = DP_FILTERBY_CONTAINS;
           else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_OP_STARTS_WITH))
-            link_tags_op = DP_FILTERBY_STARTS_WITH;
+            link_authorities_op = DP_FILTERBY_STARTS_WITH;
           else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_OP_PRESENT))
-            link_tags_op = DP_FILTERBY_PRESENT;
+            link_authorities_op = DP_FILTERBY_PRESENT;
         }
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_LINKS_LINKBASE))
@@ -2995,11 +2995,11 @@ request_global_get_all_docs_linkbase (DSHttpdClient * client,
       || link_rels != NULL
       || link_labels != NULL
       || link_hrefs != NULL
-      || link_tags != NULL
+      || link_authorities != NULL
       || filter_by != NULL)
     total_rows = dupin_link_record_get_list_total (linkb, 0, 0, link_type, keys, startkey, endkey, inclusive_end, DP_COUNT_EXIST, 
 						   context_id, link_rels, link_rels_op,
-						   link_labels, link_labels_op, link_hrefs, link_hrefs_op, link_tags, link_tags_op,
+						   link_labels, link_labels_op, link_hrefs, link_hrefs_op, link_authorities, link_authorities_op,
 						   filter_by, filter_by_format, filter_op, filter_values);
   else
     total_rows = dupin_linkbase_count (linkb, link_type, DP_COUNT_EXIST);
@@ -3007,7 +3007,7 @@ request_global_get_all_docs_linkbase (DSHttpdClient * client,
 
   if (dupin_link_record_get_list (linkb, count, offset, 0, 0, link_type, keys, startkey, endkey, inclusive_end, DP_COUNT_EXIST, DP_ORDERBY_ID, descending, 
 				  context_id, link_rels, link_rels_op, link_labels, link_labels_op,
-				  link_hrefs, link_hrefs_op, link_tags, link_tags_op,
+				  link_hrefs, link_hrefs_op, link_authorities, link_authorities_op,
 				  filter_by, filter_by_format, filter_op, filter_values, &results, NULL) == FALSE)
     {
       if (link_rels)
@@ -3019,8 +3019,8 @@ request_global_get_all_docs_linkbase (DSHttpdClient * client,
       if (link_hrefs)
         g_strfreev (link_hrefs);
 
-      if (link_tags)
-        g_strfreev (link_tags);
+      if (link_authorities)
+        g_strfreev (link_authorities);
 
       if (startkey != NULL)
         g_free (startkey);
@@ -3111,10 +3111,10 @@ request_global_get_all_docs_linkbase (DSHttpdClient * client,
       if (rel != NULL)
         json_object_set_string_member (value_obj, RESPONSE_LINK_OBJ_REL, rel);
 
-      gchar * tag = (gchar *)dupin_link_record_get_tag (record);
+      gchar * authority = (gchar *)dupin_link_record_get_authority (record);
 
-      if (tag != NULL)
-        json_object_set_string_member (value_obj, RESPONSE_LINK_OBJ_TAG, tag);
+      if (authority != NULL)
+        json_object_set_string_member (value_obj, RESPONSE_LINK_OBJ_AUTHORITY, authority);
 
       gchar * created = dupin_date_timestamp_to_http_date (dupin_link_record_get_created (record));
       json_object_set_string_member (value_obj, RESPONSE_OBJ_CREATED, created);
@@ -3174,8 +3174,8 @@ request_global_get_all_docs_linkbase (DSHttpdClient * client,
       if (link_hrefs)
         g_strfreev (link_hrefs);
 
-      if (link_tags)
-        g_strfreev (link_tags);
+      if (link_authorities)
+        g_strfreev (link_authorities);
 
       if (startkey != NULL)
         g_free (startkey);
@@ -3218,8 +3218,8 @@ request_global_get_all_docs_linkbase (DSHttpdClient * client,
   if (link_hrefs)
     g_strfreev (link_hrefs);
 
-  if (link_tags)
-    g_strfreev (link_tags);
+  if (link_authorities)
+    g_strfreev (link_authorities);
 
   if (startkey != NULL)
     g_free (startkey);
@@ -3254,8 +3254,8 @@ request_global_get_all_docs_linkbase_error:
   if (link_hrefs)
     g_strfreev (link_hrefs);
 
-  if (link_tags)
-    g_strfreev (link_tags);
+  if (link_authorities)
+    g_strfreev (link_authorities);
 
   if (startkey != NULL)
     g_free (startkey);
@@ -3291,8 +3291,8 @@ request_global_get_changes_linkbase (DSHttpdClient * client,
   guint timeout=REQUEST_GET_ALL_CHANGES_TIMEOUT_DEFAULT;
 
   gchar * context_id = NULL;
-  gchar ** tags = NULL;
-  DupinFilterByType tags_op = DP_FILTERBY_EQUALS;
+  gchar ** authorities = NULL;
+  DupinFilterByType authorities_op = DP_FILTERBY_EQUALS;
 
   gsize last_seq=0;
   gsize since = 0;
@@ -3331,21 +3331,21 @@ request_global_get_changes_linkbase (DSHttpdClient * client,
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_CONTEXT_ID))
 	context_id = kv->value;
 
-      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_TAGS))
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_AUTHORITIES))
         {
-          tags = g_strsplit (kv->value, ",", -1);
+          authorities = g_strsplit (kv->value, ",", -1);
         }
 
-      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_TAGS_OP))
+      else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_AUTHORITIES_OP))
         {
           if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_OP_EQUALS))
-            tags_op = DP_FILTERBY_EQUALS;
+            authorities_op = DP_FILTERBY_EQUALS;
           else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_OP_CONTAINS))
-            tags_op = DP_FILTERBY_CONTAINS;
+            authorities_op = DP_FILTERBY_CONTAINS;
           else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_OP_STARTS_WITH))
-            tags_op = DP_FILTERBY_STARTS_WITH;
+            authorities_op = DP_FILTERBY_STARTS_WITH;
           else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_OP_PRESENT))
-            tags_op = DP_FILTERBY_PRESENT;
+            authorities_op = DP_FILTERBY_PRESENT;
         }
 
       else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_CHANGES_STYLE))
@@ -3430,8 +3430,8 @@ request_global_get_changes_linkbase (DSHttpdClient * client,
       client->output.changes_comet.param_feed = feed;
       client->output.changes_comet.param_include_docs = include_docs;
       client->output.changes_comet.param_context_id = context_id;
-      client->output.changes_comet.param_tags = tags;
-      client->output.changes_comet.param_tags_op = tags_op;
+      client->output.changes_comet.param_authorities = authorities;
+      client->output.changes_comet.param_authorities_op = authorities_op;
       client->output.changes_comet.change_generated = FALSE;
       client->output.changes_comet.change_last_seq = 0;
 
@@ -3453,8 +3453,8 @@ request_global_get_changes_linkbase (DSHttpdClient * client,
       (linkb =
        dupin_linkbase_open (client->thread->data->dupin, path->data, NULL)))
     {
-      if (tags != NULL)
-        g_strfreev (tags);
+      if (authorities != NULL)
+        g_strfreev (authorities);
 
       request_set_error (client, "Cannot connect to changes linkbase");
       return HTTP_STATUS_404;
@@ -3462,8 +3462,8 @@ request_global_get_changes_linkbase (DSHttpdClient * client,
 
   if (dupin_linkbase_get_max_rowid (linkb, &last_seq) == FALSE)
     {
-      if (tags != NULL)
-        g_strfreev (tags);
+      if (authorities != NULL)
+        g_strfreev (authorities);
 
       request_set_error (client, "Cannot get last change from linkbase");
       return HTTP_STATUS_404;
@@ -3475,11 +3475,11 @@ request_global_get_changes_linkbase (DSHttpdClient * client,
       since = last_seq;
     }
 
-  if (dupin_linkbase_get_changes_list (linkb, count, 0, since, 0, style, DP_COUNT_CHANGES, DP_ORDERBY_ROWID, descending, context_id, tags, tags_op, &results, NULL) ==
+  if (dupin_linkbase_get_changes_list (linkb, count, 0, since, 0, style, DP_COUNT_CHANGES, DP_ORDERBY_ROWID, descending, context_id, authorities, authorities_op, &results, NULL) ==
       FALSE)
     {
-      if (tags != NULL)
-        g_strfreev (tags);
+      if (authorities != NULL)
+        g_strfreev (authorities);
 
       dupin_linkbase_unref (linkb);
       request_set_error (client, "Cannot list changes from linkbase");
@@ -3561,8 +3561,8 @@ request_global_get_changes_linkbase (DSHttpdClient * client,
   if( results )
     dupin_linkbase_get_changes_list_close (results);
 
-  if (tags != NULL)
-    g_strfreev (tags);
+  if (authorities != NULL)
+    g_strfreev (authorities);
 
   dupin_linkbase_unref (linkb);
 
@@ -3576,8 +3576,8 @@ request_global_get_changes_linkbase_error:
   if( results )
     dupin_linkbase_get_changes_list_close (results);
 
-  if (tags != NULL)
-    g_strfreev (tags);
+  if (authorities != NULL)
+    g_strfreev (authorities);
 
   dupin_linkbase_unref (linkb);
 
@@ -7896,7 +7896,7 @@ request_global_delete_link_record (DSHttpdClient * client,
                   || !g_strcmp0 (path->next->next->next->data, REQUEST_LINK_OBJ_LABEL)
                   || !g_strcmp0 (path->next->next->next->data, REQUEST_LINK_OBJ_HREF)
                   || !g_strcmp0 (path->next->next->next->data, REQUEST_LINK_OBJ_REL)
-                  || !g_strcmp0 (path->next->next->next->data, REQUEST_LINK_OBJ_TAG))
+                  || !g_strcmp0 (path->next->next->next->data, REQUEST_LINK_OBJ_AUTHORITY))
 	        {
       		  request_set_error (client, "Cannot delete link record field");
                   return HTTP_STATUS_400;
@@ -7998,7 +7998,7 @@ request_global_delete_link_record (DSHttpdClient * client,
       				    (gchar *)dupin_link_record_get_label (record),
       				    (gchar *)dupin_link_record_get_href (record),
       				    (gchar *)dupin_link_record_get_rel (record),
-      				    (gchar *)dupin_link_record_get_tag (record), FALSE, NULL) == FALSE)
+      				    (gchar *)dupin_link_record_get_authority (record), FALSE, NULL) == FALSE)
         {
           json_node_free (patch);
           dupin_link_record_close (record);
@@ -8333,8 +8333,8 @@ request_record_revision_obj (DSHttpdClient * client,
       DupinFilterByType include_links_labels_op = DP_FILTERBY_EQUALS;
       gchar ** include_links_hrefs = NULL;
       DupinFilterByType include_links_hrefs_op = DP_FILTERBY_EQUALS;
-      gchar ** include_links_tags = NULL;
-      DupinFilterByType include_links_tags_op = DP_FILTERBY_EQUALS;
+      gchar ** include_links_authorities = NULL;
+      DupinFilterByType include_links_authorities_op = DP_FILTERBY_EQUALS;
 
       gchar * include_links_filter_by = NULL;
       DupinFieldsFormatType include_links_filter_by_format = DP_FIELDS_FORMAT_DOTTED;
@@ -8478,21 +8478,21 @@ request_record_revision_obj (DSHttpdClient * client,
                 include_links_hrefs_op = DP_FILTERBY_PRESENT;
             }
 
-          else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TAGS))
+          else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_AUTHORITIES))
             {
-              include_links_tags = g_strsplit (kv->value, ",", -1);
+              include_links_authorities = g_strsplit (kv->value, ",", -1);
             }
 
-          else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TAGS_OP))
+          else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_AUTHORITIES_OP))
             {
               if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_OP_EQUALS))
-                include_links_tags_op = DP_FILTERBY_EQUALS;
+                include_links_authorities_op = DP_FILTERBY_EQUALS;
               else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_OP_CONTAINS))
-                include_links_tags_op = DP_FILTERBY_CONTAINS;
+                include_links_authorities_op = DP_FILTERBY_CONTAINS;
               else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_OP_STARTS_WITH))
-                include_links_tags_op = DP_FILTERBY_STARTS_WITH;
+                include_links_authorities_op = DP_FILTERBY_STARTS_WITH;
               else if (!g_strcmp0 (kv->value, REQUEST_GET_ALL_ANY_FILTER_OP_PRESENT))
-                include_links_tags_op = DP_FILTERBY_PRESENT;
+                include_links_authorities_op = DP_FILTERBY_PRESENT;
             }
 
           else if (!g_strcmp0 (kv->key, REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_FILTER_BY))
@@ -8557,8 +8557,8 @@ request_record_revision_obj (DSHttpdClient * client,
               if (include_links_hrefs != NULL)
                 g_strfreev (include_links_hrefs);
 
-              if (include_links_tags != NULL)
-                g_strfreev (include_links_tags);
+              if (include_links_authorities != NULL)
+                g_strfreev (include_links_authorities);
 
               request_set_error (client, "Cannot connect to linkbase");
 
@@ -8582,13 +8582,13 @@ request_record_revision_obj (DSHttpdClient * client,
 
               gsize total_links = dupin_link_record_get_list_total (linkb, 0, 0, DP_LINK_TYPE_WEB_LINK, NULL, NULL, NULL, TRUE, DP_COUNT_EXIST,
 						    (gchar *) dupin_record_get_id (record), include_links_rels, include_links_rels_op,
-						    include_links_labels, include_links_labels_op, include_links_hrefs, include_links_hrefs_op, include_links_tags, include_links_tags_op,
+						    include_links_labels, include_links_labels_op, include_links_hrefs, include_links_hrefs_op, include_links_authorities, include_links_authorities_op,
 						    include_links_filter_by, include_links_filter_by_format, include_links_filter_op, include_links_filter_values);
 
               if (dupin_link_record_get_list (linkb, include_links_weblinks_count, include_links_weblinks_offset,
 					      0, 0, DP_LINK_TYPE_WEB_LINK, NULL, NULL, NULL, TRUE, DP_COUNT_EXIST, DP_ORDERBY_ROWID, include_links_weblinks_descending,
 				              (gchar *) dupin_record_get_id (record), include_links_rels, include_links_rels_op,
-					      include_links_labels, include_links_labels_op, include_links_hrefs, include_links_hrefs_op, include_links_tags, include_links_tags_op,
+					      include_links_labels, include_links_labels_op, include_links_hrefs, include_links_hrefs_op, include_links_authorities, include_links_authorities_op,
 					      include_links_filter_by, include_links_filter_by_format, include_links_filter_op, include_links_filter_values, &results, NULL) == FALSE)
                 {
 		  // just log the error and reason into JSON
@@ -8669,13 +8669,13 @@ request_record_revision_obj_relationships:
 
               gsize total_relationships = dupin_link_record_get_list_total (linkb, 0, 0, DP_LINK_TYPE_RELATIONSHIP, NULL, NULL, NULL, TRUE, DP_COUNT_EXIST,
 				              (gchar *) dupin_record_get_id (record), include_links_rels, include_links_rels_op,
-					      include_links_labels, include_links_labels_op, include_links_hrefs, include_links_hrefs_op, include_links_tags, include_links_tags_op,
+					      include_links_labels, include_links_labels_op, include_links_hrefs, include_links_hrefs_op, include_links_authorities, include_links_authorities_op,
 					      include_links_filter_by, include_links_filter_by_format, include_links_filter_op, include_links_filter_values);
 
               if (dupin_link_record_get_list (linkb, include_links_relationships_count, include_links_relationships_offset,
 					      0, 0, DP_LINK_TYPE_RELATIONSHIP, NULL, NULL, NULL, TRUE, DP_COUNT_EXIST, DP_ORDERBY_ROWID, include_links_relationships_descending,
 				 	      (gchar *) dupin_record_get_id (record), include_links_rels, include_links_rels_op,
-					      include_links_labels, include_links_labels_op, include_links_hrefs, include_links_hrefs_op, include_links_tags, include_links_tags_op,
+					      include_links_labels, include_links_labels_op, include_links_hrefs, include_links_hrefs_op, include_links_authorities, include_links_authorities_op,
 					      include_links_filter_by, include_links_filter_by_format, include_links_filter_op, include_links_filter_values, &results, NULL) == FALSE)
                 {
 		  // just log the error and reason into JSON
@@ -8769,8 +8769,8 @@ request_record_revision_obj_end:
       if (include_links_hrefs != NULL)
         g_strfreev (include_links_hrefs);
 
-      if (include_links_tags != NULL)
-        g_strfreev (include_links_tags);
+      if (include_links_authorities != NULL)
+        g_strfreev (include_links_authorities);
     }
 
   if (fields_splitted != NULL)
@@ -8906,10 +8906,10 @@ request_link_record_revision_obj (DSHttpdClient * client,
   if (rel != NULL)
     json_object_set_string_member (obj, REQUEST_LINK_OBJ_REL, rel);
 
-  gchar * tag = (gchar *)dupin_link_record_get_tag (record);
+  gchar * authority = (gchar *)dupin_link_record_get_authority (record);
 
-  if (tag != NULL)
-    json_object_set_string_member (obj, REQUEST_LINK_OBJ_TAG, tag);
+  if (authority != NULL)
+    json_object_set_string_member (obj, REQUEST_LINK_OBJ_AUTHORITY, authority);
 
   /* Setting _id and _rev: */
   json_object_set_string_member (obj, REQUEST_LINK_OBJ_ID, id);
@@ -9513,8 +9513,8 @@ request_get_changes_comet_linkbase_next:
                                        DP_COUNT_CHANGES, DP_ORDERBY_ROWID,
                                        client->output.changes_comet.param_descending,
                                        client->output.changes_comet.param_context_id,
-                                       client->output.changes_comet.param_tags,
-                                       client->output.changes_comet.param_tags_op,
+                                       client->output.changes_comet.param_authorities,
+                                       client->output.changes_comet.param_authorities_op,
 					&results, NULL) == FALSE)
         {
           goto request_get_changes_comet_linkbase_error;
@@ -10677,8 +10677,8 @@ request_global_get_portable_listings_record_relationship (DSHttpdClient * client
   DupinFilterByType link_labels_op = DP_FILTERBY_EQUALS;
   gchar ** link_hrefs = NULL;
   DupinFilterByType link_hrefs_op = DP_FILTERBY_EQUALS;
-  gchar ** link_tags = NULL;
-  DupinFilterByType link_tags_op = DP_FILTERBY_EQUALS;
+  gchar ** link_authorities = NULL;
+  DupinFilterByType link_authorities_op = DP_FILTERBY_EQUALS;
 
   DupinLinksType link_type = DP_LINK_TYPE_RELATIONSHIP;
 
@@ -10889,7 +10889,7 @@ request_global_get_portable_listings_record_relationship (DSHttpdClient * client
       || filter_by != NULL)
     total_rows = dupin_link_record_get_list_total (linkb, 0, 0, link_type, NULL, NULL, NULL, inclusive_end, DP_COUNT_EXIST, 
 						   context_id, link_rels, link_rels_op,
-						   link_labels, link_labels_op, link_hrefs, link_hrefs_op, link_tags, link_tags_op,
+						   link_labels, link_labels_op, link_hrefs, link_hrefs_op, link_authorities, link_authorities_op,
 						   filter_by, filter_by_format, filter_op, filter_values);
   else
     total_rows = dupin_linkbase_count (linkb, link_type, DP_COUNT_EXIST);
@@ -10897,7 +10897,7 @@ request_global_get_portable_listings_record_relationship (DSHttpdClient * client
 
   if (dupin_link_record_get_list (linkb, count, offset, 0, 0, link_type, NULL, NULL, NULL, inclusive_end, DP_COUNT_EXIST, DP_ORDERBY_ID, descending, 
 				  context_id, link_rels, link_rels_op, link_labels, link_labels_op,
-				  link_hrefs, link_hrefs_op, link_tags, link_tags_op,
+				  link_hrefs, link_hrefs_op, link_authorities, link_authorities_op,
 				  filter_by, filter_by_format, filter_op, filter_values, &results, NULL) == FALSE)
     {
       if (link_labels)

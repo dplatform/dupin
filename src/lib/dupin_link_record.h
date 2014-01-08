@@ -30,18 +30,18 @@ int		dupin_link_record_select_total_cb
         "SELECT count(id) FROM Dupin WHERE id = '%q' "
 
 #define DUPIN_LINKB_SQL_INSERT \
-        "INSERT INTO Dupin (id, rev, hash, obj, tm, expire_tm, context_id, label, href, rel, tag, is_weblink) " \
+        "INSERT INTO Dupin (id, rev, hash, obj, tm, expire_tm, context_id, label, href, rel, authority, is_weblink) " \
         "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%" G_GSIZE_FORMAT "', '%" G_GSIZE_FORMAT "', '%q', '%q', '%q', %Q, %Q, '%q')"
 
 #define DUPIN_LINKB_SQL_UPDATE \
-        "INSERT OR REPLACE INTO Dupin (id, rev, hash, obj, tm, expire_tm, context_id, label, href, rel, tag, is_weblink) " \
+        "INSERT OR REPLACE INTO Dupin (id, rev, hash, obj, tm, expire_tm, context_id, label, href, rel, authority, is_weblink) " \
         "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%" G_GSIZE_FORMAT "', '%" G_GSIZE_FORMAT "', '%q', '%q', '%q', %Q, %Q, '%q')"
 
 #define DUPIN_LINKB_SQL_READ \
-        "SELECT rev, hash, obj, deleted, tm, expire_tm, ROWID AS rowid, context_id, label, href, rel, tag, is_weblink FROM Dupin WHERE id='%q'"
+        "SELECT rev, hash, obj, deleted, tm, expire_tm, ROWID AS rowid, context_id, label, href, rel, authority, is_weblink FROM Dupin WHERE id='%q'"
 
 #define DUPIN_LINKB_SQL_DELETE \
-        "INSERT OR REPLACE INTO Dupin (id, rev, deleted, hash, obj, tm, expire_tm, context_id, label, href, rel, tag, is_weblink) " \
+        "INSERT OR REPLACE INTO Dupin (id, rev, deleted, hash, obj, tm, expire_tm, context_id, label, href, rel, authority, is_weblink) " \
         "VALUES('%q', '%" G_GSIZE_FORMAT "', 'TRUE', '%q', '{}', '%" G_GSIZE_FORMAT "', '%" G_GSIZE_FORMAT "', '%q', '%q', '%q', %Q, %Q, '%q')"
 
 #define DUPIN_LINKB_SQL_UPDATE_REV_HEAD \
@@ -168,7 +168,7 @@ DupinLinkRecord *	dupin_link_record_create
 					 gchar *                label,
                                          gchar *                href,
                                          gchar *                rel,
-                                         gchar *                tag,
+                                         gchar *                authority,
 					 GError **		error);
 
 DupinLinkRecord *	dupin_link_record_create_with_id
@@ -179,7 +179,7 @@ DupinLinkRecord *	dupin_link_record_create_with_id
 					 gchar *                label,
                                          gchar *                href,
                                          gchar *                rel,
-                                         gchar *                tag,
+                                         gchar *                authority,
 					 GError **		error);
 
 gboolean	dupin_link_record_exists
@@ -213,8 +213,8 @@ gboolean	dupin_link_record_get_list
 					 DupinFilterByType	labels_type,
 					 gchar **               hrefs,
 					 DupinFilterByType	hrefs_type,
-					 gchar **               tags,
-					 DupinFilterByType	tags_type,
+					 gchar **               authorities,
+					 DupinFilterByType	authorities_type,
 					 gchar *                filter_by,
                                          DupinFieldsFormatType  filter_by_format,
                                          DupinFilterByType      filter_op,
@@ -242,8 +242,8 @@ gsize           dupin_link_record_get_list_total
                                          DupinFilterByType      labels_type,
                                          gchar **               hrefs,
                                          DupinFilterByType      hrefs_type,
-                                         gchar **               tags,
-                                         DupinFilterByType      tags_type,
+                                         gchar **               authorities,
+                                         DupinFilterByType      authorities_type,
 					 gchar *                filter_by,
                                          DupinFieldsFormatType  filter_by_format,
                                          DupinFilterByType      filter_op,
@@ -255,7 +255,7 @@ gboolean	dupin_link_record_update
 					 gchar *                label,
                                          gchar *                href,
                                          gchar *                rel,
-                                         gchar *                tag,
+                                         gchar *                authority,
 					 gboolean		ignore_updates_if_unmodified,
 					 GError **		error);
 
@@ -265,7 +265,7 @@ gboolean	dupin_link_record_patch
 					 gchar *                label,
                                          gchar *                href,
                                          gchar *                rel,
-                                         gchar *                tag,
+                                         gchar *                authority,
 					 gboolean		ignore_updates_if_unmodified,
 					 GError **		error);
 
@@ -290,7 +290,7 @@ const gchar *	dupin_link_record_get_href
 const gchar *	dupin_link_record_get_rel
 					(DupinLinkRecord *		record);
 
-const gchar *	dupin_link_record_get_tag
+const gchar *	dupin_link_record_get_authority
 					(DupinLinkRecord *		record);
 
 gboolean	dupin_link_record_is_weblink

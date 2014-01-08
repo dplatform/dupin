@@ -1982,8 +1982,8 @@ httpd_client_free (DSHttpdClient * client)
       break;
 
     case DS_HTTPD_OUTPUT_CHANGES_COMET:
-      if (client->output.changes_comet.param_tags != NULL)
-        g_strfreev (client->output.changes_comet.param_tags);
+      if (client->output.changes_comet.param_authorities != NULL)
+        g_strfreev (client->output.changes_comet.param_authorities);
 
       if (client->output.changes_comet.param_types != NULL)
         g_strfreev (client->output.changes_comet.param_types);

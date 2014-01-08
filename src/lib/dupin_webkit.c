@@ -977,8 +977,8 @@ dupin_webkit_dupin_class_links (JSContextRef ctx,
 	  "labels_type": string,
 	  "hrefs": "string, string ... ",
 	  "hrefs_type": string,
-	  "tags": "string, string .. ",
-	  "tags_type": string,
+	  "authorities": "string, string .. ",
+	  "authorities_type": string,
 	  "filter_by": string,
 	  "filter_by_format": string,
 	  "filter_op": string,
@@ -1054,8 +1054,8 @@ dupin_webkit_dupin_class_links (JSContextRef ctx,
   DupinFilterByType link_labels_op = DP_FILTERBY_EQUALS;
   gchar ** link_hrefs = NULL;
   DupinFilterByType link_hrefs_op = DP_FILTERBY_EQUALS;
-  gchar ** link_tags = NULL;
-  DupinFilterByType link_tags_op = DP_FILTERBY_EQUALS;
+  gchar ** link_authorities = NULL;
+  DupinFilterByType link_authorities_op = DP_FILTERBY_EQUALS;
   DupinLinksType link_type = DP_LINK_TYPE_ANY;
   gchar * filter_by = NULL;
   DupinFieldsFormatType filter_by_format = DP_FIELDS_FORMAT_DOTTED;
@@ -1205,29 +1205,29 @@ dupin_webkit_dupin_class_links (JSContextRef ctx,
             }
         }
 
-      else if (!g_strcmp0 (member_name, REQUEST_GET_ALL_LINKS_TAGS))
+      else if (!g_strcmp0 (member_name, REQUEST_GET_ALL_LINKS_AUTHORITIES))
         {
           if (json_node_get_node_type (member) == JSON_NODE_VALUE
               && json_node_get_value_type (member) == G_TYPE_STRING)
             {
-              link_tags = g_strsplit (json_node_get_string (member), ",", -1);
+              link_authorities = g_strsplit (json_node_get_string (member), ",", -1);
             }
         }
 
-      else if (!g_strcmp0 (member_name, REQUEST_GET_ALL_LINKS_TAGS_OP))
+      else if (!g_strcmp0 (member_name, REQUEST_GET_ALL_LINKS_AUTHORITIES_OP))
         {
           if (json_node_get_node_type (member) == JSON_NODE_VALUE
               && json_node_get_value_type (member) == G_TYPE_STRING)
             {
               gchar * op = (gchar *)json_node_get_string (member);
               if (!g_strcmp0 (op, REQUEST_GET_ALL_ANY_FILTER_OP_EQUALS))
-                link_tags_op = DP_FILTERBY_EQUALS;
+                link_authorities_op = DP_FILTERBY_EQUALS;
               else if (!g_strcmp0 (op, REQUEST_GET_ALL_ANY_FILTER_OP_CONTAINS))
-                link_tags_op = DP_FILTERBY_CONTAINS;
+                link_authorities_op = DP_FILTERBY_CONTAINS;
               else if (!g_strcmp0 (op, REQUEST_GET_ALL_ANY_FILTER_OP_STARTS_WITH))
-                link_tags_op = DP_FILTERBY_STARTS_WITH;
+                link_authorities_op = DP_FILTERBY_STARTS_WITH;
               else if (!g_strcmp0 (op, REQUEST_GET_ALL_ANY_FILTER_OP_PRESENT))
-                link_tags_op = DP_FILTERBY_PRESENT;
+                link_authorities_op = DP_FILTERBY_PRESENT;
             }
         }
 
@@ -1270,8 +1270,8 @@ dupin_webkit_dupin_class_links (JSContextRef ctx,
                   if (link_hrefs)
                     g_strfreev (link_hrefs);
 
-                  if (link_tags)
-                    g_strfreev (link_tags);
+                  if (link_authorities)
+                    g_strfreev (link_authorities);
 
                   if (endkey != NULL)
                     g_free (endkey);
@@ -1307,8 +1307,8 @@ dupin_webkit_dupin_class_links (JSContextRef ctx,
                   if (link_hrefs)
                     g_strfreev (link_hrefs);
 
-                  if (link_tags)
-                    g_strfreev (link_tags);
+                  if (link_authorities)
+                    g_strfreev (link_authorities);
 
                   if (endkey != NULL)
                     g_free (endkey);
@@ -1349,8 +1349,8 @@ dupin_webkit_dupin_class_links (JSContextRef ctx,
                   if (link_hrefs)
                     g_strfreev (link_hrefs);
 
-                  if (link_tags)
-                    g_strfreev (link_tags);
+                  if (link_authorities)
+                    g_strfreev (link_authorities);
 
                   if (endkey != NULL)
                     g_free (endkey);
@@ -1389,8 +1389,8 @@ dupin_webkit_dupin_class_links (JSContextRef ctx,
                   if (link_hrefs)
                     g_strfreev (link_hrefs);
 
-                  if (link_tags)
-                    g_strfreev (link_tags);
+                  if (link_authorities)
+                    g_strfreev (link_authorities);
 
                   if (startkey != NULL)
                     g_free (startkey);
@@ -1483,8 +1483,8 @@ dupin_webkit_dupin_class_links (JSContextRef ctx,
       if (link_hrefs)
         g_strfreev (link_hrefs);
 
-      if (link_tags)
-        g_strfreev (link_tags);
+      if (link_authorities)
+        g_strfreev (link_authorities);
 
       if (startkey != NULL)
         g_free (startkey);
@@ -1509,7 +1509,7 @@ dupin_webkit_dupin_class_links (JSContextRef ctx,
 
   if (dupin_link_record_get_list (linkb, count, offset, 0, 0, link_type, keys, startkey, endkey, inclusive_end, DP_COUNT_EXIST, DP_ORDERBY_ID, descending,
                                   context_id, link_rels, link_rels_op, link_labels, link_labels_op,
-                                  link_hrefs, link_hrefs_op, link_tags, link_tags_op,
+                                  link_hrefs, link_hrefs_op, link_authorities, link_authorities_op,
                                   filter_by, filter_by_format, filter_op, filter_values, &results, NULL) == FALSE)
     {
       if (link_rels)
@@ -1521,8 +1521,8 @@ dupin_webkit_dupin_class_links (JSContextRef ctx,
       if (link_hrefs)
         g_strfreev (link_hrefs);
 
-      if (link_tags)
-        g_strfreev (link_tags);
+      if (link_authorities)
+        g_strfreev (link_authorities);
 
       if (startkey != NULL)
         g_free (startkey);
@@ -1600,8 +1600,8 @@ dupin_webkit_dupin_class_links (JSContextRef ctx,
       		  if (link_hrefs)
         	    g_strfreev (link_hrefs);
 
-      		  if (link_tags)
-        	    g_strfreev (link_tags);
+      		  if (link_authorities)
+        	    g_strfreev (link_authorities);
 
       		  if (startkey != NULL)
         	    g_free (startkey);
@@ -1695,8 +1695,8 @@ dupin_webkit_dupin_class_links (JSContextRef ctx,
       		if (link_hrefs)
         	  g_strfreev (link_hrefs);
 
-      		if (link_tags)
-        	  g_strfreev (link_tags);
+      		if (link_authorities)
+        	  g_strfreev (link_authorities);
 
       		if (startkey != NULL)
         	  g_free (startkey);
@@ -1788,10 +1788,10 @@ dupin_webkit_dupin_class_links (JSContextRef ctx,
       if (rel != NULL)
         json_object_set_string_member (obj, REQUEST_LINK_OBJ_REL, rel);
 
-      gchar * tag = (gchar *)dupin_link_record_get_tag (record);
+      gchar * authority = (gchar *)dupin_link_record_get_authority (record);
 
-      if (tag != NULL)
-        json_object_set_string_member (obj, REQUEST_LINK_OBJ_TAG, tag);
+      if (authority != NULL)
+        json_object_set_string_member (obj, REQUEST_LINK_OBJ_AUTHORITY, authority);
 
       /* Setting _id and _rev: */
       json_object_set_string_member (obj, REQUEST_LINK_OBJ_ID, (gchar *) dupin_link_record_get_id (record));
@@ -1874,8 +1874,8 @@ dupin_webkit_dupin_class_links (JSContextRef ctx,
   if (link_hrefs)
     g_strfreev (link_hrefs);
 
-  if (link_tags)
-    g_strfreev (link_tags);
+  if (link_authorities)
+    g_strfreev (link_authorities);
 
   if (startkey != NULL)
     g_free (startkey);

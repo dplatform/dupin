@@ -27,7 +27,7 @@
   "  href        TEXT NOT NULL,\n" \
   "  rel         TEXT NOT NULL,\n" \
   "  is_weblink  BOOL DEFAULT FALSE,\n" \
-  "  tag         TEXT DEFAULT NULL,\n" \
+  "  authority   TEXT DEFAULT NULL,\n" \
   "  rev_head    BOOL DEFAULT TRUE,\n" \
   "  UNIQUE      (id, rev)\n" \
   ");"
@@ -38,7 +38,7 @@
   "CREATE INDEX IF NOT EXISTS DupinIdRevHead ON Dupin (id,rev_head);\n" \
   "CREATE INDEX IF NOT EXISTS DupinContextId ON Dupin (context_id);\n" \
   "CREATE INDEX IF NOT EXISTS DupinObj ON Dupin (obj);\n" \
-  "CREATE INDEX IF NOT EXISTS DupinHrefDeletedTag ON Dupin (href,deleted,tag);"
+  "CREATE INDEX IF NOT EXISTS DupinHrefDeletedAuthority ON Dupin (href,deleted,authority);"
 
 #define DUPIN_LINKB_SQL_DESC_CREATE \
   "CREATE TABLE IF NOT EXISTS DupinLinkB (\n" \
@@ -52,24 +52,39 @@
   "  check_id        CHAR(255) NOT NULL DEFAULT '0',\n" \
   "  creation_time   CHAR(255) NOT NULL DEFAULT '0'\n" \
   ");\n" \
-  "PRAGMA user_version = 4"
+  "PRAGMA user_version = 5"
 
 #define DUPIN_LINKB_SQL_DESC_UPGRADE_FROM_VERSION_1 \
+  "ALTER TABLE Dupin      ADD COLUMN authority   TEXT DEFAULT NULL;\n" \
   "ALTER TABLE Dupin      ADD COLUMN expire_tm   INTEGER NOT NULL DEFAULT 0;\n" \
   "ALTER TABLE DupinLinkB ADD COLUMN creation_time CHAR(255) NOT NULL DEFAULT '0';\n" \
-  "PRAGMA user_version = 4"
+  "DROP  INDEX IF EXISTS  DupinHrefDeletedTag;\n" \
+  "CREATE INDEX IF NOT EXISTS DupinHrefDeletedAuthority ON Dupin (href,deleted,authority);\n" \
+  "PRAGMA user_version = 5"
 
 /* NOTE - added seq INTEGER PRIMARY KEY AUTOINCREMENT and UNIQUE (id) but not
           included in upgrade from version 2 below because its a new way of
 	  generating a primary key */
 
 #define DUPIN_LINKB_SQL_DESC_UPGRADE_FROM_VERSION_2 \
+  "ALTER TABLE Dupin      ADD COLUMN authority   TEXT DEFAULT NULL;\n" \
   "ALTER TABLE Dupin      ADD COLUMN expire_tm   INTEGER NOT NULL DEFAULT 0;\n" \
-  "PRAGMA user_version = 4"
+  "DROP  INDEX IF EXISTS  DupinHrefDeletedTag;\n" \
+  "CREATE INDEX IF NOT EXISTS DupinHrefDeletedAuthority ON Dupin (href,deleted,authority);\n" \
+  "PRAGMA user_version = 5"
 
 #define DUPIN_LINKB_SQL_DESC_UPGRADE_FROM_VERSION_3 \
+  "ALTER TABLE Dupin      ADD COLUMN authority   TEXT DEFAULT NULL;\n" \
   "ALTER TABLE Dupin      ADD COLUMN expire_tm   INTEGER NOT NULL DEFAULT 0;\n" \
-  "PRAGMA user_version = 4"
+  "DROP  INDEX IF EXISTS  DupinHrefDeletedTag;\n" \
+  "CREATE INDEX IF NOT EXISTS DupinHrefDeletedAuthority ON Dupin (href,deleted,authority);\n" \
+  "PRAGMA user_version = 5"
+
+#define DUPIN_LINKB_SQL_DESC_UPGRADE_FROM_VERSION_4 \
+  "ALTER TABLE Dupin      ADD COLUMN authority   TEXT DEFAULT NULL;\n" \
+  "DROP  INDEX IF EXISTS  DupinHrefDeletedTag;\n" \
+  "CREATE INDEX IF NOT EXISTS DupinHrefDeletedAuthority ON Dupin (href,deleted,authority);\n" \
+  "PRAGMA user_version = 5"
 
 #define DUPIN_LINKB_SQL_USES_OLD_ROWID \
         "SELECT seq FROM Dupin"
@@ -814,6 +829,18 @@ dupin_linkb_connect (Dupin * d, gchar * name, gchar * path,
           return NULL;
         }
     }
+  else if (user_version == 4)
+    {
+      if (sqlite3_exec (linkb->db, DUPIN_LINKB_SQL_DESC_UPGRADE_FROM_VERSION_4, NULL, NULL, &errmsg) != SQLITE_OK)
+        {
+	  if (error != NULL && *error != NULL)
+            g_set_error (error, dupin_error_quark (), DUPIN_ERROR_OPEN, "%s",
+                   errmsg);
+          sqlite3_free (errmsg);
+          dupin_linkb_disconnect (linkb);
+          return NULL;
+        }
+    }
 
   if (sqlite3_exec (linkb->db, DUPIN_LINKB_SQL_USES_OLD_ROWID, NULL, NULL, &errmsg) != SQLITE_OK)
     {   
@@ -1081,7 +1108,7 @@ dupin_linkbase_get_changes_list_cb (void *data, int argc, char **argv, char **co
   gboolean is_weblink = FALSE;
   gchar *href = NULL;
   gchar *rel = NULL;
-  gchar *tag = NULL; 
+  gchar *authority = NULL; 
   gchar *label = NULL; 
 
   for (i = 0; i < argc; i++)
@@ -1123,8 +1150,8 @@ dupin_linkbase_get_changes_list_cb (void *data, int argc, char **argv, char **co
       else if (!g_strcmp0 (col[i], "is_weblink"))
         is_weblink = !g_strcmp0 (argv[i], "TRUE") ? TRUE : FALSE;
 
-      else if (!g_strcmp0 (col[i], "tag"))
-        tag = argv[i];
+      else if (!g_strcmp0 (col[i], "authority"))
+        authority = argv[i];
 
       else if (!g_strcmp0 (col[i], "label"))
         label = argv[i];
@@ -1173,8 +1200,8 @@ dupin_linkbase_get_changes_list_cb (void *data, int argc, char **argv, char **co
         json_object_set_string_member (node_obj, "rel", rel);
       if (is_weblink == TRUE)
         json_object_set_boolean_member (change, "is_weblink", is_weblink);
-      if (tag != NULL)
-        json_object_set_string_member (node_obj, "tag", tag);
+      if (authority != NULL)
+        json_object_set_string_member (node_obj, "authority", authority);
 
       if (s->style == DP_CHANGES_MAIN_ONLY)
         {
@@ -1200,8 +1227,8 @@ dupin_linkbase_get_changes_list (DupinLinkB *              linkb,
                                  DupinOrderByType       orderby_type,
                                  gboolean               descending,
 				 gchar *		context_id,
-				 gchar **               tags,
-				 DupinFilterByType      tags_type,
+				 gchar **               authorities,
+				 DupinFilterByType      authorities_type,
                                  GList **               list,
                                  GError **              error)
 {
@@ -1222,7 +1249,7 @@ dupin_linkbase_get_changes_list (DupinLinkB *              linkb,
   memset (&s, 0, sizeof (s));
   s.style = changes_type;
 
-  str = g_string_new ("SELECT id, rev, hash, obj, deleted, tm, expire_tm, ROWID AS rowid, context_id, href, rel, is_weblink, tag, label FROM Dupin as d WHERE d.rev_head = 'TRUE' ");
+  str = g_string_new ("SELECT id, rev, hash, obj, deleted, tm, expire_tm, ROWID AS rowid, context_id, href, rel, is_weblink, authority, label FROM Dupin as d WHERE d.rev_head = 'TRUE' ");
 
   if (count_type == DP_COUNT_EXIST)
     check_deleted = " d.deleted = 'FALSE' ";
@@ -1266,10 +1293,10 @@ dupin_linkbase_get_changes_list (DupinLinkB *              linkb,
       g_string_append_printf (str, " %s %s ", op, check_linktype);
     }
 
-  if (tags != NULL
-      && tags_type != DP_FILTERBY_PRESENT)
+  if (authorities != NULL
+      && authorities_type != DP_FILTERBY_PRESENT)
     {
-      if (tags[0])
+      if (authorities[0])
         {
           gchar * tmp2 = sqlite3_mprintf (" %s ( ", op);
           str = g_string_append (str, tmp2);
@@ -1277,31 +1304,31 @@ dupin_linkbase_get_changes_list (DupinLinkB *              linkb,
         }
 
       gint i;
-      for (i = 0; tags[i]; i++)
+      for (i = 0; authorities[i]; i++)
         {
           gchar * tmp2;
 
-          if (tags_type == DP_FILTERBY_EQUALS)
-            tmp2 = sqlite3_mprintf (" d.tag = '%q' ", tags[i]);
-          else if (tags_type == DP_FILTERBY_CONTAINS)
-            tmp2 = sqlite3_mprintf (" d.tag LIKE '%%%q%%' ", tags[i]);
-          else if (tags_type == DP_FILTERBY_STARTS_WITH)
-            tmp2 = sqlite3_mprintf (" d.tag LIKE '%q%%' ", tags[i]);
+          if (authorities_type == DP_FILTERBY_EQUALS)
+            tmp2 = sqlite3_mprintf (" d.authority = '%q' ", authorities[i]);
+          else if (authorities_type == DP_FILTERBY_CONTAINS)
+            tmp2 = sqlite3_mprintf (" d.authority LIKE '%%%q%%' ", authorities[i]);
+          else if (authorities_type == DP_FILTERBY_STARTS_WITH)
+            tmp2 = sqlite3_mprintf (" d.authority LIKE '%q%%' ", authorities[i]);
 
           str = g_string_append (str, tmp2);
           sqlite3_free (tmp2);
-          if (tags[i+1])
+          if (authorities[i+1])
             str = g_string_append (str, " OR ");
         }
 
-      if (tags[0])
+      if (authorities[0])
         str = g_string_append (str, " ) ");
     }
   else
     {
-      if (tags_type == DP_FILTERBY_PRESENT)
+      if (authorities_type == DP_FILTERBY_PRESENT)
         {
-          gchar * tmp2 = tmp2 = sqlite3_mprintf (" %s ( d.tag IS NOT NULL OR d.tag != '' ) ", op);
+          gchar * tmp2 = tmp2 = sqlite3_mprintf (" %s ( d.authority IS NOT NULL OR d.authority != '' ) ", op);
           str = g_string_append (str, tmp2);
           sqlite3_free (tmp2);
         }
@@ -1385,8 +1412,8 @@ dupin_linkbase_get_total_changes
 			 	 DupinCountType         count_type,
                                  gboolean               inclusive_end,
 				 gchar *                context_id,
-				 gchar **               tags,
-				 DupinFilterByType      tags_type,
+				 gchar **               authorities,
+				 DupinFilterByType      authorities_type,
                                  GError **              error)
 {
   g_return_val_if_fail (linkb != NULL, FALSE);
@@ -1462,13 +1489,13 @@ dupin_linkbase_get_total_changes
       op = "AND";
     }
 
-  if (tags != NULL
-      && tags_type != DP_FILTERBY_PRESENT)
+  if (authorities != NULL
+      && authorities_type != DP_FILTERBY_PRESENT)
     {
       if (!g_strcmp0 (op, ""))
         op = "WHERE";
 
-      if (tags[0])
+      if (authorities[0])
         {
           gchar * tmp2 = sqlite3_mprintf (" %s ( ", op);
           str = g_string_append (str, tmp2);
@@ -1476,24 +1503,24 @@ dupin_linkbase_get_total_changes
         }
 
       gint i;
-      for (i = 0; tags[i]; i++)
+      for (i = 0; authorities[i]; i++)
         {
           gchar * tmp2;
 
-          if (tags_type == DP_FILTERBY_EQUALS)
-            tmp2 = sqlite3_mprintf (" d.tag = '%q' ", tags[i]);
-          else if (tags_type == DP_FILTERBY_CONTAINS)
-            tmp2 = sqlite3_mprintf (" d.tag LIKE '%%%q%%' ", tags[i]);
-          else if (tags_type == DP_FILTERBY_STARTS_WITH)
-            tmp2 = sqlite3_mprintf (" d.tag LIKE '%q%%' ", tags[i]);
+          if (authorities_type == DP_FILTERBY_EQUALS)
+            tmp2 = sqlite3_mprintf (" d.authority = '%q' ", authorities[i]);
+          else if (authorities_type == DP_FILTERBY_CONTAINS)
+            tmp2 = sqlite3_mprintf (" d.authority LIKE '%%%q%%' ", authorities[i]);
+          else if (authorities_type == DP_FILTERBY_STARTS_WITH)
+            tmp2 = sqlite3_mprintf (" d.authority LIKE '%q%%' ", authorities[i]);
 
           str = g_string_append (str, tmp2);
           sqlite3_free (tmp2);
-          if (tags[i+1])
+          if (authorities[i+1])
             str = g_string_append (str, " OR ");
         }
 
-      if (tags[0])
+      if (authorities[0])
         str = g_string_append (str, " ) ");
     }
   else
@@ -1501,9 +1528,9 @@ dupin_linkbase_get_total_changes
       if (!g_strcmp0 (op, ""))
         op = "WHERE";
 
-      if (tags_type == DP_FILTERBY_PRESENT)
+      if (authorities_type == DP_FILTERBY_PRESENT)
         {
-          gchar * tmp2 = tmp2 = sqlite3_mprintf (" %s ( d.tag IS NOT NULL OR d.tag != '' ) ", op);
+          gchar * tmp2 = tmp2 = sqlite3_mprintf (" %s ( d.authority IS NOT NULL OR d.authority != '' ) ", op);
           str = g_string_append (str, tmp2);
           sqlite3_free (tmp2);
         }

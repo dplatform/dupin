@@ -86,7 +86,7 @@ typedef enum
   DP_ORDERBY_REV,
   DP_ORDERBY_HASH,
   DP_ORDERBY_LABEL,
-  DP_ORDERBY_TAG,
+  DP_ORDERBY_AUTHORITY,
   DP_ORDERBY_LINK_TYPE_LABEL	/* 2 levels sort key sort weblinks and relationships with respective labels */
 } DupinOrderByType;
 
@@ -172,7 +172,7 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 #define REQUEST_LINK_OBJ_DELETED        REQUEST_OBJ_DELETED
 #define REQUEST_LINK_OBJ_HREF           "_href"
 #define REQUEST_LINK_OBJ_REL            "_rel"
-#define REQUEST_LINK_OBJ_TAG            "_tag"
+#define REQUEST_LINK_OBJ_AUTHORITY      "_authority"
 #define REQUEST_LINK_OBJ_LABEL          "_label"
 #define REQUEST_LINK_OBJ_CONTEXT_ID     "_context_id"
 #define REQUEST_LINK_OBJ_EXPIRE_AFTER   REQUEST_OBJ_EXPIRE_AFTER
@@ -208,7 +208,7 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 #define RESPONSE_LINK_OBJ_REV           RESPONSE_OBJ_REV
 #define RESPONSE_LINK_OBJ_HREF          "href"
 #define RESPONSE_LINK_OBJ_REL           "rel"
-#define RESPONSE_LINK_OBJ_TAG           "tag"
+#define RESPONSE_LINK_OBJ_AUTHORITY     "authority"
 #define RESPONSE_LINK_OBJ_LABEL         "label"
 #define RESPONSE_LINK_OBJ_CONTEXT_ID    "context_id"
 #define RESPONSE_LINK_OBJ_DOC		RESPONSE_OBJ_DOC
@@ -316,8 +316,8 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 #define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_LABELS_OP            "include_links_labels_op"
 #define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_HREFS                "include_links_hrefs"
 #define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_HREFS_OP             "include_links_hrefs_op"
-#define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TAGS                 "include_links_tags"
-#define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_TAGS_OP              "include_links_tags_op"
+#define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_AUTHORITIES          "include_links_authorities"
+#define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_AUTHORITIES_OP       "include_links_authorities_op"
 #define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_FILTER_CREATED_SINCE "include_links_created_since"
 #define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_FILTER_CREATED_UNTIL "include_links_created_until"
 #define REQUEST_GET_ALL_DOCS_INCLUDE_LINKS_WEBLINKS_DESCENDING  "include_links_weblinks_descending"
@@ -354,8 +354,8 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 #define REQUEST_GET_ALL_LINKS_RELS_OP                   "rels_op"
 #define REQUEST_GET_ALL_LINKS_HREFS                     "hrefs"
 #define REQUEST_GET_ALL_LINKS_HREFS_OP                  "hrefs_op"
-#define REQUEST_GET_ALL_LINKS_TAGS                      "tags"
-#define REQUEST_GET_ALL_LINKS_TAGS_OP                   "tags_op"
+#define REQUEST_GET_ALL_LINKS_AUTHORITIES               "authorities"
+#define REQUEST_GET_ALL_LINKS_AUTHORITIES_OP            "authorities_op"
 #define REQUEST_GET_ALL_LINKS_LABELS                    "labels"
 #define REQUEST_GET_ALL_LINKS_LABELS_OP                 "labels_op"
 #define REQUEST_GET_ALL_LINKS_LINK_TYPE                 "link_type"
@@ -363,17 +363,17 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 #define REQUEST_GET_ALL_LINKS_LINK_TYPE_WEBLINKS        "web_links"
 #define REQUEST_GET_ALL_LINKS_LINK_TYPE_RELATIONSHIPS   "relationships"
 
-#define REQUEST_GET_ALL_CHANGES_SINCE         "since"
-#define REQUEST_GET_ALL_CHANGES_STYLE         "style"
-#define REQUEST_GET_ALL_CHANGES_FEED          "feed"
-#define REQUEST_GET_ALL_CHANGES_INCLUDE_DOCS  REQUEST_GET_ALL_DOCS_INCLUDE_DOCS
-#define REQUEST_GET_ALL_CHANGES_TYPES         REQUEST_GET_ALL_DOCS_TYPES
-#define REQUEST_GET_ALL_CHANGES_TYPES_OP      REQUEST_GET_ALL_DOCS_TYPES_OP
-#define REQUEST_GET_ALL_CHANGES_HEARTBEAT     "heartbeat"
-#define REQUEST_GET_ALL_CHANGES_TIMEOUT       "timeout"
-#define REQUEST_GET_ALL_CHANGES_CONTEXT_ID    REQUEST_GET_ALL_LINKS_CONTEXT_ID
-#define REQUEST_GET_ALL_CHANGES_TAGS          REQUEST_GET_ALL_LINKS_TAGS
-#define REQUEST_GET_ALL_CHANGES_TAGS_OP       REQUEST_GET_ALL_LINKS_TAGS_OP
+#define REQUEST_GET_ALL_CHANGES_SINCE         	"since"
+#define REQUEST_GET_ALL_CHANGES_STYLE         	"style"
+#define REQUEST_GET_ALL_CHANGES_FEED          	"feed"
+#define REQUEST_GET_ALL_CHANGES_INCLUDE_DOCS  	REQUEST_GET_ALL_DOCS_INCLUDE_DOCS
+#define REQUEST_GET_ALL_CHANGES_TYPES         	REQUEST_GET_ALL_DOCS_TYPES
+#define REQUEST_GET_ALL_CHANGES_TYPES_OP      	REQUEST_GET_ALL_DOCS_TYPES_OP
+#define REQUEST_GET_ALL_CHANGES_HEARTBEAT     	"heartbeat"
+#define REQUEST_GET_ALL_CHANGES_TIMEOUT       	"timeout"
+#define REQUEST_GET_ALL_CHANGES_CONTEXT_ID    	REQUEST_GET_ALL_LINKS_CONTEXT_ID
+#define REQUEST_GET_ALL_CHANGES_AUTHORITIES   	REQUEST_GET_ALL_LINKS_AUTHORITIES
+#define REQUEST_GET_ALL_CHANGES_AUTHORITIES_OP  REQUEST_GET_ALL_LINKS_AUTHORITIES_OP
 
 #define REQUEST_GET_ALL_CHANGES_HEARTBEAT_DEFAULT  30000
 #define REQUEST_GET_ALL_CHANGES_TIMEOUT_DEFAULT    60000
@@ -392,8 +392,6 @@ typedef struct dupin_link_record_t	DupinLinkRecord;
 
 #define REQUEST_RECORD_ARG_REV  "rev"
 #define REQUEST_RECORD_ARG_REVS "revs_info"
-
-#define REQUEST_RECORD_ARG_LINKS_TAG    "links_tag"
 
 #define REQUEST_FIELDS          "_fields"
 

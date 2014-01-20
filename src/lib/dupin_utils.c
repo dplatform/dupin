@@ -580,6 +580,11 @@ dupin_util_json_node_object_filter_fields (JsonNode * node,
   gboolean any = FALSE;
   for (i = 0; fields[i]; i++)
     {
+      if (fields[i] == NULL || (!strlen (fields[i]))) 
+        {
+	  continue;
+	}
+
       if (!g_strcmp0 (fields[i], REQUEST_GET_ALL_ANY_FILTER_FIELDS_ALL)
 	  || !g_strcmp0 (fields[i], REQUEST_GET_ALL_ANY_FILTER_FIELDS_ALL_FIELDS))
         {

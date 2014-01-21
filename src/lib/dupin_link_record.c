@@ -2261,11 +2261,11 @@ dupin_link_record_get_revision_node (DupinLinkRecord * record, gchar * mvcc)
 
   if (!json_parser_load_from_data (parser, r->obj_serialized, r->obj_serialized_len, &error))
     {
-      if (error)
+      if (error != NULL)
         {
           dupin_linkbase_set_error (record->linkb, error->message);
-          g_error_free (error);
         }
+
       goto dupin_link_record_get_revision_error;
     }
 
@@ -2278,6 +2278,9 @@ dupin_link_record_get_revision_node (DupinLinkRecord * record, gchar * mvcc)
   return r->obj;
 
 dupin_link_record_get_revision_error:
+
+  if (error != NULL)
+    g_error_free (error);
 
   if (parser != NULL)
     g_object_unref (parser);

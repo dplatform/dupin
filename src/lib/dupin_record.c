@@ -1489,11 +1489,11 @@ dupin_record_get_revision_node (DupinRecord * record, gchar * mvcc)
   /* we do not check any parsing error due we stored earlier, we assume it is sane */
   if (!json_parser_load_from_data (parser, r->obj_serialized, r->obj_serialized_len, &error))
     {
-      if (error)
+      if (error != NULL)
         {
           dupin_database_set_error (record->db, error->message);
-          g_error_free (error);
         }
+
       goto dupin_record_get_revision_error;
     }
 
@@ -1506,6 +1506,9 @@ dupin_record_get_revision_node (DupinRecord * record, gchar * mvcc)
   return r->obj;
 
 dupin_record_get_revision_error:
+
+  if (error != NULL)
+    g_error_free (error);
 
   if (parser != NULL)
     g_object_unref (parser);

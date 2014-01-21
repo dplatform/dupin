@@ -128,7 +128,10 @@ main (void)
   if (!(d = dupin_init (NULL, &error)))
     {
       fprintf (stderr, "Error: %s\n", error->message);
-      g_error_free (error);
+
+      if (error != NULL)
+        g_error_free (error);
+
       return 1;
     }
 
@@ -153,7 +156,10 @@ main (void)
       if (status == G_IO_STATUS_ERROR)
 	{
 	  fprintf (stderr, "Error: %s\n", error->message);
-	  g_error_free (error);
+
+	  if (error != NULL)
+            g_error_free (error);
+
 	  break;
 	}
 
@@ -430,7 +436,9 @@ command_openDb (GList * list)
   if (!(db = dupin_database_open (d, list->data, &error)))
     {
       fprintf (stderr, "Error: %s\n", error->message);
-      g_error_free (error);
+
+      if (error != NULL)
+        g_error_free (error);
     }
 }
 
@@ -445,7 +453,9 @@ command_newDb (GList * list)
   if (!(db = dupin_database_new (d, list->data, &error)))
     {
       fprintf (stderr, "Error: %s\n", error->message);
-      g_error_free (error);
+
+      if (error != NULL)
+        g_error_free (error);
     }
 }
 
@@ -463,7 +473,9 @@ command_deleteDb (GList * list)
   if (dupin_database_delete (db, &error) == FALSE)
     {
       fprintf (stderr, "Error: %s\n", error->message);
-      g_error_free (error);
+
+      if (error != NULL)
+        g_error_free (error);
     }
 
   if (db)
@@ -516,7 +528,9 @@ command_openView (GList * list)
   if (!(view = dupin_view_open (d, list->data, &error)))
     {
       fprintf (stderr, "Error: %s\n", error->message);
-      g_error_free (error);
+
+      if (error != NULL)
+        g_error_free (error);
     }
 }
 
@@ -547,7 +561,9 @@ command_newView (GList * list)
 		       NULL, FALSE, FALSE, &error)))
     {
       fprintf (stderr, "Error: %s\n", error->message);
-      g_error_free (error);
+
+      if (error != NULL)
+        g_error_free (error);
     }
 }
 
@@ -565,7 +581,9 @@ command_deleteView (GList * list)
   if (dupin_view_delete (view, &error) == FALSE)
     {
       fprintf (stderr, "Error: %s\n", error->message);
-      g_error_free (error);
+
+      if (error != NULL)
+        g_error_free (error);
     }
 
   if (view)
@@ -611,7 +629,9 @@ command_createRecord (GList * list)
   if (!(record = dupin_record_create (db, obj_node, &error)))
     {
       fprintf (stderr, "Error: %s\n", error->message);
-      g_error_free (error);
+
+      if (error != NULL)
+        g_error_free (error);
     }
 
   json_node_free (obj_node);
@@ -641,7 +661,9 @@ command_createRecordFromFile (GList * list)
   if (!(record = dupin_record_create (db, obj_node, &error)))
     {
       fprintf (stderr, "Error: %s\n", error->message);
-      g_error_free (error);
+
+      if (error != NULL)
+        g_error_free (error);
     }
 
   json_node_free (obj_node);
@@ -664,7 +686,9 @@ command_readRecord (GList * list)
   if (!(record = dupin_record_read (db, list->data, &error)))
     {
       fprintf (stderr, "Error: %s\n", error->message);
-      g_error_free (error);
+
+      if (error != NULL)
+        g_error_free (error);
     }
 }
 
@@ -696,7 +720,9 @@ command_getListRecord (GList * list)
       == FALSE)
     {
       fprintf (stderr, "Error: %s\n", error->message);
-      g_error_free (error);
+
+      if (error != NULL)
+        g_error_free (error);
     }
 
   for (list = results; list; list = list->next)
@@ -735,7 +761,9 @@ command_updateRecord (GList * list)
   if (dupin_record_update (record, obj_node, FALSE, &error) == FALSE)
     {
       fprintf (stderr, "Error: %s\n", error->message);
-      g_error_free (error);
+
+      if (error != NULL)
+        g_error_free (error);
     }
 
   json_node_free (obj_node);
@@ -761,7 +789,9 @@ command_deleteRecord (GList * list)
   if (dupin_record_delete (record, &error) == FALSE)
     {
       fprintf (stderr, "Error: %s\n", error->message);
-      g_error_free (error);
+
+      if (error != NULL)
+        g_error_free (error);
     }
 }
 
@@ -865,7 +895,9 @@ command_readViewRecord (GList * list)
   if (!(viewRecord = dupin_view_record_read (view, list->data, &error)))
     {
       fprintf (stderr, "Error: %s\n", error->message);
-      g_error_free (error);
+
+      if (error != NULL)
+        g_error_free (error);
     }
 }
 
@@ -896,7 +928,9 @@ command_getListViewRecord (GList * list)
 				     NULL, DP_FIELDS_FORMAT_DOTTED, DP_FILTERBY_EQUALS, NULL, &results, &error) == FALSE)
     {
       fprintf (stderr, "Error: %s\n", error->message);
-      g_error_free (error);
+
+      if (error != NULL)
+        g_error_free (error);
     }
 
   for (list = results; list; list = list->next)

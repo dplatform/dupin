@@ -5552,7 +5552,6 @@ request_global_post_record (DSHttpdClient * client,
       if (error)
         {
           request_set_error (client, error->message);
-          g_error_free (error);
         }
       code = HTTP_STATUS_400;
       goto request_global_post_record_end;
@@ -5607,11 +5606,11 @@ request_global_post_record (DSHttpdClient * client,
 
 request_global_post_record_end:
 
+  if (error != NULL)
+    g_error_free (error);
+
   if (parser != NULL)
     g_object_unref (parser);
-
-  if (error)
-    g_error_free (error);
 
   return code;
 }
@@ -5668,7 +5667,6 @@ request_global_post_doc_link (DSHttpdClient * client,
       if (error)
         {
           request_set_error (client, error->message);
-          g_error_free (error);
         }
       code = HTTP_STATUS_400;
       goto request_global_post_doc_link_end;
@@ -5723,11 +5721,11 @@ request_global_post_doc_link (DSHttpdClient * client,
 
 request_global_post_doc_link_end:
 
+  if (error != NULL)
+    g_error_free (error);
+
   if (parser != NULL)
     g_object_unref (parser);
-
-  if (error)
-    g_error_free (error);
 
   return code;
 }
@@ -5776,7 +5774,6 @@ request_global_post_bulk_docs (DSHttpdClient * client,
       if (error)
         {
           request_set_error (client, error->message);
-          g_error_free (error);
         }
       code = HTTP_STATUS_400;
       goto request_global_post_bulk_docs_end;
@@ -5850,6 +5847,9 @@ request_global_post_bulk_docs (DSHttpdClient * client,
 
 request_global_post_bulk_docs_end:
 
+  if (error != NULL)
+    g_error_free (error);
+
   if (parser != NULL)
     g_object_unref (parser);
 
@@ -5918,7 +5918,6 @@ request_global_post_bulk_doc_links (DSHttpdClient * client,
       if (error)
         {
           request_set_error (client, error->message);
-          g_error_free (error);
         }
       code = HTTP_STATUS_400;
       goto request_global_post_bulk_doc_links_end;
@@ -5992,6 +5991,9 @@ request_global_post_bulk_doc_links (DSHttpdClient * client,
 
 request_global_post_bulk_doc_links_end:
 
+  if (error != NULL)
+    g_error_free (error);
+
   if (parser != NULL)
     g_object_unref (parser);
 
@@ -6058,7 +6060,6 @@ request_global_post_bulk_links (DSHttpdClient * client,
       if (error)
         {
           request_set_error (client, error->message);
-          g_error_free (error);
         }
       code = HTTP_STATUS_400;
       goto request_global_post_bulk_links_end;
@@ -6132,6 +6133,9 @@ request_global_post_bulk_links (DSHttpdClient * client,
 
 request_global_post_bulk_links_end:
 
+  if (error != NULL)
+    g_error_free (error);
+
   if (parser != NULL)
     g_object_unref (parser);
 
@@ -6166,7 +6170,6 @@ request_global_post_all_docs (DSHttpdClient * client,
       if (error)
         {
           request_set_error (client, error->message);
-          g_error_free (error);
         }
       code = HTTP_STATUS_400;
       goto request_global_post_all_docs_end;
@@ -6214,21 +6217,21 @@ request_global_post_all_docs (DSHttpdClient * client,
 
   g_free (json_keys);
 
+  if (error != NULL)
+    g_error_free (error);
+
   if (parser != NULL)
     g_object_unref (parser);
-
-  if (error)
-    g_error_free (error);
 
   return request_global_get_all_docs (client, path, client->request_arguments);
 
 request_global_post_all_docs_end:
 
+  if (error != NULL)
+    g_error_free (error);
+
   if (parser != NULL)
     g_object_unref (parser);
-
-  if (error)
-    g_error_free (error);
 
   return code;
 }
@@ -6299,7 +6302,6 @@ request_global_post_all_docs_linkbase (DSHttpdClient * client,
       if (error)
         {
           request_set_error (client, error->message);
-          g_error_free (error);
         }
       code = HTTP_STATUS_400;
       goto request_global_post_all_docs_linkbase_end;
@@ -6347,21 +6349,21 @@ request_global_post_all_docs_linkbase (DSHttpdClient * client,
 
   g_free (json_keys);
 
+  if (error != NULL)
+    g_error_free (error);
+
   if (parser != NULL)
     g_object_unref (parser);
-
-  if (error)
-    g_error_free (error);
 
   return request_global_get_all_docs_linkbase (client, path->next, client->request_arguments);
 
 request_global_post_all_docs_linkbase_end:
 
+  if (error != NULL)
+    g_error_free (error);
+
   if (parser != NULL)
     g_object_unref (parser);
-
-  if (error)
-    g_error_free (error);
 
   return code;
 }
@@ -6459,7 +6461,6 @@ request_global_post_all_docs_view (DSHttpdClient * client,
       if (error)
         {
           request_set_error (client, error->message);
-          g_error_free (error);
         }
       code = HTTP_STATUS_400;
       goto request_global_post_all_docs_end;
@@ -6507,21 +6508,21 @@ request_global_post_all_docs_view (DSHttpdClient * client,
 
   g_free (json_keys);
 
+  if (error != NULL)
+    g_error_free (error);
+
   if (parser != NULL)
     g_object_unref (parser);
-
-  if (error)
-    g_error_free (error);
 
   return request_global_get_all_docs_view (client, path, client->request_arguments);
 
 request_global_post_all_docs_end:
 
+  if (error != NULL)
+    g_error_free (error);
+
   if (parser != NULL)
     g_object_unref (parser);
-
-  if (error)
-    g_error_free (error);
 
   return code;
 }
@@ -6683,7 +6684,6 @@ request_global_put_view (DSHttpdClient * client,
       if (error)
         {
           request_set_error (client, error->message);
-          g_error_free (error);
         }
       code = HTTP_STATUS_400;
       goto request_global_put_view_error;
@@ -6810,7 +6810,6 @@ request_global_put_view (DSHttpdClient * client,
       if (error)
         {
           request_set_error (client, error->message);
-          g_error_free (error);
         }
       code = HTTP_STATUS_409;
       goto request_global_put_view_error;
@@ -6819,14 +6818,23 @@ request_global_put_view (DSHttpdClient * client,
   code = HTTP_STATUS_201;
 
   dupin_view_unref (view);
+
+  if (error != NULL)
+    g_error_free (error);
+
   if (parser != NULL)
     g_object_unref (parser);
+
   return code;
 
 request_global_put_view_error:
 
+  if (error != NULL)
+    g_error_free (error);
+
   if (parser != NULL)
     g_object_unref (parser);
+
   return code;
 }
 
@@ -6937,7 +6945,6 @@ request_global_put_record (DSHttpdClient * client,
       if (error)
         {
           request_set_error (client, error->message);
-          g_error_free (error);
         }
       code = HTTP_STATUS_400;
       goto request_global_put_record_end;
@@ -7036,13 +7043,13 @@ request_global_put_record (DSHttpdClient * client,
 
 request_global_put_record_end:
 
+  if (error != NULL)
+    g_error_free (error);
+
   if (parser != NULL)
     g_object_unref (parser);
 
   g_free (doc_id);
-
-  if (error)
-    g_error_free (error);
 
   return code;
 }
@@ -7146,7 +7153,6 @@ request_global_put_link_record (DSHttpdClient * client,
       if (error)
         {
           request_set_error (client, error->message);
-          g_error_free (error);
         }
       code = HTTP_STATUS_400;
       goto request_global_put_link_record_end;
@@ -7256,13 +7262,13 @@ request_global_put_link_record (DSHttpdClient * client,
 
 request_global_put_link_record_end:
 
+  if (error != NULL)
+    g_error_free (error);
+
   if (parser != NULL)
     g_object_unref (parser);
 
   g_free (link_id);
-
-  if (error)
-    g_error_free (error);
 
   return code;
 }

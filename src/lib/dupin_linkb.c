@@ -1859,10 +1859,12 @@ dupin_linkbase_compact (DupinLinkB * linkb,
         {
           g_thread_pool_push(linkb->d->linkb_compact_workers_pool, linkb, &error);
 
-	  if (error)
+	  if (error != NULL)
             {
               g_error("dupin_linkbase_compact: linkbase %s compact thread creation error: %s", linkb->name, error->message);
+
               dupin_linkbase_set_error (linkb, error->message);
+
               g_error_free (error);
             }
         }
@@ -2186,10 +2188,12 @@ dupin_linkbase_check (DupinLinkB * linkb)
         {
           g_thread_pool_push(linkb->d->linkb_check_workers_pool, linkb, &error);
 
-	  if (error)
+	  if (error != NULL)
             {
               g_error("dupin_linkbase_check: linkbase %s check thread creation error: %s", linkb->name, error->message);
+
               dupin_linkbase_set_error (linkb, error->message);
+
               g_error_free (error);
             }
         }

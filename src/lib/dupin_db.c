@@ -1594,10 +1594,12 @@ dupin_database_compact (DupinDB * db,
         {
           g_thread_pool_push(db->d->db_compact_workers_pool, db, &error);
 
-	  if (error)
+	  if (error != NULL)
             {
               g_error("dupin_database_compact: database %s compact thread creation error: %s", db->name, error->message);
+
               dupin_database_set_error (db, error->message);
+
               g_error_free (error);
             }
         }

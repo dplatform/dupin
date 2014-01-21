@@ -54,7 +54,10 @@ main (int argc, char **argv)
   if (!(data = configure_init (argc, argv, &error)))
     {
       fprintf (stderr, "Error: %s\n", (error) ? error->message : DUPIN_UNKNOWN_ERROR);
-      g_error_free (error);
+
+      if (error != NULL)
+        g_error_free (error);
+
       return 1;
     }
 
@@ -153,7 +156,9 @@ main_error_map:
   dupin_shutdown (data->dupin);
 
 main_error_dupin:
-  g_error_free (error);
+
+  if (error != NULL)
+    g_error_free (error);
 
 main_error_permission:
   log_close (data);

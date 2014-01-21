@@ -360,9 +360,12 @@ main (int argc, char *argv[])
   if (!(d_conf = configure_init (argc, argv, &error)))
     {
       fprintf (stderr, "Error: %s\n", (error) ? error->message : DUPIN_UNKNOWN_ERROR);
-      g_error_free (error);
+
+      if (error != NULL)
+        g_error_free (error);
 
       dupin_loader_usage (argv);
+
       exit (EXIT_FAILURE);
     }
 
@@ -384,7 +387,10 @@ main (int argc, char *argv[])
   if (!(d = dupin_loader_init (d_conf, &error)))
     {
       fprintf (stderr, "Error: %s\n", (error) ? error->message : DUPIN_UNKNOWN_ERROR);
-      g_error_free (error);
+
+      if (error != NULL)
+        g_error_free (error);
+
       return 1;
     }
 
@@ -448,7 +454,10 @@ main (int argc, char *argv[])
       if (status == G_IO_STATUS_ERROR)
 	{
 	  fprintf (stderr, "Error: %s\n", (error) ? error->message : DUPIN_UNKNOWN_ERROR);
-	  g_error_free (error);
+
+          if (error != NULL)
+            g_error_free (error);
+
 	  break;
 	}
 
@@ -657,7 +666,6 @@ dupin_loader_read_json_object (gchar * line)
   if (!json_parser_load_from_data (parser, line, -1, &error))
     {
       dupin_loader_set_error (error->message);
-      g_error_free (error);
       goto dupin_loader_read_json_object_end;
     }
 
@@ -672,6 +680,9 @@ dupin_loader_read_json_object (gchar * line)
   json_object_node = json_node_copy (node);
 
 dupin_loader_read_json_object_end:
+
+  if (error != NULL)
+    g_error_free (error);
 
   if (parser != NULL)
     g_object_unref (parser);

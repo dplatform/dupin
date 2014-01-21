@@ -64,7 +64,10 @@ log_write_internal (DSGlobal * data, LogVerbose verbose, gchar * format, ...)
       if (status == G_IO_STATUS_ERROR)
 	{
 	  g_message ("Error writing into the log file: %s", error->message);
-	  g_error_free (error);
+
+	  if (error != NULL)
+            g_error_free (error);
+
 	  break;
 	}
 

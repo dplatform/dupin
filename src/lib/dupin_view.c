@@ -3731,10 +3731,12 @@ dupin_view_sync (DupinView * view)
         {
 	  g_thread_pool_push(view->d->sync_map_workers_pool, view, &error);
 
-	  if (error)
+	  if (error != NULL)
             {
               g_error("dupin_view_sync: view %s map thread creation error: %s", view->name, error->message);
+
 	      dupin_view_set_error (view, error->message);
+
               g_error_free (error);
 	    }
         }
@@ -3744,10 +3746,12 @@ dupin_view_sync (DupinView * view)
         {
 	  g_thread_pool_push(view->d->sync_reduce_workers_pool, view, &error);
 
-	  if (error)
+	  if (error != NULL)
             {
               g_error("dupin_view_sync: view %s reduce thread creation error: %s", view->name, error->message);
+
 	      dupin_view_set_error (view, error->message);
+
               g_error_free (error);
 	    }
         }
@@ -3884,10 +3888,12 @@ dupin_view_compact (DupinView * view)
         {
           g_thread_pool_push(view->d->view_compact_workers_pool, view, &error);
 
-          if (error)
+          if (error != NULL)
             {
               g_error("dupin_view_compact: view %s compact thread creation error: %s", view->name, error->message);
+
               dupin_view_set_error (view, error->message);
+
               g_error_free (error);
             }
         }

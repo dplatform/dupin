@@ -795,15 +795,18 @@ dupin_view_record_get_key (DupinViewRecord * record)
 
   if (!json_parser_load_from_data (parser, record->key_serialized, record->key_serialized_len, &error))
     {
-      if (error)
+      if (error != NULL)
         {
           dupin_view_set_error (record->view, error->message);
-          g_error_free (error);
         }
+
       goto dupin_view_record_get_key_error;
     }
 
   record->key = json_node_copy (json_parser_get_root (parser));
+
+  if (error != NULL)
+    g_error_free (error);
 
   if (parser != NULL)
     g_object_unref (parser);
@@ -812,6 +815,9 @@ dupin_view_record_get_key (DupinViewRecord * record)
   return record->key;
 
 dupin_view_record_get_key_error:
+
+  if (error != NULL)
+    g_error_free (error);
 
   if (parser != NULL)
     g_object_unref (parser);
@@ -839,12 +845,15 @@ dupin_view_record_get_pid (DupinViewRecord * record)
       if (error)
         {
           dupin_view_set_error (record->view, error->message);
-          g_error_free (error);
         }
+
       goto dupin_view_record_get_pid_error;
     }
 
   record->pid = json_node_copy (json_parser_get_root (parser));
+
+  if (error != NULL)
+    g_error_free (error);
 
   if (parser != NULL)
     g_object_unref (parser);
@@ -853,6 +862,9 @@ dupin_view_record_get_pid (DupinViewRecord * record)
   return record->pid;
 
 dupin_view_record_get_pid_error:
+
+  if (error != NULL)
+    g_error_free (error);
 
   if (parser != NULL)
     g_object_unref (parser);
@@ -878,12 +890,14 @@ dupin_view_record_get (DupinViewRecord * record)
       if (error)
         {
           dupin_view_set_error (record->view, error->message);
-          g_error_free (error);
         }
       goto dupin_view_record_get_error;
     }
 
   record->obj = json_node_copy (json_parser_get_root (parser));
+
+  if (error != NULL)
+    g_error_free (error);
 
   if (parser != NULL)
     g_object_unref (parser);
@@ -892,6 +906,9 @@ dupin_view_record_get (DupinViewRecord * record)
   return record->obj;
 
 dupin_view_record_get_error:
+
+  if (error != NULL)
+    g_error_free (error);
 
   if (parser != NULL)
     g_object_unref (parser);

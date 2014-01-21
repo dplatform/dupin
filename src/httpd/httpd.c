@@ -488,7 +488,10 @@ httpd_client_add (DSGlobal * data, DSHttpdClient * client)
 	  log_write (data, LOG_VERBOSE_ERROR, LOG_HTTPD_CLIENT_ERROR, "error",
 		     LOG_VERBOSE_ERROR, LOG_TYPE_STRING, error->message,
 		     NULL);
-	  g_error_free (error);
+
+	  if (error != NULL)
+	    g_error_free (error);
+
 	  return FALSE;
 	}
 

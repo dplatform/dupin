@@ -70,9 +70,9 @@
 - Linkbases
   - Add "_role" to disambiguate role of target in context for same entity; or rename "_tag" to "_role" due it is empty by default
   - Add "_hreflang"
+  - Add "_position" as number to sort elements in relationship (not for links) and allow to sort by it when listing relationship members
   - Add "_primary" flag
   - Add check that same href+rel+role+hreflang can be set between two entities when rel="alternate" (default)
-  - Add missing rel types from IANA registry http://www.iana.org/assignments/link-relations/link-relations.xml
 - Attachments
   - Add ?attachments=true support
 - Record expiring

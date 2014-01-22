@@ -1265,11 +1265,11 @@ dupin_linkbase_get_changes_list (DupinLinkB *              linkb,
 
   if (since > 0 && to > 0)
     {
-      g_string_append_printf (str, " %s d.ROWID >= %d AND d.ROWID <= %d ", op, (gint)since, (gint)to);
+      g_string_append_printf (str, " %s d.ROWID > %d AND d.ROWID <= %d ", op, (gint)since, (gint)to);
     }
   else if (since > 0)
     {
-      g_string_append_printf (str, " %s d.ROWID >= %d ", op, (gint)since);
+      g_string_append_printf (str, " %s d.ROWID > %d ", op, (gint)since);
     }
   else if (to > 0)
     {

@@ -168,7 +168,6 @@ Makefile
 src/Makefile
 
 src/sqlite/Makefile
-src/tbjson/Makefile
 src/tbjsonpath/Makefile
 src/lib/Makefile
 src/httpd/Makefile

@@ -1,7 +1,6 @@
 noinst_LTLIBRARIES = libdupin.la
 
-INCLUDES = \
-	-I../tbjson
+INCLUDES =
 
 libdupin_la_SOURCES = \
 	dupin.h \
@@ -33,5 +32,4 @@ libdupin_la_SOURCES = \
 	dupin_link_record.c \
 	dupin_link_record.h
 
-libdupin_la_LIBADD = \
-	../tbjson/libtbjson.la
+libdupin_la_LIBADD =

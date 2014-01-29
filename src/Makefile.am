@@ -1,6 +1,5 @@
 SUBDIRS = \
 	sqlite \
-	tbjson \
 	tbjsonpath \
 	lib \
 	httpd \

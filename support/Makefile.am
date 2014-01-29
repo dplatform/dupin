@@ -6,8 +6,7 @@ INCLUDES = \
 	   -DDS_CONFIG_FILE=\"$(sysconfdir)/dupinserver.cfg\" \
 	   -I../src/lib \
 	   -I../src/sqlite \
-           -I../src/httpd \
-           -I../src/tbjson
+           -I../src/httpd
 
 LDADD = ../src/sqlite/libsqlite.la \
 	../src/lib/libdupin.la \

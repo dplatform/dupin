@@ -8,7 +8,5 @@ dp_js_LDADD = ../sqlite/libsqlite.la ../lib/libdupin.la
 
 INCLUDES = \
 	-I../lib \
-	-I../sqlite \
-	-I../tbjson
-
+	-I../sqlite
 

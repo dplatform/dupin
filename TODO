@@ -78,3 +78,7 @@
 - Record expiring
   - How to revoke expiring? Set expire to zero? or delete field/s? What about if expire at and expir after are both set?
 - On database deletion make sure any changes continuous thread is stopped to avoid "database XXXX flagged for deletion but can't free it due ref is 1"
+- Dupin database compression using LZ4 - https://github.com/salviati/sqlite3-lz4
+- SQLite optimisation
+  - Use sqlite3_file_control() with SQLITE_FCNTL_CHUNK_SIZE greatly helps reduce file-system fragmentation
+    of the file since it will grow in larger chunks than a single page at a time (see http://taschenorakel.de/mathias/2012/04/18/fulltext-search-benchmarks/#comment-504225096)

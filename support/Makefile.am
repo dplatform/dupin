@@ -5,10 +5,12 @@ bin_PROGRAMS = dupin_loader
 INCLUDES = \
 	   -DDS_CONFIG_FILE=\"$(sysconfdir)/dupinserver.cfg\" \
 	   -I../src/lib \
+	   -I../src/sqlite \
            -I../src/httpd \
            -I../src/tbjson
 
-LDADD = ../src/lib/libdupin.la \
+LDADD = ../src/sqlite/libsqlite.la \
+	../src/lib/libdupin.la \
         ../src/httpd/dupin_server_common.o \
         ../src/httpd/configure.o
 

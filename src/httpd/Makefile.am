@@ -5,6 +5,7 @@ INCLUDES = \
 	-DDS_CONFIG_FILE=\"$(sysconfdir)/dupinserver.cfg\" \
 	-DDUPIN_DB_PATH=\"$(localstatedir)/@PACKAGE@/dbs\" \
 	-I../lib \
+	-I../sqlite \
 	-I../tbjson \
 	-I../tbjsonpath
 
@@ -25,6 +26,7 @@ dupin_server_SOURCES = \
 	request.h
 
 dupin_server_LDADD = \
+	../sqlite/libsqlite.la \
 	../lib/libdupin.la \
 	../tbjson/libtbjson.la \
 	../tbjsonpath/libtbjsonpath.la

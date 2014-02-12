@@ -16,7 +16,7 @@ dnl run autogen.sh to generate the configure script.
 
 AC_PREREQ(2.54)
 
-AC_INIT([dupin], [0.7])
+AC_INIT([dupin], [0.7.1])
 AC_CONFIG_MACRO_DIR([m4])
 
 AC_CANONICAL_HOST

@@ -82,3 +82,5 @@
 - SQLite optimisation
   - Use sqlite3_file_control() with SQLITE_FCNTL_CHUNK_SIZE greatly helps reduce file-system fragmentation
     of the file since it will grow in larger chunks than a single page at a time (see http://taschenorakel.de/mathias/2012/04/18/fulltext-search-benchmarks/#comment-504225096)
+- Add _index key to linkbase table so that links/relationships can be ordered - default to 0
+- Generalise "id" concept on db, linkb and views there can be JSON nodes using view keys collation algo (e.g. allow to filter ids by sub-fields)

@@ -1630,7 +1630,7 @@ dupin_linkbase_thread_compact (DupinLinkB * linkb, gsize count)
 
       if (dupin_link_record_is_expired (record, NULL) == TRUE)
         {
-          if (!(dupin_link_record_delete (record, NULL)))
+          if (!(dupin_link_record_delete (record, NULL, NULL)))
             continue;
         }
 
@@ -2028,7 +2028,7 @@ dupin_linkbase_thread_check (DupinLinkB * linkb, gsize count)
      /* NOTE - hopefully this will work and will not generate any problems (I.e. modifiying DB while reading from it
 	       with the results cursor - but the ROWID is going to be higher anyway, so we should be safe also for views */
 
-     if (!(dupin_link_record_delete (record, NULL)))
+     if (!(dupin_link_record_delete (record, NULL, NULL)))
         {
           g_error ("dupin_linkbase_thread_check: Cannot delete link record");
           break;

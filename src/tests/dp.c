@@ -786,7 +786,7 @@ command_deleteRecord (GList * list)
       return;
     }
 
-  if (dupin_record_delete (record, &error) == FALSE)
+  if (dupin_record_delete (record, NULL, &error) == FALSE)
     {
       fprintf (stderr, "Error: %s\n", error->message);
 

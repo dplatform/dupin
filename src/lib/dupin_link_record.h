@@ -32,16 +32,12 @@ int		dupin_link_record_select_total_cb
         "INSERT INTO Dupin (id, rev, hash, obj, tm, expire_tm, context_id, label, href, rel, authority, is_weblink) " \
         "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%" G_GSIZE_FORMAT "', '%" G_GSIZE_FORMAT "', '%q', '%q', '%q', %Q, %Q, '%q')"
 
-#define DUPIN_LINKB_SQL_UPDATE \
-        "INSERT OR REPLACE INTO Dupin (id, rev, hash, obj, tm, expire_tm, context_id, label, href, rel, authority, is_weblink) " \
-        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', '%q', '%" G_GSIZE_FORMAT "', '%" G_GSIZE_FORMAT "', '%q', '%q', '%q', %Q, %Q, '%q')"
-
 #define DUPIN_LINKB_SQL_READ \
         "SELECT rev, hash, obj, deleted, tm, expire_tm, ROWID AS rowid, context_id, label, href, rel, authority, is_weblink FROM Dupin WHERE id='%q'"
 
 #define DUPIN_LINKB_SQL_DELETE \
         "INSERT OR REPLACE INTO Dupin (id, rev, deleted, hash, obj, tm, expire_tm, context_id, label, href, rel, authority, is_weblink) " \
-        "VALUES('%q', '%" G_GSIZE_FORMAT "', 'TRUE', '%q', '{}', '%" G_GSIZE_FORMAT "', '%" G_GSIZE_FORMAT "', '%q', '%q', '%q', %Q, %Q, '%q')"
+        "VALUES('%q', '%" G_GSIZE_FORMAT "', 'TRUE', '%q', '%q', '%" G_GSIZE_FORMAT "', '%" G_GSIZE_FORMAT "', '%q', '%q', '%q', %Q, %Q, '%q')"
 
 #define DUPIN_LINKB_SQL_UPDATE_REV_HEAD \
         "UPDATE Dupin SET rev_head = 'FALSE' WHERE id = '%q' "
@@ -269,7 +265,8 @@ gboolean	dupin_link_record_patch
 					 GError **		error);
 
 gboolean	dupin_link_record_delete
-					(DupinLinkRecord *		record,
+					(DupinLinkRecord *	record,
+					 JsonNode * 		preserved_status_obj_node,
 					 GError **		error);
 
 void		dupin_link_record_close	(DupinLinkRecord *		record);

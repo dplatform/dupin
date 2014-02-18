@@ -1268,7 +1268,7 @@ dupin_record_patch (DupinRecord * record, JsonNode * obj_node,
 }
 
 gboolean
-dupin_record_delete (DupinRecord * record, GError ** error)
+dupin_record_delete (DupinRecord * record, JsonNode * preserved_status_obj_node, GError ** error)
 {
   guint rev;
   gchar *tmp;
@@ -1292,7 +1292,7 @@ dupin_record_delete (DupinRecord * record, GError ** error)
 
   gsize expire = 0;
 
-  dupin_record_add_revision_obj (record, rev, &md5, NULL, TRUE, &created, &expire, FALSE);
+  dupin_record_add_revision_obj (record, rev, &md5, preserved_status_obj_node, TRUE, &created, &expire, FALSE);
 
   /* NOTE - flag any previous revision as non head - we need this to optimise searches
             and avoid slowness of max(rev) as rev or even nested select like
@@ -1320,7 +1320,8 @@ dupin_record_delete (DupinRecord * record, GError ** error)
 
   sqlite3_free (tmp);
 
-  tmp = sqlite3_mprintf (DUPIN_DB_SQL_DELETE, record->id, rev, md5, record->last->type, created, expire);
+  tmp = sqlite3_mprintf (DUPIN_DB_SQL_DELETE, record->id, rev, md5, record->last->type,
+					      (preserved_status_obj_node != NULL) ? record->last->obj_serialized : "{}", created, expire);
 
   if (sqlite3_exec (record->db->db, tmp, NULL, NULL, &errmsg) != SQLITE_OK)
     {
@@ -1475,10 +1476,6 @@ dupin_record_get_revision_node (DupinRecord * record, gchar * mvcc)
       if (!(r = g_hash_table_lookup (record->revisions, mvcc)))
 	return NULL;
     }
-
-  if (r->deleted == TRUE)
-    g_return_val_if_fail (dupin_record_is_deleted (record, mvcc) != FALSE,
-			  NULL);
 
   /* r->obj stays owernship of the record revision - the caller eventually need to json_node_copy() it */
   if (r->obj)
@@ -2127,7 +2124,7 @@ dupin_record_insert (DupinDB * db,
       if (to_delete == TRUE)
         {
           if (!record || dupin_util_mvcc_revision_cmp (mvcc, dupin_record_get_last_revision (record))
-              || dupin_record_delete (record, error) == FALSE)
+              || dupin_record_delete (record, obj_node, error) == FALSE)
             {
               if (record)
                 dupin_record_close (record);

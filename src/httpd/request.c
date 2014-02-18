@@ -2268,7 +2268,7 @@ request_global_get_record (DSHttpdClient * client,
           return HTTP_STATUS_404;
         }
 
-      if (dupin_record_is_deleted (record, NULL) == TRUE)
+      if ((mvcc == NULL) && (dupin_record_is_deleted (record, NULL) == TRUE))
         {
           dupin_record_close (record);
           dupin_attachment_db_unref (attachment_db);
@@ -3837,7 +3837,7 @@ request_global_get_record_linkbase (DSHttpdClient * client,
           return HTTP_STATUS_304;
         }
 
-      if ((dupin_link_record_is_deleted (record, NULL) == TRUE) && (allrevs == FALSE))
+      if ((mvcc == NULL) && (dupin_link_record_is_deleted (record, NULL) == TRUE) && (allrevs == FALSE))
 
         {       
           dupin_link_record_close (record);
@@ -7784,7 +7784,7 @@ request_global_delete_record (DSHttpdClient * client,
 
   else
     {
-      if (!(dupin_record_delete (record, NULL)))
+      if (!(dupin_record_delete (record, NULL, NULL)))
         {
           dupin_record_close (record);
           dupin_database_unref (db);
@@ -8020,7 +8020,7 @@ request_global_delete_link_record (DSHttpdClient * client,
     }
   else
     {
-      if (!(dupin_link_record_delete (record, NULL)))
+      if (!(dupin_link_record_delete (record, NULL, NULL)))
         {
           dupin_link_record_close (record);
           dupin_linkbase_unref (linkb);
@@ -8212,39 +8212,6 @@ request_record_revision_obj (DSHttpdClient * client,
   JsonNode *obj_node=NULL;
   JsonObject *obj=NULL;
   GList * list = NULL;
-
-  if (dupin_record_is_deleted (record, mvcc) == TRUE)
-    {
-      obj_node = json_node_new (JSON_NODE_OBJECT);
-
-      if (obj_node == NULL)
-        {
-	  client->request_included_docs_level--;
-
-          return NULL;
-        }
-
-      obj = json_object_new ();
-
-      if (obj == NULL)
-        {
-          json_node_free (obj_node);
-	  client->request_included_docs_level--;
-
-          return NULL;
-        }
-
-      json_node_take_object (obj_node, obj);
-
-      /* Setting _id, _rev and _deleted: */
-      json_object_set_string_member (obj, REQUEST_OBJ_ID, id);
-      json_object_set_string_member (obj, REQUEST_OBJ_REV, mvcc);
-      json_object_set_boolean_member (obj, RESPONSE_OBJ_DELETED, TRUE);
-
-      client->request_included_docs_level--;
-
-      return obj_node;
-    }
 
   JsonNode *record_obj_node = dupin_record_get_revision_node (record, mvcc);
 
@@ -8802,40 +8769,6 @@ request_link_record_revision_obj (DSHttpdClient * client,
   JsonNode *obj_node;
   JsonObject *obj;
   GList * list = NULL;
-
-  if (dupin_link_record_is_deleted (record, mvcc) == TRUE)
-    {
-      obj_node = json_node_new (JSON_NODE_OBJECT);
-
-      if (obj_node == NULL)
-        {
-          client->request_included_links_level--;
-
-          return NULL;
-        }
-
-      obj = json_object_new ();
-
-      if (obj == NULL)
-        {
-          json_node_free (obj_node);
-
-          client->request_included_links_level--;
-
-          return NULL;
-        }
-
-      json_node_take_object (obj_node, obj);
-
-      /* Setting _id, _rev and _deleted: */
-      json_object_set_string_member (obj, REQUEST_OBJ_ID, id);
-      json_object_set_string_member (obj, REQUEST_OBJ_REV, mvcc);
-      json_object_set_boolean_member (obj, RESPONSE_OBJ_DELETED, TRUE);
-
-      client->request_included_links_level--;
-
-      return obj_node;
-    }
 
   JsonNode * record_obj_node = dupin_link_record_get_revision_node (record, mvcc);
 

@@ -30,16 +30,12 @@ int		dupin_record_select_total_cb
         "INSERT INTO Dupin (id, rev, hash, type, obj, tm, expire_tm) " \
         "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', %Q, '%q', '%" G_GSIZE_FORMAT "', '%" G_GSIZE_FORMAT "')"
 
-#define DUPIN_DB_SQL_UPDATE \
-        "INSERT OR REPLACE INTO Dupin (id, rev, hash, type, obj, tm, expire_tm) " \
-        "VALUES('%q', '%" G_GSIZE_FORMAT "', '%q', %Q, '%q', '%" G_GSIZE_FORMAT "', '%" G_GSIZE_FORMAT "')"
-
 #define DUPIN_DB_SQL_READ \
         "SELECT rev, hash, type, obj, deleted, tm, expire_tm, ROWID AS rowid FROM Dupin WHERE id='%q'"
 
 #define DUPIN_DB_SQL_DELETE \
         "INSERT OR REPLACE INTO Dupin (id, rev, deleted, hash, type, obj, tm, expire_tm) " \
-        "VALUES('%q', '%" G_GSIZE_FORMAT "', 'TRUE', '%q', %Q, '{}', '%" G_GSIZE_FORMAT "', '%" G_GSIZE_FORMAT "')"
+        "VALUES('%q', '%" G_GSIZE_FORMAT "', 'TRUE', '%q', %Q, '%q', '%" G_GSIZE_FORMAT "', '%" G_GSIZE_FORMAT "')"
 
 #define DUPIN_DB_SQL_UPDATE_REV_HEAD \
         "UPDATE Dupin SET rev_head = 'FALSE' WHERE id = '%q' "
@@ -122,6 +118,7 @@ gboolean	dupin_record_patch	(DupinRecord *		record,
 					 GError **		error);
 
 gboolean	dupin_record_delete	(DupinRecord *		record,
+					 JsonNode * 		preserved_status_obj_node,
 					 GError **		error);
 
 void		dupin_record_close	(DupinRecord *		record);

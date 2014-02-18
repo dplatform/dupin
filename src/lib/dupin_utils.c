@@ -2138,7 +2138,7 @@ dupin_util_json_node_object_patch_real (JsonNode * input,
 //DUPIN_UTIL_DUMP_JSON ("Input_node", input);
 //DUPIN_UTIL_DUMP_JSON ("Changes_node", changes);
 
-  /* 1 - process deletion of fields (deleted of whole record is done with dupin_record_delete)
+  /* 1 - process deletion of fields (delete of whole record is done with dupin_record_delete() )
 
 	 there are two ways to delete input fields:
 

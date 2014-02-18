@@ -1345,7 +1345,7 @@ dupin_database_thread_compact (DupinDB * db, gsize count)
 
       if (dupin_record_is_expired (record, NULL) == TRUE)
         {
-          if (!(dupin_record_delete (record, NULL)))
+          if (!(dupin_record_delete (record, NULL, NULL)))
             continue;
         }
 

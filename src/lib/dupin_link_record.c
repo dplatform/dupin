@@ -1964,7 +1964,7 @@ dupin_link_record_patch (DupinLinkRecord * record, JsonNode * obj_node,
 }
 
 gboolean
-dupin_link_record_delete (DupinLinkRecord * record, GError ** error)
+dupin_link_record_delete (DupinLinkRecord * record, JsonNode * preserved_status_obj_node, GError ** error)
 {
   guint rev;
   gchar *tmp;
@@ -2017,7 +2017,7 @@ dupin_link_record_delete (DupinLinkRecord * record, GError ** error)
 
   gsize expire = 0;
 
-  dupin_link_record_add_revision_obj (record, rev, &md5, NULL,
+  dupin_link_record_add_revision_obj (record, rev, &md5, preserved_status_obj_node,
 				      (gchar *)dupin_link_record_get_context_id (record),
 				      (gchar *)dupin_link_record_get_label (record),
 				      (gchar *)dupin_link_record_get_href (record),
@@ -2027,7 +2027,8 @@ dupin_link_record_delete (DupinLinkRecord * record, GError ** error)
 				      dupin_link_record_is_weblink (record),
 				      FALSE);
 
-  tmp = sqlite3_mprintf (DUPIN_LINKB_SQL_DELETE, record->id, rev, md5, created,	expire,
+  tmp = sqlite3_mprintf (DUPIN_LINKB_SQL_DELETE, record->id, rev, md5, 
+				      (preserved_status_obj_node != NULL) ? record->last->obj_serialized : "{}", created, expire,
 				      (gchar *)dupin_link_record_get_context_id (record),
 				      (gchar *)dupin_link_record_get_label (record),
 				      (gchar *)dupin_link_record_get_href (record),
@@ -2248,10 +2249,6 @@ dupin_link_record_get_revision_node (DupinLinkRecord * record, gchar * mvcc)
       if (!(r = g_hash_table_lookup (record->revisions, mvcc)))
 	return NULL;
     }
-
-  if (r->deleted == TRUE)
-    g_return_val_if_fail (dupin_link_record_is_deleted (record, mvcc) != FALSE,
-			  NULL);
 
   /* r->obj stays owernship of the record revision - the caller eventually need to json_node_copy() it */
   if (r->obj)
@@ -3249,7 +3246,7 @@ dupin_link_record_insert (DupinLinkB * linkb,
       if (to_delete == TRUE)
         {
           if (!record || dupin_util_mvcc_revision_cmp (mvcc, dupin_link_record_get_last_revision (record))
-              || dupin_link_record_delete (record, error) == FALSE)
+              || dupin_link_record_delete (record, obj_node, error) == FALSE)
             {
               if (record)
                 dupin_link_record_close (record);
